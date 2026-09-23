@@ -34,9 +34,6 @@
 	path = vendor/sdl-mixer
 	url = https://github.com/libsdl-org/SDL_mixer.git
 	ignore = dirty
-[submodule "vendor/sdl-net"]
-	path = vendor/sdl-net
-	url = https://github.com/libsdl-org/SDL_net.git
 	ignore = dirty
 [submodule "vendor/sdl-shadercross"]
 	path = vendor/sdl-shadercross

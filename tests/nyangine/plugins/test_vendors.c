@@ -18,7 +18,6 @@
 #include "SDL3/SDL_init.h"
 #include "SDL3_image/SDL_image.h"
 #include "SDL3_mixer/SDL_mixer.h"
-#include "SDL3_net/SDL_net.h"
 #include "SDL3_ttf/SDL_ttf.h"
 
 #include "lauxlib.h"
@@ -62,20 +61,6 @@ s32 main(void) {
     // SDL_ttf brings FreeType and HarfBuzz with it, and initialising is what actually loads them.
     nya_assert(TTF_Init(), "TTF_Init() failed, so FreeType or HarfBuzz did not come through: %s", SDL_GetError());
     TTF_Quit();
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: SDL_net
-  // ─────────────────────────────────────────────────────────────────────────────
-  {
-    // brings the library up and down without a socket, enough to prove it is not SDL_net_stub_only.c,
-    // which resolves every symbol and does nothing.
-    nya_assert(NET_Init(), "NET_Init() failed: %s", SDL_GetError());
-    defer NET_Quit();
-
-    int version = NET_Version();
-    nya_assert(version > 0, "SDL_net reported %d", version);
-    nya_log_info("SDL_net %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

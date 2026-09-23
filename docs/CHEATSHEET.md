@@ -6539,6 +6539,7 @@ NYA_OS_SOCKET_WAIT_FOREVER ((u32)0xFFFFFFFF)  // A wait that only ends when a so
 NYA_OsSocketStatus nya_os_socket_start(void)  // Starts the host's socket library, once per process, and refers to it until the matching stop.
 void nya_os_socket_stop(void)  // The pair.
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, OUT NYA_OsSocket* out_socket)  // Opens a socket of `kind`, bound to `port` or to whatever the host picks when `port` is zero.
+NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, OUT NYA_OsSocket* out_socket)  // The same, bound to one address rather than to every interface.
 NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, OUT NYA_OsSocket* out_socket, OUT NYA_OsAddress* out_from)  // Takes the next waiting connection, non-blocking.
 NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, OUT NYA_OsSocket* out_socket)  // Starts connecting a stream socket to `address`.
 void nya_os_socket_close(NYA_OsSocket socket)  // Closes a socket.

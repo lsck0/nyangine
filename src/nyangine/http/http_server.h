@@ -171,9 +171,9 @@
 #define NYA_HTTP_MAX_ACCEPTS_PER_TICK 4
 
 /**
- * Bytes SDL_net may hold queued for one connection before it is dropped.
+ * Bytes this server may hold queued for one connection before it is dropped.
  *
- * SDL_net's send queue grows to whatever it is handed, so a peer that connects, asks for the OpenAPI
+ * A peer decides how fast it reads, so a peer that connects, asks for the OpenAPI
  * document repeatedly and never reads would be an unbounded allocation. This is where that stops:
  * four of the largest response, and then the connection goes.
  * */

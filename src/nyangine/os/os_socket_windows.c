@@ -151,9 +151,45 @@ NYA_INTERNAL b8 _nya_os_address_from_host(const struct sockaddr* host, OUT NYA_O
     return false;
 }
 
-/** Opens a socket of `type` bound to `port`, dual stack where the host allows it. See the linux file. */
-NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, u16 port, OUT SOCKET* out_handle) {
+/** Binds one socket to exactly the address it was given, in that address's own family. */
+NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind_one(s32 type, NYA_OsAddress address, OUT SOCKET* out_handle) {
     *out_handle = INVALID_SOCKET;
+
+    SOCKET handle = socket(address.kind == NYA_OS_ADDRESS_V6 ? AF_INET6 : AF_INET, type, 0);
+    if (handle == INVALID_SOCKET) return _nya_os_socket_last();
+
+    if (!_nya_os_socket_prepare(handle)) {
+        (void)closesocket(handle);
+        return NYA_OS_SOCKET_FAILED;
+    }
+
+    s32 on = 1;
+    (void)setsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&on, sizeof(on));
+
+    struct sockaddr_storage storage = { 0 };
+    u64                     size    = _nya_os_address_to_host(address, &storage);
+
+    if (bind(handle, (const struct sockaddr*)&storage, (s32)size) != 0) {
+        NYA_OsSocketStatus status = _nya_os_socket_last();
+
+        (void)closesocket(handle);
+
+        return status;
+    }
+
+    *out_handle = handle;
+
+    return NYA_OS_SOCKET_OK;
+}
+
+/** Opens a socket of `type` bound to `port`, dual stack where the host allows it. See the linux file. */
+NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress address, OUT SOCKET* out_handle) {
+    *out_handle = INVALID_SOCKET;
+
+    // An address the caller named is bound in its own family and nothing else; see the linux file.
+    if (address.kind != NYA_OS_ADDRESS_NONE) return _nya_os_socket_bind_one(type, address, out_handle);
+
+    u16 port = address.port;
 
     b8     dual   = true;
     SOCKET handle = socket(AF_INET6, type, 0);
@@ -252,6 +288,10 @@ void nya_os_socket_stop(void) {
  */
 
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, NYA_OsSocket* out_socket) {
+    return nya_os_socket_open_at(kind, (NYA_OsAddress){ .port = port }, backlog, out_socket);
+}
+
+NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, NYA_OsSocket* out_socket) {
     *out_socket = NYA_OS_SOCKET_NONE;
 
     if (kind >= NYA_OS_SOCKET_KIND_COUNT) return NYA_OS_SOCKET_FAILED;
@@ -259,7 +299,7 @@ NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backl
     b8 listener = kind == NYA_OS_SOCKET_LISTENER;
 
     SOCKET             handle = INVALID_SOCKET;
-    NYA_OsSocketStatus status = _nya_os_socket_bind(listener ? SOCK_STREAM : SOCK_DGRAM, port, &handle);
+    NYA_OsSocketStatus status = _nya_os_socket_bind(listener ? SOCK_STREAM : SOCK_DGRAM, address, &handle);
 
     if (status != NYA_OS_SOCKET_OK) return status;
 

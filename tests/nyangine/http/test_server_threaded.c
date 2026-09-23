@@ -18,7 +18,6 @@
 #include <time.h>
 
 #include "SDL3/SDL_init.h"
-#include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
 
@@ -153,22 +152,31 @@ static u16 start_server(NYA_HttpConfig config) {
     return port;
 }
 
-static NET_StreamSocket* connect_to(u16 port) {
-    NET_Address* address = NET_ResolveHostname("127.0.0.1");
-    nya_assert(address != nullptr);
-    nya_assert(NET_WaitUntilResolved(address, 1000) == 1);
+static NYA_OsSocket connect_to(u16 port) {
+  NYA_OsAddress address = { 0 };
+  nya_assert(nya_os_address_resolve("127.0.0.1", port, NYA_OS_ADDRESS_V4, &address) == NYA_OS_SOCKET_OK);
 
-    NET_StreamSocket* socket = NET_CreateClient(address, port, 0);
-    NET_UnrefAddress(address);
+  NYA_OsSocket       socket    = NYA_OS_SOCKET_NONE;
+  NYA_OsSocketStatus connected = nya_os_socket_connect(address, &socket);
 
-    nya_assert(socket != nullptr);
-    nya_assert(NET_WaitUntilConnected(socket, 1000) == 1);
+  nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-    return socket;
+  // a non-blocking connect is under way rather than done, and writability is how the host says it
+  // finished; loopback usually beats the first wait to it.
+  NYA_OsSocketWait watched = { .socket = socket, .writable = true };
+  u32              ready   = 0;
+
+  nya_assert(nya_os_socket_wait(&watched, 1, 1000, &ready) == NYA_OS_SOCKET_OK);
+  nya_assert(nya_os_socket_error(socket) == NYA_OS_SOCKET_OK);
+
+  return socket;
 }
 
-static void send_request(NET_StreamSocket* socket, NYA_ConstCString text) {
-    nya_assert(NET_WriteToStreamSocket(socket, text, (s32)strlen(text)));
+static void send_request(NYA_OsSocket socket, NYA_ConstCString text) {
+    {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(socket, (const u8*)text, strlen(text), &wrote) == NYA_OS_SOCKET_OK && wrote == strlen(text));
+  }
 }
 
 /**
@@ -177,7 +185,7 @@ static void send_request(NET_StreamSocket* socket, NYA_ConstCString text) {
  * The tick is called around the read because a threaded server still owes the main thread two things:
  * the exchanges whose route asked for it, and the WebSockets.
  * */
-static u64 read_answer(NET_StreamSocket* socket, OUT char* buffer, u64 capacity, u32 timeout_ms) {
+static u64 read_answer(NYA_OsSocket socket, OUT char* buffer, u64 capacity, u32 timeout_ms) {
     u64 filled   = 0;
     u64 expected = 0;
 
@@ -188,11 +196,12 @@ static u64 read_answer(NET_StreamSocket* socket, OUT char* buffer, u64 capacity,
     while (nya_clock_get_monotonic_ns() < deadline_ns && filled + 1 < capacity) {
         nya_system_http_tick();
 
-        s32 read = NET_ReadFromStreamSocket(socket, buffer + filled, (s32)(capacity - filled - 1));
+        u64                read   = 0;
+        NYA_OsSocketStatus status = nya_os_socket_receive(socket, (u8*)(buffer + filled), capacity - filled - 1, &read);
 
-        if (read < 0) break;
+        if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) break;
 
-        filled         += (u64)read;
+        filled         += read;
         buffer[filled]  = '\0';
 
         if (expected == 0) {
@@ -233,11 +242,11 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
 
-        NET_StreamSocket* clients[6] = { 0 };
+        NYA_OsSocket clients[6] = { 0 };
 
         for (u32 index = 0; index < nya_carray_length(clients); index++) clients[index] = connect_to(port);
         defer {
-            for (u32 index = 0; index < nya_carray_length(clients); index++) NET_DestroyStreamSocket(clients[index]);
+            for (u32 index = 0; index < nya_carray_length(clients); index++) nya_os_socket_close(clients[index]);
         }
 
         // every request written before any answer is read, so they really are in flight together.
@@ -260,11 +269,11 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
 
-        NET_StreamSocket* patient = connect_to(port);
-        defer             NET_DestroyStreamSocket(patient);
+        NYA_OsSocket patient = connect_to(port);
+        defer             nya_os_socket_close(patient);
 
-        NET_StreamSocket* impatient = connect_to(port);
-        defer             NET_DestroyStreamSocket(impatient);
+        NYA_OsSocket impatient = connect_to(port);
+        defer             nya_os_socket_close(impatient);
 
         send_request(patient, REQUEST(TEST_SLOW_PATH));
 
@@ -296,8 +305,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         send_request(client, REQUEST(TEST_WORKER_PATH));
         nya_assert(read_answer(client, answer, sizeof(answer), 5000) > 0);
@@ -327,10 +336,10 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
 
-        NET_StreamSocket* sockets[4] = { 0 };
+        NYA_OsSocket sockets[4] = { 0 };
         for (u32 index = 0; index < nya_carray_length(sockets); index++) sockets[index] = connect_to(port);
         defer {
-            for (u32 index = 0; index < nya_carray_length(sockets); index++) NET_DestroyStreamSocket(sockets[index]);
+            for (u32 index = 0; index < nya_carray_length(sockets); index++) nya_os_socket_close(sockets[index]);
         }
 
         pump(200);
@@ -353,10 +362,10 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
 
-        NET_StreamSocket* clients[5] = { 0 };
+        NYA_OsSocket clients[5] = { 0 };
         for (u32 index = 0; index < nya_carray_length(clients); index++) clients[index] = connect_to(port);
         defer {
-            for (u32 index = 0; index < nya_carray_length(clients); index++) NET_DestroyStreamSocket(clients[index]);
+            for (u32 index = 0; index < nya_carray_length(clients); index++) nya_os_socket_close(clients[index]);
         }
 
         for (u32 index = 0; index < nya_carray_length(clients); index++) send_request(clients[index], REQUEST(TEST_FAST_PATH));
@@ -385,8 +394,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         send_request(client, REQUEST(TEST_SLOW_PATH));
 

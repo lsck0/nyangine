@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "SDL3/SDL_error.h"
-// for SDL_CleanupTLS alone: nothing here is started by SDL any more. See _nya_http_thread_end.
+// what a listener and its connections are made of; nothing in this file is SDL's any more.
 #include "SDL3/SDL_thread.h"
 #include "SDL3/SDL_timer.h"
 
@@ -16,7 +16,6 @@
 #include "nyangine/http/http_server.h"
 #include "nyangine/base/base_clock.h"
 #include "nyangine/os/os_random.h"
-#include "SDL3_net/SDL_net.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -27,7 +26,7 @@
 /**
  * How long the listener thread sleeps between passes while anything is in flight.
  *
- * A worker finishing is not something SDL_net can be woken by, so while there is an answer to write
+ * A worker finishing is not something a socket wait can be woken by, so while there is an answer to write
  * the listener polls instead of sleeping on the sockets. One millisecond is the same order as the job
  * scheduler's busy tick and is below what a client can measure.
  * */
@@ -81,11 +80,23 @@ typedef enum {
 
 /** One accepted connection and the bytes of a request that have arrived on it so far. */
 struct _NYA_HttpConnection {
-    NET_StreamSocket* socket;
+    NYA_OsSocket socket;
 
     /** What has arrived and not yet been consumed. Bounded by its own size and nothing else. */
     u8  received[NYA_HTTP_MAX_REQUEST_BYTES];
     u64 received_size;
+
+    /**
+     * What has been answered and not yet taken by the host.
+     *
+     * A socket takes what fits in its own buffer and no more, so a peer that stops reading leaves the
+     * rest here. That is what makes the bound below a bound on this program rather than a hope about
+     * the host: past NYA_HTTP_MAX_PENDING_WRITE_BYTES outstanding the connection goes, which is the
+     * same rule the answer path has always had, now that the queue is this program's own.
+     * */
+    u8  sending[NYA_HTTP_MAX_PENDING_WRITE_BYTES];
+    u64 sending_size;
+    u64 sent;
 
     /** Monotonic nanoseconds of the last byte read or answer written; drives the idle timeout. */
     u64 active_at_ns;
@@ -96,7 +107,7 @@ struct _NYA_HttpConnection {
     /** Answered with a 101, so the bytes on it are frames and http_websocket_server.c owns them. */
     b8 upgraded;
 
-    /** The peer, as SDL_net spells it. What the per address limits key on, and never a forwarded header. */
+    /** The peer, as the socket reports it. What the per address limits key on, and never a forwarded header. */
     char address[NYA_HTTP_MAX_ADDRESS];
 };
 
@@ -156,7 +167,7 @@ typedef struct {
 struct _NYA_HttpState {
     NYA_Arena* allocator;
 
-    NET_Server* listener;
+    NYA_OsSocket listener;
 
     u16 port;
     u32 max_connections;
@@ -239,6 +250,23 @@ NYA_INTERNAL void _nya_http_accept(void);
 /** Reads what has arrived on one connection. False when the connection is finished with. */
 NYA_INTERNAL b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) __attr_no_discard;
 
+/**
+ * Queues `size` bytes for `connection` and sends what the host will take.
+ *
+ * False when the peer is gone or owes more than NYA_HTTP_MAX_PENDING_WRITE_BYTES, which is the bound
+ * on what one connection may make this program hold: a peer that asks for the largest answer over and
+ * over and never reads is the case it exists for.
+ * */
+NYA_INTERNAL b8 _nya_http_push(_NYA_HttpConnection* connection, const u8* data, u64 size) __attr_no_discard;
+
+/**
+ * Pushes whatever is queued for `connection` into the socket, and compacts what is left.
+ *
+ * False when the connection has failed. A partial write is the ordinary case and not a failure: the
+ * host takes what fits in its buffer, and the rest waits for the next pass.
+ * */
+NYA_INTERNAL b8 _nya_http_flush(_NYA_HttpConnection* connection) __attr_no_discard;
+
 /** Parses and answers, or queues, as many complete requests as `budget` allows. False when the connection is finished. */
 NYA_INTERNAL b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* budget) __attr_no_discard;
 
@@ -298,7 +326,6 @@ NYA_INTERNAL void _nya_http_listener_thread(void* data);
 NYA_INTERNAL void _nya_http_worker_thread(void* data);
 
 /** What every thread here runs on its way out, to give SDL back what it keeps per thread. */
-NYA_INTERNAL void _nya_http_thread_end(void);
 
 /** Starts the listener and the pool. Leaves nothing running when it fails. */
 NYA_INTERNAL NYA_Error _nya_http_threads_start(_NYA_HttpState* state) __attr_no_discard;
@@ -336,34 +363,33 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a server carries at most %d root layers", NYA_HTTP_MAX_LAYERS);
     }
 
-    if (!NET_Init()) return nya_error(NYA_ERROR_NOT_OK, "SDL_net could not start: %s", SDL_GetError());
+    if (nya_os_socket_start() != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_NOT_OK, "the host's socket library could not start");
 
     /*
-     * Loopback unless the caller named something else. Resolution is asynchronous in SDL_net, and a
-     * name that needs the network is not something an engine should block a frame on, so the wait is
-     * bounded and a slow one is a failure to start rather than a stall.
+     * Loopback unless the caller named something else, so a server nobody asked to be reachable is
+     * not. Resolved here and not on a thread: this is a start-up call rather than a frame, and a name
+     * that will not resolve is a server that will not start either way.
      */
     NYA_ConstCString requested = config.address[0] != '\0' ? config.address : "127.0.0.1";
 
-    NET_Address* address = NET_ResolveHostname(requested);
+    NYA_OsAddress address = { 0 };
 
-    if (address == nullptr || NET_WaitUntilResolved(address, 1000) != 1) {
-        NYA_Error failed = nya_error(NYA_ERROR_IO, "'%s' is not an address this machine can bind: %s", requested, SDL_GetError());
+    if (nya_os_address_resolve(requested, config.port, NYA_OS_ADDRESS_NONE, &address) != NYA_OS_SOCKET_OK) {
+        NYA_Error failed = nya_error(NYA_ERROR_IO, "'%s' is not an address this machine can bind", requested);
 
-        NET_UnrefAddress(address);
-        NET_Quit();
+        nya_os_socket_stop();
 
         return failed;
     }
 
-    NET_Server* listener = NET_CreateServer(address, config.port, 0);
+    NYA_OsSocket       listener = NYA_OS_SOCKET_NONE;
+    NYA_OsSocketStatus opened   = nya_os_socket_open_at(NYA_OS_SOCKET_LISTENER, address, 0, &listener);
 
-    NET_UnrefAddress(address);
+    if (opened != NYA_OS_SOCKET_OK) {
+        NYA_Error failed = opened == NYA_OS_SOCKET_IN_USE ? nya_error(NYA_ERROR_IO, "port %u is already taken", (u32)config.port)
+                                                          : nya_error(NYA_ERROR_IO, "port %u could not be bound", (u32)config.port);
 
-    if (listener == nullptr) {
-        NYA_Error failed = nya_error(NYA_ERROR_IO, "port %u could not be bound: %s", (u32)config.port, SDL_GetError());
-
-        NET_Quit();
+        nya_os_socket_stop();
 
         return failed;
     }
@@ -371,8 +397,8 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     NYA_Arena* arena = nya_arena_create(.name = "http");
 
     if (arena == nullptr) {
-        NET_DestroyServer(listener);
-        NET_Quit();
+        nya_os_socket_close(listener);
+        nya_os_socket_stop();
 
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the HTTP server");
     }
@@ -381,8 +407,8 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     if (state == nullptr) {
         nya_arena_destroy(arena);
-        NET_DestroyServer(listener);
-        NET_Quit();
+        nya_os_socket_close(listener);
+        nya_os_socket_stop();
 
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the HTTP server");
     }
@@ -413,8 +439,8 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     if (state->slots == nullptr) {
         nya_arena_destroy(arena);
-        NET_DestroyServer(listener);
-        NET_Quit();
+        nya_os_socket_close(listener);
+        nya_os_socket_stop();
 
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the HTTP server's exchanges");
     }
@@ -429,8 +455,8 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         for (u32 made = 0; made < index; made++) nya_arena_destroy(state->slots[made].arena);
 
         nya_arena_destroy(arena);
-        NET_DestroyServer(listener);
-        NET_Quit();
+        nya_os_socket_close(listener);
+        nya_os_socket_stop();
 
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the HTTP server's scratch");
     }
@@ -463,8 +489,8 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         _NYA_HTTP = nullptr;
 
         nya_arena_destroy(arena);
-        NET_DestroyServer(listener);
-        NET_Quit();
+        nya_os_socket_close(listener);
+        nya_os_socket_stop();
 
         return started;
     }
@@ -515,7 +541,8 @@ void nya_system_http_deinit(void) {
     // after the connections, so every close was reported while its socket was still open.
     _nya_http_websocket_shutdown();
 
-    NET_DestroyServer(state->listener);
+    nya_os_socket_close(state->listener);
+    state->listener = NYA_OS_SOCKET_NONE;
 
     /*
      * A handler that ignored the deadline is still writing into its slot and reading the secret out of
@@ -533,7 +560,7 @@ void nya_system_http_deinit(void) {
 
         _NYA_HTTP = nullptr;
 
-        NET_Quit();
+        nya_os_socket_stop();
 
         return;
     }
@@ -552,7 +579,7 @@ void nya_system_http_deinit(void) {
 
     nya_arena_destroy(arena);
 
-    NET_Quit();
+    nya_os_socket_stop();
 }
 
 void nya_system_http_tick(void) {
@@ -713,7 +740,7 @@ void _nya_http_pass(void) {
     for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) {
         _NYA_HttpConnection* connection = &_NYA_HTTP->connections[index];
 
-        if (connection->socket == nullptr) continue;
+        if (connection->socket.handle == 0) continue;
 
         // a connection that upgraded is drained by the websocket table, under its own bounds; it keeps
         // the slot it was accepted into, so it never escapes the ones above. With workers that drain is
@@ -778,32 +805,35 @@ void _nya_http_pass(void) {
             continue;
         }
 
-        s32 pending = NET_GetStreamSocketPendingWrites(connection->socket);
-
-        if (pending < 0 || (u64)pending > NYA_HTTP_MAX_PENDING_WRITE_BYTES) {
+        // whatever the peer will take of what it is owed, and the rest stays queued for the next pass.
+        if (!_nya_http_flush(connection)) {
             _nya_http_close(connection);
             continue;
         }
 
-        if (connection->closing && pending == 0) _nya_http_close(connection);
+        if (connection->closing && connection->sending_size == connection->sent) _nya_http_close(connection);
     }
 }
 
 void _nya_http_accept(void) {
     for (u32 accepted = 0; accepted < NYA_HTTP_MAX_ACCEPTS_PER_TICK; accepted++) {
-        NET_StreamSocket* socket = nullptr;
+        NYA_OsSocket  socket = NYA_OS_SOCKET_NONE;
+        NYA_OsAddress peer   = { 0 };
 
-        if (!NET_AcceptClient(_NYA_HTTP->listener, &socket)) {
-            nya_log_warn("The HTTP listener failed to accept: %s", SDL_GetError());
+        NYA_OsSocketStatus taken = nya_os_socket_accept(_NYA_HTTP->listener, &socket, &peer);
+
+        // nobody waiting is the ordinary end of this loop rather than a failure.
+        if (taken == NYA_OS_SOCKET_WOULD_BLOCK) return;
+
+        if (taken != NYA_OS_SOCKET_OK) {
+            nya_log_warn("The HTTP listener failed to accept.");
             return;
         }
-
-        if (socket == nullptr) return;
 
         _NYA_HttpConnection* slot = nullptr;
 
         for (u32 index = 0; index < _NYA_HTTP->max_connections; index++) {
-            if (_NYA_HTTP->connections[index].socket != nullptr) continue;
+            if (_NYA_HTTP->connections[index].socket.handle != 0) continue;
 
             slot = &_NYA_HTTP->connections[index];
             break;
@@ -812,32 +842,87 @@ void _nya_http_accept(void) {
         // the connection past the last is closed now rather than queued, so a process that loops on
         // connect cannot grow anything here.
         if (slot == nullptr) {
-            NET_DestroyStreamSocket(socket);
+            nya_os_socket_close(socket);
             continue;
         }
 
         // the peer as the socket reports it. A header could claim anything, so the limits never read one.
-        char         address[NYA_HTTP_MAX_ADDRESS] = { 0 };
-        NET_Address* peer                          = NET_GetStreamSocketAddress(socket);
-        NYA_ConstCString text                      = peer != nullptr ? NET_GetAddressString(peer) : nullptr;
-        (void)snprintf(address, sizeof(address), "%s", text != nullptr ? text : "unknown");
-        NET_UnrefAddress(peer);
+        char address[NYA_HTTP_MAX_ADDRESS] = { 0 };
+
+        // without the port: the limits are about a machine, and its next connection comes from another port.
+        if (!nya_os_address_text(peer, false, address, sizeof(address))) (void)snprintf(address, sizeof(address), "%s", "unknown");
 
         // and one address cannot take every slot. Closed rather than queued, like the connection past the last.
         u32 held = 0;
         for (u32 index = 0; index < _NYA_HTTP->max_connections; index++) {
-            if (_NYA_HTTP->connections[index].socket != nullptr && strcmp(_NYA_HTTP->connections[index].address, address) == 0) held++;
+            if (_NYA_HTTP->connections[index].socket.handle != 0 && strcmp(_NYA_HTTP->connections[index].address, address) == 0) held++;
         }
         if (held >= _NYA_HTTP->max_connections_per_address) {
-            NET_DestroyStreamSocket(socket);
+            nya_os_socket_close(socket);
             continue;
         }
 
-        *slot = (_NYA_HttpConnection){ .socket = socket, .active_at_ns = nya_clock_get_monotonic_ns() };
+        // a small answer goes now rather than waiting for company, which is what a request/response
+        // protocol wants: there is nothing else coming to share the packet with.
+        (void)nya_os_socket_set_no_delay(socket, true);
+
+        // Cleared rather than assigned a compound literal: a connection holds its read and write
+        // buffers inline, so building one on the stack first is a quarter of a megabyte of frame.
+        nya_memset(slot, 0, sizeof(*slot));
+
+        slot->socket       = socket;
+        slot->active_at_ns = nya_clock_get_monotonic_ns();
         (void)snprintf(slot->address, sizeof(slot->address), "%s", address);
 
         (void)atomic_fetch_add_explicit(&_NYA_HTTP->connection_count, 1, memory_order_relaxed);
     }
+}
+
+b8 _nya_http_push(_NYA_HttpConnection* connection, const u8* data, u64 size) {
+    if (connection->socket.handle == 0) return false;
+    if (size == 0) return true;
+
+    // what is already owed, moved to the front, so the room below is the room that is actually left.
+    if (!_nya_http_flush(connection)) return false;
+
+    if (connection->sending_size + size > sizeof(connection->sending)) return false;
+
+    nya_memcpy(connection->sending + connection->sending_size, data, size);
+    connection->sending_size += size;
+
+    return _nya_http_flush(connection);
+}
+
+b8 _nya_http_flush(_NYA_HttpConnection* connection) {
+    if (connection->socket.handle == 0) return false;
+
+    while (connection->sent < connection->sending_size) {
+        u64 wrote = 0;
+
+        NYA_OsSocketStatus status =
+            nya_os_socket_send(connection->socket, connection->sending + connection->sent, connection->sending_size - connection->sent, &wrote);
+
+        // The host's buffer is full, which is a peer reading slowly rather than a peer that is gone:
+        // what is left stays queued and the bound above is what decides when that stops being fine.
+        if (status == NYA_OS_SOCKET_WOULD_BLOCK) break;
+        if (status != NYA_OS_SOCKET_OK) return false;
+
+        connection->sent         += wrote;
+        connection->active_at_ns  = nya_clock_get_monotonic_ns();
+    }
+
+    if (connection->sent == 0) return true;
+
+    // Compacted only once the socket has stopped taking bytes, so a whole answer that goes at once
+    // costs no copy at all: the common case leaves the queue empty rather than moving anything.
+    u64 left = connection->sending_size - connection->sent;
+
+    if (left > 0) nya_memmove(connection->sending, connection->sending + connection->sent, left);
+
+    connection->sending_size = left;
+    connection->sent         = 0;
+
+    return true;
 }
 
 b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
@@ -852,17 +937,16 @@ b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
         return false;
     }
 
-    // SDL_net takes an int. The buffer is fifteen kilobytes, so this cannot narrow; the clamp is here
-    // so that stays true if the bound ever grows.
-    s32 wanted = room > (u64)S32_MAX ? S32_MAX : (s32)room;
+    u64 read = 0;
 
-    s32 read = NET_ReadFromStreamSocket(connection->socket, connection->received + connection->received_size, wanted);
+    NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->received + connection->received_size, room, &read);
 
-    if (read < 0) return false;
+    // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both
+    // the connection going, which is what false means to the caller.
+    if (status == NYA_OS_SOCKET_WOULD_BLOCK) return true;
+    if (status != NYA_OS_SOCKET_OK) return false;
 
-    if (read == 0) return true;
-
-    connection->received_size += (u64)read;
+    connection->received_size += read;
     connection->active_at_ns   = nya_clock_get_monotonic_ns();
 
     return true;
@@ -1088,17 +1172,13 @@ b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* resp
         return false;
     }
 
-    nya_assert(head_size <= (u64)S32_MAX, "the head buffer is four kilobytes");
-
-    if (!NET_WriteToStreamSocket(connection->socket, head, (s32)head_size)) return false;
+    if (!_nya_http_push(connection, head, head_size)) return false;
 
     // a HEAD carries the Content-Length its GET would have and none of the bytes, which is what makes
     // it a HEAD rather than a GET nobody read.
     if (head_only || response->body_size == 0) return true;
 
-    nya_assert(response->body_size <= (u64)S32_MAX, "the response buffer is sixty four kilobytes");
-
-    return NET_WriteToStreamSocket(connection->socket, response->body, (s32)response->body_size);
+    return _nya_http_push(connection, response->body, response->body_size);
 }
 
 void _nya_http_request_id(const _NYA_HttpState* state, OUT char* out) {
@@ -1157,14 +1237,15 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
 }
 
 void _nya_http_close(_NYA_HttpConnection* connection) {
-    if (connection->socket == nullptr) return;
+    if (connection->socket.handle == 0) return;
 
     // the report that the socket is gone, while the socket is still the thing that is going.
     if (connection->upgraded) _nya_http_websocket_detach(connection->socket);
 
-    NET_DestroyStreamSocket(connection->socket);
+    nya_os_socket_close(connection->socket);
 
-    *connection = (_NYA_HttpConnection){ 0 };
+    // by memset, for the reason in _nya_http_accept.
+    nya_memset(connection, 0, sizeof(*connection));
 
     nya_assert(atomic_load_explicit(&_NYA_HTTP->connection_count, memory_order_relaxed) > 0, "a connection was closed that was never counted");
     (void)atomic_fetch_sub_explicit(&_NYA_HTTP->connection_count, 1, memory_order_relaxed);
@@ -1257,25 +1338,25 @@ void _nya_http_websockets_drain(void) {
     for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) {
         _NYA_HttpConnection* connection = &_NYA_HTTP->connections[index];
 
-        if (connection->socket == nullptr || !connection->upgraded) continue;
+        if (connection->socket.handle == 0 || !connection->upgraded) continue;
 
         if (!_nya_http_websocket_tick(connection->socket)) _nya_http_close(connection);
     }
 }
 
 void _nya_http_listener_wait(_NYA_HttpState* state) {
-    void* watched[NYA_HTTP_MAX_CONNECTIONS + 1] = { 0 };
-    s32   watched_count                         = 0;
-    b8    busy                                  = false;
+    NYA_OsSocketWait watched[NYA_HTTP_MAX_CONNECTIONS + 1] = { 0 };
+    u32              watched_count                         = 0;
+    b8               busy                                  = false;
 
     nya_mutex_lock(state->table_mutex);
     {
-        watched[watched_count++] = state->listener;
+        watched[watched_count++] = (NYA_OsSocketWait){ .socket = state->listener, .readable = true };
 
         for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) {
             _NYA_HttpConnection* connection = &state->connections[index];
 
-            if (connection->socket == nullptr) continue;
+            if (connection->socket.handle == 0) continue;
 
             /*
              * An upgraded socket is the tick's and may be destroyed by it at any moment, so it never
@@ -1293,17 +1374,22 @@ void _nya_http_listener_wait(_NYA_HttpState* state) {
             if (atomic_load_explicit(&state->slots[index].state, memory_order_acquire) != _NYA_HTTP_SLOT_IDLE) busy = true;
             if (connection->received_size > 0) busy = true;
 
-            watched[watched_count++] = connection->socket;
+            // a connection with an answer the peer has not taken wakes on room to write as well, so
+            // a slow reader is served as fast as it will read rather than at the idle timeout.
+            b8 owes = connection->sending_size > connection->sent;
+
+            watched[watched_count++] = (NYA_OsSocketWait){ .socket = connection->socket, .readable = true, .writable = owes };
         }
     }
     nya_mutex_unlock(state->table_mutex);
 
     if (busy) {
-        SDL_Delay(_NYA_HTTP_LISTENER_BUSY_MS);
+        nya_os_time_sleep_ms(_NYA_HTTP_LISTENER_BUSY_MS);
         return;
     }
 
-    (void)NET_WaitUntilInputAvailable(watched, watched_count, _NYA_HTTP_LISTENER_IDLE_MS);
+    u32 ready = 0;
+    (void)nya_os_socket_wait(watched, watched_count, _NYA_HTTP_LISTENER_IDLE_MS, &ready);
 }
 
 void _nya_http_listener_thread(void* data) {
@@ -1314,7 +1400,6 @@ void _nya_http_listener_thread(void* data) {
         _nya_http_listener_wait(state);
     }
 
-    _nya_http_thread_end();
 }
 
 void _nya_http_worker_thread(void* data) {
@@ -1346,18 +1431,6 @@ void _nya_http_worker_thread(void* data) {
         atomic_store_explicit(&slot->state, _NYA_HTTP_SLOT_DONE, memory_order_release);
     }
 
-    _nya_http_thread_end();
-}
-
-/*
- * These threads are the engine's own and SDL has never heard of them, but the sockets they work are
- * SDL_net's, and SDL keeps a per thread error buffer for whoever calls into it. SDL frees that for the
- * threads it started itself and at SDL_Quit for the main one, so a thread of ours that has talked to
- * SDL_net has to say when it is done or that buffer is still allocated when the process ends. It goes
- * when the sockets stop being SDL's.
- */
-void _nya_http_thread_end(void) {
-    SDL_CleanupTLS();
 }
 
 NYA_Error _nya_http_threads_start(_NYA_HttpState* state) {

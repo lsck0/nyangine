@@ -23,7 +23,6 @@
 #include "build/vendor/vendor_sdl.h"
 #include "build/vendor/vendor_sdl_image.h"
 #include "build/vendor/vendor_sdl_mixer.h"
-#include "build/vendor/vendor_sdl_net.h"
 #include "build/vendor/vendor_sdl_shadercross.h"
 #include "build/vendor/vendor_sdl_ttf.h"
 #include "build/vendor/vendor_sqlean.h"
@@ -52,7 +51,7 @@
  * */
 #define NYA_PROJECT_VENDORS_LINUX_X86_64                                                            \
     &vendor_sdl_linux_x86_64,     &vendor_sdl_image_linux_x86_64,  &vendor_sdl_ttf_linux_x86_64,    \
-    &vendor_sdl_mixer_linux_x86_64, &vendor_sdl_net_linux_x86_64,  &vendor_libbacktrace_linux_x86_64, \
+    &vendor_sdl_mixer_linux_x86_64, &vendor_libbacktrace_linux_x86_64, \
     &vendor_box2d_linux_x86_64,   &vendor_box3d_linux_x86_64,      &vendor_curl_linux_x86_64,       \
     &vendor_lua_linux_x86_64,     &vendor_lz4_linux_x86_64,        &vendor_sqlean_linux_x86_64,     \
     &vendor_sqlvec_linux_x86_64,  &vendor_sqlite_linux_x86_64,     &vendor_ufbx_linux_x86_64,       \
@@ -60,7 +59,7 @@
 
 #define NYA_PROJECT_VENDORS_WINDOWS_X86_64                                                          \
     &vendor_sdl_windows_x86_64,   &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64, \
-    &vendor_sdl_mixer_windows_x86_64, &vendor_sdl_net_windows_x86_64, &vendor_libbacktrace_windows_x86_64, \
+    &vendor_sdl_mixer_windows_x86_64, &vendor_libbacktrace_windows_x86_64, \
     &vendor_box2d_windows_x86_64, &vendor_box3d_windows_x86_64,     &vendor_curl_windows_x86_64,    \
     &vendor_lua_windows_x86_64,   &vendor_lz4_windows_x86_64,       &vendor_sqlean_windows_x86_64,  \
     &vendor_sqlvec_windows_x86_64, &vendor_sqlite_windows_x86_64,  &vendor_ufbx_windows_x86_64,     \
@@ -123,7 +122,6 @@ NYA_VendorRule* NYA_VENDORS_ALL[] = {
     &vendor_libbacktrace_linux_x86_64,
     &vendor_sdl_image_linux_x86_64,
     &vendor_sdl_mixer_linux_x86_64,
-    &vendor_sdl_net_linux_x86_64,
     &vendor_sdl_ttf_linux_x86_64,
     &vendor_box2d_linux_x86_64,
     &vendor_box3d_linux_x86_64,
@@ -139,7 +137,6 @@ NYA_VendorRule* NYA_VENDORS_ALL[] = {
     &vendor_libbacktrace_windows_x86_64,
     &vendor_sdl_image_windows_x86_64,
     &vendor_sdl_mixer_windows_x86_64,
-    &vendor_sdl_net_windows_x86_64,
     &vendor_sdl_ttf_windows_x86_64,
     &vendor_box2d_windows_x86_64,
     &vendor_box3d_windows_x86_64,

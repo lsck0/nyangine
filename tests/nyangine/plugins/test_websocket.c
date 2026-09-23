@@ -11,7 +11,6 @@
 #include "SDL3/SDL_init.h"
 
 #include "nyangine/nyangine.h"
-#include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
 
@@ -22,8 +21,8 @@
 #define SERVER_BUFFER_BYTES 8192
 
 typedef struct {
-  NET_Server*       listener;
-  NET_StreamSocket* stream;
+  NYA_OsSocket      listener;
+  NYA_OsSocket stream;
 
   u8  buffer[SERVER_BUFFER_BYTES];
   u64 size;
@@ -47,7 +46,7 @@ static void sleep_ms(u32 milliseconds) {
 
 /** Writes a server side frame: never masked, which is what RFC 6455 requires of a server. */
 static void server_send(Server* server, u8 opcode, b8 fin, const u8* payload, u64 size) {
-  nya_assert(server->stream != nullptr);
+  nya_assert(server->stream.handle != 0);
 
   u8  header[10] = { 0 };
   u64 at         = 0;
@@ -65,8 +64,14 @@ static void server_send(Server* server, u8 opcode, b8 fin, const u8* payload, u6
     for (s32 shift = 56; shift >= 0; shift -= 8) header[at++] = (u8)((size >> shift) & 0xFFU);
   }
 
-  nya_assert(NET_WriteToStreamSocket(server->stream, header, (int)at));
-  if (size > 0) nya_assert(NET_WriteToStreamSocket(server->stream, payload, (int)size));
+  {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(server->stream, (const u8*)header, at, &wrote) == NYA_OS_SOCKET_OK);
+  }
+  if (size > 0) {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(server->stream, (const u8*)payload, size, &wrote) == NYA_OS_SOCKET_OK);
+  }
 }
 
 /** Takes `count` bytes off the front of the server's buffer. */
@@ -107,7 +112,10 @@ static void server_upgrade(Server* server, NYA_Arena* arena) {
       accept
   );
 
-  nya_assert(NET_WriteToStreamSocket(server->stream, response->items, (int)response->length));
+  {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(server->stream, (const u8*)response->items, response->length, &wrote) == NYA_OS_SOCKET_OK);
+  }
 
   server->upgraded = true;
 }
@@ -119,13 +127,19 @@ static void server_upgrade(Server* server, NYA_Arena* arena) {
  * unmasks what the client sent, which is also what proves the client masked it.
  * */
 static void server_pump(Server* server, NYA_Arena* arena) {
-  if (server->stream == nullptr) {
-    nya_assert(NET_AcceptClient(server->listener, &server->stream));
-    if (server->stream == nullptr) return;
+  if (server->stream.handle == 0) {
+    {
+      NYA_OsAddress      from   = { 0 };
+      NYA_OsSocketStatus taken  = nya_os_socket_accept(server->listener, &server->stream, &from);
+
+      nya_assert(taken == NYA_OS_SOCKET_OK || taken == NYA_OS_SOCKET_WOULD_BLOCK);
+    }
+    if (server->stream.handle == 0) return;
   }
 
   if (server->size < sizeof(server->buffer) - 1) {
-    int got = NET_ReadFromStreamSocket(server->stream, server->buffer + server->size, (int)(sizeof(server->buffer) - 1 - server->size));
+    u64 got = 0;
+    (void)nya_os_socket_receive(server->stream, server->buffer + server->size, sizeof(server->buffer) - 1 - server->size, &got);
     if (got > 0) server->size += (u64)got;
   }
 
@@ -175,8 +189,8 @@ static void server_pump(Server* server, NYA_Arena* arena) {
 }
 
 static void server_destroy(Server* server) {
-  if (server->stream != nullptr) NET_DestroyStreamSocket(server->stream);
-  if (server->listener != nullptr) NET_DestroyServer(server->listener);
+  if (server->stream.handle != 0) nya_os_socket_close(server->stream);
+  nya_os_socket_close(server->listener);
 
   *server = (Server){ 0 };
 }
@@ -240,7 +254,7 @@ s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
   nya_assert(SDL_Init(0), "SDL_Init failed: %s", SDL_GetError());
-  nya_assert(NET_Init(), "NET_Init failed: %s", SDL_GetError());
+  nya_assert(nya_os_socket_start() == NYA_OS_SOCKET_OK, "the host's socket library would not start");
 
   NYA_Arena* arena = nya_arena_create(.name = "test_websocket");
   defer      nya_arena_destroy(arena);
@@ -392,8 +406,8 @@ s32 main(void) {
 
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-    server.listener = NET_CreateServer(nullptr, port, 0);
-    nya_assert(server.listener != nullptr, "could not listen on port %u: %s", (u32)port, SDL_GetError());
+    nya_assert(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, port, 0, &server.listener) == NYA_OS_SOCKET_OK, "the listener would not open");
+    nya_assert(server.listener.handle != 0, "could not listen on port %u: %s", (u32)port, SDL_GetError());
     defer server_destroy(&server);
 
     NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/socket", (unsigned)port);
@@ -492,8 +506,8 @@ s32 main(void) {
 
       NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-      server.listener = NET_CreateServer(nullptr, port, 0);
-      nya_assert(server.listener != nullptr, "could not listen on port %u: %s", (u32)port, SDL_GetError());
+      nya_assert(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, port, 0, &server.listener) == NYA_OS_SOCKET_OK, "the listener would not open");
+      nya_assert(server.listener.handle != 0, "could not listen on port %u: %s", (u32)port, SDL_GetError());
 
       NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/", (unsigned)port);
 
@@ -508,14 +522,20 @@ s32 main(void) {
         case 0: {
           // A server frame with the mask bit set, which RFC 6455 section 5.1 forbids outright.
           u8 frame[] = { 0x81, 0x84, 0x01, 0x02, 0x03, 0x04, 'a' ^ 1, 'b' ^ 2, 'c' ^ 3, 'd' ^ 4 };
-          nya_assert(NET_WriteToStreamSocket(server.stream, frame, (int)sizeof(frame)));
+          {
+          u64 wrote = 0;
+          nya_assert(nya_os_socket_send(server.stream, (const u8*)frame, sizeof(frame), &wrote) == NYA_OS_SOCKET_OK);
+        }
         } break;
 
         case 1: {
           // A length past this socket's ceiling, announced but never sent: the close happens on the
           // header alone, so not one byte of the body is ever kept.
           u8 frame[] = { 0x82, 0x7F, 0, 0, 0, 0, 0, 0x10, 0, 0 };
-          nya_assert(NET_WriteToStreamSocket(server.stream, frame, (int)sizeof(frame)));
+          {
+          u64 wrote = 0;
+          nya_assert(nya_os_socket_send(server.stream, (const u8*)frame, sizeof(frame), &wrote) == NYA_OS_SOCKET_OK);
+        }
         } break;
 
         default: {
@@ -567,7 +587,7 @@ s32 main(void) {
     printf("  a refused connection arrived as one CLOSED event\n");
   }
 
-  NET_Quit();
+  nya_os_socket_stop();
 
   printf("PASSED: test_websocket (0 failures)\n");
 

@@ -18,7 +18,6 @@
 #include "SDL3/SDL_init.h"
 
 #include "nyangine/nyangine.h"
-#include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
 
@@ -91,7 +90,7 @@ static const NYA_HttpWebSocketRoute PUSH_ROUTE = {
 #define CLIENT_MESSAGE_BYTES 8192
 
 typedef struct {
-    NET_StreamSocket* socket;
+    NYA_OsSocket socket;
 
     NYA_WebSocketProtocol protocol;
     u8                    send[CLIENT_MESSAGE_BYTES];
@@ -129,18 +128,24 @@ static u16 start_server(NYA_HttpConfig config) {
     return 0;
 }
 
-static NET_StreamSocket* connect_to(u16 port) {
-    NET_Address* address = NET_ResolveHostname("127.0.0.1");
-    nya_assert(address != nullptr);
-    nya_assert(NET_WaitUntilResolved(address, 1000) == 1);
+static NYA_OsSocket connect_to(u16 port) {
+  NYA_OsAddress address = { 0 };
+  nya_assert(nya_os_address_resolve("127.0.0.1", port, NYA_OS_ADDRESS_V4, &address) == NYA_OS_SOCKET_OK);
 
-    NET_StreamSocket* socket = NET_CreateClient(address, port, 0);
-    NET_UnrefAddress(address);
+  NYA_OsSocket       socket    = NYA_OS_SOCKET_NONE;
+  NYA_OsSocketStatus connected = nya_os_socket_connect(address, &socket);
 
-    nya_assert(socket != nullptr);
-    nya_assert(NET_WaitUntilConnected(socket, 1000) == 1);
+  nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-    return socket;
+  // a non-blocking connect is under way rather than done, and writability is how the host says it
+  // finished; loopback usually beats the first wait to it.
+  NYA_OsSocketWait watched = { .socket = socket, .writable = true };
+  u32              ready   = 0;
+
+  nya_assert(nya_os_socket_wait(&watched, 1, 1000, &ready) == NYA_OS_SOCKET_OK);
+  nya_assert(nya_os_socket_error(socket) == NYA_OS_SOCKET_OK);
+
+  return socket;
 }
 
 /** A fresh Sec-WebSocket-Key, made the way a client makes one. */
@@ -158,19 +163,23 @@ static NYA_CString key_make(NYA_Arena* arena) {
  * Writes an upgrade request and reads the whole answer, whatever it is: the 101 with nothing after it,
  * or a refusal with its problem body.
  * */
-static u64 handshake(NET_StreamSocket* socket, NYA_Arena* arena, NYA_ConstCString request, OUT char* buffer, u64 capacity) {
-    nya_assert(NET_WriteToStreamSocket(socket, request, (s32)strlen(request)));
+static u64 handshake(NYA_OsSocket socket, NYA_Arena* arena, NYA_ConstCString request, OUT char* buffer, u64 capacity) {
+    {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(socket, (const u8*)request, strlen(request), &wrote) == NYA_OS_SOCKET_OK && wrote == strlen(request));
+  }
 
     u64 filled = 0;
 
     for (u32 attempt = 0; attempt < PUMP_STEPS && filled + 1 < capacity; attempt++) {
         nya_system_http_tick();
 
-        s32 read = NET_ReadFromStreamSocket(socket, buffer + filled, (s32)(capacity - filled - 1));
+        u64                read   = 0;
+        NYA_OsSocketStatus status = nya_os_socket_receive(socket, (u8*)(buffer + filled), capacity - filled - 1, &read);
 
-        if (read < 0) break;
+        if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) break;
 
-        filled         += (u64)read;
+        filled         += read;
         buffer[filled]  = '\0';
 
         if (strstr(buffer, "\r\n\r\n") != nullptr) break;
@@ -233,10 +242,10 @@ static void client_open(Client* client, NYA_Arena* arena, u16 port, NYA_ConstCSt
 }
 
 static void client_destroy(Client* client) {
-    if (client->socket == nullptr) return;
+    if (client->socket.handle == 0) return;
 
-    NET_DestroyStreamSocket(client->socket);
-    client->socket = nullptr;
+    nya_os_socket_close(client->socket);
+    client->socket = NYA_OS_SOCKET_NONE;
 }
 
 /** Pushes what the protocol queued, ticks the server, reads what came back, and collects the events. */
@@ -245,7 +254,10 @@ static void client_step(Client* client) {
     const u8* queued  = nya_websocket_protocol_pending(&client->protocol, &pending);
 
     if (pending > 0) {
-        nya_assert(NET_WriteToStreamSocket(client->socket, queued, (s32)pending));
+        {
+          u64 wrote = 0;
+          nya_assert(nya_os_socket_send(client->socket, (const u8*)queued, pending, &wrote) == NYA_OS_SOCKET_OK);
+        }
         nya_websocket_protocol_flushed(&client->protocol, pending);
     }
 
@@ -254,9 +266,12 @@ static void client_step(Client* client) {
     u64 room = sizeof(client->receive) - client->receive_size;
 
     if (room > 0) {
-        s32 read = NET_ReadFromStreamSocket(client->socket, client->receive + client->receive_size, (s32)room);
+        u64 read = 0;
 
-        if (read > 0) client->receive_size += (u64)read;
+        // a client that has nothing waiting is the ordinary case here; the test drives both ends.
+        (void)nya_os_socket_receive(client->socket, client->receive + client->receive_size, room, &read);
+
+        if (read > 0) client->receive_size += read;
     }
 
     for (u32 step = 0; step < 16; step++) {
@@ -405,7 +420,10 @@ s32 main(void) {
                 nya_memcpy(frame, header, header_size);
                 for (u64 i = 0; i < size; i++) frame[header_size + i] = (u8)((u8)PIECES[piece].text[i] ^ mask[i & 3U]);
 
-                nya_assert(NET_WriteToStreamSocket(client.socket, frame, (s32)(header_size + size)));
+                {
+          u64 wrote = 0;
+          nya_assert(nya_os_socket_send(client.socket, (const u8*)frame, header_size + size, &wrote) == NYA_OS_SOCKET_OK);
+        }
             }
         }
 
@@ -487,7 +505,10 @@ s32 main(void) {
 
         // a text frame with the mask bit clear, which only a server may send.
         u8 unmasked[] = { 0x81, 0x02, 'h', 'i' };
-        nya_assert(NET_WriteToStreamSocket(client.socket, unmasked, (s32)sizeof(unmasked)));
+        {
+          u64 wrote = 0;
+          nya_assert(nya_os_socket_send(client.socket, (const u8*)unmasked, sizeof(unmasked), &wrote) == NYA_OS_SOCKET_OK);
+        }
 
         client_wait(&client, &client.closes, 1);
 
@@ -512,7 +533,10 @@ s32 main(void) {
 
         // a megabyte announced and not one byte of it sent.
         u8 header[] = { 0x82, 0xFF, 0, 0, 0, 0, 0, 0x10, 0, 0, 0x01, 0x02, 0x03, 0x04 };
-        nya_assert(NET_WriteToStreamSocket(client.socket, header, (s32)sizeof(header)));
+        {
+          u64 wrote = 0;
+          nya_assert(nya_os_socket_send(client.socket, (const u8*)header, sizeof(header), &wrote) == NYA_OS_SOCKET_OK);
+        }
 
         client_wait(&client, &client.closes, 1);
 
@@ -585,8 +609,8 @@ s32 main(void) {
         };
 
         for (u32 which = 0; which < nya_carray_length(cases); which++) {
-            NET_StreamSocket* client = connect_to(port);
-            defer             NET_DestroyStreamSocket(client);
+            NYA_OsSocket client = connect_to(port);
+            defer             nya_os_socket_close(client);
 
             nya_assert(handshake(client, arena, cases[which].request, answer, sizeof(answer)) > 0, "'%s' was not answered", cases[which].what);
 
@@ -613,8 +637,8 @@ s32 main(void) {
         client_open(&first, arena, port, ECHO_PATH);
         defer client_destroy(&first);
 
-        NET_StreamSocket* second = connect_to(port);
-        defer             NET_DestroyStreamSocket(second);
+        NYA_OsSocket second = connect_to(port);
+        defer             nya_os_socket_close(second);
 
         nya_assert(handshake(second, arena, upgrade_request(arena, ECHO_PATH, key_make(arena), ""), answer, sizeof(answer)) > 0);
 
@@ -646,8 +670,8 @@ s32 main(void) {
 
         nya_assert(nya_http_websocket_count() == NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS);
 
-        NET_StreamSocket* extra = connect_to(port);
-        defer             NET_DestroyStreamSocket(extra);
+        NYA_OsSocket extra = connect_to(port);
+        defer             nya_os_socket_close(extra);
 
         nya_assert(handshake(extra, arena, upgrade_request(arena, ECHO_PATH, key_make(arena), ""), answer, sizeof(answer)) > 0);
 

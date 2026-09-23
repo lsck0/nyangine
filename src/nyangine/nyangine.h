@@ -24,7 +24,7 @@
 // core_world.h. Guarded with core rather than beside math because box2d and box3d are on the
 // project include line and not on a host tool's; see physics.h.
 #include "nyangine/physics/physics.h"
-// Guarded for the same reason: the transports link SDL_net, which a host tool does not have.
+// Guarded for the same reason: the transports open sockets, which a host tool has no use for.
 #include "nyangine/net/net.h"
 // Before core, which registers the drain as a frame system and whose metrics resource moved to debug:
 // nothing under http names the app loop any more.

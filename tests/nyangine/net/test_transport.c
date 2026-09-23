@@ -957,7 +957,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * This used to sit inside NET_WaitUntilResolved for up to the whole connect timeout, five
+     * This used to sit inside the resolver for up to the whole connect timeout, five
      * seconds, before returning to the caller. For a game that is five seconds of a stopped frame
      * because somebody typed the hostname wrong, and no amount of care in the caller could avoid it.
      *

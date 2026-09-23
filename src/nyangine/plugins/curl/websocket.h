@@ -50,9 +50,9 @@
  * }
  * ```
  *
- * ── why curl and not SDL_net ──
+ * ── why curl and not the engine's own sockets ──
  *
- * Both are already vendored. SDL_net gives a TCP stream and nothing else, so `wss://` would mean
+ * os_socket.h gives a TCP stream and nothing else, so `wss://` would mean
  * vendoring a TLS stack or shipping a client that only works in plaintext on localhost. curl is
  * already linked for the REST client, already carries a TLS backend on both platforms (OpenSSL on
  * Linux, schannel on Windows) and already uses the system trust store, and CURLOPT_CONNECT_ONLY hands

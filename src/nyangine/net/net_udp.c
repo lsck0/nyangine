@@ -491,7 +491,7 @@ NYA_INTERNAL u16  _nya_net_udp_read_u16(const u8* in) __attr_no_discard;
 NYA_INTERNAL u32  _nya_net_udp_read_u32(const u8* in) __attr_no_discard;
 NYA_INTERNAL u64  _nya_net_udp_read_u64(const u8* in) __attr_no_discard;
 
-/** Transports with SDL_net up. */
+/** Transports holding the host's socket library open. */
 NYA_INTERNAL u32 _NYA_NET_UDP_INIT_COUNT = 0;
 
 NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_UDP_VTABLE = {

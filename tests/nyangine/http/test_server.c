@@ -14,7 +14,6 @@
 #include "SDL3/SDL_init.h"
 
 #include "nyangine/nyangine.h"
-#include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
 
@@ -48,18 +47,24 @@ static u16 start_server(NYA_HttpConfig config) {
 }
 
 /** Connects to the server, waiting for the connection to come up. */
-static NET_StreamSocket* connect_to(u16 port) {
-    NET_Address* address = NET_ResolveHostname("127.0.0.1");
-    nya_assert(address != nullptr);
-    nya_assert(NET_WaitUntilResolved(address, 1000) == 1);
+static NYA_OsSocket connect_to(u16 port) {
+  NYA_OsAddress address = { 0 };
+  nya_assert(nya_os_address_resolve("127.0.0.1", port, NYA_OS_ADDRESS_V4, &address) == NYA_OS_SOCKET_OK);
 
-    NET_StreamSocket* socket = NET_CreateClient(address, port, 0);
-    NET_UnrefAddress(address);
+  NYA_OsSocket       socket    = NYA_OS_SOCKET_NONE;
+  NYA_OsSocketStatus connected = nya_os_socket_connect(address, &socket);
 
-    nya_assert(socket != nullptr);
-    nya_assert(NET_WaitUntilConnected(socket, 1000) == 1);
+  nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-    return socket;
+  // a non-blocking connect is under way rather than done, and writability is how the host says it
+  // finished; loopback usually beats the first wait to it.
+  NYA_OsSocketWait watched = { .socket = socket, .writable = true };
+  u32              ready   = 0;
+
+  nya_assert(nya_os_socket_wait(&watched, 1, 1000, &ready) == NYA_OS_SOCKET_OK);
+  nya_assert(nya_os_socket_error(socket) == NYA_OS_SOCKET_OK);
+
+  return socket;
 }
 
 /**
@@ -71,8 +76,11 @@ static NET_StreamSocket* connect_to(u16 port) {
  * caught up yet. The length in the head is what says when an answer is complete, which is why HTTP
  * carries one.
  * */
-static u64 exchange(NET_StreamSocket* socket, NYA_ConstCString text, OUT char* buffer, u64 capacity) {
-    nya_assert(NET_WriteToStreamSocket(socket, text, (s32)strlen(text)));
+static u64 exchange(NYA_OsSocket socket, NYA_ConstCString text, OUT char* buffer, u64 capacity) {
+    {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(socket, (const u8*)text, strlen(text), &wrote) == NYA_OS_SOCKET_OK && wrote == strlen(text));
+  }
 
     u64 filled   = 0;
     u64 expected = 0;
@@ -80,11 +88,12 @@ static u64 exchange(NET_StreamSocket* socket, NYA_ConstCString text, OUT char* b
     for (u32 attempt = 0; attempt < 400 && filled + 1 < capacity; attempt++) {
         nya_system_http_tick();
 
-        s32 read = NET_ReadFromStreamSocket(socket, buffer + filled, (s32)(capacity - filled - 1));
+        u64                read   = 0;
+        NYA_OsSocketStatus status = nya_os_socket_receive(socket, (u8*)(buffer + filled), capacity - filled - 1, &read);
 
-        if (read < 0) break;
+        if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) break;
 
-        filled         += (u64)read;
+        filled         += read;
         buffer[filled]  = '\0';
 
         if (expected == 0) {
@@ -148,8 +157,8 @@ s32 main(void) {
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).kind == NYA_ERROR_ALREADY_EXISTS, "a router is mounted once");
         nya_assert(nya_http_server_router_count() == 1);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
 
@@ -226,8 +235,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         // without a token.
         nya_assert(
@@ -348,8 +357,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         nya_assert(exchange(client, "GET /../etc/passwd HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
 
@@ -376,8 +385,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NET_StreamSocket* silent = connect_to(port);
-        defer             NET_DestroyStreamSocket(silent);
+        NYA_OsSocket silent = connect_to(port);
+        defer             nya_os_socket_close(silent);
 
         for (u32 attempt = 0; attempt < 50 && nya_http_server_connection_count() == 0; attempt++) {
             nya_system_http_tick();
@@ -388,15 +397,18 @@ s32 main(void) {
 
         // half a request, and then nothing. The head bound and the idle timeout both apply; this
         // checks that the server is still answering other people in the meantime.
-        nya_assert(NET_WriteToStreamSocket(silent, "GET /api", 8));
+        {
+      u64 wrote = 0;
+      nya_assert(nya_os_socket_send(silent, (const u8*)"GET /api", 8, &wrote) == NYA_OS_SOCKET_OK);
+    }
 
         for (u32 attempt = 0; attempt < 20; attempt++) {
             nya_system_http_tick();
             sleep_ms(2);
         }
 
-        NET_StreamSocket* other = connect_to(port);
-        defer             NET_DestroyStreamSocket(other);
+        NYA_OsSocket other = connect_to(port);
+        defer             nya_os_socket_close(other);
 
         nya_assert(exchange(other, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(
@@ -414,14 +426,14 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NET_StreamSocket* first = connect_to(port);
-        defer             NET_DestroyStreamSocket(first);
+        NYA_OsSocket first = connect_to(port);
+        defer             nya_os_socket_close(first);
 
         nya_assert(exchange(first, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(nya_http_server_connection_count() == 1);
 
-        NET_StreamSocket* second = connect_to(port);
-        defer             NET_DestroyStreamSocket(second);
+        NYA_OsSocket second = connect_to(port);
+        defer             nya_os_socket_close(second);
 
         for (u32 attempt = 0; attempt < 50; attempt++) {
             nya_system_http_tick();
@@ -438,10 +450,10 @@ s32 main(void) {
         u16   port = start_server((NYA_HttpConfig){ .max_connections = 8, .max_connections_per_address = 2 });
         defer nya_system_http_deinit();
 
-        NET_StreamSocket* sockets[3] = { 0 };
+        NYA_OsSocket sockets[3] = { 0 };
         for (u32 index = 0; index < 3; index++) sockets[index] = connect_to(port);
         defer {
-            for (u32 index = 0; index < 3; index++) NET_DestroyStreamSocket(sockets[index]);
+            for (u32 index = 0; index < 3; index++) nya_os_socket_close(sockets[index]);
         }
 
         for (u32 attempt = 0; attempt < 50; attempt++) {
@@ -462,8 +474,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         for (u32 index = 0; index < 3; index++) {
             nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
@@ -478,8 +490,8 @@ s32 main(void) {
         nya_assert(nya_string_contains(refused, "Connection: close\r\n"));
 
         // the budget is the address's, not the connection's: a fresh socket does not reset it.
-        NET_StreamSocket* again = connect_to(port);
-        defer             NET_DestroyStreamSocket(again);
+        NYA_OsSocket again = connect_to(port);
+        defer             nya_os_socket_close(again);
 
         nya_assert(exchange(again, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 429 "));
@@ -497,8 +509,8 @@ s32 main(void) {
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         NYA_LogLevel level = nya_log_level_get();
         nya_log_level_set(NYA_LOG_LEVEL_INFO);
@@ -546,8 +558,8 @@ s32 main(void) {
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
         nya_assert(nya_http_server_merge(nya_http_openapi_router()).ok);
 
-        NET_StreamSocket* client = connect_to(port);
-        defer             NET_DestroyStreamSocket(client);
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
 
         nya_assert(exchange(client, "GET " NYA_HTTP_OPENAPI_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
 

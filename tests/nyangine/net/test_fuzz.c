@@ -7,7 +7,6 @@
 #include "nyangine/nyangine.h"
 
 #include "SDL3/SDL_init.h"
-#include "SDL3_net/SDL_net.h"
 
 #define FLAG_REPLICATED (1ULL << 2)
 

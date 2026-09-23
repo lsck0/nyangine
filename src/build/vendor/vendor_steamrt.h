@@ -25,7 +25,6 @@
 #include "build/vendor/vendor_sdl.h"
 #include "build/vendor/vendor_sdl_image.h"
 #include "build/vendor/vendor_sdl_mixer.h"
-#include "build/vendor/vendor_sdl_net.h"
 #include "build/vendor/vendor_sdl_ttf.h"
 #include "build/vendor/vendor_sqlean.h"
 #include "build/vendor/vendor_sqlite.h"
@@ -120,7 +119,6 @@ NYA_VendorRule vendor_sdl_steamrt_x86_64;
 NYA_VendorRule vendor_sdl_image_steamrt_x86_64;
 NYA_VendorRule vendor_sdl_ttf_steamrt_x86_64;
 NYA_VendorRule vendor_sdl_mixer_steamrt_x86_64;
-NYA_VendorRule vendor_sdl_net_steamrt_x86_64;
 NYA_VendorRule vendor_libbacktrace_steamrt_x86_64;
 NYA_VendorRule vendor_box2d_steamrt_x86_64;
 NYA_VendorRule vendor_box3d_steamrt_x86_64;
@@ -138,7 +136,7 @@ NYA_VendorRule vendor_monocypher_steamrt_x86_64;
 /** NYA_PROJECT_VENDORS_LINUX_X86_64, in the same link order. */
 #define NYA_PROJECT_VENDORS_STEAMRT_X86_64                                                              \
     &vendor_sdl_steamrt_x86_64,     &vendor_sdl_image_steamrt_x86_64,  &vendor_sdl_ttf_steamrt_x86_64,  \
-    &vendor_sdl_mixer_steamrt_x86_64, &vendor_sdl_net_steamrt_x86_64,  &vendor_libbacktrace_steamrt_x86_64, \
+    &vendor_sdl_mixer_steamrt_x86_64, &vendor_libbacktrace_steamrt_x86_64, \
     &vendor_box2d_steamrt_x86_64,   &vendor_box3d_steamrt_x86_64,      &vendor_curl_steamrt_x86_64,     \
     &vendor_lua_steamrt_x86_64,     &vendor_lz4_steamrt_x86_64,        &vendor_sqlean_steamrt_x86_64,   \
     &vendor_sqlvec_steamrt_x86_64,  &vendor_sqlite_steamrt_x86_64,     &vendor_ufbx_steamrt_x86_64,     \
@@ -173,7 +171,6 @@ NYA_INTERNAL _NYA_SteamrtVendor _NYA_STEAMRT_VENDORS[] = {
     { .linux = &vendor_sdl_image_linux_x86_64, .steamrt = &vendor_sdl_image_steamrt_x86_64 },
     { .linux = &vendor_sdl_ttf_linux_x86_64, .steamrt = &vendor_sdl_ttf_steamrt_x86_64 },
     { .linux = &vendor_sdl_mixer_linux_x86_64, .steamrt = &vendor_sdl_mixer_steamrt_x86_64 },
-    { .linux = &vendor_sdl_net_linux_x86_64, .steamrt = &vendor_sdl_net_steamrt_x86_64 },
     { .linux = &vendor_libbacktrace_linux_x86_64, .steamrt = &vendor_libbacktrace_steamrt_x86_64 },
     { .linux = &vendor_box2d_linux_x86_64, .steamrt = &vendor_box2d_steamrt_x86_64 },
     { .linux = &vendor_box3d_linux_x86_64, .steamrt = &vendor_box3d_steamrt_x86_64 },

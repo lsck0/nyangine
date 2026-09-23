@@ -28,7 +28,7 @@
  * the upgrade, which is an HTTP request — already is, and the plugin includes it.
  *
  * The dependency only runs that way. `http` names nothing in `plugins`, and nothing here links a
- * socket, SDL_net or curl: it is bytes in and bytes out over buffers the caller owns, which is also
+ * socket, the engine's own or curl's: it is bytes in and bytes out over buffers the caller owns, which is also
  * what makes it the thing the fuzzer drives (tests/fuzz/fuzz_websocket_frame.c). The one thing it does
  * reach for is `crypto`'s SHA-1, for the accept key, which the RFC names and nothing else here uses.
  *

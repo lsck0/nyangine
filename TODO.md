@@ -291,12 +291,11 @@ Small, and first, because every later phase trusts these numbers.
     two more, both real: `test_control`'s liar case passed vacuously on Linux (it checked for a drop before the
     server had accepted), which a Windows pipe's missing backlog exposed as `ERROR_PIPE_BUSY`; and the Windows
     log was opened `FILE_SHARE_READ` only, so a second process could not log to the same day's file.
-- `[~]` `net/test_transport` leaked 81 bytes from `nya_net_transport_connect` (net_transport.c:47, reached from
-  test_transport.c:931) once under a loaded parallel run, and passed alone three times. The cause, read from the
-  source rather than reproduced: SDL_net's `NET_Quit` sets `resolver_queue = NULL` without releasing the addresses
-  still on it, so a lookup whose resolver thread had not started yet is lost when the last transport closes. The
-  UDP transport now waits for its own lookup, at most `_NYA_NET_UDP_RESOLVE_WAIT_MS`, before letting go. Close it
-  once a loaded run has passed it many times; report the queue upstream.
+- `[x]` `net/test_transport` leaked 81 bytes from `nya_net_transport_connect` once under a loaded parallel run.
+  The cause was SDL_net's `NET_Quit` dropping addresses still queued for its resolver, and the fix at the time
+  was a wait for this transport's own lookup before letting go. Closed 2026-09-23 by the sockets moving into
+  `os`: the lookup is the engine's own thread now, the wait it needed is gone with it, and there is no queue
+  inside somebody else's library for an address to be lost on.
 - `[x]` `test_agent` gets a wall clock deadline of its own and fails with a message when it passes it.
   `testing_deadline.h`: a watchdog thread that, past the limit, names the test and sends the stuck thread a
   signal, so the crash path prints *its* backtrace. `test_deadline.c` forces a hang in a child: it fails at 1 s
@@ -361,22 +360,32 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
   were already reaching up for it. It is `base/base_ceiling.*` now, the `NYA_NO_SDL` guards around those calls
   are gone because there is nothing left to guard, and the build tool keeps its own ceilings as a result. The
   `http -> core` allowance fell from 2 to 1 with it.
-- `[~]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
-  into `os`, one file per target, with whatever wants an arena or an `NYA_Error` on top of them in `base` — the
-  shape the file system, commands and clocks already have. SDL_net leaves the vendor list, which also means one
-  socket layer for the web backend to implement rather than SDL's. Threads are done: `os/os_thread.h` is a
-  thread, a mutex and a counting semaphore in storage the caller places, and it is a semaphore rather than a
-  condition variable because both callers wait on a count rather than on a predicate. `base_thread.h` adds what
-  that layer may not have — the record in an arena, the errors, the assertions, and the flag a thread raises as
-  it returns, which is the question neither host will answer about a thread and which `SDL_GetThreadState` used
-  to answer. `core_job.c` and `http_server.c` run on it. While the sockets are still SDL's, the two HTTP threads
-  call `SDL_CleanupTLS` on their way out: SDL frees its per thread error buffer only for threads it started
-  itself, and these are the engine's now. Sockets are what is left, and they take `SDL_Delay` with them.
-- `[ ]` `net` splits: the transport and the encrypted session need no entity and move below `app`; snapshots,
-  commands and prediction become `replicate` above it. `physics` stops including `core_types.h` by moving the
-  types it shares down.
-- `[ ]` `http_metrics` depends on the app loop, so it moves out of `http` to beside `debug`. `nn` drawing moves
-  out of `nn` the same way, so `nn` is a pure library.
+- `[x]` Threads and sockets move into `os`, one file per target, with whatever wants an arena or an `NYA_Error`
+  on top of them in `base` — the shape the file system, commands and clocks already have. **SDL_net has left the
+  vendor list** as of 2026-09-23, which is one socket layer for the web backend to implement rather than SDL's.
+  - Sockets: `os/os_socket.h` is a datagram socket, a listener, the connections it accepts, a wait over a set of
+    them and an address that is a value rather than a refcounted pointer. Everything is non-blocking always, and
+    a send takes what the host will take — so `http` grew the write queue that used to be SDL_net's, bounded by
+    the same `NYA_HTTP_MAX_PENDING_WRITE_BYTES` it always claimed to enforce, and the websocket server flushes
+    its protocol's own queue the same way. `base/base_socket.h` is the one thing that needs an arena and a
+    thread: a name lookup that does not stop a frame. `net_port.c`, which existed only because SDL_net would not
+    report a bound port, is six lines over `nya_os_socket_address` now, and the `SDL_CleanupTLS` the threaded
+    server needed — SDL's per-thread error buffer, for our threads that talked to SDL_net — is deleted.
+  - Still open, and deliberately: the readiness API is `poll`/`WSAPoll` rather than epoll or IOCP. The interface
+    that would hide the difference is `nya_os_socket_wait`, and it is already in place, so that is a change
+    inside two files on the day a server needs more than a hundred connections.
+  - Threads, earlier: `os/os_thread.h` is a thread, a mutex and a counting semaphore in storage the caller
+    places, and it is a semaphore rather than a condition variable because both callers wait on a count rather
+    than on a predicate. `base_thread.h` adds what that layer may not have — the record in an arena, the errors,
+    the assertions, and the flag a thread raises as it returns, which is the question neither host will answer
+    about a thread and which `SDL_GetThreadState` used
+    to answer. `core_job.c` and `http_server.c` run on it.
+- `[x]` `net` split, 2026-09-23: the transport and the encrypted session need no entity and stayed `net`;
+  snapshots, commands, prediction, the client and the server became `replicate` above the app loop. The
+  `net -> core` allowance is deleted rather than documented, which is what the split was for.
+- `[x]` `http_metrics` moved out of `http` to beside `debug`, and `nn`'s drawing out of `nn` the same way, both
+  2026-09-23: one depended on the app loop from inside `http`, the other made a pure library reach for a
+  renderer.
 - `[ ]` The engine owns its configuration, one typed struct per module taken at `init` and swapped whole on
   reload, instead of `NYA_CONFIG` living in the game DLL. This unblocks "Ceiling auditing" below and the shadow
   settings that are loaded and read by nothing.

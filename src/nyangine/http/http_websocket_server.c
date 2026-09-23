@@ -6,7 +6,6 @@
 #include "nyangine/base/base_logging.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/http/http_websocket_server.h"
-#include "SDL3_net/SDL_net.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -23,7 +22,7 @@ typedef struct _NYA_HttpWebSocketState _NYA_HttpWebSocketState;
  * closes it, which is what keeps a WebSocket inside the listener's bounds instead of beside them.
  * */
 struct NYA_HttpWebSocket {
-    NET_StreamSocket* socket;
+    NYA_OsSocket socket;
 
     const NYA_HttpWebSocketRoute* route;
 
@@ -90,7 +89,7 @@ NYA_INTERNAL b8 _nya_http_websocket_is_upgrade(const NYA_HttpRequest* request) _
  * and leaves the connection an HTTP one. `trailing` is what the peer sent after the request.
  * */
 NYA_INTERNAL NYA_HttpStatus _nya_http_websocket_upgrade(
-    NET_StreamSocket*      socket,
+    NYA_OsSocket           socket,
     NYA_ConstCString       address,
     const NYA_HttpRequest* request,
     u64                    trailing,
@@ -98,10 +97,10 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_websocket_upgrade(
 ) __attr_no_discard;
 
 /** Reads, dispatches, answers and flushes one connection. False when it is finished with. */
-NYA_INTERNAL b8 _nya_http_websocket_tick(NET_StreamSocket* socket) __attr_no_discard;
+NYA_INTERNAL b8 _nya_http_websocket_tick(NYA_OsSocket socket) __attr_no_discard;
 
 /** Gives the slot back and reports the close. Idempotent, and a no-op for a socket that never upgraded. */
-NYA_INTERNAL void _nya_http_websocket_detach(NET_StreamSocket* socket);
+NYA_INTERNAL void _nya_http_websocket_detach(NYA_OsSocket socket);
 
 /** Closes every connection and frees the table. What nya_system_http_deinit calls. */
 NYA_INTERNAL void _nya_http_websocket_shutdown(void);
@@ -109,7 +108,7 @@ NYA_INTERNAL void _nya_http_websocket_shutdown(void);
 /* ── inside this file ── */
 
 /** The open connection on `socket`, or null. Linear over a table of four. */
-NYA_INTERNAL NYA_HttpWebSocket* _nya_http_websocket_find(const NET_StreamSocket* socket) __attr_no_discard;
+NYA_INTERNAL NYA_HttpWebSocket* _nya_http_websocket_find(NYA_OsSocket socket) __attr_no_discard;
 
 /** Whether the comma separated header value `text` carries `token`, ignoring case. */
 NYA_INTERNAL b8 _nya_http_websocket_has_token(NYA_ConstCString text, NYA_ConstCString token) __attr_no_discard;
@@ -205,7 +204,7 @@ void nya_http_websocket_route_remove(const NYA_HttpWebSocketRoute* route) {
     for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
         NYA_HttpWebSocket* connection = &_NYA_HTTP_WEBSOCKET->connections[index];
 
-        if (connection->socket == nullptr || connection->route != route) continue;
+        if (connection->socket.handle == 0 || connection->route != route) continue;
 
         (void)nya_websocket_protocol_close(&connection->protocol, NYA_WEBSOCKET_CLOSE_GOING_AWAY, "the stream was unmounted");
         (void)_nya_http_websocket_flush(connection);
@@ -236,7 +235,7 @@ u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString te
     for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
         NYA_HttpWebSocket* connection = &_NYA_HTTP_WEBSOCKET->connections[index];
 
-        if (connection->socket == nullptr || strcmp(connection->route->path, path) != 0) continue;
+        if (connection->socket.handle == 0 || strcmp(connection->route->path, path) != 0) continue;
 
         // Skipped rather than failing the whole push: one peer that has stopped reading is the
         // pending-write bound's to deal with, not the other peers' problem.
@@ -249,7 +248,7 @@ u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString te
 NYA_WebSocketProtocol* nya_http_websocket_protocol(NYA_HttpWebSocket* socket) {
     nya_assert(socket != nullptr);
 
-    return socket->socket != nullptr ? &socket->protocol : nullptr;
+    return socket->socket.handle != 0 ? &socket->protocol : nullptr;
 }
 
 /*
@@ -270,7 +269,7 @@ NYA_HttpWebSocket* nya_http_websocket_at(u32 index) {
     for (u32 slot = 0; slot < NYA_HTTP_MAX_WEBSOCKETS; slot++) {
         NYA_HttpWebSocket* connection = &_NYA_HTTP_WEBSOCKET->connections[slot];
 
-        if (connection->socket == nullptr) continue;
+        if (connection->socket.handle == 0) continue;
         if (seen++ == index) return connection;
     }
 
@@ -311,13 +310,13 @@ b8 _nya_http_websocket_is_upgrade(const NYA_HttpRequest* request) {
 }
 
 NYA_HttpStatus _nya_http_websocket_upgrade(
-    NET_StreamSocket*      socket,
+    NYA_OsSocket           socket,
     NYA_ConstCString       address,
     const NYA_HttpRequest* request,
     u64                    trailing,
     OUT NYA_ConstCString*  out_detail
 ) {
-    nya_assert(socket != nullptr);
+    nya_assert(socket.handle != 0);
     nya_assert(address != nullptr);
     nya_assert(request != nullptr);
     nya_assert(out_detail != nullptr);
@@ -389,7 +388,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
     for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
         NYA_HttpWebSocket* candidate = &_NYA_HTTP_WEBSOCKET->connections[index];
 
-        if (candidate->socket == nullptr) {
+        if (candidate->socket.handle == 0) {
             if (slot == nullptr) slot = candidate;
             continue;
         }
@@ -427,7 +426,12 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
 
     nya_assert(written > 0 && (u64)written < sizeof(answer), "the 101 is a fixed set of headers and a 28 character accept");
 
-    if (!NET_WriteToStreamSocket(socket, answer, written)) {
+    u64 answered = 0;
+
+    // The 101 is under two hundred bytes into a socket that has just been accepted and has written
+    // nothing, so a host that takes part of it has a full buffer for another reason entirely: that is
+    // a connection worth refusing rather than queueing behind.
+    if (nya_os_socket_send(socket, (const u8*)answer, (u64)written, &answered) != NYA_OS_SOCKET_OK || answered != (u64)written) {
         *out_detail = "the handshake could not be answered";
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
@@ -463,7 +467,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
     return NYA_HTTP_STATUS_NONE;
 }
 
-b8 _nya_http_websocket_tick(NET_StreamSocket* socket) {
+b8 _nya_http_websocket_tick(NYA_OsSocket socket) {
     NYA_HttpWebSocket* connection = _nya_http_websocket_find(socket);
 
     if (connection == nullptr) return false;
@@ -473,15 +477,17 @@ b8 _nya_http_websocket_tick(NET_StreamSocket* socket) {
     u64 room = sizeof(connection->receive) - connection->receive_size;
 
     if (room > 0) {
-        s32 read = NET_ReadFromStreamSocket(connection->socket, connection->receive + connection->receive_size, (s32)room);
+        u64 read = 0;
 
-        if (read < 0) {
+        NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->receive + connection->receive_size, room, &read);
+
+        if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) {
             nya_websocket_protocol_fail(&connection->protocol, NYA_WEBSOCKET_CLOSE_ABNORMAL, "the connection dropped");
             return false;
         }
 
         if (read > 0) {
-            connection->receive_size += (u64)read;
+            connection->receive_size += read;
             connection->heard_at_ns   = nya_clock_get_monotonic_ns();
             connection->pinged_at_ns  = 0;
         }
@@ -515,11 +521,12 @@ b8 _nya_http_websocket_tick(NET_StreamSocket* socket) {
 
     if (!_nya_http_websocket_flush(connection)) return false;
 
-    // A peer that has stopped reading, which is the same bound an HTTP answer is held to: SDL_net's
-    // queue grows to whatever it is handed, so this is where that stops.
-    s32 pending = NET_GetStreamSocketPendingWrites(connection->socket);
+    // A peer that has stopped reading, which is the same bound an HTTP answer is held to: what the
+    // host would not take stays in the protocol's queue, so this is where that stops growing.
+    u64 pending = 0;
+    (void)nya_websocket_protocol_pending(&connection->protocol, &pending);
 
-    if (pending < 0 || (u64)pending > NYA_HTTP_MAX_PENDING_WRITE_BYTES) return false;
+    if (pending > NYA_HTTP_MAX_PENDING_WRITE_BYTES) return false;
 
     // The goodbye is on the wire and there is nothing left to wait for.
     if (nya_websocket_protocol_is_closed(&connection->protocol) && pending == 0) return false;
@@ -542,7 +549,7 @@ b8 _nya_http_websocket_tick(NET_StreamSocket* socket) {
     return true;
 }
 
-void _nya_http_websocket_detach(NET_StreamSocket* socket) {
+void _nya_http_websocket_detach(NYA_OsSocket socket) {
     NYA_HttpWebSocket* connection = _nya_http_websocket_find(socket);
 
     if (connection == nullptr) return;
@@ -558,7 +565,7 @@ void _nya_http_websocket_detach(NET_StreamSocket* socket) {
     // Cleared before the callback: a handler that asks what is connected must not be told about a
     // socket that is already gone, and one that tries to send into it gets nothing rather than bytes
     // queued for a closed connection.
-    connection->socket = nullptr;
+    connection->socket = NYA_OS_SOCKET_NONE;
 
     nya_assert(_NYA_HTTP_WEBSOCKET_COUNT > 0, "a websocket was detached that was never counted");
     _NYA_HTTP_WEBSOCKET_COUNT--;
@@ -574,7 +581,7 @@ void _nya_http_websocket_shutdown(void) {
     for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
         NYA_HttpWebSocket* connection = &_NYA_HTTP_WEBSOCKET->connections[index];
 
-        if (connection->socket == nullptr) continue;
+        if (connection->socket.handle == 0) continue;
 
         // The socket itself belongs to the HTTP connection, which is closing it in the same breath;
         // this is only the report and the slot.
@@ -587,13 +594,13 @@ void _nya_http_websocket_shutdown(void) {
     nya_arena_destroy(arena);
 }
 
-NYA_HttpWebSocket* _nya_http_websocket_find(const NET_StreamSocket* socket) {
-    if (_NYA_HTTP_WEBSOCKET == nullptr || socket == nullptr) return nullptr;
+NYA_HttpWebSocket* _nya_http_websocket_find(NYA_OsSocket socket) {
+    if (_NYA_HTTP_WEBSOCKET == nullptr || socket.handle == 0) return nullptr;
 
     for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
         NYA_HttpWebSocket* connection = &_NYA_HTTP_WEBSOCKET->connections[index];
 
-        if (connection->socket == socket) return connection;
+        if (connection->socket.handle == socket.handle) return connection;
     }
 
     return nullptr;
@@ -626,16 +633,18 @@ b8 _nya_http_websocket_flush(NYA_HttpWebSocket* connection) {
 
     if (size == 0) return true;
 
-    nya_assert(size <= (u64)S32_MAX, "the send queue is sixteen kilobytes");
+    u64 wrote = 0;
 
-    // SDL_net copies into its own queue, so what it accepts it has taken all of; the bound on how much
-    // it may hold is the pending-write check in the tick.
-    if (!NET_WriteToStreamSocket(connection->socket, queued, (s32)size)) {
+    NYA_OsSocketStatus status = nya_os_socket_send(connection->socket, queued, size, &wrote);
+
+    // A full host buffer is a peer reading slowly: what it would not take stays queued, and the bound
+    // in the tick is what decides when that stops being fine.
+    if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) {
         nya_websocket_protocol_fail(&connection->protocol, NYA_WEBSOCKET_CLOSE_ABNORMAL, "the connection dropped");
         return false;
     }
 
-    nya_websocket_protocol_flushed(&connection->protocol, size);
+    if (wrote > 0) nya_websocket_protocol_flushed(&connection->protocol, wrote);
 
     return true;
 }

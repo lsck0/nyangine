@@ -18,7 +18,6 @@
 #include "SDL3/SDL_init.h"
 
 #include "nyangine/nyangine.h"
-#include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
 
@@ -61,18 +60,24 @@ static u16 start_server(void) {
     return 0;
 }
 
-static NET_StreamSocket* connect_to(u16 port) {
-    NET_Address* address = NET_ResolveHostname("127.0.0.1");
-    nya_assert(address != nullptr);
-    nya_assert(NET_WaitUntilResolved(address, 1000) == 1);
+static NYA_OsSocket connect_to(u16 port) {
+  NYA_OsAddress address = { 0 };
+  nya_assert(nya_os_address_resolve("127.0.0.1", port, NYA_OS_ADDRESS_V4, &address) == NYA_OS_SOCKET_OK);
 
-    NET_StreamSocket* socket = NET_CreateClient(address, port, 0);
-    NET_UnrefAddress(address);
+  NYA_OsSocket       socket    = NYA_OS_SOCKET_NONE;
+  NYA_OsSocketStatus connected = nya_os_socket_connect(address, &socket);
 
-    nya_assert(socket != nullptr);
-    nya_assert(NET_WaitUntilConnected(socket, 1000) == 1);
+  nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-    return socket;
+  // a non-blocking connect is under way rather than done, and writability is how the host says it
+  // finished; loopback usually beats the first wait to it.
+  NYA_OsSocketWait watched = { .socket = socket, .writable = true };
+  u32              ready   = 0;
+
+  nya_assert(nya_os_socket_wait(&watched, 1, 1000, &ready) == NYA_OS_SOCKET_OK);
+  nya_assert(nya_os_socket_error(socket) == NYA_OS_SOCKET_OK);
+
+  return socket;
 }
 
 /**
@@ -81,8 +86,11 @@ static NET_StreamSocket* connect_to(u16 port) {
  * Lifted from test_server.c for the reason written there: the head and the body are two queued writes,
  * so a read that comes back empty says only that the kernel has not caught up.
  * */
-static void exchange(NET_StreamSocket* socket, NYA_ConstCString text, OUT char* buffer, u64 capacity) {
-    nya_assert(NET_WriteToStreamSocket(socket, text, (s32)strlen(text)));
+static void exchange(NYA_OsSocket socket, NYA_ConstCString text, OUT char* buffer, u64 capacity) {
+    {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(socket, (const u8*)text, strlen(text), &wrote) == NYA_OS_SOCKET_OK && wrote == strlen(text));
+  }
 
     u64 filled   = 0;
     u64 expected = 0;
@@ -90,11 +98,12 @@ static void exchange(NET_StreamSocket* socket, NYA_ConstCString text, OUT char* 
     for (u32 attempt = 0; attempt < 400 && filled + 1 < capacity; attempt++) {
         nya_system_http_tick();
 
-        s32 read = NET_ReadFromStreamSocket(socket, buffer + filled, (s32)(capacity - filled - 1));
+        u64                read   = 0;
+        NYA_OsSocketStatus status = nya_os_socket_receive(socket, (u8*)(buffer + filled), capacity - filled - 1, &read);
 
-        if (read < 0) break;
+        if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) break;
 
-        filled         += (u64)read;
+        filled         += read;
         buffer[filled]  = '\0';
 
         if (expected == 0) {
@@ -125,8 +134,8 @@ static u32 request_status(u16 port, NYA_ConstCString request) {
     u32  status                              = 0;
 
     {
-        NET_StreamSocket* socket = connect_to(port);
-        defer             NET_DestroyStreamSocket(socket);
+        NYA_OsSocket socket = connect_to(port);
+        defer             nya_os_socket_close(socket);
 
         exchange(socket, request, answer, sizeof(answer));
         status = status_of(answer);
@@ -387,8 +396,8 @@ s32 main(void) {
     // TEST: the entry point answers with the file, its type, its ETag and a revalidating policy.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        NET_StreamSocket* socket = connect_to(port);
-        defer             NET_DestroyStreamSocket(socket);
+        NYA_OsSocket socket = connect_to(port);
+        defer             nya_os_socket_close(socket);
 
         exchange(socket, "GET / HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer));
 
@@ -418,8 +427,8 @@ s32 main(void) {
         NYA_ConstCString BEFORE[] = { "", "W/", "\"0000000000000000\", " };
 
         for (u64 index = 0; index <= nya_carray_length(BEFORE); index++) {
-            NET_StreamSocket* socket = connect_to(port);
-            defer             NET_DestroyStreamSocket(socket);
+            NYA_OsSocket socket = connect_to(port);
+            defer             nya_os_socket_close(socket);
 
             char condition[NYA_HTTP_MAX_HEADER_VALUE] = { 0 };
 
@@ -449,8 +458,8 @@ s32 main(void) {
         NYA_ConstCString OTHER[] = { "\"0000000000000000\"", "W/\"0000000000000000\"", "not a tag at all", "\"unterminated" };
 
         for (u64 index = 0; index < nya_carray_length(OTHER); index++) {
-            NET_StreamSocket* socket = connect_to(port);
-            defer             NET_DestroyStreamSocket(socket);
+            NYA_OsSocket socket = connect_to(port);
+            defer             nya_os_socket_close(socket);
 
             NYA_String* request = nya_string_sprintf(arena, "GET / HTTP/1.1\r\nHost: x\r\nIf-None-Match: %s\r\n\r\n", OTHER[index]);
 
@@ -469,8 +478,8 @@ s32 main(void) {
         nya_assert(strncmp(hashed, NYA_HTTP_STATIC_PREFIX "/app.", strlen(NYA_HTTP_STATIC_PREFIX "/app.")) == 0, "got '%s'", hashed);
         nya_assert(nya_string_ends_with(nya_string_from(arena, hashed), ".css"), "the suffix survives the hash, got '%s'", hashed);
 
-        NET_StreamSocket* socket = connect_to(port);
-        defer             NET_DestroyStreamSocket(socket);
+        NYA_OsSocket socket = connect_to(port);
+        defer             nya_os_socket_close(socket);
 
         NYA_String* request = nya_string_sprintf(arena, "GET %s HTTP/1.1\r\nHost: x\r\n\r\n", hashed);
         exchange(socket, nya_string_to_cstring(arena, request), answer, sizeof(answer));
@@ -509,8 +518,8 @@ s32 main(void) {
     // TEST: a HEAD answers the GET's head and none of its bytes.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        NET_StreamSocket* socket = connect_to(port);
-        defer             NET_DestroyStreamSocket(socket);
+        NYA_OsSocket socket = connect_to(port);
+        defer             nya_os_socket_close(socket);
 
         exchange(socket, "HEAD /app.css HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer));
 
@@ -574,8 +583,8 @@ s32 main(void) {
     {
         nya_assert(request_status(port, "DELETE /app.css HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n") == 405, "a file is not written here");
 
-        NET_StreamSocket* socket = connect_to(port);
-        defer             NET_DestroyStreamSocket(socket);
+        NYA_OsSocket socket = connect_to(port);
+        defer             nya_os_socket_close(socket);
 
         exchange(socket, "GET /app.css HTTP/1.1\r\nHost: x\r\nRange: bytes=0-9\r\n\r\n", answer, sizeof(answer));
 
@@ -590,8 +599,8 @@ s32 main(void) {
     // TEST: the security headers apply here like anywhere else.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        NET_StreamSocket* socket = connect_to(port);
-        defer             NET_DestroyStreamSocket(socket);
+        NYA_OsSocket socket = connect_to(port);
+        defer             nya_os_socket_close(socket);
 
         exchange(socket, "GET /app.css HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer));
 

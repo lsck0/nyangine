@@ -230,6 +230,16 @@ NYA_API void nya_os_socket_stop(void);
 NYA_API NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, OUT NYA_OsSocket* out_socket) __attr_no_discard;
 
 /**
+ * The same, bound to one address rather than to every interface.
+ *
+ * What a server that should answer on loopback and nowhere else is opened with, which is the safe
+ * default for anything a machine runs for itself. An address of NYA_OS_ADDRESS_NONE means every
+ * interface and is exactly what nya_os_socket_open does.
+ * */
+NYA_API NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, OUT NYA_OsSocket* out_socket)
+    __attr_no_discard;
+
+/**
  * Takes the next waiting connection, non-blocking.
  *
  * NYA_OS_SOCKET_WOULD_BLOCK when nobody is waiting, which is most of the time. The accepted socket is

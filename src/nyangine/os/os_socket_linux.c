@@ -153,6 +153,37 @@ NYA_INTERNAL b8 _nya_os_address_from_host(const struct sockaddr* host, OUT NYA_O
     return false;
 }
 
+/** Binds one socket to exactly the address it was given, in that address's own family. */
+NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind_one(s32 type, NYA_OsAddress address, OUT s32* out_descriptor) {
+    *out_descriptor = -1;
+
+    s32 descriptor = socket(address.kind == NYA_OS_ADDRESS_V6 ? AF_INET6 : AF_INET, type, 0);
+    if (descriptor < 0) return _nya_os_socket_status(errno);
+
+    if (!_nya_os_socket_prepare(descriptor)) {
+        (void)close(descriptor);
+        return NYA_OS_SOCKET_FAILED;
+    }
+
+    s32 on = 1;
+    (void)setsockopt(descriptor, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+    struct sockaddr_storage storage = { 0 };
+    u64                     size    = _nya_os_address_to_host(address, &storage);
+
+    if (bind(descriptor, (const struct sockaddr*)&storage, (socklen_t)size) != 0) {
+        NYA_OsSocketStatus status = _nya_os_socket_status(errno);
+
+        (void)close(descriptor);
+
+        return status;
+    }
+
+    *out_descriptor = descriptor;
+
+    return NYA_OS_SOCKET_OK;
+}
+
 /**
  * Opens a socket of `type` bound to `port`, dual stack where the host allows it.
  *
@@ -160,8 +191,14 @@ NYA_INTERNAL b8 _nya_os_address_from_host(const struct sockaddr* host, OUT NYA_O
  * three lines at the end, and the twenty before them — the family, the two options, the bind — are
  * exactly the part worth writing once.
  * */
-NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, u16 port, OUT s32* out_descriptor) {
+NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress address, OUT s32* out_descriptor) {
     *out_descriptor = -1;
+
+    // An address the caller named is bound in its own family and nothing else: dual stack is about
+    // answering on every interface, which is what having no address to bind means.
+    if (address.kind != NYA_OS_ADDRESS_NONE) return _nya_os_socket_bind_one(type, address, out_descriptor);
+
+    u16 port = address.port;
 
     b8  dual       = true;
     s32 descriptor = socket(AF_INET6, type, 0);
@@ -243,6 +280,10 @@ void nya_os_socket_stop(void) {}
  */
 
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, NYA_OsSocket* out_socket) {
+    return nya_os_socket_open_at(kind, (NYA_OsAddress){ .port = port }, backlog, out_socket);
+}
+
+NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, NYA_OsSocket* out_socket) {
     *out_socket = NYA_OS_SOCKET_NONE;
 
     if (kind >= NYA_OS_SOCKET_KIND_COUNT) return NYA_OS_SOCKET_FAILED;
@@ -250,7 +291,7 @@ NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backl
     b8 listener = kind == NYA_OS_SOCKET_LISTENER;
 
     s32                descriptor = -1;
-    NYA_OsSocketStatus status     = _nya_os_socket_bind(listener ? SOCK_STREAM : SOCK_DGRAM, port, &descriptor);
+    NYA_OsSocketStatus status     = _nya_os_socket_bind(listener ? SOCK_STREAM : SOCK_DGRAM, address, &descriptor);
 
     if (status != NYA_OS_SOCKET_OK) return status;
 

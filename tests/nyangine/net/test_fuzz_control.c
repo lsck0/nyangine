@@ -14,7 +14,6 @@
 #include "SDL3/SDL_init.h"
 
 #include "nyangine/nyangine.h"
-#include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
 
@@ -130,8 +129,8 @@ static u64 mutate(u8* data, u64 size, u64 capacity) {
 
 /** Answers one upgrade request and then writes whatever it is told to. */
 typedef struct {
-  NET_Server*       listener;
-  NET_StreamSocket* stream;
+  NYA_OsSocket      listener;
+  NYA_OsSocket stream;
 
   u8  buffer[4096];
   u64 size;
@@ -140,21 +139,28 @@ typedef struct {
 } Upgrader;
 
 static void upgrader_pump(Upgrader* server, NYA_Arena* arena) {
-  if (server->stream == nullptr) {
-    (void)NET_AcceptClient(server->listener, &server->stream);
-    if (server->stream == nullptr) return;
+  if (server->stream.handle == 0) {
+    {
+      NYA_OsAddress from = { 0 };
+      (void)nya_os_socket_accept(server->listener, &server->stream, &from);
+    }
+    if (server->stream.handle == 0) return;
   }
 
   if (server->upgraded) {
     // Everything after the upgrade is read and thrown away: this server never answers a frame, it
     // only sends the ones the fuzzer hands it.
     u8 ignored[1024];
-    (void)NET_ReadFromStreamSocket(server->stream, ignored, (int)sizeof(ignored));
+    {
+      u64 ignored_size = 0;
+      (void)nya_os_socket_receive(server->stream, ignored, sizeof(ignored), &ignored_size);
+    }
     return;
   }
 
   if (server->size < sizeof(server->buffer) - 1) {
-    int got = NET_ReadFromStreamSocket(server->stream, server->buffer + server->size, (int)(sizeof(server->buffer) - 1 - server->size));
+    u64 got = 0;
+    (void)nya_os_socket_receive(server->stream, server->buffer + server->size, sizeof(server->buffer) - 1 - server->size, &got);
     if (got > 0) server->size += (u64)got;
   }
 
@@ -184,15 +190,18 @@ static void upgrader_pump(Upgrader* server, NYA_Arena* arena) {
       accept
   );
 
-  nya_assert(NET_WriteToStreamSocket(server->stream, response->items, (int)response->length));
+  {
+    u64 wrote = 0;
+    nya_assert(nya_os_socket_send(server->stream, (const u8*)response->items, response->length, &wrote) == NYA_OS_SOCKET_OK);
+  }
 
   server->upgraded = true;
   server->size     = 0;
 }
 
 static void upgrader_destroy(Upgrader* server) {
-  if (server->stream != nullptr) NET_DestroyStreamSocket(server->stream);
-  if (server->listener != nullptr) NET_DestroyServer(server->listener);
+  if (server->stream.handle != 0) nya_os_socket_close(server->stream);
+  nya_os_socket_close(server->listener);
 
   *server = (Upgrader){ 0 };
 }
@@ -203,7 +212,7 @@ s32 main(void) {
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
   nya_assert(SDL_Init(0), "SDL_Init failed: %s", SDL_GetError());
-  nya_assert(NET_Init(), "NET_Init failed: %s", SDL_GetError());
+  nya_assert(nya_os_socket_start() == NYA_OS_SOCKET_OK, "the host's socket library would not start");
 
   nya_system_callback_init();
   defer nya_system_callback_deinit();
@@ -390,8 +399,8 @@ s32 main(void) {
 
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-    server.listener = NET_CreateServer(nullptr, port, 0);
-    nya_assert(server.listener != nullptr, "could not listen on port %u: %s", (u32)port, SDL_GetError());
+    nya_assert(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, port, 0, &server.listener) == NYA_OS_SOCKET_OK, "the listener would not open");
+    nya_assert(server.listener.handle != 0, "could not listen on port %u: %s", (u32)port, SDL_GetError());
     defer upgrader_destroy(&server);
 
     NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/", (unsigned)port);
@@ -438,8 +447,8 @@ s32 main(void) {
         nya_websocket_destroy(socket);
         upgrader_destroy(&server);
 
-        server.listener = NET_CreateServer(nullptr, port, 0);
-        nya_assert(server.listener != nullptr);
+        nya_assert(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, port, 0, &server.listener) == NYA_OS_SOCKET_OK, "the listener would not open");
+        nya_assert(server.listener.handle != 0);
         continue;
       }
 
@@ -469,7 +478,10 @@ s32 main(void) {
         size = (burst % 4 == 0) ? mutate(input, size, FUZZ_INPUT_MAX) : size;
         if (size == 0) continue;
 
-        if (!NET_WriteToStreamSocket(server.stream, input, (int)size)) break;
+        {
+        u64 wrote = 0;
+        if (nya_os_socket_send(server.stream, input, size, &wrote) != NYA_OS_SOCKET_OK) break;
+      }
 
         frames++;
 
@@ -500,14 +512,14 @@ s32 main(void) {
       // The server end goes with it: this one only ever upgrades once.
       upgrader_destroy(&server);
 
-      server.listener = NET_CreateServer(nullptr, port, 0);
-      nya_assert(server.listener != nullptr);
+      nya_assert(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, port, 0, &server.listener) == NYA_OS_SOCKET_OK, "the listener would not open");
+      nya_assert(server.listener.handle != 0);
     }
 
     printf("  %u sockets fed %u broken frames; %u messages came out and every one was well formed\n", runs, frames, messages);
   }
 
-  NET_Quit();
+  nya_os_socket_stop();
 
   printf("PASSED: test_fuzz_control (0 failures)\n");
 
