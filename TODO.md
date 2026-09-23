@@ -556,10 +556,14 @@ logged-in user.
   (with a naive oracle as the test), the hierarchy rules enforced inside the calls, an audit ring, and runtime
   labels so a role editor asks the table what exists rather than being compiled against one program's bits. Two
   callers: gnyame's guild (the pause menu shows your rank and greys the kick button by the resolver) and
-  gnyame's web interface (the same table over QUERY and DELETE, where the refusal is a 403). Missing: the
-  resolution cache and its version counter, which wait for `db`; `SECOND_FACTOR` becoming authentication
-  strength rather than a scope; routes declaring the permission they need so the extractor checks before the
-  handler; and the role editor UI.
+  gnyame's web interface (the same table over QUERY and DELETE, where the refusal is a 403), and the role
+  editor in gnyame's pause menu, which is the caller that changes the table rather than asking it: a toggle is
+  disabled when the resolver would refuse the edit, and the rows are built from the roles the table holds and
+  the permissions that carry a label, so the window never learns what game it is editing. Routes declare the
+  permission they need and the extractor resolves it before the handler runs, so a handler behind one cannot
+  be reached unchecked. Missing: the resolution cache and its version counter, which wait for `db`;
+  `SECOND_FACTOR` becoming authentication strength rather than a scope; and per resource overwrites in the
+  editor, which today edits roles only.
 
   The original entry, kept because the parts above are what remains of it: a `permissions` component with no
   dependency on `http`,
