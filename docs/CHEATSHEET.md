@@ -5240,6 +5240,23 @@ void nya_crypto_aead_encrypt(const NYA_CryptoKey32* key, const NYA_CryptoNonce24
 b8 nya_crypto_aead_decrypt(const NYA_CryptoKey32* key, const NYA_CryptoNonce24* nonce, NYA_CryptoAeadMessage message, const NYA_CryptoTag16* tag)  // Decrypts `message.text` in place when `tag` matches, and returns true.
 ```
 
+### crypto_ecdsa.h
+
+ECDSA signature verification over NIST P-256 with SHA-256, which is what `ES256` means in a JWT and
+
+```c
+// types
+struct NYA_CryptoEcdsaPublicKey { u64 x[4]; u64 y[4]; }  // One public key: a point on the curve, held in the Montgomery form the arithmetic works in.
+
+// macros
+NYA_CRYPTO_ECDSA_COORDINATE_BYTES 32  // Bytes one coordinate takes, which is also what each half of a signature takes.
+NYA_CRYPTO_ECDSA_SIGNATURE_BYTES ((u64)NYA_CRYPTO_ECDSA_COORDINATE_BYTES * 2ULL)  // Bytes a signature takes: `r` and `s`, each padded to the coordinate size.
+
+// functions
+NYA_Error nya_crypto_ecdsa_public_key_from_xy(const u8* x, u64 x_size, const u8* y, u64 y_size, OUT NYA_CryptoEcdsaPublicKey* out_key)  // Reads a key from the two big endian coordinates a JWKS carries as `x` and `y`.
+b8 nya_crypto_ecdsa_verify_sha256(const NYA_CryptoEcdsaPublicKey* key, const u8* message, u64 message_size, const u8* signature, u64 signature_size)  // Whether `signature` is this key's ECDSA signature over SHA-256 of `message`.
+```
+
 ### crypto_encoding.h
 
 base32, RFC 4648 section 6, for TOTP secrets.

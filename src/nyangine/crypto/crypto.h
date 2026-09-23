@@ -52,6 +52,7 @@
 #include "nyangine/crypto/crypto_secret.h"
 /**/
 #include "nyangine/crypto/crypto_aead.h"
+#include "nyangine/crypto/crypto_ecdsa.h"
 #include "nyangine/crypto/crypto_encoding.h"
 #include "nyangine/crypto/crypto_exchange.h"
 #include "nyangine/crypto/crypto_hash.h"
