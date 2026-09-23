@@ -21,6 +21,14 @@
  * */
 #define GNY_COMMAND_BIT(action) ((u32)((action) - NYA_INPUT_ACTION_USER))
 
+/**
+ * A long term key pair kept at `relative` under the save root.
+ *
+ * The save root is the game's to know about: nya_net_key_pair_load takes a whole path, because net
+ * sits below the app loop and a dedicated server or a test puts its identity elsewhere.
+ * */
+NYA_INTERNAL NYA_Error _gny_net_identity_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -45,7 +53,7 @@ void gny_net_start(void) {
         nya_memcpy(config.server_key, GNY_LAUNCH.server_key, NYA_NET_KEY_SIZE);
 
         // anonymous rather than no game when the save root is unwritable.
-        NYA_Error identified = nya_net_key_pair_load(GNY_NET_PLAYER_IDENTITY, &config.identity);
+        NYA_Error identified = _gny_net_identity_load(GNY_NET_PLAYER_IDENTITY, &config.identity);
         if (!identified.ok) nya_log_warn("Connecting anonymously: %s", (NYA_ConstCString)identified.message);
 
         NYA_Error connected = nya_net_client_connect_on(GNY_LAUNCH.transport, GNY_LAUNCH.address, GNY_LAUNCH.port, GNY_LAUNCH.name, config);
@@ -75,7 +83,7 @@ void gny_net_start(void) {
 
     // a listening server keeps its identity, so players who pinned its key can come back. Without one it makes a throwaway.
     if (GNY_LAUNCH.listen_port != 0) {
-        NYA_Error identified = nya_net_key_pair_load(GNY_NET_SERVER_IDENTITY, &server.identity);
+        NYA_Error identified = _gny_net_identity_load(GNY_NET_SERVER_IDENTITY, &server.identity);
         if (!identified.ok) nya_log_warn("Using a throwaway server key: %s", (NYA_ConstCString)identified.message);
     }
 
@@ -219,4 +227,25 @@ void gny_net_player_on_render(NYA_Entity* entity, NYA_Window* window) {
      */
     nya_render2d_rect_rotated(window, center, size, 0.0F, color);
     nya_render2d_rect_rotated_outline(window, center, size, 0.0F, 2.0F, nya_color_darken(color, 0.6F));
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_Error _gny_net_identity_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair) {
+    nya_assert(relative != nullptr);
+    nya_assert(out_key_pair != nullptr);
+
+    *out_key_pair = (NYA_NetKeyPair){ 0 };
+
+    NYA_Arena* scratch = nya_arena_create(.name = "gny_net_identity_load");
+    defer      nya_arena_destroy(scratch);
+
+    NYA_String* path = nya_save_path(scratch, relative);
+    if (path == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "no writable save directory");
+
+    return nya_net_key_pair_load(nya_string_to_cstring(scratch, path), out_key_pair);
 }

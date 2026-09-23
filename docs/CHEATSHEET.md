@@ -17,7 +17,8 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`renderer`](#renderer) — 2D and 3D drawing, cameras, text, particles, post processing and render targets.
 - [`ui`](#ui) — Immediate mode widgets: panels, rows, buttons, sliders, toggles and focus navigation.
 - [`physics`](#physics) — Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller.
-- [`net`](#net) — Encrypted UDP client and server: handshake, commands, delta snapshots and prediction.
+- [`net`](#net) — The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback pair.
+- [`replicate`](#replicate) — A world on the wire: commands, delta snapshots, prediction, lag compensation, chat.
 - [`http`](#http) — An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both.
 - [`serde`](#serde) — One dynamic value type, serialized to and from json, jsonc and the engine's own format.
 - [`crypto`](#crypto) — Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors.
@@ -4392,82 +4393,7 @@ struct NYA_PhysicsHit { NYA_PhysicsDimension dimension; NYA_PhysicsHitKind kind;
 
 ## net
 
-Encrypted UDP client and server: handshake, commands, delta snapshots and prediction.
-
-### net_chat.h
-
-```c
-// types
-struct NYA_NetChatMessage { NYA_NetPeerId sender; char name[NYA_NET_MAX_NAME]; char text[NYA_NET_CHAT_TEXT_MAX]; u64 received_ms; b8 is_system; }  // One line, as it is kept for display.
-
-// macros
-NYA_NET_CHAT_TEXT_MAX 256  // The longest a chat line may be, in bytes including the terminator.
-NYA_NET_CHAT_HISTORY 64  // How many lines are kept for display.
-NYA_NET_CHAT_BURST 5  // How many lines a peer may send back to back before the limit bites.
-NYA_NET_CHAT_REFILL_MS 1500  // How long one token takes to come back.
-
-// functions
-NYA_Error nya_net_chat_send(NYA_ConstCString text)  // Says something, as this client's player.
-NYA_Error nya_net_chat_broadcast_system(NYA_ConstCString text)  // Says something as the server itself, to everyone.
-b8 nya_net_chat_server_consume(NYA_NetPeerId peer, const NYA_Object* event)  // Handles a client's event if it is a chat line.
-b8 nya_net_chat_client_consume(const NYA_Object* event)  // Handles a server event if it is a chat line, appending it to the history.
-u32 nya_net_chat_count(void)  // How many lines are held, at most NYA_NET_CHAT_HISTORY.
-const NYA_NetChatMessage* nya_net_chat_at(u32 index)  // Line `index`, oldest first, or null past the end.
-void nya_net_chat_append_local(NYA_ConstCString text)  // Appends a line locally, without sending anything.
-void nya_net_chat_clear(void)  // Forgets every line.
-u64 nya_net_chat_sanitize(NYA_ConstCString input, OUT char* out, u64 capacity)  // Copies `input` into `out` with everything unsafe to display removed.
-```
-
-### net_client.h
-
-```c
-// types
-typedef void (*NYA_NetSampleCommandFn)(OUT NYA_NetCommand* command)  // Called once per tick to ask what the player is doing.
-typedef void (*NYA_NetGameEventFn)(const NYA_Object* event)  // Called when the server sends a game event.
-typedef void (*NYA_NetPeerChangeFn)(NYA_NetPeerId peer, NYA_ConstCString name, b8 joined)  // Called when another player joins or leaves.
-enum NYA_NetClientState { NYA_NET_CLIENT_DISCONNECTED = 0, NYA_NET_CLIENT_CONNECTING, NYA_NET_CLIENT_HANDSHAKING, NYA_NET_CLIENT_PLAYING, NYA_NET_CLIENT_STATE_COUNT, }
-struct NYA_NetClientConfig { u64 replicated_flag; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_sample_command; NYA_CallbackHandle on_game_event; NYA_CallbackHandle on_peer_change; f32 correction_threshold; u32 extrapolation_limit_ms; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetKeyPair identity; NYA_NetConditions conditions; }
-
-// macros
-NYA_NET_EXTRAPOLATION_LIMIT_MS_DEFAULT 100  // How long replicas are extrapolated past the newest snapshot when the config does not say.
-NYA_NET_TICK_NS_MIN (1000000000ULL / 240)  // The tick lengths a client accepts from a server's WELCOME: 240 down to 10 ticks a second.
-NYA_NET_TICK_NS_MAX (1000000000ULL / 10)
-
-// functions
-NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config)  // Connects to a server over UDP.
-NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config)  // Connects over `kind`.
-NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString name, NYA_NetClientConfig config)  // Attaches to a transport created elsewhere.
-void nya_net_client_disconnect(void)
-NYA_NetClientState nya_net_client_state(void)
-NYA_NetDisconnect nya_net_client_disconnect_reason(void)  // Why the last disconnection happened.
-void nya_net_client_tick(u64 tick, f32 delta_time_s)  // One tick: sample input, predict, send, and apply whatever arrived.
-NYA_EntityHandle nya_net_client_entity(void)  // The entity this client controls, in this process's handle space.
-NYA_EntityHandle nya_net_client_entity_remote(void)  // The same entity as the *server* names it.
-NYA_EntityHandle nya_net_client_local_entity(NYA_EntityHandle remote)  // Translates a server handle into a local one, or NYA_ENTITY_HANDLE_NONE.
-NYA_NetPeerId nya_net_client_peer(void)  // This client's peer id, as the server numbers it.
-NYA_NetPeerStats nya_net_client_stats(void)  // What the connection is costing.
-u64 nya_net_client_server_tick(void)  // The newest server tick applied.
-u64 nya_net_client_correction_count(void)  // How many corrections have happened since connecting.
-NYA_Error nya_net_client_send_event(const NYA_Object* event)  // Sends a game-defined event to the server.
-void nya_net_client_interpolate(f32 delta_time_s)
-```
-
-### net_command.h
-
-```c
-// types
-struct NYA_NetCommand { u64 tick; u64 actions; f32x2 aim; f32 analog; }  // One tick of a player's intent.
-typedef void (*NYA_NetApplyCommandFn)(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s)  // Turns a command into movement.
-
-// macros
-NYA_NET_COMMAND_REDUNDANCY 4  // How many ticks of command history ride in every packet.
-
-// functions
-NYA_Error nya_net_command_encode(NYA_String* out, const NYA_NetCommand* commands, u32 count)  // Appends up to `count` commands, newest last.
-NYA_Error nya_net_command_decode(const u8* data, u64 size, OUT NYA_NetCommand* out_commands, OUT u32* out_count)  // Reads a run of commands back.
-b8 nya_net_command_holds(const NYA_NetCommand* command, u32 bit)  // Whether `action` is held in this command.
-void nya_net_command_set(NYA_NetCommand* command, u32 bit, b8 held)  // Sets or clears `bit`.
-```
+The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback pair.
 
 ### net_config.h
 
@@ -4502,7 +4428,7 @@ NYA_NET_KEY_HEX_SIZE ((NYA_NET_KEY_SIZE * 2) + 1)  // Two hex digits per byte an
 
 // functions
 NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair)  // A fresh key pair from the operating system's random source.
-NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair)
+NYA_Error nya_net_key_pair_load(NYA_ConstCString path, OUT NYA_NetKeyPair* out_key_pair)
 NYA_NetKeyPair nya_net_key_pair_from_secret(const u8* secret_key)  // The pair a stored secret key belongs to.
 b8 nya_net_key_is_set(const u8* key)  // Whether any byte of a key is set.
 void nya_net_key_to_hex(const u8* key, OUT char* out_hex)
@@ -4535,83 +4461,6 @@ enum NYA_NetProtocol { NYA_NET_PROTOCOL_UDP = 0, NYA_NET_PROTOCOL_TCP, NYA_NET_P
 
 // functions
 NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port)
-```
-
-### net_server.h
-
-```c
-// types
-typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCString name)  // Called when a player joins, to give them something to control.
-typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle entity)  // Called when a player leaves, before their entity is despawned.
-typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant)  // Whether `entity` is worth sending to `peer` this tick.
-typedef void (*NYA_NetServerEventFn)(NYA_NetPeerId peer, const NYA_Object* event)  // Called when a client sends a game-defined event.
-struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetConditions conditions; u32 lag_history_ticks; }
-struct NYA_NetServerPeer { NYA_NetPeerId peer; char name[NYA_NET_MAX_NAME]; NYA_EntityHandle entity; b8 accepted; b8 is_local; u8 public_key[NYA_NET_KEY_SIZE]; }  // One connected player, as the game sees them.
-
-// macros
-NYA_NET_VIOLATION_LIMIT_DEFAULT 32  // Violations a player may run up before being kicked, when the config does not say.
-NYA_NET_RELEVANCE_HYSTERESIS 0.25F  // The default hysteresis band, as a fraction of the relevance radius.
-NYA_NET_STATS_LINE_MAX 128  // How long a line nya_net_stats_line writes may be, terminator included.
-
-// functions
-NYA_Error nya_net_server_start(NYA_NetServerConfig config)  // Becomes the authority.
-void nya_net_server_stop(void)
-b8 nya_net_server_running(void)
-NYA_Error nya_net_server_listen(u16 port)  // Starts accepting players over UDP on `port`.
-NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port)  // Starts accepting players over `kind`.
-b8 nya_net_server_is_listening(void)  // Whether a socket is open.
-u16 nya_net_server_port(void)  // The port players reach this server on, or zero when it is not listening.
-const u8* nya_net_server_public_key(void)  // The key players pin to be sure they reached this server, or null until it listens.
-NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_transport)  // Attaches a local player over a loopback transport, and hands back the client end.
-NYA_NetPeerId nya_net_server_local_peer(void)  // The local player's peer id, or NYA_NET_PEER_NONE on a dedicated server.
-b8 nya_net_server_is_dedicated(void)  // Whether this server has no local player, i.e.
-void nya_net_server_tick(u64 tick, f32 delta_time_s)  // One tick of networking: drain what arrived, apply commands, send snapshots.
-u32 nya_net_server_peer_count(void)  // How many players are connected, the local one included.
-const NYA_NetServerPeer* nya_net_server_peer_at(u32 index)  // The player at `index` in the peer table, or null.
-const NYA_NetServerPeer* nya_net_server_peer(NYA_NetPeerId peer)
-void nya_net_server_kick(NYA_NetPeerId peer, NYA_NetDisconnect reason)  // Drops a player.
-NYA_Error nya_net_server_send_event(NYA_NetPeerId peer, const NYA_Object* event)  // Sends a game-defined event to one peer, or to everyone when `peer` is NYA_NET_PEER_NONE.
-b8 nya_net_server_rewind_begin(NYA_NetPeerId peer)  // Moves the world back to what `peer` was looking at, so a hit test resolves against what they saw.
-void nya_net_server_rewind_end(void)  // Puts the world back.
-u64 nya_net_server_rewind_ticks(void)  // How far back the last rewind went, in ticks.
-b8 nya_net_stats_line(OUT char* out, u64 capacity)
-NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer)  // What a player's connection is costing, and how often they broke the rules.
-NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer)  // The most recent command applied for a peer.
-```
-
-### net_snapshot.h
-
-```c
-// types
-typedef enum { NYA_NET_FIELD_POSITION = 1U << 0, NYA_NET_FIELD_ROTATION = 1U << 1, NYA_NET_FIELD_SCALE = 1U << 2, NYA_NET_FIELD_VELOCITY = 1U << 3, NYA_NET_FIELD_ANGULAR_VELOCITY = 1U << 4, NYA_NET_FIELD_STATE = 1U << 5, NYA_NET_FIELD_TYPE = 1U << 6, NYA_NET_FIELD_FLAGS = 1U << 7, NYA_NET_FIELD_ALL = 0x00FF, } NYA_NetField  // Which fields of an entity differ from its baseline.
-struct NYA_NetEntityState { NYA_EntityHandle handle; u32 type; u64 flags; u32 state; f32x3 position; NYA_Quaternion rotation; f32x3 scale; f32x3 velocity; f32x3 angular_velocity; }  // One replicated entity, as it crosses the wire.
-struct NYA_NetSnapshot { u64 tick; u64 baseline_tick; u64 command_tick; u8 position_bits; NYA_NetEntityState* entities; u32 entity_count; }  // The replicated world at one tick.
-struct NYA_NetReplicaSample { u64 tick; f32x3 position; f32x3 velocity; NYA_Quaternion rotation; }  // Where a replica was at one server tick.
-struct NYA_NetReplica { NYA_EntityHandle remote; NYA_EntityHandle local; b8 present; NYA_NetReplicaSample samples[NYA_NET_REPLICA_SAMPLES]; u32 sample_count; }  // One entity, as both sides name it.
-struct NYA_NetReplicaMap { NYA_NetReplica entries[NYA_NET_MAX_REPLICATED]; u32 count; u16 by_remote_index[NYA_ENTITY_MAX]; }  // Which local entity stands for which server entity.
-
-// macros
-NYA_NET_SNAPSHOT_VERSION 2  // Bumped whenever the encoding changes in a way an older peer would misread.
-NYA_NET_MAX_REPLICATED 2048  // How many replicated entities one snapshot may carry.
-NYA_NET_POSITION_BITS_DEFAULT 6
-NYA_NET_POSITION_BITS_MAX 16
-NYA_NET_REPLICA_SAMPLES 4  // Snapshots of transform each replica keeps.
-
-// functions
-NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick, OUT NYA_NetSnapshot* out_snapshot)  // Captures every entity carrying `replicated_flag` out of the current world.
-NYA_Error nya_net_snapshot_encode(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_NetSnapshot* baseline, OUT NYA_String* out)  // Writes `snapshot` as bytes, sending only what differs from `baseline`.
-b8 nya_net_snapshot_peek(const u8* data, u64 size, OUT u64* out_tick, OUT u64* out_baseline_tick)  // The tick a payload describes and the baseline it needs, without decoding it.
-NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, const NYA_NetSnapshot* baseline, OUT NYA_NetSnapshot* out_snapshot)  // Reads a snapshot back against the baseline its header names, which must be `baseline`.
-void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetReplicaMap* map, NYA_EntityHandle predicted_remote)  // Writes `snapshot` into the local world: moves what moved, spawns what is new, despawns what left.
-void nya_net_replica_map_clear(NYA_NetReplicaMap* map)  // Forgets every mapping without touching the entities.
-void nya_net_replica_map_despawn_all(NYA_NetReplicaMap* map)  // Despawns every entity the map knows about, then forgets them.
-NYA_EntityHandle nya_net_replica_local(const NYA_NetReplicaMap* map, NYA_EntityHandle remote)  // The local entity standing for a server entity, or NYA_ENTITY_HANDLE_NONE.
-NYA_EntityHandle nya_net_replica_remote(const NYA_NetReplicaMap* map, NYA_EntityHandle local)  // The reverse: which server entity a local one stands for.
-void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f64 render_tick, f32 tick_seconds, f32 extrapolation_limit_s, NYA_EntityHandle predicted_remote)
-const NYA_NetEntityState* nya_net_snapshot_find(const NYA_NetSnapshot* snapshot, NYA_EntityHandle handle)  // Reads one entity's state out of a snapshot.
-NYA_NetSnapshot nya_net_snapshot_clone(NYA_Arena* arena, const NYA_NetSnapshot* snapshot)  // Copies a snapshot into `arena`, so it can be kept as a baseline after the tick it came from.
-void nya_net_entity_state_apply(NYA_Entity* entity, const NYA_NetEntityState* state)  // Writes `state` onto an entity, field by field.
-u16 nya_net_entity_state_diff(const NYA_NetEntityState* from, const NYA_NetEntityState* to)  // Whether two states differ at all, and in which fields.
 ```
 
 ### net_transport.h
@@ -4669,6 +4518,162 @@ NYA_NET_PEER_NONE ((NYA_NetPeerId){ .index = 0, .generation = 0 })
 // functions
 b8 nya_net_peer_equals(NYA_NetPeerId a, NYA_NetPeerId b)  // Whether two peer ids name the same connection.
 b8 nya_net_peer_is_set(NYA_NetPeerId peer)  // Whether an id names a peer at all.
+```
+
+## replicate
+
+A world on the wire: commands, delta snapshots, prediction, lag compensation, chat.
+
+### replicate_chat.h
+
+```c
+// types
+struct NYA_NetChatMessage { NYA_NetPeerId sender; char name[NYA_NET_MAX_NAME]; char text[NYA_NET_CHAT_TEXT_MAX]; u64 received_ms; b8 is_system; }  // One line, as it is kept for display.
+
+// macros
+NYA_NET_CHAT_TEXT_MAX 256  // The longest a chat line may be, in bytes including the terminator.
+NYA_NET_CHAT_HISTORY 64  // How many lines are kept for display.
+NYA_NET_CHAT_BURST 5  // How many lines a peer may send back to back before the limit bites.
+NYA_NET_CHAT_REFILL_MS 1500  // How long one token takes to come back.
+
+// functions
+NYA_Error nya_net_chat_send(NYA_ConstCString text)  // Says something, as this client's player.
+NYA_Error nya_net_chat_broadcast_system(NYA_ConstCString text)  // Says something as the server itself, to everyone.
+b8 nya_net_chat_server_consume(NYA_NetPeerId peer, const NYA_Object* event)  // Handles a client's event if it is a chat line.
+b8 nya_net_chat_client_consume(const NYA_Object* event)  // Handles a server event if it is a chat line, appending it to the history.
+u32 nya_net_chat_count(void)  // How many lines are held, at most NYA_NET_CHAT_HISTORY.
+const NYA_NetChatMessage* nya_net_chat_at(u32 index)  // Line `index`, oldest first, or null past the end.
+void nya_net_chat_append_local(NYA_ConstCString text)  // Appends a line locally, without sending anything.
+void nya_net_chat_clear(void)  // Forgets every line.
+u64 nya_net_chat_sanitize(NYA_ConstCString input, OUT char* out, u64 capacity)  // Copies `input` into `out` with everything unsafe to display removed.
+```
+
+### replicate_client.h
+
+```c
+// types
+typedef void (*NYA_NetSampleCommandFn)(OUT NYA_NetCommand* command)  // Called once per tick to ask what the player is doing.
+typedef void (*NYA_NetGameEventFn)(const NYA_Object* event)  // Called when the server sends a game event.
+typedef void (*NYA_NetPeerChangeFn)(NYA_NetPeerId peer, NYA_ConstCString name, b8 joined)  // Called when another player joins or leaves.
+enum NYA_NetClientState { NYA_NET_CLIENT_DISCONNECTED = 0, NYA_NET_CLIENT_CONNECTING, NYA_NET_CLIENT_HANDSHAKING, NYA_NET_CLIENT_PLAYING, NYA_NET_CLIENT_STATE_COUNT, }
+struct NYA_NetClientConfig { u64 replicated_flag; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_sample_command; NYA_CallbackHandle on_game_event; NYA_CallbackHandle on_peer_change; f32 correction_threshold; u32 extrapolation_limit_ms; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetKeyPair identity; NYA_NetConditions conditions; }
+
+// macros
+NYA_NET_EXTRAPOLATION_LIMIT_MS_DEFAULT 100  // How long replicas are extrapolated past the newest snapshot when the config does not say.
+NYA_NET_TICK_NS_MIN (1000000000ULL / 240)  // The tick lengths a client accepts from a server's WELCOME: 240 down to 10 ticks a second.
+NYA_NET_TICK_NS_MAX (1000000000ULL / 10)
+
+// functions
+NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config)  // Connects to a server over UDP.
+NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config)  // Connects over `kind`.
+NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString name, NYA_NetClientConfig config)  // Attaches to a transport created elsewhere.
+void nya_net_client_disconnect(void)
+NYA_NetClientState nya_net_client_state(void)
+NYA_NetDisconnect nya_net_client_disconnect_reason(void)  // Why the last disconnection happened.
+void nya_net_client_tick(u64 tick, f32 delta_time_s)  // One tick: sample input, predict, send, and apply whatever arrived.
+NYA_EntityHandle nya_net_client_entity(void)  // The entity this client controls, in this process's handle space.
+NYA_EntityHandle nya_net_client_entity_remote(void)  // The same entity as the *server* names it.
+NYA_EntityHandle nya_net_client_local_entity(NYA_EntityHandle remote)  // Translates a server handle into a local one, or NYA_ENTITY_HANDLE_NONE.
+NYA_NetPeerId nya_net_client_peer(void)  // This client's peer id, as the server numbers it.
+NYA_NetPeerStats nya_net_client_stats(void)  // What the connection is costing.
+u64 nya_net_client_server_tick(void)  // The newest server tick applied.
+u64 nya_net_client_correction_count(void)  // How many corrections have happened since connecting.
+NYA_Error nya_net_client_send_event(const NYA_Object* event)  // Sends a game-defined event to the server.
+void nya_net_client_interpolate(f32 delta_time_s)
+```
+
+### replicate_command.h
+
+```c
+// types
+struct NYA_NetCommand { u64 tick; u64 actions; f32x2 aim; f32 analog; }  // One tick of a player's intent.
+typedef void (*NYA_NetApplyCommandFn)(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s)  // Turns a command into movement.
+
+// macros
+NYA_NET_COMMAND_REDUNDANCY 4  // How many ticks of command history ride in every packet.
+
+// functions
+NYA_Error nya_net_command_encode(NYA_String* out, const NYA_NetCommand* commands, u32 count)  // Appends up to `count` commands, newest last.
+NYA_Error nya_net_command_decode(const u8* data, u64 size, OUT NYA_NetCommand* out_commands, OUT u32* out_count)  // Reads a run of commands back.
+b8 nya_net_command_holds(const NYA_NetCommand* command, u32 bit)  // Whether `action` is held in this command.
+void nya_net_command_set(NYA_NetCommand* command, u32 bit, b8 held)  // Sets or clears `bit`.
+```
+
+### replicate_server.h
+
+```c
+// types
+typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCString name)  // Called when a player joins, to give them something to control.
+typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle entity)  // Called when a player leaves, before their entity is despawned.
+typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant)  // Whether `entity` is worth sending to `peer` this tick.
+typedef void (*NYA_NetServerEventFn)(NYA_NetPeerId peer, const NYA_Object* event)  // Called when a client sends a game-defined event.
+struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetConditions conditions; u32 lag_history_ticks; }
+struct NYA_NetServerPeer { NYA_NetPeerId peer; char name[NYA_NET_MAX_NAME]; NYA_EntityHandle entity; b8 accepted; b8 is_local; u8 public_key[NYA_NET_KEY_SIZE]; }  // One connected player, as the game sees them.
+
+// macros
+NYA_NET_VIOLATION_LIMIT_DEFAULT 32  // Violations a player may run up before being kicked, when the config does not say.
+NYA_NET_RELEVANCE_HYSTERESIS 0.25F  // The default hysteresis band, as a fraction of the relevance radius.
+NYA_NET_STATS_LINE_MAX 128  // How long a line nya_net_stats_line writes may be, terminator included.
+
+// functions
+NYA_Error nya_net_server_start(NYA_NetServerConfig config)  // Becomes the authority.
+void nya_net_server_stop(void)
+b8 nya_net_server_running(void)
+NYA_Error nya_net_server_listen(u16 port)  // Starts accepting players over UDP on `port`.
+NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port)  // Starts accepting players over `kind`.
+b8 nya_net_server_is_listening(void)  // Whether a socket is open.
+u16 nya_net_server_port(void)  // The port players reach this server on, or zero when it is not listening.
+const u8* nya_net_server_public_key(void)  // The key players pin to be sure they reached this server, or null until it listens.
+NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_transport)  // Attaches a local player over a loopback transport, and hands back the client end.
+NYA_NetPeerId nya_net_server_local_peer(void)  // The local player's peer id, or NYA_NET_PEER_NONE on a dedicated server.
+b8 nya_net_server_is_dedicated(void)  // Whether this server has no local player, i.e.
+void nya_net_server_tick(u64 tick, f32 delta_time_s)  // One tick of networking: drain what arrived, apply commands, send snapshots.
+u32 nya_net_server_peer_count(void)  // How many players are connected, the local one included.
+const NYA_NetServerPeer* nya_net_server_peer_at(u32 index)  // The player at `index` in the peer table, or null.
+const NYA_NetServerPeer* nya_net_server_peer(NYA_NetPeerId peer)
+void nya_net_server_kick(NYA_NetPeerId peer, NYA_NetDisconnect reason)  // Drops a player.
+NYA_Error nya_net_server_send_event(NYA_NetPeerId peer, const NYA_Object* event)  // Sends a game-defined event to one peer, or to everyone when `peer` is NYA_NET_PEER_NONE.
+b8 nya_net_server_rewind_begin(NYA_NetPeerId peer)  // Moves the world back to what `peer` was looking at, so a hit test resolves against what they saw.
+void nya_net_server_rewind_end(void)  // Puts the world back.
+u64 nya_net_server_rewind_ticks(void)  // How far back the last rewind went, in ticks.
+b8 nya_net_stats_line(OUT char* out, u64 capacity)
+NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer)  // What a player's connection is costing, and how often they broke the rules.
+NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer)  // The most recent command applied for a peer.
+```
+
+### replicate_snapshot.h
+
+```c
+// types
+typedef enum { NYA_NET_FIELD_POSITION = 1U << 0, NYA_NET_FIELD_ROTATION = 1U << 1, NYA_NET_FIELD_SCALE = 1U << 2, NYA_NET_FIELD_VELOCITY = 1U << 3, NYA_NET_FIELD_ANGULAR_VELOCITY = 1U << 4, NYA_NET_FIELD_STATE = 1U << 5, NYA_NET_FIELD_TYPE = 1U << 6, NYA_NET_FIELD_FLAGS = 1U << 7, NYA_NET_FIELD_ALL = 0x00FF, } NYA_NetField  // Which fields of an entity differ from its baseline.
+struct NYA_NetEntityState { NYA_EntityHandle handle; u32 type; u64 flags; u32 state; f32x3 position; NYA_Quaternion rotation; f32x3 scale; f32x3 velocity; f32x3 angular_velocity; }  // One replicated entity, as it crosses the wire.
+struct NYA_NetSnapshot { u64 tick; u64 baseline_tick; u64 command_tick; u8 position_bits; NYA_NetEntityState* entities; u32 entity_count; }  // The replicated world at one tick.
+struct NYA_NetReplicaSample { u64 tick; f32x3 position; f32x3 velocity; NYA_Quaternion rotation; }  // Where a replica was at one server tick.
+struct NYA_NetReplica { NYA_EntityHandle remote; NYA_EntityHandle local; b8 present; NYA_NetReplicaSample samples[NYA_NET_REPLICA_SAMPLES]; u32 sample_count; }  // One entity, as both sides name it.
+struct NYA_NetReplicaMap { NYA_NetReplica entries[NYA_NET_MAX_REPLICATED]; u32 count; u16 by_remote_index[NYA_ENTITY_MAX]; }  // Which local entity stands for which server entity.
+
+// macros
+NYA_NET_SNAPSHOT_VERSION 2  // Bumped whenever the encoding changes in a way an older peer would misread.
+NYA_NET_MAX_REPLICATED 2048  // How many replicated entities one snapshot may carry.
+NYA_NET_POSITION_BITS_DEFAULT 6
+NYA_NET_POSITION_BITS_MAX 16
+NYA_NET_REPLICA_SAMPLES 4  // Snapshots of transform each replica keeps.
+
+// functions
+NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick, OUT NYA_NetSnapshot* out_snapshot)  // Captures every entity carrying `replicated_flag` out of the current world.
+NYA_Error nya_net_snapshot_encode(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_NetSnapshot* baseline, OUT NYA_String* out)  // Writes `snapshot` as bytes, sending only what differs from `baseline`.
+b8 nya_net_snapshot_peek(const u8* data, u64 size, OUT u64* out_tick, OUT u64* out_baseline_tick)  // The tick a payload describes and the baseline it needs, without decoding it.
+NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, const NYA_NetSnapshot* baseline, OUT NYA_NetSnapshot* out_snapshot)  // Reads a snapshot back against the baseline its header names, which must be `baseline`.
+void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetReplicaMap* map, NYA_EntityHandle predicted_remote)  // Writes `snapshot` into the local world: moves what moved, spawns what is new, despawns what left.
+void nya_net_replica_map_clear(NYA_NetReplicaMap* map)  // Forgets every mapping without touching the entities.
+void nya_net_replica_map_despawn_all(NYA_NetReplicaMap* map)  // Despawns every entity the map knows about, then forgets them.
+NYA_EntityHandle nya_net_replica_local(const NYA_NetReplicaMap* map, NYA_EntityHandle remote)  // The local entity standing for a server entity, or NYA_ENTITY_HANDLE_NONE.
+NYA_EntityHandle nya_net_replica_remote(const NYA_NetReplicaMap* map, NYA_EntityHandle local)  // The reverse: which server entity a local one stands for.
+void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f64 render_tick, f32 tick_seconds, f32 extrapolation_limit_s, NYA_EntityHandle predicted_remote)
+const NYA_NetEntityState* nya_net_snapshot_find(const NYA_NetSnapshot* snapshot, NYA_EntityHandle handle)  // Reads one entity's state out of a snapshot.
+NYA_NetSnapshot nya_net_snapshot_clone(NYA_Arena* arena, const NYA_NetSnapshot* snapshot)  // Copies a snapshot into `arena`, so it can be kept as a baseline after the tick it came from.
+void nya_net_entity_state_apply(NYA_Entity* entity, const NYA_NetEntityState* state)  // Writes `state` onto an entity, field by field.
+u16 nya_net_entity_state_diff(const NYA_NetEntityState* from, const NYA_NetEntityState* to)  // Whether two states differ at all, and in which fields.
 ```
 
 ## http

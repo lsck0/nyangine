@@ -1155,39 +1155,6 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_EaseType = {
     .is_bitflags = false,
 };
 
-/* NYA_NetChatMessage, src/nyangine/net/net_chat.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage_name_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_NetChatMessage*)nullptr)->name),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_NET_MAX_NAME),
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage_text_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_NetChatMessage*)nullptr)->text),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_NET_CHAT_TEXT_MAX),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_NetChatMessage_FIELDS[] = {
-    { .name = "sender", .type = &_NYA_REFLECT_NYA_NetPeerId, .offset = nya_offsetof(NYA_NetChatMessage, sender), .hint = NYA_HINT_NONE },
-    { .name = "name", .type = &_NYA_REFLECT_NYA_NetChatMessage_name_ARRAY, .offset = nya_offsetof(NYA_NetChatMessage, name), .hint = NYA_HINT_NONE },
-    { .name = "text", .type = &_NYA_REFLECT_NYA_NetChatMessage_text_ARRAY, .offset = nya_offsetof(NYA_NetChatMessage, text), .hint = NYA_HINT_NONE },
-    { .name = "received_ms", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_NetChatMessage, received_ms), .hint = NYA_HINT_NONE },
-    { .name = "is_system", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_NetChatMessage, is_system), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage = {
-    .name = "NYA_NetChatMessage",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_NetChatMessage),
-    .alignment = alignof(NYA_NetChatMessage),
-    .fields = _NYA_REFLECT_NYA_NetChatMessage_FIELDS,
-    .field_count = 5,
-};
-
 /* NYA_NetPeerId, src/nyangine/net/net_types.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_NetPeerId_FIELDS[] = {
@@ -1596,6 +1563,39 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Render2DHaze = {
     .field_count = 3,
 };
 
+/* NYA_NetChatMessage, src/nyangine/replicate/replicate_chat.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_NetChatMessage*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_NET_MAX_NAME),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage_text_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_NetChatMessage*)nullptr)->text),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_NET_CHAT_TEXT_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_NetChatMessage_FIELDS[] = {
+    { .name = "sender", .type = &_NYA_REFLECT_NYA_NetPeerId, .offset = nya_offsetof(NYA_NetChatMessage, sender), .hint = NYA_HINT_NONE },
+    { .name = "name", .type = &_NYA_REFLECT_NYA_NetChatMessage_name_ARRAY, .offset = nya_offsetof(NYA_NetChatMessage, name), .hint = NYA_HINT_NONE },
+    { .name = "text", .type = &_NYA_REFLECT_NYA_NetChatMessage_text_ARRAY, .offset = nya_offsetof(NYA_NetChatMessage, text), .hint = NYA_HINT_NONE },
+    { .name = "received_ms", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_NetChatMessage, received_ms), .hint = NYA_HINT_NONE },
+    { .name = "is_system", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_NetChatMessage, is_system), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage = {
+    .name = "NYA_NetChatMessage",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_NetChatMessage),
+    .alignment = alignof(NYA_NetChatMessage),
+    .fields = _NYA_REFLECT_NYA_NetChatMessage_FIELDS,
+    .field_count = 5,
+};
+
 /* NYA_UIOverflow, src/nyangine/ui/ui.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_UIOverflow_VARIANTS[] = {
@@ -1800,7 +1800,6 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto,
     &_NYA_REFLECT_NYA_Quaternion,
     &_NYA_REFLECT_NYA_EaseType,
-    &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_NetPeerId,
     &_NYA_REFLECT_NYA_Light2D,
     &_NYA_REFLECT_NYA_Render3DFog,
@@ -1821,6 +1820,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_PostMotionBlur,
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_Render2DHaze,
+    &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_UIOverflow,
     &_NYA_REFLECT_NYA_UIStateColors,
     &_NYA_REFLECT_NYA_UISkin,

@@ -212,10 +212,6 @@ NYA_INTERNAL_CALLBACK void _nya_app_tick_tween(f32 delta_time_s) { nya_system_tw
 NYA_INTERNAL_CALLBACK void _nya_app_tick_entity(f32 delta_time_s) { nya_system_entity_update(delta_time_s); }
 
 #ifndef NYA_NO_SDL
-/* Networking, after everything that changes the world and before the barrier. */
-NYA_INTERNAL_CALLBACK void _nya_app_tick_net_server(f32 delta_time_s) { nya_net_server_tick(nya_world()->sim_system.tick, delta_time_s); }
-NYA_INTERNAL_CALLBACK void _nya_app_tick_net_client(f32 delta_time_s) { nya_net_client_tick(nya_world()->sim_system.tick, delta_time_s); }
-
 /* A no-op until a program calls nya_system_http_init, and free until then. */
 NYA_INTERNAL_CALLBACK void _nya_app_frame_http(f32 delta_time_s) {
     nya_unused(delta_time_s);
@@ -373,13 +369,14 @@ void _nya_app_register_subsystems(void) {
     nya_system_register((NYA_SystemEntry){ .name = "entity", .after = "tween_tick", .tick = nya_callback(_nya_app_tick_entity) });
 
 #ifndef NYA_NO_SDL
-    nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = nya_callback(_nya_app_tick_net_server) });
-    nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "net_server", .tick = nya_callback(_nya_app_tick_net_client) });
-
     // The HTTP drain, in the frame phase, which puts it beside the control socket and just before the
     // events are pumped: a request is input like a keypress. Here rather than in http_server.c because
     // http is below core and cannot name the frame loop; see nya_system_http_tick.
-    nya_system_register((NYA_SystemEntry){ .name = "http", .after = "net_client", .frame = nya_callback(_nya_app_frame_http) });
+    //
+    // The two networking ticks used to be registered here too, `after = "entity"`. They are replicate's
+    // own now, registered when a server starts or a client attaches: that module sits *above* this one,
+    // so it registers itself rather than being named by the loop it runs in. See replicate.h.
+    nya_system_register((NYA_SystemEntry){ .name = "http", .after = "entity", .frame = nya_callback(_nya_app_frame_http) });
 #endif
 
     // after "layers" in the render phase, which is what `after = entity` buys it: the only other render

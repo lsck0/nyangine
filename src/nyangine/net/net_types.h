@@ -27,7 +27,7 @@
  * */
 #define NYA_NET_MAX_RELIABLE_IN_FLIGHT 256
 
-/** How many ticks of input a client keeps for replay after a correction. See net_client.h. */
+/** How many ticks of input a client keeps for replay after a correction. See replicate_client.h. */
 #define NYA_NET_COMMAND_HISTORY 128
 
 /**

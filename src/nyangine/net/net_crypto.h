@@ -51,10 +51,14 @@ struct NYA_NetKeyPair {
 NYA_API NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;
 
 /**
- * The key pair saved at `relative` under the save root, or a fresh one saved there the first time, so a server keeps
- * the identity players pinned and a player stays recognisable.
+ * The key pair stored in the file at `path`, or a fresh one written there the first time, so a server keeps the
+ * identity players pinned and a player stays recognisable. Missing parent directories are created.
+ *
+ * A whole path rather than a name under the save root: the save root belongs to core, which is above this module,
+ * and a dedicated server or a test keeps its identity somewhere else entirely. A game with a save root writes
+ * `nya_save_path(arena, "net/server_identity.nya")`.
  * */
-NYA_API NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;
+NYA_API NYA_Error nya_net_key_pair_load(NYA_ConstCString path, OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;
 
 /** The pair a stored secret key belongs to. */
 NYA_API NYA_NetKeyPair nya_net_key_pair_from_secret(const u8* secret_key) __attr_no_discard;

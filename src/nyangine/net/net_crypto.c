@@ -145,8 +145,8 @@ b8 nya_net_key_from_hex(NYA_ConstCString hex, OUT u8* out_key) {
     return true;
 }
 
-NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair) {
-    nya_assert(relative != nullptr);
+NYA_Error nya_net_key_pair_load(NYA_ConstCString path, OUT NYA_NetKeyPair* out_key_pair) {
+    nya_assert(path != nullptr);
     nya_assert(out_key_pair != nullptr);
 
     *out_key_pair = (NYA_NetKeyPair){ 0 };
@@ -154,23 +154,23 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* o
     NYA_Arena* scratch = nya_arena_create(.name = "net_key_pair_load");
     defer      nya_arena_destroy(scratch);
 
-    NYA_Object* saved = nullptr;
-    NYA_Error   read  = nya_save_read(scratch, relative, NYA_SERDE_NONE, &saved);
+    if (nya_filesystem_is_file(path)) {
+        NYA_Object* saved = nullptr;
+        NYA_Error   read  = nya_serde_load_file(scratch, path, NYA_SERDE_NONE, &saved);
 
-    if (read.ok) {
-        NYA_Value* secret = nya_object_get(saved, "secret_key");
-        u8         key[NYA_NET_KEY_SIZE] = { 0 };
+        if (read.ok) {
+            NYA_Value* secret = nya_object_get(saved, "secret_key");
+            u8         key[NYA_NET_KEY_SIZE] = { 0 };
 
-        if (secret != nullptr && secret->type == NYA_TYPE_STRING && nya_net_key_from_hex(secret->as_string, key) && nya_net_key_is_set(key)) {
-            *out_key_pair = nya_net_key_pair_from_secret(key);
-            nya_crypto_wipe(key, sizeof(key));
-            return NYA_OK;
+            if (secret != nullptr && secret->type == NYA_TYPE_STRING && nya_net_key_from_hex(secret->as_string, key) && nya_net_key_is_set(key)) {
+                *out_key_pair = nya_net_key_pair_from_secret(key);
+                nya_crypto_wipe(key, sizeof(key));
+                return NYA_OK;
+            }
         }
 
         // a damaged file is replaced rather than trusted, which gives the endpoint a new identity. Said out loud, since players who pinned the old one will be refused.
-        nya_log_warn("The key pair in '%s' is unreadable; making a new one.", relative);
-    } else if (read.kind != NYA_ERROR_NOT_FOUND) {
-        return read;
+        nya_log_warn("The key pair in '%s' is unreadable; making a new one.", path);
     }
 
     NYA_TRY(nya_net_key_pair_create(out_key_pair));
@@ -181,7 +181,14 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* o
     NYA_Object* fresh = nya_object_create(scratch);
     nya_object_set(fresh, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = hex });
 
-    NYA_Error written = nya_save_write(relative, fresh, NYA_SERDE_NONE);
+    NYA_String* directory = nya_path_dirname(scratch, path);
+
+    NYA_Error written = directory == nullptr || directory->length == 0
+                            ? NYA_OK
+                            : nya_filesystem_create_directory(nya_string_to_cstring(scratch, directory));
+
+    if (written.ok) written = nya_serde_save_file(fresh, path, NYA_SERDE_NONE);
+
     nya_crypto_wipe(hex, sizeof(hex));
 
     return written;

@@ -31,6 +31,9 @@
 #include "nyangine/http/http.h"
 /**/
 #include "nyangine/core/core.h"
+// after core: a snapshot is captured out of the entity table and applied back into it, and the two
+// ticks register themselves as engine systems. See replicate.h for why this is not part of net.
+#include "nyangine/replicate/replicate.h"
 #include "nyangine/renderer/render2d.h"
 // after render2d.h, whose surface it replaces the implementation of. Empty unless -DNYA_TERMINAL.
 #include "nyangine/renderer/render2d_terminal.h"

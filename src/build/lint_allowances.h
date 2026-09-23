@@ -14,12 +14,12 @@
  */
 
 /**
- * Include edges against the module order, with the number of `#include` lines making each today. All of them are
- * Phase 1's to remove: base stops including math and platform, net splits into a transport below the app loop and
- * replication above it, http_metrics and nn's drawing move out, and core stops reaching up into what it drives.
+ * Include edges against the module order, with the number of `#include` lines making each today. What is left is
+ * Phase 1's to remove: core stops reaching up into what it drives. The rest of the phase has landed — base stopped
+ * including math and platform, net split into a transport below the app loop and `replicate` above it, and
+ * http_metrics and nn's drawing moved out to beside debug.
  * */
 NYA_INTERNAL const _LintEdge _LINT_LAYERING_ALLOWED[] = {
-    { "net",      "core",     4 },
     { "core",     "renderer", 7 },
     { "core",     "physics",  5 },
     { "core",     "ui",       1 },

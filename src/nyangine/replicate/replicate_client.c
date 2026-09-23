@@ -139,6 +139,9 @@ NYA_INTERNAL void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32
 
 NYA_INTERNAL void _nya_net_client_reset(void);
 
+/** nya_net_client_tick behind the system registry's signature, reading the tick off the world. */
+NYA_INTERNAL_CALLBACK void _nya_net_client_system_tick(f32 delta_time_s);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -230,10 +233,28 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
         nya_net_replica_map_clear(_NYA_NET_CLIENT.replicas);
     }
 
+    /*
+     * After the entities like the server's tick, and after the server's when there is one: a listen
+     * server starts before its local client attaches, and systems no constraint separates keep the
+     * order they were registered in. See nya_net_server_start for why this is here at all.
+     *
+     * Taken out first because a connection the server drops is reset from inside this very tick, where
+     * a system may not remove itself from the registry: the entry can outlive the connection it was
+     * made for, and reattaching is where that is noticed.
+     */
+    if (nya_app_get()->initialized) {
+        nya_system_unregister("net_client");
+        nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "entity", .tick = nya_callback(_nya_net_client_system_tick) });
+    }
+
     return NYA_OK;
 }
 
 void nya_net_client_disconnect(void) {
+    // before the check: a connection the server already dropped left the entry behind, and this is
+    // the first place outside the tick that can take it out. Idempotent, and free without an app.
+    nya_system_unregister("net_client");
+
     if (!_NYA_NET_CLIENT.active) return;
 
     if (_NYA_NET_CLIENT.transport != nullptr && nya_net_peer_is_set(_NYA_NET_CLIENT.server_peer)) {
@@ -767,4 +788,8 @@ void _nya_net_client_reset(void) {
         .entity_local  = NYA_ENTITY_HANDLE_NONE,
         .peer          = NYA_NET_PEER_NONE,
     };
+}
+
+void _nya_net_client_system_tick(f32 delta_time_s) {
+    nya_net_client_tick(nya_world()->sim_system.tick, delta_time_s);
 }
