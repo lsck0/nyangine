@@ -1,5 +1,5 @@
 /**
- * @file net_client.h
+ * @file replicate_client.h
  *
  * ```c
  * NYA_EXPECT(nya_net_client_connect("192.168.1.5", 27015, "Luca", (NYA_NetClientConfig){
@@ -14,8 +14,8 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/core/core_entity.h"
-#include "nyangine/net/net_command.h"
-#include "nyangine/net/net_snapshot.h"
+#include "nyangine/replicate/replicate_command.h"
+#include "nyangine/replicate/replicate_snapshot.h"
 #include "nyangine/net/net_transport.h"
 #include "nyangine/net/net_types.h"
 

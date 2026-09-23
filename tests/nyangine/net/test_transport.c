@@ -712,8 +712,11 @@ s32 main(void) {
     {
       NYA_EXPECT(nya_system_save_init());
 
-      NYA_ConstCString path = "test_transport/identity.nya";
-      (void)nya_save_delete(path);
+      NYA_ConstCString relative = "test_transport/identity.nya";
+      (void)nya_save_delete(relative);
+
+      // the save root is the caller's to resolve; net takes a whole path. See nya_net_key_pair_load.
+      NYA_ConstCString path = nya_string_to_cstring(arena, nya_save_path(arena, relative));
 
       NYA_NetKeyPair first  = { 0 };
       NYA_NetKeyPair second = { 0 };
@@ -725,12 +728,12 @@ s32 main(void) {
 
       NYA_Object* damaged = nya_object_create(arena);
       nya_object_set(damaged, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "not a key" });
-      NYA_EXPECT(nya_save_write(path, damaged, NYA_SERDE_NONE));
+      NYA_EXPECT(nya_save_write(relative, damaged, NYA_SERDE_NONE));
 
       NYA_EXPECT(nya_net_key_pair_load(path, &second));
       nya_assert(nya_net_key_is_set(second.public_key) && nya_memcmp(&first, &second, sizeof(first)) != 0, "a damaged identity was not replaced");
 
-      NYA_EXPECT(nya_save_delete(path));
+      NYA_EXPECT(nya_save_delete(relative));
       nya_system_save_deinit();
     }
 

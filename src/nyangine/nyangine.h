@@ -26,11 +26,14 @@
 #include "nyangine/physics/physics.h"
 // Guarded for the same reason: the transports link SDL_net, which a host tool does not have.
 #include "nyangine/net/net.h"
+// Before core, which registers the drain as a frame system and whose metrics resource moved to debug:
+// nothing under http names the app loop any more.
+#include "nyangine/http/http.h"
 /**/
 #include "nyangine/core/core.h"
-// after core: the server registers its drain on the frame's own event and its metrics resource reads
-// the app, the ceiling registry and the system registry.
-#include "nyangine/http/http.h"
+// after core: a snapshot is captured out of the entity table and applied back into it, and the two
+// ticks register themselves as engine systems. See replicate.h for why this is not part of net.
+#include "nyangine/replicate/replicate.h"
 #include "nyangine/renderer/render2d.h"
 // after render2d.h, whose surface it replaces the implementation of. Empty unless -DNYA_TERMINAL.
 #include "nyangine/renderer/render2d_terminal.h"

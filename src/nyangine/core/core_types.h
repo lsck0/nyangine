@@ -3,6 +3,9 @@
  * */
 #pragma once
 
+// NYA_EntityHandle is declared there rather than here: physics answers queries with one and core owns
+// the table it indexes, and base is the lowest module both of them can see. See base_handle.h.
+#include "nyangine/base/base_handle.h"
 #include "nyangine/base/base_types.h"
 
 /*
@@ -12,7 +15,6 @@
  */
 
 typedef struct NYA_WindowHandle NYA_WindowHandle;
-typedef struct NYA_EntityHandle NYA_EntityHandle;
 typedef enum NYA_InputDeviceKind NYA_InputDeviceKind;
 typedef struct NYA_InputSource   NYA_InputSource;
 typedef enum NYA_SocialProvider  NYA_SocialProvider;
@@ -33,7 +35,8 @@ enum NYA_SocialProvider {
 };
 
 /**
- * Identifies a window for as long as it exists.
+ * Identifies a window for as long as it exists. Same shape and reasoning as NYA_EntityHandle, and it
+ * stays here because core is the only module that opens a window or names one.
  * */
 struct NYA_WindowHandle {
     u32 index;
@@ -41,19 +44,6 @@ struct NYA_WindowHandle {
 };
 
 #define NYA_WINDOW_HANDLE_NONE ((NYA_WindowHandle){ .index = 0, .generation = 0 })
-
-/**
- * Identifies an entity for as long as it lives. Same shape and reasoning as NYA_WindowHandle, and it
- * matters more here: entities refer to each other constantly, and deferred simulation commands hold
- * references across a barrier, so bumping `generation` on despawn is what keeps a stale reference from
- * silently addressing whichever entity next occupied the slot.
- * */
-struct NYA_EntityHandle {
-    u32 index;
-    u32 generation;
-};
-
-#define NYA_ENTITY_HANDLE_NONE ((NYA_EntityHandle){ .index = 0, .generation = 0 })
 
 enum NYA_InputDeviceKind {
     /** No device, or the platform did not say which. What a zeroed NYA_InputSource is. */

@@ -13,7 +13,6 @@
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_thread.h"
-#include "nyangine/core/core_event.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/base/base_clock.h"
 #include "nyangine/os/os_random.h"
@@ -189,8 +188,6 @@ struct _NYA_HttpState {
 
     atomic u64 request_count;
 
-    NYA_CallbackHandle frame_hook;
-
     /*
      * ── the threaded half, all of it null and zero while `workers` is zero ──
      */
@@ -275,9 +272,6 @@ NYA_INTERNAL b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpR
 
 /** Closes one connection and frees its slot. Idempotent. */
 NYA_INTERNAL void _nya_http_close(_NYA_HttpConnection* connection);
-
-/** The frame hook, which is nya_system_http_tick behind the event signature. */
-NYA_INTERNAL void _nya_http_on_frame(NYA_Event* event);
 
 /* ── the threaded half ── */
 
@@ -481,27 +475,6 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
     nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
 
-    /*
-     * Drained where input is drained, for the same reason the control socket is: a request is input
-     * like a keypress, so it lands at the same point in the frame. A threaded server still wants it,
-     * because the exchanges that asked for the main thread and every WebSocket are answered there.
-     *
-     * Only when there is a frame. A callback and an event hook both live in the app, so a program with
-     * no app — a headless tool, a test — cannot register one, and drives nya_system_http_tick itself.
-     * Serving over HTTP is not a reason to require a window and a frame loop.
-     */
-    if (_NYA_APP_INSTANCE.initialized) {
-        state->frame_hook = nya_callback(_nya_http_on_frame);
-
-        nya_event_hook_register((NYA_EventHook){
-            .event_type = NYA_EVENT_HANDLING_STARTED,
-            .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
-            .fn         = state->frame_hook,
-        });
-    } else {
-        nya_log_debug("No app is running, so the HTTP drain is the caller's to run; see nya_system_http_tick.");
-    }
-
     if (state->workers > 0) {
         nya_log_info(
             "HTTP server listening on http://%s:%u, on its own thread with %u worker%s",
@@ -522,15 +495,7 @@ void nya_system_http_deinit(void) {
 
     _NYA_HttpState* state = _NYA_HTTP;
 
-    // first, so the frame stops feeding a server that is being taken down.
-    if (state->frame_hook != 0 && _NYA_APP_INSTANCE.initialized) {
-        nya_event_hook_unregister((NYA_EventHook){
-            .event_type = NYA_EVENT_HANDLING_STARTED,
-            .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
-            .fn         = state->frame_hook,
-        });
-    }
-
+    // first, so a drain that arrives while the rest of this is running finds nothing to do.
     atomic_store_explicit(&state->stopping, true, memory_order_release);
 
     /*
@@ -1203,12 +1168,6 @@ void _nya_http_close(_NYA_HttpConnection* connection) {
 
     nya_assert(atomic_load_explicit(&_NYA_HTTP->connection_count, memory_order_relaxed) > 0, "a connection was closed that was never counted");
     (void)atomic_fetch_sub_explicit(&_NYA_HTTP->connection_count, 1, memory_order_relaxed);
-}
-
-void _nya_http_on_frame(NYA_Event* event) {
-    nya_unused(event);
-
-    nya_system_http_tick();
 }
 
 /*

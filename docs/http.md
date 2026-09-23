@@ -33,10 +33,13 @@ NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()));
 NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()));
 ```
 
-The tick is hooked onto `NYA_EVENT_HANDLING_STARTED`, so a program running the engine's frame loop
-needs no second call: a request arrives where a keypress arrives. A program with no frame loop — a
-headless tool, a test — calls `nya_system_http_tick` itself, and `nya_system_http_init` notices there
-is no app and says so at debug level rather than requiring one.
+The app runs the tick as its `http` system, in the frame phase just before events are pumped, so a
+program running the engine's frame loop needs no second call: a request arrives where a keypress
+arrives. A program with no frame loop — a headless tool, a test — calls `nya_system_http_tick` itself.
+
+The app calls down rather than the server hooking up into the frame, because `core` sits above `http`
+in the module order: a server that named the event system could not be linked into a program that has
+no app at all.
 
 `gnyame` starts a server when `GNYAME_WEB_PORT` names a port, which is the caller to read:
 `src/gnyame/web.c`.

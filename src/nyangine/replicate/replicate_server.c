@@ -200,6 +200,9 @@ NYA_INTERNAL void _nya_net_server_broadcast_roster(NYA_NetPeerId about, NYA_Cons
 /** Sends `payload` to one peer on whichever transport it arrived on. */
 NYA_INTERNAL void _nya_net_server_send(_NYA_NetServerPeerState* state, NYA_NetChannel channel, const NYA_String* payload);
 
+/** nya_net_server_tick behind the system registry's signature, reading the tick off the world. */
+NYA_INTERNAL_CALLBACK void _nya_net_server_system_tick(f32 delta_time_s);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -237,10 +240,24 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config) {
         ceiling_registered = true;
     }
 
+    /*
+     * After the entities, so a tick sends what this tick did, and before the simulation barrier. The
+     * registration is here rather than in core_app.c's list because replication sits above the app
+     * loop: a program with no frame drives nya_net_server_tick itself, exactly as it always has, and
+     * one with a frame pays nothing for a server it never starts.
+     */
+    if (nya_app_get()->initialized) {
+        nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = nya_callback(_nya_net_server_system_tick) });
+    }
+
     return NYA_OK;
 }
 
 void nya_net_server_stop(void) {
+    // before the check, so a stop after something else took the server down still clears the entry.
+    // Idempotent, and free when the server was started without an app.
+    nya_system_unregister("net_server");
+
     if (!_NYA_NET_SERVER.running) return;
 
     // each peer is told, so a client says "the server closed" instead of timing out.
@@ -1215,4 +1232,8 @@ void _nya_net_server_send(_NYA_NetServerPeerState* state, NYA_NetChannel channel
 
     // a failed send is not a dead peer; the timeout decides. debug level, since bad connections do this often.
     if (!sent.ok) nya_log_debug("Could not send to '%s': %s", state->public_state.name, (NYA_ConstCString)sent.message);
+}
+
+void _nya_net_server_system_tick(f32 delta_time_s) {
+    nya_net_server_tick(nya_world()->sim_system.tick, delta_time_s);
 }

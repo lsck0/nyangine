@@ -15,10 +15,10 @@
 #include "box2d/box2d.h"
 
 #include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_handle.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/physics/physics_layer.h"
 #include "nyangine/physics/physics_types.h"
-#include "nyangine/core/core_types.h"
 #include "nyangine/math/math_vector.h"
 
 /* entities hold an NYA_Physics2DBody, so core_entity.h cannot be included here. only the pointer is needed. */

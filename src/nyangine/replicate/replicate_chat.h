@@ -1,5 +1,5 @@
 /**
- * @file net_chat.h
+ * @file replicate_chat.h
  *
  * ```
  * { "kind": "chat", "text": "hello" }

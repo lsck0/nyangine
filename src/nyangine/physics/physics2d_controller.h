@@ -12,8 +12,8 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_handle.h"
 #include "nyangine/base/base_types.h"
-#include "nyangine/core/core_types.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

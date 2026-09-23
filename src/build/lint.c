@@ -93,7 +93,10 @@ NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     // db is above crypto and base and below everything that stores anything, which is why it shares
     // net's rank rather than sitting under it: neither includes the other and neither ever should.
     { "db",       4 },
-    { "net",      4 }, { "http",     5 }, { "core",     6 }, { "renderer", 7 }, { "ui",      8 }, { "physics", 9 }, { "debug",   10 },
+    { "net",      4 }, { "http",     5 }, { "core",     6 },
+    // replicate is net's other half: a world on the wire rather than bytes on it, so it is written in
+    // entities and sits above the app loop where net sits below it. See replicate.h.
+    { "replicate", 7 }, { "renderer", 7 }, { "ui",      8 }, { "physics", 9 }, { "debug",   10 },
     { "testing",  11 }, { "plugins", 11 },
 };
 

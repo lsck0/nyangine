@@ -15,10 +15,10 @@
 #include "box3d/box3d.h"
 
 #include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_handle.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/physics/physics_layer.h"
 #include "nyangine/physics/physics_types.h"
-#include "nyangine/core/core_types.h"
 #include "nyangine/math/math_quaternion.h"
 #include "nyangine/math/math_vector.h"
 
