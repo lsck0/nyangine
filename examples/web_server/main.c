@@ -56,6 +56,22 @@
  * reflected path anyway and needs no generation step. Everything else — the router, the verbs, the
  * layers, the generated document — is exactly what a reflected resource uses.
  *
+ * The second factor routes are the exception, and they show why the rest is a limitation rather than a
+ * style: their DTOs are the engine's own, so `nya_reflect_of` resolves, the OpenAPI document describes
+ * the bodies, and the log layer has a type to redact through. A handler that reads its body out of a
+ * document by hand is handing the log layer bytes it cannot describe, and an undescribed body is logged
+ * as a size and a hash.
+ *
+ * ## What this server logs
+ *
+ * `nya_http_layer_log` is installed as the one root layer, at `bodies`, which is the loudest level
+ * there is and is chosen here so that running the example shows what the levels do. Send a code to
+ * `/api/otp/verify` and the record holds `{"code":"<redacted>"}`: the field is `@redact` on
+ * `NYA_HttpTotpSubmission`, so the substitution happens while the record is built and before any sink
+ * is handed it. `Authorization` and `Cookie` come out the same way, `?token=...` in a query does too,
+ * and a body that does not parse as its route's DTO — every `/api/notes` body, since those are
+ * documents and not DTOs — is logged as its size and a hash. See `http_log.h`.
+ *
  * ## The stream
  *
  * `/ws/notes` is a WebSocket, and it is here because a poll is the wrong shape for "tell me when
@@ -357,15 +373,18 @@ typedef struct {
 
 static ExampleFactor FACTOR = { 0 };
 
-/** The code out of a request body, or null when the body is not `{"code":"..."}`. */
-NYA_INTERNAL NYA_ConstCString otp_submitted_code(NYA_HttpExchange* exchange) {
-    NYA_Object* incoming = nullptr;
-    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return nullptr;
+/**
+ * The submitted code, through the engine's own DTO rather than by reaching into a document.
+ *
+ * `code` is `@redact` on that type, which is what keeps it out of the log at every level: the log layer
+ * decodes this body through this same reflection and writes `<redacted>` where the tag is. A handler
+ * reading the field out of an NYA_Object by hand would be handing the layer a body it cannot describe,
+ * and the layer would fall back to logging a size and a hash — safe, and less useful.
+ * */
+NYA_INTERNAL b8 otp_submitted_code(NYA_HttpExchange* exchange, OUT NYA_HttpTotpSubmission* out_submission) {
+    if (!nya_http_request_reflect(exchange->request, exchange->arena, nya_reflect_of(NYA_HttpTotpSubmission), out_submission).ok) return false;
 
-    NYA_Value* code = nya_object_get(incoming, "code");
-    if (code == nullptr || code->type != NYA_TYPE_STRING) return nullptr;
-
-    return (NYA_ConstCString)code->as_string;
+    return out_submission->code[0] != '\0';
 }
 
 /**
@@ -398,39 +417,46 @@ NYA_INTERNAL NYA_HttpStatus otp_enrol(NYA_HttpExchange* exchange) {
 
     defer nya_http_totp_enrol_destroy(&enrolment);
 
-    NYA_Object* body = nya_object_create(exchange->arena);
-    NYA_ArrayᐸNYA_Valueᐳ* codes = nya_array_create(exchange->arena, NYA_Value);
+    /*
+     * The engine's DTO, every field of it `@redact`. The caller gets all of it — the answer is written
+     * by nya_http_response_reflect_as, which writes the fields — and the log gets none of it, because
+     * the log layer decodes this same body through nya_reflect_to_object_redacted. One type, two
+     * readings of it, and neither of them is a rule anybody has to remember here.
+     */
+    NYA_HttpTotpEnrolmentDto answer = { 0 };
+    defer nya_memset(&answer, 0, sizeof(answer));
+
+    (void)snprintf(answer.uri, sizeof(answer.uri), "%s", enrolment.uri);
+    (void)snprintf(answer.secret, sizeof(answer.secret), "%s", enrolment.secret_base32);
 
     for (u32 i = 0; i < NYA_HTTP_TOTP_RECOVERY_CODES; i++) {
-        // copied into the response's arena: the enrolment itself is wiped on the way out of here.
-        NYA_CString text = nya_string_to_cstring(exchange->arena, nya_string_from(exchange->arena, enrolment.recovery[i]));
-        nya_array_push_back(codes, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = text }));
+        (void)snprintf(answer.recovery[i].code, sizeof(answer.recovery[i].code), "%s", enrolment.recovery[i]);
     }
-
-    nya_object_set(body, "uri", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)enrolment.uri });
-    nya_object_set(body, "secret", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)enrolment.secret_base32 });
-    nya_object_set(body, "recovery", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *codes });
 
     // the factor is not on yet: /activate has to see one code first.
     FACTOR = (ExampleFactor){ .enrolled = true, .secret = enrolment.secret };
     for (u32 i = 0; i < NYA_HTTP_TOTP_RECOVERY_CODES; i++) FACTOR.recovery[i] = enrolment.recovery_hash[i];
 
-    if (!nya_http_response_document(exchange->response, exchange->arena, body, nya_http_request_accepts(exchange->request)).ok) {
-        return NYA_HTTP_STATUS_INTERNAL_ERROR;
-    }
+    NYA_Error written = nya_http_response_reflect_as(
+        exchange->response, exchange->arena, nya_reflect_of(NYA_HttpTotpEnrolmentDto), &answer, nya_http_request_accepts(exchange->request)
+    );
+
+    if (!written.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     return NYA_HTTP_STATUS_CREATED;
 }
 
 /** Turns the pending enrolment on, once one code proves the authenticator holds the same secret. */
 NYA_INTERNAL NYA_HttpStatus otp_activate(NYA_HttpExchange* exchange) {
-    NYA_ConstCString code = otp_submitted_code(exchange);
-    if (code == nullptr) return NYA_HTTP_STATUS_BAD_REQUEST;
+    NYA_HttpTotpSubmission submission = { 0 };
+    defer                  nya_memset(&submission, 0, sizeof(submission));
+
+    if (!otp_submitted_code(exchange, &submission)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     // no enrolment is the same refusal as a wrong code; see otp_status.
     if (!FACTOR.enrolled) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    NYA_HttpTotpVerdict verdict = nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, code, exchange->now_s);
+    NYA_HttpTotpVerdict verdict = nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, submission.code, exchange->now_s);
     if (verdict == NYA_HTTP_TOTP_ACCEPTED) FACTOR.active = true;
 
     return otp_status(verdict);
@@ -494,12 +520,14 @@ NYA_INTERNAL NYA_HttpStatus session_clear(NYA_HttpExchange* exchange) {
 
 /** One code against the factor that is on. What a login route will call once there is one. */
 NYA_INTERNAL NYA_HttpStatus otp_verify(NYA_HttpExchange* exchange) {
-    NYA_ConstCString code = otp_submitted_code(exchange);
-    if (code == nullptr) return NYA_HTTP_STATUS_BAD_REQUEST;
+    NYA_HttpTotpSubmission submission = { 0 };
+    defer                  nya_memset(&submission, 0, sizeof(submission));
+
+    if (!otp_submitted_code(exchange, &submission)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     if (!FACTOR.active) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    NYA_HttpStatus verified = otp_status(nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, code, exchange->now_s));
+    NYA_HttpStatus verified = otp_status(nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, submission.code, exchange->now_s));
 
     // the factor proven is what a session is issued against, which is the half of a login this example
     // can honestly do: there is no password and no user store, so the second factor stands for both.
@@ -508,12 +536,16 @@ NYA_INTERNAL NYA_HttpStatus otp_verify(NYA_HttpExchange* exchange) {
 
 /** One recovery code, for the phone that is gone. Spent by the call, so it works exactly once. */
 NYA_INTERNAL NYA_HttpStatus otp_recover(NYA_HttpExchange* exchange) {
-    NYA_ConstCString code = otp_submitted_code(exchange);
-    if (code == nullptr) return NYA_HTTP_STATUS_BAD_REQUEST;
+    NYA_HttpTotpSubmission submission = { 0 };
+    defer                  nya_memset(&submission, 0, sizeof(submission));
+
+    if (!otp_submitted_code(exchange, &submission)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     if (!FACTOR.active) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    return otp_status(nya_http_totp_recovery_redeem(&FACTOR.guard, FACTOR.recovery, nya_carray_length(FACTOR.recovery), code, exchange->now_s));
+    return otp_status(
+        nya_http_totp_recovery_redeem(&FACTOR.guard, FACTOR.recovery, nya_carray_length(FACTOR.recovery), submission.code, exchange->now_s)
+    );
 }
 
 /*
@@ -590,7 +622,8 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .path        = OTP_ENROL_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
      .affinity    = NYA_HTTP_AFFINITY_MAIN,
-     .handler     = otp_enrol,
+     .handler       = otp_enrol,
+     .response_type = nya_reflect_of(NYA_HttpTotpEnrolmentDto),
      .summary     = "Starts enrolling an authenticator",
      .description = "Answers with the otpauth URI to scan, the secret as base32 to type, and the recovery codes. All three are "
                         "shown once and never again, and the factor is not on until a code is posted to /api/otp/activate.",
@@ -601,7 +634,8 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .path        = OTP_ACTIVATE_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
      .affinity    = NYA_HTTP_AFFINITY_MAIN,
-     .handler     = otp_activate,
+     .handler      = otp_activate,
+     .request_type = nya_reflect_of(NYA_HttpTotpSubmission),
      .summary     = "Turns the enrolment on",
      .description = "`{\"code\":\"123456\"}`. The second step of enrolment: proves the authenticator holds the same secret before "
                         "anything depends on it.",
@@ -613,7 +647,8 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .path        = OTP_VERIFY_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
      .affinity    = NYA_HTTP_AFFINITY_MAIN,
-     .handler     = otp_verify,
+     .handler      = otp_verify,
+     .request_type = nya_reflect_of(NYA_HttpTotpSubmission),
      .summary     = "Answers one code",
      .description = "`{\"code\":\"123456\"}`. One step of clock skew either side is accepted, and a code works once: the same "
                         "digits inside the same thirty seconds are refused the second time.",
@@ -625,7 +660,8 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .path        = OTP_RECOVER_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
      .affinity    = NYA_HTTP_AFFINITY_MAIN,
-     .handler     = otp_recover,
+     .handler      = otp_recover,
+     .request_type = nya_reflect_of(NYA_HttpTotpSubmission),
      .summary     = "Spends one recovery code",
      .description = "`{\"code\":\"ABCDEFGH-IJKLMNOP\"}`, for the phone that is gone. Case and the dash do not matter; the code "
                         "does, and it works exactly once.",
@@ -798,11 +834,28 @@ s32 main(s32 argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    /*
+     * The loudest level, on purpose: this example exists to be run and read, and a summary line would
+     * show none of what the layer does. Nothing turns the deny list off, and `deny` adds the API key
+     * header a reverse proxy in front of a server like this one usually forwards. A program with a
+     * config file sets this section in `engine.nya` instead and gets it back on every reload.
+     */
+    nya_http_log_config_set((NYA_HttpLogConfig){
+        .level   = NYA_HTTP_LOG_BODIES,
+        .address = NYA_HTTP_LOG_ADDRESS_NETWORK,
+        .deny    = "x-api-key",
+    });
+
+    // one root layer, outermost, so its record covers the whole exchange.
+    static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
+
     NYA_Error started = nya_system_http_init((NYA_HttpConfig){
         .port        = port,
         .secret      = SESSION_SECRET,
         .secret_size = sizeof(SESSION_SECRET),
         .workers     = WORKER_COUNT,
+        .layers      = LAYERS,
+        .layer_count = nya_carray_length(LAYERS),
     });
 
     if (!started.ok) {
@@ -870,6 +923,8 @@ s32 main(s32 argc, char** argv) {
     nya_log_info("Serving on http://127.0.0.1:%u — / for the page, /docs for the generated one, ctrl-c to stop.", nya_http_server_port());
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
     nya_log_info("Streaming on ws://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", nya_http_server_port());
+    nya_log_info("Logging at level %d, addresses as %d: a code posted to " OTP_VERIFY_PATH " is logged as \"" NYA_REFLECT_REDACTED "\".",
+                 (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
 
     /*
      * The sockets are the listener thread's now, so what this loop owes the server is the other half:

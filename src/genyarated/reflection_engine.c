@@ -303,6 +303,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
     { .name = "physics", .type = &_NYA_REFLECT_NYA_ConfigEnginePhysics, .offset = nya_offsetof(NYA_ConfigEngine, physics), .hint = NYA_HINT_NONE },
     { .name = "audio", .type = &_NYA_REFLECT_NYA_ConfigEngineAudio, .offset = nya_offsetof(NYA_ConfigEngine, audio), .hint = NYA_HINT_NONE },
     { .name = "ui", .type = &_NYA_REFLECT_NYA_UIStyle, .offset = nya_offsetof(NYA_ConfigEngine, ui), .hint = NYA_HINT_NONE },
+    { .name = "http_log", .type = &_NYA_REFLECT_NYA_HttpLogConfig, .offset = nya_offsetof(NYA_ConfigEngine, http_log), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
@@ -311,7 +312,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .size = sizeof(NYA_ConfigEngine),
     .alignment = alignof(NYA_ConfigEngine),
     .fields = _NYA_REFLECT_NYA_ConfigEngine_FIELDS,
-    .field_count = 4,
+    .field_count = 5,
 };
 
 /* NYA_EntityState, src/nyangine/core/core_entity.h */
@@ -899,6 +900,77 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpIdentity = {
     .field_count = 4,
 };
 
+/* NYA_HttpLogLevel, src/nyangine/http/http_log.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_HttpLogLevel_VARIANTS[] = {
+    { .name = "NYA_HTTP_LOG_SUMMARY", .value = (s64)(NYA_HTTP_LOG_SUMMARY) },
+    { .name = "NYA_HTTP_LOG_HEADERS", .value = (s64)(NYA_HTTP_LOG_HEADERS) },
+    { .name = "NYA_HTTP_LOG_BODIES", .value = (s64)(NYA_HTTP_LOG_BODIES) },
+    { .name = "NYA_HTTP_LOG_LEVEL_COUNT", .value = (s64)(NYA_HTTP_LOG_LEVEL_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpLogLevel = {
+    .name = "NYA_HttpLogLevel",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_HttpLogLevel),
+    .alignment = alignof(NYA_HttpLogLevel),
+    .primitive = (sizeof(NYA_HttpLogLevel) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_HttpLogLevel) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_HttpLogLevel) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_HttpLogLevel_VARIANTS,
+    .variant_count = 4,
+    .is_bitflags = false,
+};
+
+/* NYA_HttpLogAddress, src/nyangine/http/http_log.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_HttpLogAddress_VARIANTS[] = {
+    { .name = "NYA_HTTP_LOG_ADDRESS_NETWORK", .value = (s64)(NYA_HTTP_LOG_ADDRESS_NETWORK) },
+    { .name = "NYA_HTTP_LOG_ADDRESS_FULL", .value = (s64)(NYA_HTTP_LOG_ADDRESS_FULL) },
+    { .name = "NYA_HTTP_LOG_ADDRESS_NONE", .value = (s64)(NYA_HTTP_LOG_ADDRESS_NONE) },
+    { .name = "NYA_HTTP_LOG_ADDRESS_COUNT", .value = (s64)(NYA_HTTP_LOG_ADDRESS_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpLogAddress = {
+    .name = "NYA_HttpLogAddress",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_HttpLogAddress),
+    .alignment = alignof(NYA_HttpLogAddress),
+    .primitive = (sizeof(NYA_HttpLogAddress) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_HttpLogAddress) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_HttpLogAddress) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_HttpLogAddress_VARIANTS,
+    .variant_count = 4,
+    .is_bitflags = false,
+};
+
+/* NYA_HttpLogConfig, src/nyangine/http/http_log.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpLogConfig_deny_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpLogConfig*)nullptr)->deny),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_LOG_MAX_DENY_BYTES),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpLogConfig_FIELDS[] = {
+    { .name = "level", .type = &_NYA_REFLECT_NYA_HttpLogLevel, .offset = nya_offsetof(NYA_HttpLogConfig, level), .hint = NYA_HINT_NONE },
+    { .name = "address", .type = &_NYA_REFLECT_NYA_HttpLogAddress, .offset = nya_offsetof(NYA_HttpLogConfig, address), .hint = NYA_HINT_NONE },
+    { .name = "deny", .type = &_NYA_REFLECT_NYA_HttpLogConfig_deny_ARRAY, .offset = nya_offsetof(NYA_HttpLogConfig, deny), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpLogConfig = {
+    .name = "NYA_HttpLogConfig",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpLogConfig),
+    .alignment = alignof(NYA_HttpLogConfig),
+    .fields = _NYA_REFLECT_NYA_HttpLogConfig_FIELDS,
+    .field_count = 3,
+    .on_apply = _nya_http_log_config_apply,
+};
+
 /* NYA_HttpProblem, src/nyangine/http/http_router.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpProblem_error_ARRAY = {
@@ -927,6 +999,88 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpProblem = {
     .size = sizeof(NYA_HttpProblem),
     .alignment = alignof(NYA_HttpProblem),
     .fields = _NYA_REFLECT_NYA_HttpProblem_FIELDS,
+    .field_count = 3,
+};
+
+/* NYA_HttpTotpSubmission, src/nyangine/http/http_totp.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpSubmission_code_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpTotpSubmission*)nullptr)->code),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpTotpSubmission_FIELDS[] = {
+    { .name = "code", .type = &_NYA_REFLECT_NYA_HttpTotpSubmission_code_ARRAY, .offset = nya_offsetof(NYA_HttpTotpSubmission, code), .hint = NYA_HINT_NONE, .is_redacted = true },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpSubmission = {
+    .name = "NYA_HttpTotpSubmission",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpTotpSubmission),
+    .alignment = alignof(NYA_HttpTotpSubmission),
+    .fields = _NYA_REFLECT_NYA_HttpTotpSubmission_FIELDS,
+    .field_count = 1,
+};
+
+/* NYA_HttpTotpRecoveryDto, src/nyangine/http/http_totp.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpTotpRecoveryDto*)nullptr)->code),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpTotpRecoveryDto_FIELDS[] = {
+    { .name = "code", .type = &_NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ARRAY, .offset = nya_offsetof(NYA_HttpTotpRecoveryDto, code), .hint = NYA_HINT_NONE, .is_redacted = true },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpRecoveryDto = {
+    .name = "NYA_HttpTotpRecoveryDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpTotpRecoveryDto),
+    .alignment = alignof(NYA_HttpTotpRecoveryDto),
+    .fields = _NYA_REFLECT_NYA_HttpTotpRecoveryDto_FIELDS,
+    .field_count = 1,
+};
+
+/* NYA_HttpTotpEnrolmentDto, src/nyangine/http/http_totp.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_uri_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpTotpEnrolmentDto*)nullptr)->uri),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_TOTP_URI_BYTES),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_secret_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpTotpEnrolmentDto*)nullptr)->secret),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_TOTP_SECRET_TEXT_BYTES),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_recovery_ARRAY = {
+    .name = "NYA_HttpTotpRecoveryDto[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpTotpEnrolmentDto*)nullptr)->recovery),
+    .alignment = alignof(NYA_HttpTotpRecoveryDto),
+    .element = &_NYA_REFLECT_NYA_HttpTotpRecoveryDto, .element_count = (NYA_HTTP_TOTP_RECOVERY_CODES),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_FIELDS[] = {
+    { .name = "uri", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_uri_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, uri), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "secret", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_secret_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, secret), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "recovery", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_recovery_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, recovery), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpEnrolmentDto = {
+    .name = "NYA_HttpTotpEnrolmentDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpTotpEnrolmentDto),
+    .alignment = alignof(NYA_HttpTotpEnrolmentDto),
+    .fields = _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_FIELDS,
     .field_count = 3,
 };
 
@@ -1637,7 +1791,13 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_HttpAccountingDto,
     &_NYA_REFLECT_NYA_HttpScope,
     &_NYA_REFLECT_NYA_HttpIdentity,
+    &_NYA_REFLECT_NYA_HttpLogLevel,
+    &_NYA_REFLECT_NYA_HttpLogAddress,
+    &_NYA_REFLECT_NYA_HttpLogConfig,
     &_NYA_REFLECT_NYA_HttpProblem,
+    &_NYA_REFLECT_NYA_HttpTotpSubmission,
+    &_NYA_REFLECT_NYA_HttpTotpRecoveryDto,
+    &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto,
     &_NYA_REFLECT_NYA_Quaternion,
     &_NYA_REFLECT_NYA_EaseType,
     &_NYA_REFLECT_NYA_NetChatMessage,

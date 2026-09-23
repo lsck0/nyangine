@@ -9,6 +9,9 @@
 #include "nyangine/http/http_totp.c"
 /**/
 #include "nyangine/http/http_router.c"
+// after the router, whose exchange it reads and whose chain it wraps, and after the message layer,
+// whose bodies it decodes: it is the one layer the engine ships.
+#include "nyangine/http/http_log.c"
 /**/
 // after the router, whose route table it builds, and beside the server rather than inside it: the
 // bundle is a resource a program merges, not something the listener knows about.

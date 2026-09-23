@@ -10,10 +10,11 @@
  *
  * nya_http_chain_next        a layer calls this to run the rest of the chain
  *
- * nya_http_layer_log         the one layer the engine ships: a summary line per request, tagged with its id
- *
  * nya_http_response_problem  the error body every refusal here carries
  * ```
+ *
+ * The one layer the engine ships is `nya_http_layer_log`, and it lives in http_log.h with the levels
+ * and the redaction that are most of what it is.
  *
  * ── a router per resource ──
  *
@@ -422,17 +423,6 @@ NYA_API NYA_HttpStatus nya_http_router_dispatch(
 
 /** Runs the rest of the chain. A layer that does not call this answers the request itself. */
 NYA_API NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain);
-
-/**
- * One log line per request: method, the matched route's path, status, how long the rest of the chain
- * took, body bytes in and out, the caller's network (nya_http_address_truncate) and subject. The request
- * id arrives through the server's log tag. The route's path rather than the request's, so a query string
- * never reaches the log.
- *
- * Outermost when a program installs it, so the duration is the whole exchange and the status is
- * whatever anything inside decided.
- * */
-NYA_API NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next);
 
 /**
  * Replaces the response body with a NYA_HttpProblem for `status`.

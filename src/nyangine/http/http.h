@@ -11,6 +11,7 @@
  * http_types.h     the vocabulary: methods, statuses, media types, requests, responses, and the bounds
  * http_message.h   the wire boundary: bytes in, NYA_HttpRequest out; NYA_HttpResponse in, bytes out
  * http_router.h    routes, the layer chain, the identity extractor, and dispatch
+ * http_log.h       what one exchange leaves in the log, and the redaction that happens before it does
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
  * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
  * http_server.h    the listener, the connections and the drain
@@ -60,6 +61,7 @@
 
 #include "nyangine/http/http_auth.h"
 #include "nyangine/http/http_cookie.h"
+#include "nyangine/http/http_log.h"
 #include "nyangine/http/http_message.h"
 #include "nyangine/http/http_openapi.h"
 #include "nyangine/http/http_router.h"

@@ -486,18 +486,86 @@ driven by `./build run fuzz http_request`.
 | `NYA_HTTP_MAX_STATIC_FILE_BYTES`       |   65536 | one served file; it leaves in one write                   |
 | `NYA_HTTP_MAX_STATIC_BYTES`            | 1048576 | every mounted file together, which is the mount's cost    |
 | `NYA_HTTP_STATIC_HASH_DIGITS`          |      16 | hex digits of SHA-256 in a hashed name and its ETag       |
+| `NYA_HTTP_LOG_MAX_RECORD_BYTES`        |    2048 | one exchange's log record; past it a `...`                |
+| `NYA_HTTP_LOG_MAX_BODY_BYTES`          |     512 | one body inside that record                               |
+| `NYA_HTTP_LOG_MAX_VALUE_BYTES`         |     128 | one header or query value inside it                       |
 
 Every one is a `#define` a consumer can override from the command line.
 
-## Request ids and the log line
+## Request ids and the log record
 
 Every answer carries `X-Request-Id`, 64 random bits in hex, refusals included. While a request is
 served the server sets it as the thread's log tag (`nya_log_tag_set`), so every line the request causes
-reads `[INFO] [req=…] …`, in the file, the terminal and the ring a crash report prints. `nya_http_layer_log`
-adds one summary line: method, the matched route's path, status, duration, body bytes in and out, the
-caller's network and subject. The route's path and not the request's, so a query string is never
-logged; the network and not the address, `/24` for IPv4 and `/48` for IPv6, so the log says where
-traffic comes from without saying who. The exchange keeps the full address for what needs it.
+reads `[INFO] [req=…] …`, in the file, the terminal and the ring a crash report prints.
+
+`nya_http_layer_log` writes one record per exchange, at one of three levels:
+
+| Level                  | What the record carries                                                       |
+| :--------------------- | :---------------------------------------------------------------------------- |
+| `NYA_HTTP_LOG_SUMMARY` | method, the matched route's path, status, duration, bytes in and out, caller, address |
+| `NYA_HTTP_LOG_HEADERS` | that, plus every request and response header, and the query string             |
+| `NYA_HTTP_LOG_BODIES`  | that, plus both bodies, decoded through the route's DTOs and capped at `NYA_HTTP_LOG_MAX_BODY_BYTES` |
+
+Set it per server in `assets/config/engine.nya`, under `engine.http_log`, which a running server picks
+up on the next reload because `NYA_HttpLogConfig` carries `@on_apply`. A program with no config file
+calls `nya_http_log_config_set` instead, as `examples/web_server/main.c` does.
+
+```
+engine: object {
+    http_log: object {
+        level: string "NYA_HTTP_LOG_HEADERS";
+        address: string "NYA_HTTP_LOG_ADDRESS_NETWORK";
+        deny: string "x-api-key";
+    };
+};
+```
+
+The route's path is logged and never the request's, so a query string cannot reach the summary line at
+all. Addresses are truncated by default, `/24` for IPv4 and `/48` for IPv6, so the record says where
+traffic comes from without saying who; `NYA_HTTP_LOG_ADDRESS_FULL` and `_NONE` are the other two
+settings, and the exchange keeps the full address for what needs it. A security event is a different
+record with a different retention and is not this layer's business.
+
+### Redaction happens in one place
+
+The engine has one log entry point, and it hands every sink the same bytes: the file, the terminal, the
+ring a crash report prints, and whatever a program registered. A sink cannot filter what every other
+sink was already handed, so filtering in a sink is not filtering. The record is therefore assembled
+already redacted, and there is no intermediate form of it holding anything a sink may not see.
+
+- **Headers on a deny list are never written**, at any level and with no setting that turns it off:
+  `Authorization`, `Cookie`, `Set-Cookie`, `Proxy-Authorization`, plus whatever `deny` names.
+- **Bodies are redacted structurally.** A field of a route's `request_type` or `response_type` tagged
+  `@redact` is written as `<redacted>`, at any depth and whatever its type — a string, a whole nested
+  struct, a field of a struct inside an array. Through the type's reflection, never a regex over the
+  bytes: a pattern would be a second description of the type that nothing keeps in step with the first.
+- **Query parameters are redacted by name**: a name that a `@redact` field of the route's request type
+  carries, a name `deny` lists, or a name holding `password`, `token`, `secret` or `code`.
+- **It fails closed.** A body that does not parse as its route's DTO — no DTO on the route, a format the
+  route did not declare, a key the type has no field for, bytes that are not a document — is logged as
+  its size and the first 64 bits of its BLAKE2b, and never as bytes. An unparsed body is exactly where
+  an unredacted secret would be hiding. A binary `application/nya` body *is* decoded through the DTO and
+  logged as text, so the native format reads as well in a log as JSON and is no less redacted.
+
+`@redact` is not an HTTP idea. It is read by the same preprocessor pass that reads `@reflect`, lands in
+`NYA_ReflectField.is_redacted`, and is acted on by `nya_reflect_to_object_redacted` — so anything that
+turns a struct into text for a person to read is covered by the same tag, not only this layer.
+`nya_reflect_to_object` is unchanged and still writes every field, because that is the conversion a
+response body and a save file are made of; redacting there would be redacting the answer itself.
+
+```c
+// @reflect
+struct NYA_HttpTotpSubmission {
+    char code[NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; // @redact
+};
+```
+
+Two things keep the tags honest. `./build check` refuses a reflected field whose name holds `password`,
+`token`, `secret` or `code` and carries neither `@redact` nor `@loggable` — the second being how a
+field says out loud that its name sounds worse than its content. And `tests/nyangine/http/test_log.c`
+fills every `@redact` field of every reflected type in the build with a marker, sends each through a
+route declaring that type at every level, and asserts the marker reaches no sink; it walks the
+generated tables rather than a list, so a DTO added tomorrow is covered tomorrow.
 
 ## Limits in process
 

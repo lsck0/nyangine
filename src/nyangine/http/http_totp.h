@@ -13,6 +13,9 @@
  *
  * nya_http_totp_verify            one submitted code against one secret, through the guard
  * nya_http_totp_recovery_redeem   one submitted recovery code, spent where it matches
+ *
+ * NYA_HttpTotpSubmission          the body a verify route takes, every field of it `@redact`
+ * NYA_HttpTotpEnrolmentDto        the body an enrol route answers with, likewise
  * ```
  *
  * ```c
@@ -131,6 +134,9 @@ typedef enum NYA_HttpTotpVerdict          NYA_HttpTotpVerdict;
 typedef struct NYA_HttpTotpRecoveryHash   NYA_HttpTotpRecoveryHash;
 typedef struct NYA_HttpTotpEnrolment      NYA_HttpTotpEnrolment;
 typedef struct NYA_HttpTotpGuard          NYA_HttpTotpGuard;
+typedef struct NYA_HttpTotpSubmission     NYA_HttpTotpSubmission;
+typedef struct NYA_HttpTotpRecoveryDto    NYA_HttpTotpRecoveryDto;
+typedef struct NYA_HttpTotpEnrolmentDto   NYA_HttpTotpEnrolmentDto;
 
 /**
  * What one attempt came to. Refusal is zero, so a verdict that was never assigned is a refusal and a
@@ -213,6 +219,46 @@ struct NYA_HttpTotpGuard {
 
     /** When the current attempt window began, in seconds since the epoch. Zero before the first attempt. */
     u64 window_started_s;
+};
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE DTOs
+ * ─────────────────────────────────────────────────────────
+ *
+ * What a second factor route takes and answers with, on the wire. Reflected, so the OpenAPI document
+ * describes them and nothing writes the schema by hand — and tagged, so the one thing every field here
+ * holds never reaches a log; see http_log.h and base_reflection.h's `@redact`.
+ */
+
+// @reflect
+/** One submitted code: six digits from an authenticator, or a recovery code off paper. */
+struct NYA_HttpTotpSubmission {
+    /** Long enough for either form. Tagged, because this is the guess itself. */
+    char code[NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; // @redact
+};
+
+// @reflect
+/** One recovery code in an enrolment answer. A struct rather than a row of a `char[10][18]`, which reflection cannot describe. */
+struct NYA_HttpTotpRecoveryDto {
+    char code[NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; // @redact
+};
+
+// @reflect
+/**
+ * Everything an enrolment shows once. Every field is the secret or is derived from it, so every field
+ * is tagged: the caller receives all of it, because nya_http_response_reflect writes the answer, and a
+ * log holds none of it, because nya_reflect_to_object_redacted writes that.
+ * */
+struct NYA_HttpTotpEnrolmentDto {
+    /** `otpauth://totp/...`, which a QR code on the enrolment page encodes. Carries the secret. */
+    char uri[NYA_HTTP_TOTP_URI_BYTES]; // @redact
+
+    /** The same secret as unpadded base32, for somebody typing it into an app by hand. */
+    char secret[NYA_HTTP_TOTP_SECRET_TEXT_BYTES]; // @redact
+
+    /** Shown once, to this user, and never stored in this form. Tagged one level down, on the code itself. */
+    NYA_HttpTotpRecoveryDto recovery[NYA_HTTP_TOTP_RECOVERY_CODES];
 };
 
 /*

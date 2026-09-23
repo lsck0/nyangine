@@ -213,8 +213,12 @@ void gny_web_start(void) {
         );
     }
 
-    // one root layer, outermost, so the line it writes covers the whole exchange and reports whatever
-    // anything inside decided.
+    /*
+     * One root layer, outermost, so the record it writes covers the whole exchange and reports whatever
+     * anything inside decided. How much it writes is `engine.http_log` in assets/config/engine.nya,
+     * already applied by the config watch and applied again whenever that file is saved: nothing here
+     * sets a level, because a level set here would be a level that cannot be changed without a rebuild.
+     */
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
     /*

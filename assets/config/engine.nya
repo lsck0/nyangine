@@ -196,6 +196,18 @@ nya 2 0
             track_skin: object { source_y: f32 24.0; source_width: f32 16.0; source_height: f32 16.0; left: f32 5.0; right: f32 5.0; top: f32 5.0; bottom: f32 5.0; };
             knob_skin: object { source_x: f32 16.0; source_y: f32 24.0; source_width: f32 16.0; source_height: f32 16.0; tint: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; }; };
         };
+        // What the web interface writes about each request, applied the moment this file is saved.
+        // level: "NYA_HTTP_LOG_SUMMARY" is the line per request, "..._HEADERS" adds the headers and the
+        // query string, "..._BODIES" adds both bodies decoded through the route's DTO. Whatever the
+        // level, Authorization, Cookie, Set-Cookie and Proxy-Authorization are redacted, a @redact field
+        // never appears, and a body that does not parse as its DTO is logged as a size and a hash.
+        // address: "..._NETWORK" keeps the /24 or /48 and drops the host, "..._FULL" keeps all of it,
+        // "..._NONE" keeps none. deny names extra headers to redact, comma separated. See http_log.h.
+        http_log: object {
+            level: string "NYA_HTTP_LOG_HEADERS";
+            address: string "NYA_HTTP_LOG_ADDRESS_NETWORK";
+            deny: string "x-api-key";
+        };
     };
     game: object {
         // The sheet the pause menu is skinned from, cut by the regions in engine.ui: "./assets/ui/sheet.png". Empty draws it flat.

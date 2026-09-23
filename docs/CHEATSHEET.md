@@ -1575,7 +1575,7 @@ struct NYA_ConfigSystem { NYA_Arena* registry; NYA_ConfigWatch watches[NYA_CONFI
 struct NYA_ConfigEngineRenderer { NYA_RenderFeatures features; f32 shadow_bias; u32 shadow_cascades; u32 shadow_map_size; NYA_PostInk ink; NYA_PostAmbientOcclusion ambient_occlusion; NYA_PostAntialias antialias; NYA_PostDepthOfField depth_of_field; NYA_PostSpeedLines speed_lines; NYA_PostBloom bloom; NYA_PostEyeAdaptation eye_adaptation; NYA_PostLightShafts light_shafts; NYA_PostMotionBlur motion_blur; NYA_Render3DFog fog; NYA_Render2DHaze haze; NYA_Render3DDecals decals; NYA_RenderOutput output; NYA_PostDebugView debug_view; NYA_Color shadow_color; char grade_lut[NYA_CONFIG_ASSET_PATH_MAX]; f32 grade_strength; }  // Renderer tuning a game may want to reach without a rebuild.
 struct NYA_ConfigEnginePhysics { f32 gravity; u32 sub_steps; }  // Solver tuning shared by both worlds.
 struct NYA_ConfigEngineAudio { NYA_AudioPropagation propagation; NYA_AudioEffects sound; NYA_AudioEffects music; NYA_AudioEffects master; }  // Sound: how it travels through the world, and each bus's effects.
-struct NYA_ConfigEngine { NYA_ConfigEngineRenderer renderer; NYA_ConfigEnginePhysics physics; NYA_ConfigEngineAudio audio; NYA_UIStyle ui; }
+struct NYA_ConfigEngine { NYA_ConfigEngineRenderer renderer; NYA_ConfigEnginePhysics physics; NYA_ConfigEngineAudio audio; NYA_UIStyle ui; NYA_HttpLogConfig http_log; }
 
 // macros
 NYA_CONFIG_WATCH_MAX 8  // Distinct files nya_config_watch may be watching at once.
@@ -4718,6 +4718,31 @@ NYA_Error nya_http_response_cookie_clear(NYA_HttpResponse* response, NYA_ConstCS
 b8 nya_http_cookie_parse(const char* header, u64 size, OUT NYA_HttpCookieValue* out_names, OUT NYA_HttpCookieValue* out_values, OUT u32* out_count)
 ```
 
+### http_log.h
+
+What one exchange leaves behind, and what it is not allowed to leave behind.
+
+```c
+// types
+enum NYA_HttpLogLevel { NYA_HTTP_LOG_SUMMARY = 0, NYA_HTTP_LOG_HEADERS, NYA_HTTP_LOG_BODIES, NYA_HTTP_LOG_LEVEL_COUNT, }  // How much of an exchange the record carries.
+enum NYA_HttpLogAddress { NYA_HTTP_LOG_ADDRESS_NETWORK = 0, NYA_HTTP_LOG_ADDRESS_FULL, NYA_HTTP_LOG_ADDRESS_NONE, NYA_HTTP_LOG_ADDRESS_COUNT, }  // How much of the caller's address the record carries.
+struct NYA_HttpLogConfig { NYA_HttpLogLevel level; NYA_HttpLogAddress address; char deny[NYA_HTTP_LOG_MAX_DENY_BYTES]; }  // What this server logs.
+
+// macros
+NYA_HTTP_LOG_MAX_RECORD_BYTES 2048  // Bytes of one exchange's record, terminator included.
+NYA_HTTP_LOG_MAX_BODY_BYTES 512  // Bytes of one body the record carries, before the "..." .
+NYA_HTTP_LOG_MAX_VALUE_BYTES 128  // Bytes of one header or query value the record carries.
+NYA_HTTP_LOG_MAX_DENY_BYTES 256  // Bytes of the configurable deny list, terminator included: a handful of header names, comma separated.
+NYA_HTTP_LOG_HASH_DIGITS 16  // Hex digits of the body hash a fail-closed record carries.
+
+// functions
+void nya_http_log_config_set(NYA_HttpLogConfig config)  // Installs `config`.
+NYA_HttpLogConfig nya_http_log_config_get(void)  // What is in force.
+b8 nya_http_log_header_is_denied(NYA_ConstCString name)
+NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One record per request, at the configured level, redacted before it is logged.
+NYA_Error _nya_http_log_config_apply(void* instance)  // What `@on_apply` on NYA_HttpLogConfig names.
+```
+
 ### http_message.h
 
 The wire boundary: bytes a stranger sent, in; bytes this program will send, out. Nothing here
@@ -4798,7 +4823,6 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router)
 const NYA_HttpRoute* nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA_HttpMethod method, NYA_ConstCString path, OUT b8* out_path_exists)  // The route for `method` and `path`, or null.
 NYA_HttpStatus nya_http_router_dispatch( NYA_HttpExchange* exchange, const NYA_HttpRouter* const* routers, u32 router_count, const NYA_HttpLayerFn* layers, u32 layer_count )
 NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain)  // Runs the rest of the chain.
-NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next)
 NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail)  // Replaces the response body with a NYA_HttpProblem for `status`.
 ```
 
@@ -4865,6 +4889,9 @@ enum NYA_HttpTotpVerdict { NYA_HTTP_TOTP_REFUSED = 0, NYA_HTTP_TOTP_ACCEPTED, NY
 struct NYA_HttpTotpRecoveryHash { u8 bytes[NYA_HTTP_TOTP_RECOVERY_HASH_BYTES]; }  // One recovery code as it is stored: hashed, never the code itself.
 struct NYA_HttpTotpEnrolment { NYA_CryptoTotpSecret secret; char secret_base32[NYA_HTTP_TOTP_SECRET_TEXT_BYTES]; char uri[NYA_HTTP_TOTP_URI_BYTES]; char recovery[NYA_HTTP_TOTP_RECOVERY_CODES][NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; NYA_HttpTotpRecoveryHash recovery_hash[NYA_HTTP_TOTP_RECOVERY_CODES]; }  // Everything one enrolment produces, and all of it secret but the hashes.
 struct NYA_HttpTotpGuard { u64 last_counter; u32 attempts; u64 window_started_s; }  // What one account's second factor remembers between attempts.
+struct NYA_HttpTotpSubmission { char code[NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; }  // One submitted code: six digits from an authenticator, or a recovery code off paper.
+struct NYA_HttpTotpRecoveryDto { char code[NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; }  // One recovery code in an enrolment answer.
+struct NYA_HttpTotpEnrolmentDto { char uri[NYA_HTTP_TOTP_URI_BYTES]; char secret[NYA_HTTP_TOTP_SECRET_TEXT_BYTES]; NYA_HttpTotpRecoveryDto recovery[NYA_HTTP_TOTP_RECOVERY_CODES]; }  // Everything an enrolment shows once.
 
 // macros
 NYA_HTTP_TOTP_ISSUER_MAX 64  // Longest issuer and account in an enrolment, terminator included.

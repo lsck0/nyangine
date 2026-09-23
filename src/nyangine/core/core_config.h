@@ -16,6 +16,7 @@
 #include "nyangine/core/core_audio_effects.h"
 #include "nyangine/core/core_audio_propagation.h"
 #include "nyangine/core/core_event.h"
+#include "nyangine/http/http_log.h"
 #include "nyangine/ui/ui.h"
 
 /*
@@ -189,6 +190,13 @@ struct NYA_ConfigEngine {
 
     /** See nya_ui_style_set. */
     NYA_UIStyle ui;
+
+    /**
+     * What this program's HTTP server writes about each request, and how much of a caller's address it
+     * keeps. See http_log.h; the type carries `@on_apply`, so editing this section reaches a running
+     * server on the next reload rather than on the next restart.
+     * */
+    NYA_HttpLogConfig http_log;
 };
 
 /*
