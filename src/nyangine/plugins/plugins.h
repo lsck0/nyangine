@@ -19,6 +19,9 @@
 #include "nyangine/plugins/twitch_bot/twitch_eventsub.h"
 // After the socket: the calls that subscribe it to something and answer over it. See twitch_helix.h.
 #include "nyangine/plugins/twitch_bot/twitch_helix.h"
+// A relying party for "log in with X": the authorization code flow with PKCE, curl's dependent for the
+// same reason the bots above are. See oidc.h.
+#include "nyangine/plugins/oidc/oidc.h"
 #endif
 
 // Always: the module is a facade over a backend table, and only the backend is behind

@@ -9,6 +9,7 @@
 #include "nyangine/plugins/telegram_bot/telegram.c"
 #include "nyangine/plugins/twitch_bot/twitch_eventsub.c"
 #include "nyangine/plugins/twitch_bot/twitch_helix.c"
+#include "nyangine/plugins/oidc/oidc.c"
 #endif
 
 // Always, for the reason in plugins.h. steam.c includes steam_steamworks.c itself, under
