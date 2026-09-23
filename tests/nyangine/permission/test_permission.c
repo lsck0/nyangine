@@ -50,11 +50,18 @@ static NYA_Permission oracle_resolve(const NYA_Permissions* permissions, u64 sub
     u64            roles = nya_permission_subject_roles(permissions, subject);
     NYA_Permission base  = 0;
 
+    NYA_Permission forbid = 0;
+
     for (u32 role = 0; role < nya_permission_role_count(permissions); role++) {
-        if ((roles & (1ULL << role)) != 0) base |= nya_permission_role_allows(permissions, role);
+        if ((roles & (1ULL << role)) == 0) continue;
+
+        base   |= nya_permission_role_allows(permissions, role);
+        forbid |= nya_permission_role_forbids(permissions, role);
     }
 
-    if ((base & NYA_PERMISSION_ADMINISTRATOR) != 0) return ~0ULL;
+    forbid |= nya_permission_subject_forbids(permissions, subject);
+
+    if ((base & NYA_PERMISSION_ADMINISTRATOR) != 0) return ~0ULL & ~forbid;
 
     NYA_Permission allow = 0;
     NYA_Permission deny  = 0;
@@ -83,7 +90,8 @@ static NYA_Permission oracle_resolve(const NYA_Permissions* permissions, u64 sub
         base |= allow;
     }
 
-    return base;
+    // Step 6: forbidden is absolute, removed last so no allow above puts it back.
+    return base & ~forbid;
 }
 
 s32 main(void) {
@@ -106,6 +114,54 @@ s32 main(void) {
         // a subject the table has never seen is not an error, it is a subject holding @everyone alone.
         nya_check(nya_permission_subject_roles(guild, ALICE) == 1ULL, "everyone holds @everyone");
         nya_check(nya_permission_subject_rank(guild, ALICE) == 0, "at rank zero");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a forbid is absolute — it beats an allow, an admin, and an overwrite.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_Permissions* guild = nya_permissions_create(arena);
+
+        // one role that may do everything, another that forbids kicking, both held by alice.
+        u32 member = 0;
+        u32 muted  = 0;
+        NYA_EXPECT(nya_permission_role_add(guild, NYA_PERMISSION_SYSTEM, "member", 10, TEST_ALL, 100, &member));
+        NYA_EXPECT(nya_permission_role_add(guild, NYA_PERMISSION_SYSTEM, "muted", 5, NYA_PERMISSION_NONE, 100, &muted));
+
+        NYA_EXPECT(nya_permission_role_grant(guild, NYA_PERMISSION_SYSTEM, ALICE, member, 100));
+        NYA_EXPECT(nya_permission_role_grant(guild, NYA_PERMISSION_SYSTEM, ALICE, muted, 100));
+
+        nya_check(nya_permission_has(guild, ALICE, HALL, TEST_KICK), "alice may kick to begin with");
+
+        // the muted role forbids speaking; now no allow from member puts it back.
+        NYA_EXPECT(nya_permission_role_forbid_set(guild, NYA_PERMISSION_SYSTEM, muted, TEST_SPEAK, 100));
+        nya_check(!nya_permission_has(guild, ALICE, HALL, TEST_SPEAK), "a forbid beats another role's allow");
+        nya_check(nya_permission_has(guild, ALICE, HALL, TEST_KICK), "while leaving the rest");
+        nya_check(nya_permission_role_forbids(guild, muted) == TEST_SPEAK, "and the role reports it");
+
+        // an ADMINISTRATOR role does not put it back either.
+        u32 admin = 0;
+        NYA_EXPECT(nya_permission_role_add(guild, NYA_PERMISSION_SYSTEM, "admin", 20, NYA_PERMISSION_ADMINISTRATOR, 100, &admin));
+        NYA_EXPECT(nya_permission_role_grant(guild, NYA_PERMISSION_SYSTEM, ALICE, admin, 100));
+
+        nya_check(nya_permission_has(guild, ALICE, HALL, TEST_KICK), "an admin may do everything");
+        nya_check(!nya_permission_has(guild, ALICE, HALL, TEST_SPEAK), "except what is forbidden");
+
+        // nor does a per-resource allow overwrite.
+        NYA_EXPECT(nya_permission_overwrite_set(guild, NYA_PERMISSION_SYSTEM, HALL, NYA_PERMISSION_TARGET_SUBJECT, ALICE, TEST_SPEAK, NYA_PERMISSION_NONE, 100));
+        nya_check(!nya_permission_has(guild, ALICE, HALL, TEST_SPEAK), "a per-resource allow cannot win back a forbid");
+
+        // the owner is above even a forbid.
+        NYA_EXPECT(nya_permissions_owner_set(guild, NYA_PERMISSION_SYSTEM, ALICE, 100));
+        nya_check(nya_permission_has(guild, ALICE, HALL, TEST_SPEAK), "but the owner is above everything, forbid included");
+
+        // a subject-direct forbid, on somebody who is not the owner.
+        NYA_EXPECT(nya_permission_role_grant(guild, NYA_PERMISSION_SYSTEM, BOB, member, 100));
+        nya_check(nya_permission_has(guild, BOB, HALL, TEST_INVITE), "bob may invite");
+
+        NYA_EXPECT(nya_permission_subject_forbid_set(guild, NYA_PERMISSION_SYSTEM, BOB, TEST_INVITE, 100));
+        nya_check(!nya_permission_has(guild, BOB, HALL, TEST_INVITE), "until he is forbidden it directly");
+        nya_check(nya_permission_subject_forbids(guild, BOB) == TEST_INVITE, "and it is recorded on him");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

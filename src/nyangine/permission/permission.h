@@ -44,7 +44,13 @@
  *   3. `@everyone`'s overwrite on the resource: deny, then allow
  *   4. every other held role's denies together, then their allows together
  *   5. the subject's own overwrite on the resource: deny, then allow
- *   6. the owner short circuits, above everything, including a deny
+ *   6. everything forbidden — by a held role or on the subject directly — is removed, absolutely
+ *   7. the owner short circuits, above everything, including a forbid
+ *
+ * A **forbid** (step 6) is the strong deny an overwrite's deny is not: an overwrite is per resource and
+ * an allow can win it back, where a forbid is global and nothing below the owner puts it back — not
+ * another role's allow, not ADMINISTRATOR, not a per-resource allow overwrite. It is `permissions_forbidden`,
+ * set on a role or on a subject directly.
  *
  * ── hierarchy, which is what stops escalation ──
  *
@@ -273,6 +279,24 @@ NYA_API u16 nya_permission_role_position(const NYA_Permissions* permissions, u32
 /** What the role allows by itself, before any overwrite. Zero for an index no role has. */
 NYA_API NYA_Permission nya_permission_role_allows(const NYA_Permissions* permissions, u32 role) __attr_no_discard;
 
+/**
+ * Sets what holding this role forbids, absolutely.
+ *
+ * A forbidden permission is removed from the result even when another held role allows it, even when
+ * the subject holds ADMINISTRATOR, and even when a per-resource overwrite tries to allow it — the one
+ * thing above it is the owner, who short circuits everything. That is the difference between this and a
+ * deny overwrite: a deny is per resource and an allow can win it back, a forbid is global and nothing
+ * below the owner does.
+ *
+ * The same rules as editing a role — MANAGE_ROLES and the role below the actor's rank — but not the
+ * "only what you hold" rule an allow has, because forbidding takes a permission away and taking away is
+ * not escalation.
+ * */
+NYA_API NYA_Error nya_permission_role_forbid_set(NYA_Permissions* permissions, u64 actor, u32 role, NYA_Permission forbid, u64 now_s) __attr_no_discard;
+
+/** What the role forbids. Zero for an index no role has. */
+NYA_API NYA_Permission nya_permission_role_forbids(const NYA_Permissions* permissions, u32 role) __attr_no_discard;
+
 /** How many roles the table holds, `@everyone` included. */
 NYA_API u32 nya_permission_role_count(const NYA_Permissions* permissions) __attr_no_discard;
 
@@ -299,6 +323,20 @@ NYA_API u64 nya_permission_subject_roles(const NYA_Permissions* permissions, u64
 
 /** The highest position among the subject's roles. The owner answers U16_MAX. */
 NYA_API u16 nya_permission_subject_rank(const NYA_Permissions* permissions, u64 subject) __attr_no_discard;
+
+/**
+ * Sets what this subject is forbidden directly, absolutely, whatever their roles allow.
+ *
+ * The subject-level twin of nya_permission_role_forbid_set: this is "ada may never post here", set on
+ * the person rather than on a role, and it wins over every allow below the owner the same way. Needs
+ * MANAGE_ROLES and the actor to outrank the subject, since forbidding somebody who outranks you would
+ * be reaching up the hierarchy to disarm them.
+ * */
+NYA_API NYA_Error nya_permission_subject_forbid_set(NYA_Permissions* permissions, u64 actor, u64 subject, NYA_Permission forbid, u64 now_s)
+    __attr_no_discard;
+
+/** What this subject is forbidden directly. Zero for a subject with nothing forbidden. */
+NYA_API NYA_Permission nya_permission_subject_forbids(const NYA_Permissions* permissions, u64 subject) __attr_no_discard;
 
 /** How many subjects the table knows about. A subject it has never seen still resolves, to nothing. */
 NYA_API u32 nya_permission_subject_count(const NYA_Permissions* permissions) __attr_no_discard;
