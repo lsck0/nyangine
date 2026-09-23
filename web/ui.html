@@ -1,0 +1,114 @@
+<!doctype html>
+<!--
+  The CSR bridge, live: the immediate-mode UI component compiled to WebAssembly by `./build wasm-ui`,
+  rendered to the DOM here and driven entirely in the browser. No server round trip — the component, its
+  state, the input pass and the HTML presenter all run in the wasm module `nyangine_ui.{js,wasm}`. This
+  page is the whole client: it calls one export to get the HTML, mounts it, and forwards a click to
+  another export that runs the component's input pass in wasm and hands back the new HTML.
+
+  Contrast web/index.html, which proves the headless serialize slice; and examples/ui_ssr, which runs
+  this exact loop on a *server*. Here there is no server: nyangine_ui_event() is where ui_ssr's POST
+  /event went, and the page state lives in wasm globals rather than a cookie.
+
+  Serve it, do not open it as a file:// — a wasm module is fetched over HTTP. From the repo root, after
+  `./build wasm-ui`:
+
+      python3 -m http.server -d web 8000     # then open http://localhost:8000/ui.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nyangine · csr</title>
+    <link rel="icon" href="data:," />
+    <!--
+      The same stylesheet the HTML presenter emits for the SSR page (see nya_ui_html_document), so the
+      DOM the wasm module produces looks the same whether it was rendered on a server or, as here, in the
+      browser. The presenter writes only position and per-widget colour inline; these classes are the
+      rest of the look, keyed on the widget kind.
+    -->
+    <style>
+      :root { --bg:#14161c; --panel:#1c2029; --ink:#d8dbe2; --dim:#9498a2; --accent:#5a7cff; --line:#2a2f3a; }
+      html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      #nya-surface { position:relative; width:100%; height:100vh; overflow:hidden; }
+      #nya-surface > * { position:absolute; box-sizing:border-box; transition:background .12s,border-color .12s,color .12s,opacity .12s,transform .08s; }
+      .nya-button:active, .nya-selectable:active { transform:translateY(1px); }
+      .nya-panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
+      .nya-label { color:var(--ink); white-space:nowrap; display:flex; align-items:center; padding:0 2px; }
+      .nya-button, .nya-selectable, .nya-dropdown { background:#262b36; color:var(--ink); border:1px solid var(--line); border-radius:5px; cursor:pointer; font:inherit; display:flex; align-items:center; justify-content:center; padding:0 8px; }
+      .nya-button:hover, .nya-selectable:hover { border-color:var(--accent); }
+      .nya-selectable[data-on="1"], .nya-toggle[data-on="1"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+      .nya-toggle, .nya-radio { cursor:pointer; border:1px solid var(--line); border-radius:5px; background:#262b36; display:flex; align-items:center; justify-content:center; }
+      .nya-field input { width:100%; height:100%; background:#0f1116; color:var(--ink); border:1px solid var(--line); border-radius:5px; font:inherit; padding:0 6px; box-sizing:border-box; }
+      .nya-slider input { width:100%; }
+      .nya-scrim { background:rgba(0,0,0,.5); }
+      .nya-rule, .nya-underline { background:var(--line); }
+      .nya-underline { background:var(--accent); }
+      .nya-stripe { background:rgba(255,255,255,.03); }
+      [data-disabled="1"] { opacity:.4; pointer-events:none; }
+      [data-focused="1"] { outline:2px solid var(--accent); outline-offset:-1px; }
+      #nya-status { position:fixed; left:8px; bottom:8px; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; color:var(--dim); }
+      #nya-status .err { color:#ff7b72; }
+    </style>
+  </head>
+  <body>
+    <!-- The surface the wasm module's HTML is mounted into and patched in place. -->
+    <div id="nya-surface"></div>
+    <p id="nya-status">loading…</p>
+
+    <!-- Emscripten emits this loader beside nyangine_ui.wasm. MODULARIZE means it defines a factory
+         rather than running on load, so the page decides when to instantiate. -->
+    <script src="./nyangine_ui.js"></script>
+    <script>
+      const surface = document.getElementById("nya-surface");
+      const status = document.getElementById("nya-status");
+
+      /*
+       * Morph the surface to the new HTML by id rather than replacing it whole, so an element that did
+       * not change is left alone and its transition plays from where it was. This is the same diff the
+       * SSR presenter ships in its inline client (nya_ui_html_document); the only difference is where the
+       * new HTML comes from — a wasm call here, a fetch there.
+       */
+      function morph(html) {
+        const next = document.createElement("div");
+        next.innerHTML = html;
+        const have = {};
+        for (let c = surface.firstElementChild; c; c = c.nextElementSibling) if (c.id) have[c.id] = c;
+        const seen = {};
+        for (let n = next.firstElementChild; n; ) {
+          const nx = n.nextElementSibling;
+          seen[n.id] = 1;
+          const old = have[n.id];
+          if (!old) surface.appendChild(n);
+          else if (old.outerHTML !== n.outerHTML) old.replaceWith(n);
+          n = nx;
+        }
+        for (const id in have) if (!seen[id]) have[id].remove();
+      }
+
+      createNyangineUiModule()
+        .then((Module) => {
+          // cwrap binds the two exported C symbols. render() draws one settled pass and returns the body
+          // HTML; event(id, name) turns a click on element `id` into a synthetic pointer in wasm, runs
+          // the component's input then draw pass, and returns the new body.
+          const render = Module.cwrap("nyangine_ui_render", "string", []);
+          const event = Module.cwrap("nyangine_ui_event", "string", ["string", "string"]);
+
+          morph(render());
+          status.textContent = "wasm module loaded — the UI is running client-side.";
+
+          // A click on any element the presenter marked interactive is forwarded straight into wasm, and
+          // the returned HTML is morphed in. No network is involved: this is the whole event loop.
+          surface.addEventListener("click", (e) => {
+            const target = e.target.closest('[data-nya="click"]');
+            if (!target || !target.id) return;
+            morph(event(target.id, "click"));
+          });
+        })
+        .catch((error) => {
+          status.innerHTML = '<span class="err">failed to load the wasm module — is it served over HTTP, and has ./build wasm-ui run?</span>';
+          status.append(" " + String(error));
+        });
+    </script>
+  </body>
+</html>

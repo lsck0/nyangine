@@ -918,10 +918,17 @@ void nya_input_text_begin(NYA_WindowHandle window) {
 
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
+#if OS_WASM
+    // A wasm build has no SDL and no OS text-input service: the browser owns the IME and the DOM's own
+    // <input> gathers text natively. So this only records which window is taking text; there is no SDL
+    // session to open. See the header's note on what a browser adds back.
+    nya_unused(target);
+#else
     if (!SDL_StartTextInput(target->sdl_window)) {
         nya_log_warn("Could not start text input: %s", SDL_GetError());
         return;
     }
+#endif
 
     system->text_window = window;
 }
@@ -931,7 +938,12 @@ void nya_input_text_end(void) {
 
     NYA_Window* target = nya_window_get(system->text_window);
 
+#if OS_WASM
+    // No SDL text-input session was opened (see nya_input_text_begin); nothing to close.
+    nya_unused(target);
+#else
     if (target != nullptr) (void)SDL_StopTextInput(target->sdl_window);
+#endif
 
     system->text_window = NYA_WINDOW_HANDLE_NONE;
 
@@ -964,10 +976,15 @@ void nya_input_text_area_set(NYA_WindowHandle window, f32 x, f32 y, f32 width, f
     NYA_Window* target = nya_window_get(window);
     if (target == nullptr) return;
 
+#if OS_WASM
+    // No SDL, so no candidate-window rectangle to place; the browser positions its own IME. A no-op.
+    nya_unused(target), nya_unused(x), nya_unused(y), nya_unused(width), nya_unused(height);
+#else
     SDL_Rect area = { .x = (s32)x, .y = (s32)y, .w = (s32)width, .h = (s32)height };
 
     // cursor offset zero puts the candidate window at the start, right for a single-line field.
     (void)SDL_SetTextInputArea(target->sdl_window, &area, 0);
+#endif
 }
 
 /*
@@ -979,6 +996,12 @@ void nya_input_text_area_set(NYA_WindowHandle window, f32 x, f32 y, f32 width, f
 NYA_ConstCString nya_clipboard_text(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
 
+#if OS_WASM
+    // Reading the clipboard in a browser is an async, permission-gated API a synchronous C call cannot
+    // reach; a paste arrives as a DOM event instead. So there is nothing to hand back here.
+    nya_unused(arena);
+    return "";
+#else
     char* owned = SDL_GetClipboardText();
 
     // SDL returns an allocation even when the clipboard is empty, and the caller frees it either way.
@@ -994,16 +1017,27 @@ NYA_ConstCString nya_clipboard_text(NYA_Arena* arena) {
     SDL_free(owned);
 
     return copy;
+#endif
 }
 
 NYA_Error nya_clipboard_text_set(NYA_ConstCString text) {
     if (text == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no text to copy");
 
+#if OS_WASM
+    // Writing the clipboard is likewise an async browser API out of a synchronous call's reach. Reported
+    // as OK rather than an error so a copy shortcut is a silent no-op, not a failure a caller must handle.
+    return NYA_OK;
+#else
     if (!SDL_SetClipboardText(text)) return nya_error(NYA_ERROR_NOT_OK, "could not set the clipboard: %s", SDL_GetError());
 
     return NYA_OK;
+#endif
 }
 
 b8 nya_clipboard_has_text(void) {
+#if OS_WASM
+    return false;
+#else
     return SDL_HasClipboardText();
+#endif
 }

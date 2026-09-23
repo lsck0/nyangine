@@ -216,6 +216,45 @@
     "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineModule",            \
     "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"
 
+/*
+ * The second WebAssembly target, the CSR bridge: the immediate-mode UI component compiled to wasm and
+ * driven from the DOM, no server round trip. Its own command and rule beside `./build wasm`, for the same
+ * reason — emcc is off the default toolchain — and its own source, outputs and exports so the two never
+ * collide. See wasm_ui_runner and src/web/wasm_ui.c.
+ */
+#define WASM_UI_SOURCE     "./src/web/wasm_ui.c"
+#define WASM_UI_JS_OUTPUT  WASM_OUTPUT_DIRECTORY "/nyangine_ui.js"
+#define WASM_UI_WASM_OUTPUT WASM_OUTPUT_DIRECTORY "/nyangine_ui.wasm"
+// The two C symbols the page calls, named here so the -sEXPORTED_FUNCTIONS below and the verifier that
+// greps the loader cannot drift. render() draws one pass to HTML; event() feeds a click back in.
+#define WASM_UI_RENDER_SYMBOL "nyangine_ui_render"
+#define WASM_UI_EVENT_SYMBOL  "nyangine_ui_event"
+
+/*
+ * Unlike the headless wasm_demo, the UI reads its state through NYA_App, whose type embeds the renderer,
+ * asset, physics and world systems by value — so the whole engine header graph has to *parse*, which
+ * needs the vendored SDL3/box2d/box3d/ufbx/SDL_ttf/image/mixer headers on the include line. Nothing from
+ * those libraries is compiled or linked: wasm_ui.c includes only the leaf .c files the ui path reaches,
+ * and the little SDL those two core files carry is gated off under OS_WASM. See the file's own comment.
+ */
+#define WASM_UI_VENDOR_INCLUDES                                        \
+    "-I./vendor/sdl/include", "-I./vendor/box2d/include",             \
+    "-I./vendor/box3d/include", "-I./vendor/ufbx",                    \
+    "-I./vendor/sdl-ttf/include", "-I./vendor/sdl-image/include",     \
+    "-I./vendor/sdl-mixer/include"
+
+// The same base as FLAGS_WASM (language flags, warning suppressions, MODULARIZE, memory growth), but with
+// the two UI exports and a factory name of its own, and without -DNYA_WASM_WITH_ENGINE, which is
+// wasm_demo.c's stand-in/real switch and means nothing here. NYA_HEADLESS is set inside wasm_ui.c.
+#define FLAGS_WASM_UI                                                  \
+    "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
+    "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-format", \
+    WASM_UI_VENDOR_INCLUDES,                                           \
+    "-sEXPORTED_FUNCTIONS=_" WASM_UI_RENDER_SYMBOL ",_" WASM_UI_EVENT_SYMBOL, \
+    "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
+    "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineUiModule",          \
+    "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"
+
 // Runs the engine with the drawing compiled out. Everything else still runs, so a test exercises
 // the real frame loop; there is just no GPU device to create, which is what CI cannot provide.
 #define FLAGS_HEADLESS "-DNYA_HEADLESS"

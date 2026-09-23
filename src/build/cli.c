@@ -70,6 +70,62 @@ NYA_INTERNAL void wasm_runner(NYA_ArgCommand* command) {
                  WASM_OUTPUT_DIRECTORY);
 }
 
+/**
+ * Compiles the client-side UI to WebAssembly with emcc, then proves the artifacts are real: both files
+ * exist and the loader names both exported symbols. The CSR bridge — the immediate-mode UI component
+ * rendered to the DOM and driven from it, no server. A sibling of wasm_runner, off the critical path and
+ * its own command for the same reason: emcc is not part of the default toolchain.
+ * */
+NYA_INTERNAL void wasm_ui_runner(NYA_ArgCommand* command) {
+    nya_unused(command);
+
+    NYA_Arena* arena = nya_arena_create(.name = "wasm_ui_runner");
+    defer nya_arena_destroy(arena);
+
+    // emcc writes into web/ but does not create it; idempotent, an existing directory is not an error.
+    NYA_EXPECT(nya_filesystem_create_directory(WASM_OUTPUT_DIRECTORY), "while creating %s", WASM_OUTPUT_DIRECTORY);
+
+    NYA_BuildRule build_wasm_ui = {
+        .name        = "build_wasm_ui",
+        .policy      = NYA_BUILD_ALWAYS,
+        .output_file = WASM_UI_JS_OUTPUT,
+
+        .command = {
+            .program   = EMCC,
+            .arguments = {
+                WASM_UI_SOURCE,
+                "-o", WASM_UI_JS_OUTPUT,
+                FLAGS_WASM_UI,
+                // The engine's own include roots, beside the vendored ones FLAGS_WASM_UI adds, so the
+                // full header graph NYA_App needs resolves.
+                INCLUDE_PATHS,
+            },
+        },
+    };
+
+    NYA_EXPECT(nya_build(&build_wasm_ui), "while compiling the wasm UI");
+
+    // The artifacts, by hand: nya_build only knows emcc exited zero, not that it wrote what we named.
+    if (!nya_filesystem_exists(WASM_UI_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_JS_OUTPUT);
+    if (!nya_filesystem_exists(WASM_UI_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_WASM_OUTPUT);
+
+    // Both exports, by reading the loader back: the page calls both, so either one dropped means a page
+    // that cannot render or cannot forward a click, whatever emcc's exit code said.
+    NYA_String* loader = nya_string_create(arena);
+    NYA_EXPECT(nya_file_read(WASM_UI_JS_OUTPUT, loader), "while reading %s back", WASM_UI_JS_OUTPUT);
+
+    NYA_ConstCString loader_text = nya_string_to_cstring(arena, loader);
+    if (!nya_string_contains(loader_text, WASM_UI_RENDER_SYMBOL)) {
+        nya_log_panic("%s does not name %s: the export was dropped.", WASM_UI_JS_OUTPUT, WASM_UI_RENDER_SYMBOL);
+    }
+    if (!nya_string_contains(loader_text, WASM_UI_EVENT_SYMBOL)) {
+        nya_log_panic("%s does not name %s: the export was dropped.", WASM_UI_JS_OUTPUT, WASM_UI_EVENT_SYMBOL);
+    }
+
+    nya_log_info("Built %s and %s; %s and %s are exported. Serve %s over HTTP and open ui.html.", WASM_UI_JS_OUTPUT, WASM_UI_WASM_OUTPUT,
+                 WASM_UI_RENDER_SYMBOL, WASM_UI_EVENT_SYMBOL, WASM_OUTPUT_DIRECTORY);
+}
+
 /** Writes the completion script for whatever the parser currently describes. See main, which short circuits to this. */
 NYA_INTERNAL void completions_runner(NYA_ArgCommand* command) {
     NYA_ArgParameter* shell = command->parameters[0];
@@ -541,6 +597,12 @@ NYA_INTERNAL NYA_ArgCommand wasm = {
     .handler     = &wasm_runner,
 };
 
+NYA_INTERNAL NYA_ArgCommand wasm_ui = {
+    .name        = "wasm-ui",
+    .description = "Compile the client-side UI to web/nyangine_ui.wasm + .js. Needs emcc; the CSR bridge, driven by web/ui.html.",
+    .handler     = &wasm_ui_runner,
+};
+
 NYA_INTERNAL NYA_ArgCommand completions = {
     .name        = "completions",
     .description = "Generate a shell completion script on stdout, e.g. ./build completions zsh > ~/.zsh/completions/_build",
@@ -577,6 +639,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &stats,
             &update,
             &wasm,
+            &wasm_ui,
             &completions,
         },
     },

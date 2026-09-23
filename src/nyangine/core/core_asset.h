@@ -56,7 +56,12 @@ struct NYA_VertexSkinned3D {
     u8 weights[NYA_SKELETON_WEIGHTS_PER_VERTEX];
 };
 
+// Exact on native; a wasm build widens f16 to a four-byte float (base_types.h) and has no GPU, so the
+// byte count differs there by that widening alone and the layout check is moot. See NYA_Vertex3D's twin
+// guard in renderer.h. The bone-index check is layout-independent and always holds.
+#if !OS_WASM
 static_assert(sizeof(NYA_VertexSkinned3D) == 44, "the skinned layout in core_asset.c describes a 44 byte vertex");
+#endif
 static_assert(NYA_SKELETON_MAX_BONES <= 256, "a skinned vertex indexes bones with a byte");
 
 struct NYA_MeshPart {
