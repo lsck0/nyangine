@@ -286,8 +286,14 @@ NYA_API void nya_system_http_deinit(void);
  * With workers: answers the NYA_HTTP_AFFINITY_MAIN exchanges the listener has queued, and drains the
  * WebSockets. Never blocks either way.
  *
- * Called for you once a frame. Public for the two cases that need it directly: a headless program
- * with no frame loop, and a test driving the exchange one step at a time.
+ * Called for you once a frame, by the app's own "http" system, where input is drained and for the same
+ * reason the control socket is there: a request is input like a keypress, so it lands at the same point
+ * in the frame. The app calls down into this module rather than this module registering a hook up in the
+ * app, because core sits above http and an HTTP server that reaches into the frame loop cannot be linked
+ * without one.
+ *
+ * So a program with no app drives this itself, which is the whole of what a headless tool or a test has
+ * to do differently, and there is no window and no frame loop hiding in the requirement to serve.
  * */
 NYA_API void nya_system_http_tick(void);
 

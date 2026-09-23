@@ -20,7 +20,6 @@
  * */
 NYA_INTERNAL const _LintEdge _LINT_LAYERING_ALLOWED[] = {
     { "net",      "core",     4 },
-    { "http",     "core",     1 },
     { "core",     "renderer", 7 },
     { "core",     "physics",  5 },
     { "core",     "ui",       1 },
