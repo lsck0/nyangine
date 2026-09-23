@@ -12,6 +12,8 @@
 #include "nyangine/plugins/oidc/oidc.c"
 #endif
 
+#include "nyangine/plugins/pgp/pgp.c"
+
 // Always, for the reason in plugins.h. steam.c includes steam_steamworks.c itself, under
 // NYA_PLUGIN_STEAM, so the flat API symbols are named only in a build that links the library.
 #include "nyangine/plugins/steam/steam.c"

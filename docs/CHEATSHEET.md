@@ -5932,8 +5932,9 @@ Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
 ```c
 // types
 enum NYA_RequestMethod { NYA_REQUEST_METHOD_GET, NYA_REQUEST_METHOD_POST, NYA_REQUEST_METHOD_PUT, NYA_REQUEST_METHOD_PATCH, NYA_REQUEST_METHOD_DELETE, NYA_REQUEST_METHOD_COUNT, }
+enum NYA_RequestBody { NYA_REQUEST_BODY_JSON = 0, NYA_REQUEST_BODY_FORM, NYA_REQUEST_BODY_COUNT, }  // How `body` is written onto the wire, and what `Content-Type` says about it.
 struct NYA_RequestHeader { NYA_ConstCString name; NYA_ConstCString value; }
-struct NYA_Request { NYA_RequestMethod method; NYA_ConstCString url; const NYA_Object* body; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; struct { NYA_ConstCString user; NYA_ConstCString password; } basic_auth; u64 timeout_ms; b8 follow_redirects; b8 insecure_skip_tls_verify; }
+struct NYA_Request { NYA_RequestMethod method; NYA_ConstCString url; const NYA_Object* body; NYA_RequestBody body_kind; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; struct { NYA_ConstCString user; NYA_ConstCString password; } basic_auth; u64 timeout_ms; b8 follow_redirects; b8 insecure_skip_tls_verify; }
 struct NYA_Response { u32 status; NYA_Object* body; NYA_String* raw_body; NYA_String* content_type; NYA_String* raw_headers; }
 
 // macros
@@ -6161,6 +6162,23 @@ NYA_Error nya_oidc_discover(NYA_OidcProvider* provider, NYA_Arena* arena)
 NYA_Error nya_oidc_authorize_url(const NYA_OidcProvider* provider, OUT char* out_url, u64 capacity, OUT NYA_OidcAuthorizeState* out_state)  // The url to send someone to, and the state this login needs kept until the callback.
 NYA_Error nya_oidc_exchange(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString code, const NYA_OidcAuthorizeState* state, OUT NYA_OidcClaims* out_claims)  // Redeems `code` at the token endpoint and verifies the id_token that comes back.
 NYA_Error nya_oidc_userinfo(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString access_token, OUT NYA_Object** out_claims)  // The userinfo endpoint's answer for `access_token`, parsed.
+```
+
+### pgp.h
+
+OpenPGP, as far as this engine needs it: encrypting a short message to somebody's public key, so
+
+```c
+// macros
+NYA_PGP_MAX_MESSAGE_BYTES 4096  // The largest message this encrypts, in bytes.
+NYA_PGP_MAX_KEY_BYTES 16384  // The largest public key this hands to gpg, in bytes.
+NYA_PGP_TIMEOUT_MS 5000  // How long gpg is given before it is a failure rather than a slow machine.
+
+// functions
+b8 nya_pgp_available(void)  // Whether this machine has a gpg that works, asked once and remembered.
+NYA_ConstCString nya_pgp_version(void)  // The version gpg reported, or an empty string when there is none.
+NYA_Error nya_pgp_encrypt(NYA_Arena* arena, NYA_ConstCString recipient_key, const u8* message, u64 message_size, OUT NYA_String** out_armored)  // Encrypts `message` to `recipient_key`, an armored OpenPGP public key, and answers the armored result.
+NYA_Error nya_pgp_fingerprint(NYA_Arena* arena, NYA_ConstCString recipient_key, OUT NYA_String** out_fingerprint)  // The fingerprint of the primary key in `recipient_key`, as uppercase hex.
 ```
 
 ### steam.h

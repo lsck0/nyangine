@@ -747,7 +747,30 @@ logged-in user.
   - A QR encoder is the only new piece. Nayuki's `qrcodegen` (C, MIT, one file, widely used) vendored, or a
     small one in `base`. It draws through `nya_ui_*` as filled cells, so it works in the native, terminal and
     web presenters alike.
-- `[ ]` **Second factor: PGP by decryption.** The server encrypts a one-time code to the user's public key; the
+- `[~]` **Second factor: PGP by decryption.** The encryptor landed 2026-09-23 as
+  `src/nyangine/plugins/pgp/pgp.h`: `nya_pgp_encrypt` encrypts a short message to a user's armored
+  public key, `nya_pgp_fingerprint` reads the fingerprint an account stores and a person checks, and
+  `nya_pgp_available` is what a program asks at startup. The test generates a key, encrypts to it and
+  decrypts with gpg, because a round trip is the only thing that proves any of it.
+  - **Nothing is vendored**, decided 2026-09-23 after looking at the field. `gpg` is spawned through
+    `base_command.h` with a `--homedir` of its own per call, so the server's keyring is never touched
+    and a machine without gpg loses this feature and nothing else. What was weighed:
+    - **GPGME** is a wrapper that drives this same binary over IPC. It would add libassuan and
+      libgpg-error to the link to buy a typed API over a twenty line spawn.
+    - **RNP** (Thunderbird's) is C++ with CMake and its own crypto backend — Botan or OpenSSL —
+      duplicating the crypto module this engine wrote itself, and it has historically had no smartcard
+      support, which is the case this feature exists for.
+    - **Sequoia** is Rust, which would put a second toolchain in a build that is one clang.
+    - **Writing it** means, for encryption alone, OpenPGP packet writing, ECDH with a key derivation
+      nobody else uses, RSA PKCS#1 v1.5 *encryption* (crypto only verifies), AES in a mode this has
+      none of, and the interoperability surface where OpenPGP bugs live. It is the right answer only
+      if the run time dependency ever becomes unacceptable — a Windows service, say, where gpg4win is
+      not a reasonable ask.
+    - The asymmetry that makes this easy: every **private** key operation in this design happens on the
+      user's machine, where gpg, the agent, the PIN and a YubiKey's touch policy already live. The
+      server does one public key operation and a constant time comparison.
+  - Still open, and unchanged: the state. A pending login, the code stored hashed, single use and
+    expiring, is what the accounts work brings, and until then there is a primitive and no flow. The server encrypts a one-time code to the user's public key; the
   user decrypts it with their private key (`gpg -d`, or an OpenPGP smartcard such as a YubiKey) and types the
   code back. The server only ever does public key operations and a constant time comparison, and the private
   key never leaves the user.
@@ -862,9 +885,8 @@ logged-in user.
   - The pending login — state, nonce, verifier — is the caller's to keep, because a provider is a
     long lived singleton and a login is not. That also means **the caller compares the `state` it stored
     against the one the callback carried**; the module never sees a query string and says so in its header.
-  - Still open: the token endpoint's body is JSON, which Google and Auth0 take and a default Keycloak does
-    not. Form-urlencoded belongs to `plugins/curl/request.h` rather than to this module, and that is where
-    it will go.
+  - The token endpoint is form encoded, as RFC 6749 section 4.1.3 requires: `NYA_REQUEST_BODY_FORM`
+    landed in `plugins/curl/request.h` on 2026-09-23, so there is nothing to decide per provider.
 
 - `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
   path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.

@@ -24,6 +24,13 @@
 #include "nyangine/plugins/oidc/oidc.h"
 #endif
 
+/*
+ * Always, like steam below: this needs nothing vendored and nothing linked. It spawns `gpg` when a
+ * machine has one and answers "not available" when it does not, so a program calls it with no #ifdef
+ * of its own. See pgp.h for why gpg rather than a library.
+ */
+#include "nyangine/plugins/pgp/pgp.h"
+
 // Always: the module is a facade over a backend table, and only the backend is behind
 // NYA_PLUGIN_STEAM. A build without the Steamworks library installs no backend and every call answers
 // "not supported", which is what lets a game call it with no #ifdef of its own. See steam.h.
