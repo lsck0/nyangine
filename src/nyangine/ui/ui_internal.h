@@ -509,7 +509,7 @@ NYA_INTERNAL void _nya_ui_reveal(NYA_Rectf rect);
  * Moves a draggable top level panel by the pointer on its grip. Updates `state->drag`; the caller clamps it. A
  * `covered` panel cannot be grabbed, so a grip under another panel is not a handle.
  * */
-NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header, b8 covered);
+NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf grip, b8 covered);
 
 /**
  * A typed field for the widget `widget`: edits `buffer` while it has the keyboard, starts on `start`, and stops on

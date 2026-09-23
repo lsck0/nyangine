@@ -328,6 +328,49 @@ s32 main(void) {
         (void)release();
     }
 
+    // ── the strip a window is dragged by is the bar that is drawn ────────────────
+    {
+        /*
+         * What gnyame does: a big title, a hamburger, and a panel declared before the windows. The bar a
+         * person sees is the strip to grab, so the two have to be the same rectangle — a grip that
+         * starts at the window's top edge and stops short of the bar's bottom is a window that does not
+         * move when it is grabbed by the part of the bar below the mismatch.
+         */
+        nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 22.0F, .title_size = 44.0F, .padding = 14.0F, .spacing = 6.0F, .item_height = 40.0F });
+
+        for (u32 i = 0; i < 32 && nya_font_metrics(nya_font(FACE, 44.0F)).line_height <= 0.0F; i++) {
+            nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
+        }
+
+        UNDER = (NYA_UIWindowState){ .open = true };
+        OVER  = (NYA_UIWindowState){ .open = true };
+
+        Scene now = scene(NYA_UI_PASS_DRAW);
+
+        NYA_UIStyle style = nya_ui_style_get(&window);
+        NYA_UILook  look  = { 0 };
+        nya_ui_look_scale(&style, 1.0F, &look);
+
+        f32 line = ceilf(nya_font_metrics(nya_font(FACE, 44.0F)).line_height);
+        f32 bar  = roundf(line + look.padding);
+
+        // the bottom of the drawn bar, which is the part a person aims at when the title is tall.
+        f32x2 low = { now.over_bounds.x + WIDTH * 0.5F, now.over_bounds.y + look.padding + bar - 4.0F };
+
+        pointer_move(low);
+        pointer_button(true);
+        (void)scene(NYA_UI_PASS_INPUT);
+
+        pointer_move((f32x2){ low.x + 40.0F, low.y + 20.0F });
+        Scene moved = scene(NYA_UI_PASS_INPUT);
+
+        pointer_button(false);
+        (void)scene(NYA_UI_PASS_INPUT);
+
+        nya_check(moved.over_bounds.x > now.over_bounds.x, "the bottom of the bar drags the window, from %.1f to %.1f", (f64)now.over_bounds.x,
+                  (f64)moved.over_bounds.x);
+    }
+
     printf("PASSED: ui window overlap\n");
 
     return nya_check_failures() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

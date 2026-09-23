@@ -254,5 +254,46 @@ s32 main(void) {
                   (f64)released);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a big title with every piece of chrome: the bar holds it, and the bar drags.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        // what gnyame's own style does: a title twice the body size.
+        nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 22.0F, .title_size = 44.0F, .padding = FRAME, .spacing = GAP, .item_height = ITEM });
+
+        for (u32 i = 0; i < 32 && nya_font_metrics(nya_font(FACE, 44.0F)).line_height <= 0.0F; i++) {
+            nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
+        }
+
+        state = (NYA_UIWindowState){ .open = true };
+
+        Scene big = scene(NYA_UI_PASS_DRAW);
+        nya_check(big.body_seen, "the window with a big title is up");
+
+        NYA_UIStyle style = nya_ui_style_get(&window);
+        NYA_UILook  look  = { 0 };
+        nya_ui_look_scale(&style, 1.0F, &look);
+        look.line_heights[NYA_UI_TEXT_TITLE] = ceilf(nya_font_metrics(nya_font(FACE, 44.0F)).line_height);
+
+        // the bar is drawn around its text rather than tight to it.
+        f32 bar = roundf(look.line_heights[NYA_UI_TEXT_TITLE] + look.padding);
+        nya_check(bar > look.line_heights[NYA_UI_TEXT_TITLE], "the bar is taller than the line it holds");
+
+        // the bar drags from a point that is bar and nothing else: past the hamburger, before the chevron.
+        f32x2 grip = { big.bounds.x + FRAME + bar + 10.0F, big.bounds.y + FRAME + bar * 0.5F };
+
+        pointer_move(grip);
+        pointer_button(true);
+        (void)scene(NYA_UI_PASS_INPUT);
+
+        pointer_move((f32x2){ grip.x + 40.0F, grip.y + 25.0F });
+        Scene moved = scene(NYA_UI_PASS_INPUT);
+
+        pointer_button(false);
+        (void)scene(NYA_UI_PASS_INPUT);
+
+        nya_check(moved.bounds.x > big.bounds.x, "the window moved with the pointer, from %.1f to %.1f", (f64)big.bounds.x, (f64)moved.bounds.x);
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }

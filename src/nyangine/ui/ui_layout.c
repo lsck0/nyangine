@@ -140,7 +140,25 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
 
         // moved by the pointer, then clamped so a panel dragged at the edge, or a shrinking window, cannot strand it.
         if (panel.draggable) {
-            _nya_ui_panel_drag(ui, key, state, bounds, header, covered);
+            /*
+             * Where it is on screen, which is where it was anchored plus everything it has been dragged
+             * by so far. The grab has to be taken from this and not from the anchor: a window moved once
+             * would otherwise keep its handle where it used to be, and the second grab would do nothing.
+             */
+            f32 shown_x = nya_clamp(bounds.x + state->drag.x, safe->x, nya_max(safe->x + safe->width - bounds.width, safe->x));
+            f32 shown_y = nya_clamp(bounds.y + state->drag.y, safe->y, nya_max(safe->y + safe->height - bounds.height, safe->y));
+
+            /*
+             * From the top edge down to the bottom of the bar that is drawn, rather than the strip the
+             * layout reserved. The two are not the same rectangle: the bar sits a padding below the top
+             * edge and the reservation adds the spacing under it, so the reserved strip stops short of
+             * the bar's bottom — which is exactly where a person aims when the title is tall. Taking the
+             * frame's top edge with it keeps the whole visible header a handle.
+             */
+            f32       strip = header > 0.0F ? before.y + look->title_bar : look->line_heights[NYA_UI_TEXT_BODY];
+            NYA_Rectf grip  = { shown_x, shown_y, bounds.width, strip };
+
+            _nya_ui_panel_drag(ui, key, state, grip, covered);
 
             f32 x = nya_clamp(bounds.x + state->drag.x, safe->x, nya_max(safe->x + safe->width - bounds.width, safe->x));
             f32 y = nya_clamp(bounds.y + state->drag.y, safe->y, nya_max(safe->y + safe->height - bounds.height, safe->y));
@@ -780,15 +798,13 @@ void _nya_ui_reveal(NYA_Rectf rect) {
     }
 }
 
-void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header, b8 covered) {
+void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf grip, b8 covered) {
     nya_assert(ui != nullptr && state != nullptr && key != 0);
 
     if (ui->pass != NYA_UI_PASS_INPUT) return;
 
-    // the title strip, or the top edge when there is no title. dragging by the body would swallow every click in it.
-    f32       grip_height = header > 0.0F ? header : _nya_ui_look()->line_heights[NYA_UI_TEXT_BODY];
-    NYA_Rectf grip        = { bounds.x, bounds.y, bounds.width, grip_height };
-
+    // `grip` is the title strip as it is drawn, or the top edge when there is no title. Dragging by the body
+    // would swallow every click in it.
     if (_nya_ui.pointer_pressed && !covered && !_nya_ui_claimed(_nya_ui.pointer) && ui->drag_panel == 0 && nya_rect_contains(grip, _nya_ui.pointer)) {
         ui->drag_panel       = key;
         ui->drag_grip        = (f32x2){ _nya_ui.pointer.x - state->drag.x, _nya_ui.pointer.y - state->drag.y };
