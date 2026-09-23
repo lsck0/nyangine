@@ -116,6 +116,15 @@ struct NYA_AccountSession {
     /** SHA-256 of the token, as hex. What a validation looks up; see the header. */
     char token_hash[NYA_ACCOUNTS_TOKEN_HASH_BYTES]; // @redact
 
+    /**
+     * SHA-256 of the token this session held before its last rotation, or empty for one never rotated.
+     *
+     * The reuse tripwire: a rotation retires the old token and remembers its hash here. A retired token
+     * presented again is a stolen one — the legitimate client rotated past it — so seeing it revokes the
+     * whole session. See nya_account_session_rotate.
+     * */
+    char previous_hash[NYA_ACCOUNTS_TOKEN_HASH_BYTES]; // @redact
+
     /** Where it was opened from and what opened it, for the list a person sees of their own sessions. */
     char address[NYA_ACCOUNTS_MAX_ADDRESS];
     char agent[NYA_ACCOUNTS_MAX_AGENT];
@@ -167,6 +176,26 @@ NYA_API NYA_Error nya_account_session_issue(NYA_Arena* arena, u64 user_id, NYA_C
  * The answer never carries the token back: `token` in the out parameter stays empty.
  * */
 NYA_API NYA_Error nya_account_session_validate(NYA_Arena* arena, NYA_ConstCString token, OUT NYA_AccountSession* out_session) __attr_no_discard;
+
+/**
+ * Exchanges a live token for a fresh one on the same session, and detects a stolen one.
+ *
+ * This is the refresh, and it is where a long-lived session is made safe. Every use of it retires the
+ * token that came in and issues a new one for the same row, so a token spends only the moment between
+ * two refreshes on the wire. `out_session` carries the new token, exactly as issuing does.
+ *
+ * The reuse check is the point. If the token presented is one that was *already* rotated away from —
+ * the legitimate client has since moved on to a newer one — then two parties hold tokens for this
+ * session, which only happens when one was stolen. There is no telling which party is the thief, so the
+ * whole session is revoked: the real user is logged out and signs in again, and the thief's copy dies
+ * with it. NYA_ERROR_PERMISSION_DENIED, in the same words as every other refusal, and the session ended.
+ *
+ * A token that is not this session's current or just-previous one, an expired session, or a disabled
+ * user are the ordinary refusal, with nothing revoked.
+ * */
+NYA_API NYA_Error nya_account_session_rotate(
+    NYA_Arena* arena, NYA_ConstCString token, NYA_ConstCString address, NYA_ConstCString agent, OUT NYA_AccountSession* out_session
+) __attr_no_discard;
 
 /** Ends one session. Idempotent: revoking a session that is already revoked is not an error. */
 NYA_API NYA_Error nya_account_session_revoke(NYA_Arena* arena, u64 session_id) __attr_no_discard;

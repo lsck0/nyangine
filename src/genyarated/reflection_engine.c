@@ -166,6 +166,13 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_TOKEN_HASH_BYTES),
 };
 
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_previous_hash_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountSession*)nullptr)->previous_hash),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_TOKEN_HASH_BYTES),
+};
+
 static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_address_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
     .size = sizeof(((NYA_AccountSession*)nullptr)->address),
@@ -184,6 +191,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_AccountSession_FIELDS[] = {
     { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, id), .hint = NYA_HINT_NONE, .is_key = true },
     { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, user_id), .hint = NYA_HINT_NONE },
     { .name = "token_hash", .type = &_NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, token_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "previous_hash", .type = &_NYA_REFLECT_NYA_AccountSession_previous_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, previous_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
     { .name = "address", .type = &_NYA_REFLECT_NYA_AccountSession_address_ARRAY, .offset = nya_offsetof(NYA_AccountSession, address), .hint = NYA_HINT_NONE },
     { .name = "agent", .type = &_NYA_REFLECT_NYA_AccountSession_agent_ARRAY, .offset = nya_offsetof(NYA_AccountSession, agent), .hint = NYA_HINT_NONE },
     { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, created_at_s), .hint = NYA_HINT_NONE },
@@ -198,7 +206,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession = {
     .size = sizeof(NYA_AccountSession),
     .alignment = alignof(NYA_AccountSession),
     .fields = _NYA_REFLECT_NYA_AccountSession_FIELDS,
-    .field_count = 9,
+    .field_count = 10,
 };
 
 /* NYA_AccountUser, src/nyangine/accounts/accounts_user.h */

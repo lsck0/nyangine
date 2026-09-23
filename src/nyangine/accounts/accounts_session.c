@@ -143,6 +143,95 @@ NYA_Error nya_account_session_validate(NYA_Arena* arena, NYA_ConstCString token,
     return NYA_OK;
 }
 
+NYA_Error nya_account_session_rotate(NYA_Arena* arena, NYA_ConstCString token, NYA_ConstCString address, NYA_ConstCString agent, NYA_AccountSession* out_session) {
+    nya_assert(arena != nullptr && out_session != nullptr);
+
+    nya_memset(out_session, 0, sizeof(NYA_AccountSession));
+
+    if (!nya_accounts_is_open()) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
+
+    NYA_Error refused = nya_error(NYA_ERROR_PERMISSION_DENIED, "that session is not valid");
+
+    if (token == nullptr || token[0] == '\0') return refused;
+
+    char hex[NYA_ACCOUNTS_TOKEN_HASH_BYTES] = { 0 };
+    _nya_account_session_hash(token, hex, sizeof(hex));
+
+    u64 now_s = nya_clock_get_timestamp_s();
+
+    /*
+     * The token presented, tried as a *retired* one first. A token that a session has already rotated
+     * away from means two parties hold this session's tokens, which only happens when one was stolen:
+     * the honest client moved on to a newer token, so whoever still has this old one is not it — or is,
+     * and there is no telling which. Either way the session dies, taking both copies with it.
+     */
+    void* retired = nullptr;
+    u32   retired_count = 0;
+
+    NYA_TRY(nya_orm_select(
+        _NYA_ACCOUNTS.sessions, arena, "WHERE previous_hash = ? AND revoked = 0 LIMIT 1", (NYA_SqlValue[]){ nya_sql_text(hex) }, 1, &retired, &retired_count
+    ));
+
+    if (retired_count > 0) {
+        NYA_AccountSession* stolen = nya_orm_at(_NYA_ACCOUNTS.sessions, retired, 0);
+
+        stolen->revoked = true;
+        NYA_TRY(nya_orm_update(_NYA_ACCOUNTS.sessions, stolen));
+
+        return refused;
+    }
+
+    // The ordinary case: the token is this session's current one.
+    void* rows  = nullptr;
+    u32   count = 0;
+
+    NYA_TRY(nya_orm_select(_NYA_ACCOUNTS.sessions, arena, "WHERE token_hash = ? LIMIT 1", (NYA_SqlValue[]){ nya_sql_text(hex) }, 1, &rows, &count));
+
+    if (count == 0) return refused;
+
+    const NYA_AccountSession* current = nya_orm_at(_NYA_ACCOUNTS.sessions, rows, 0);
+
+    NYA_AccountSession session = *current;
+
+    if (!_nya_account_session_is_live(&session, now_s)) return refused;
+
+    NYA_AccountUser user = { 0 };
+    if (!nya_account_find_by_id(arena, session.user_id, &user).ok || user.disabled) return refused;
+
+    // The token that came in is retired; a fresh one is minted for the same row. A replay of the old
+    // token from here on lands in the retired branch above and takes the session down.
+    (void)snprintf(session.previous_hash, sizeof(session.previous_hash), "%s", session.token_hash);
+
+    u8 secret[NYA_ACCOUNTS_TOKEN_BYTES] = { 0 };
+    if (!nya_os_random_bytes(secret, sizeof(secret))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
+
+    u64 length = 0;
+    if (!nya_crypto_base64url_encode(secret, sizeof(secret), session.token, sizeof(session.token), &length)) {
+        nya_crypto_wipe(secret, sizeof(secret));
+        return nya_error(NYA_ERROR_NOT_OK, "the session token could not be encoded");
+    }
+
+    nya_crypto_wipe(secret, sizeof(secret));
+
+    _nya_account_session_hash(session.token, session.token_hash, sizeof(session.token_hash));
+
+    // Both expiries move the way a validation moves the idle one, bounded by the absolute start.
+    u64 pushed  = now_s + NYA_ACCOUNTS_SESSION_IDLE_S;
+    u64 ceiling = session.created_at_s + NYA_ACCOUNTS_SESSION_ABSOLUTE_S;
+
+    session.used_at_s    = now_s;
+    session.expires_at_s = pushed > ceiling ? ceiling : pushed;
+
+    if (address != nullptr) (void)snprintf(session.address, sizeof(session.address), "%s", address);
+    if (agent != nullptr) (void)snprintf(session.agent, sizeof(session.agent), "%s", agent);
+
+    NYA_TRY(nya_orm_update(_NYA_ACCOUNTS.sessions, &session));
+
+    *out_session = session;
+
+    return NYA_OK;
+}
+
 NYA_Error nya_account_session_revoke(NYA_Arena* arena, u64 session_id) {
     nya_assert(arena != nullptr);
 

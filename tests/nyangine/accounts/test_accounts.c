@@ -814,6 +814,54 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: refresh rotation, and a stolen token takes the session down
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    NYA_AccountUser ada = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
+
+    NYA_AccountSession first = { 0 };
+    NYA_EXPECT(nya_account_session_issue(arena, ada.id, "203.0.113.9", "a browser", &first));
+
+    // a rotation gives a new token and retires the old, on the same session.
+    NYA_AccountSession second = { 0 };
+    nya_check(nya_account_session_rotate(arena, first.token, "203.0.113.9", "a browser", &second).ok, "a live token rotates");
+    nya_check(second.id == first.id, "on the same session, got %llu vs %llu", (unsigned long long)second.id, (unsigned long long)first.id);
+    nya_check(!nya_string_equals(first.token, second.token), "to a new token");
+
+    // the new token validates; the old one no longer does.
+    NYA_AccountSession check = { 0 };
+    nya_check(nya_account_session_validate(arena, second.token, &check).ok, "the new token is valid");
+    nya_check(!nya_account_session_validate(arena, first.token, &check).ok, "the retired token is not");
+
+    // rotation chains: the new one rotates again.
+    NYA_AccountSession third = { 0 };
+    nya_check(nya_account_session_rotate(arena, second.token, nullptr, nullptr, &third).ok, "and rotation chains");
+
+    // now replay the FIRST (long-retired) token: theft. The whole session is revoked.
+    NYA_AccountSession stolen = { 0 };
+    NYA_Error reuse = nya_account_session_rotate(arena, second.token, nullptr, nullptr, &stolen);
+    nya_check(!reuse.ok && reuse.kind == NYA_ERROR_PERMISSION_DENIED, "a retired token replayed is refused");
+
+    // and the session it belonged to is dead: the current (third) token no longer validates.
+    nya_check(!nya_account_session_validate(arena, third.token, &check).ok, "and its whole session is revoked, honest user and thief alike");
+
+    // a token that was never this session's is the ordinary refusal, nothing revoked.
+    NYA_AccountUser bob_user = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "bob", PASSWORD, &bob_user));
+    NYA_AccountSession bob = { 0 };
+    NYA_EXPECT(nya_account_session_issue(arena, bob_user.id, nullptr, nullptr, &bob));
+
+    NYA_AccountSession ignored = { 0 };
+    nya_check(!nya_account_session_rotate(arena, "not a token at all", nullptr, nullptr, &ignored).ok, "an unknown token is refused");
+    nya_check(nya_account_session_validate(arena, bob.token, &check).ok, "and an unrelated session is untouched");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {
