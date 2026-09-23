@@ -315,15 +315,32 @@ browser, from the same `component()` function.
     **SDL_GPU-API-shaped shim over GLES3** compiled only for wasm, leaving all 216 engine call sites and structs
     unchanged. The surface is bounded: **53 distinct `SDL_*GPU*` functions** (inventory in git history of this
     line's commit). Staged:
-    1. Shader pipeline: extend `build_shaders` to also emit GLSL ES 300 from the same HLSL via
-       DXC→SPIRV→SPIRV-Cross, written beside the `.spv`/`.dxil`/`.msl`; `_nya_asset_pick_correct_compiled_shader`
-       learns a GLSL format. (Touches the build system — sequence after the CSR-UI wasm build extension lands to
-       avoid churn on `flags.h`/`cli.c`.)
+    1. `[x]` **Shader pipeline (landed `c5725c4`)** — the build emits GLSL ES 300 beside every `.spv` via the
+       vendored SPIRV-Cross C API (`_nya_asset_shader_compile_glsl_es` in `src/build/pp/asset.c`, linked into the
+       build tool like libbacktrace; naming `<shader>.<stage>.glsl`; NOT indexed/bundled/loaded yet — the loader
+       is untouched). **37/37 convert and validate as ESSL 300 under glslangValidator.** Findings the GLES3
+       backend MUST handle:
+       - **textureGather blocks lit 3D (4 shaders refused):** `mesh3d.frag`, `mesh3d_textured.frag`,
+         `mesh3d_decal.frag`, `mesh3d_glass.frag` share `mesh3d_shading.hlsli:272` `map.GatherRed(...)` (4-tap PCF
+         shadow) → `textureGather`, which is ESSL 310+; WebGL2 caps at ESSL 300. Fix = a web shader variant that
+         does 4 explicit `texture()`/`textureLod()` taps at half-texel offsets, gated behind a `-D` at the
+         HLSL→SPIRV step (so native keeps the faster gather). The shadow *pass* shaders don't include the header
+         and convert fine — only the lit pass is blocked. 2D path is unaffected.
+       - **Two uniform-upload paths:** 32 shaders emit real `layout(std140) uniform` blocks, but 5
+         (`effect_light_shafts/lut/occlusion/occlusion_apply/output_hdr`) fall back to plain `uniform` (their
+         cbuffer packing isn't std140-expressible in ES300, which has no per-member offset). The backend needs
+         both: `glUniformBlockBinding`+UBO for most, `glUniform*`-by-name for those 5 — or re-lay-out those
+         cbuffers to std140 (pad to vec4) so all become UBOs.
+       - **No `layout(binding=)` and synthesized sampler names** (`_29`, `_78`): the backend assigns texture units
+         (`glUniform1i`) and UBO binding points itself by declared/reflected order, not by name.
+       - `effect_lut.frag` needs a `sampler3D` (fine on WebGL2). Dummy samplers synthesized for texelFetch passes.
     2. GLES3 shim (`src/nyangine/renderer/gpu_gles/`, `#if OS_WASM`): implement the 53 SDL_GPU calls over
        WebGL2. Command buffers execute immediately (WebGL2 has none); render pass = FBO bind + clear; pipeline =
        linked program + cached GL state; transfer buffer = CPU staging + `glBufferSubData`/`glTexSubImage`;
-       fences = `glClientWaitSync`/no-op under emscripten's async loop.
-    3. App loop under `emscripten_set_main_loop`; SDL3's emscripten port gives the GLES3 context + window/input.
+       fences = `glClientWaitSync`/no-op under emscripten's async loop. **Scope 2D first** (batch2d + shape/
+       textured/light2d, ~20 of the 53 calls) for a visible sprite on canvas, then 3D+shadow (needs the gather
+       fix above). WebGL2 context via emscripten's html5 GL API (bypass SDL_GPU entirely; SDL not on the GL path).
+    3. App loop under `emscripten_set_main_loop`; canvas input via emscripten html5 events → `NYA_Event`.
     4. A game example building to a canvas; the `web_frontend` caller. Verify a frame draws under node/headless
        where possible, then in-browser.
     Native builds stay byte-identical (every shim file gated `#if OS_WASM`).
