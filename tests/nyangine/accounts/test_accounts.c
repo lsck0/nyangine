@@ -680,6 +680,52 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a person can take everything about their account with them
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    NYA_AccountUser ada = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
+    NYA_EXPECT(nya_account_identity_link(arena, ada.id, "steam", "76561198000000000", "ada"));
+
+    NYA_AccountSession session = { 0 };
+    NYA_EXPECT(nya_account_session_issue(arena, ada.id, "203.0.113.9", "a browser", &session));
+
+    char codes[NYA_ACCOUNTS_RECOVERY_CODE_COUNT][NYA_ACCOUNTS_RECOVERY_CODE_TEXT] = { 0 };
+    u32  made                                                                     = 0;
+    NYA_EXPECT(nya_account_recovery_generate(arena, ada.id, codes, &made));
+
+    NYA_Object* document = nullptr;
+    nya_check(nya_account_export(arena, ada.id, &document).ok, "an account exports");
+    nya_check(document != nullptr, "to a document");
+
+    NYA_String* text = nya_serialize(arena, document, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
+    nya_check(text != nullptr && text->length > 0, "that serializes");
+
+    NYA_ConstCString json = nya_string_to_cstring(arena, text);
+
+    // what is in it: the username, the linked provider, the session's metadata.
+    nya_check(nya_string_contains(json, "ada"), "with the username in it");
+    nya_check(nya_string_contains(json, "steam"), "and the linked identity");
+    nya_check(nya_string_contains(json, "203.0.113.9"), "and where a session was opened from");
+    nya_check(nya_string_contains(json, "recovery_codes_remaining"), "and the count of recovery codes");
+
+    // what is NOT in it: nothing that could be used to act as them.
+    nya_check(!nya_string_contains(json, "$argon2id"), "and never the password hash");
+    nya_check(!nya_string_contains(json, session.token), "never a session token");
+    nya_check(!nya_string_contains(json, session.token_hash), "never a token hash");
+    for (u32 index = 0; index < made; index++) {
+      char stripped[NYA_ACCOUNTS_RECOVERY_CODE_TEXT] = { 0 };
+      u32  at = 0;
+      for (u32 i = 0; codes[index][i] != '\0'; i++) if (codes[index][i] != '-') stripped[at++] = codes[index][i];
+      nya_check(!nya_string_contains(json, stripped), "and never a recovery code");
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {

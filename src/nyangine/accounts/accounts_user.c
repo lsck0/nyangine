@@ -12,6 +12,8 @@
 #include "nyangine/crypto/crypto_encoding.h"
 #include "nyangine/crypto/crypto_kdf.h"
 #include "nyangine/crypto/crypto_secret.h"
+#include "nyangine/base/base_object.h"
+#include "nyangine/base/base_reflection.h"
 #include "nyangine/db/db_orm.h"
 #include "nyangine/os/os_random.h"
 
@@ -336,6 +338,74 @@ b8 nya_account_password_needs_rehash(const NYA_AccountUser* user) {
     if (!_nya_account_password_cost(user->password, &memory_kib, &passes, &lanes)) return true;
 
     return memory_kib < NYA_ACCOUNTS_ARGON2ID_MEMORY_KIB || passes < NYA_ACCOUNTS_ARGON2ID_PASSES || lanes < NYA_ACCOUNTS_ARGON2ID_LANES;
+}
+
+/** Wraps an object as an array element's value, since the export's lists are arrays of objects. */
+NYA_INTERNAL NYA_Value _nya_account_export_row(NYA_Arena* arena, const NYA_TypeReflection* type, const void* row) {
+    // Redacted, because this is the person's own copy of their data and a hash or a token in it is not
+    // theirs to keep any more than it was the database's to hand out; see the @redact fields.
+    NYA_Object* object = nya_reflect_to_object_redacted(arena, type, row);
+
+    return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *object };
+}
+
+NYA_Error nya_account_export(NYA_Arena* arena, u64 id, NYA_Object** out_object) {
+    nya_assert(arena != nullptr && out_object != nullptr);
+
+    *out_object = nullptr;
+
+    if (!_NYA_ACCOUNTS.open) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
+
+    NYA_AccountUser user = { 0 };
+    NYA_TRY(nya_account_find_by_id(arena, id, &user));
+
+    NYA_Object* document = nya_object_create(arena);
+
+    // The account itself, redacted: everything the row holds except the password hash, which is not the
+    // person's password and is no use to them.
+    nya_object_add(document, "account", _nya_account_export_row(arena, nya_reflect_of(NYA_AccountUser), &user));
+
+    // Every linked provider.
+    {
+        NYA_AccountIdentity* rows  = nullptr;
+        u32                  count = 0;
+
+        NYA_TRY(nya_account_identity_list(arena, id, &rows, &count));
+
+        NYA_ArrayᐸNYA_Valueᐳ* list = nya_array_create(arena, NYA_Value);
+
+        for (u32 index = 0; index < count; index++) nya_array_add(list, _nya_account_export_row(arena, nya_reflect_of(NYA_AccountIdentity), &rows[index]));
+
+        nya_object_add(document, "identities", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *list });
+    }
+
+    // Every session, its token hash redacted and its token never stored: the metadata a person is shown
+    // — where from, what agent, when — is what they get, not a way to resume anything.
+    {
+        NYA_AccountSession* rows  = nullptr;
+        u32                 count = 0;
+
+        NYA_TRY(nya_account_session_list(arena, id, &rows, &count));
+
+        NYA_ArrayᐸNYA_Valueᐳ* list = nya_array_create(arena, NYA_Value);
+
+        for (u32 index = 0; index < count; index++) nya_array_add(list, _nya_account_export_row(arena, nya_reflect_of(NYA_AccountSession), &rows[index]));
+
+        nya_object_add(document, "sessions", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *list });
+    }
+
+    // The count of unused recovery codes, never the codes: those are secrets this issued, not data about
+    // the person, and printing them into an export would be handing every one of them out again.
+    {
+        u32 remaining = 0;
+        NYA_TRY(nya_account_recovery_remaining(arena, id, &remaining));
+
+        nya_object_add(document, "recovery_codes_remaining", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = remaining });
+    }
+
+    *out_object = document;
+
+    return NYA_OK;
 }
 
 NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) {

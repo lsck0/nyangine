@@ -274,6 +274,20 @@ NYA_API b8 nya_account_password_needs_rehash(const NYA_AccountUser* user) __attr
  * */
 NYA_API NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) __attr_no_discard;
 
+/**
+ * Everything stored about an account, as one document the person may take with them.
+ *
+ * The account (its password hash redacted), every linked identity, every session's metadata (never a
+ * token, never a token's hash), and how many recovery codes are left — never the codes. The roadmap
+ * makes this required, not optional: the user's data is theirs, and a service that will not hand it
+ * back is holding it hostage.
+ *
+ * The result is an `NYA_Object` the caller serializes with nya_serialize, so the person picks `.nya` or
+ * JSON. It carries nothing that could be used to act as them: an export that leaked is an inconvenience,
+ * not a takeover.
+ * */
+NYA_API NYA_Error nya_account_export(NYA_Arena* arena, u64 id, OUT NYA_Object** out_object) __attr_no_discard;
+
 /** Refuses this account at login and ends every session it has. The account and its rows stay. */
 NYA_API NYA_Error nya_account_disabled_set(NYA_Arena* arena, u64 id, b8 disabled) __attr_no_discard;
 
