@@ -16,6 +16,7 @@
  * http_server.h    the listener, the connections and the drain
  * http_cookie.h    cookies in and out, with the __Host- and __Secure- rules enforced here too
  * http_static.h    the web bundle out of the asset system: hashed names, ETags, one route per file
+ * http_webhook.h   proving a webhook came from who it says it did, before anything acts on it
  * http_websocket.h the RFC 6455 wire format, shared with the curl client in plugins/curl
  * http_websocket_server.h  the upgrade, and a connection that outlives the exchange that made it
  * http_openapi.h   the OpenAPI document and the browsable page, both generated from the route table
@@ -66,5 +67,6 @@
 #include "nyangine/http/http_static.h"
 #include "nyangine/http/http_totp.h"
 #include "nyangine/http/http_types.h"
+#include "nyangine/http/http_webhook.h"
 #include "nyangine/http/http_websocket.h"
 #include "nyangine/http/http_websocket_server.h"

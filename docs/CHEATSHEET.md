@@ -4902,6 +4902,27 @@ NYA_ConstCString nya_http_media_type_text(NYA_HttpMediaType media_type)  // The 
 NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size)  // The media type `text` names, ignoring any parameters after a ';' and ignoring case.
 ```
 
+### http_webhook.h
+
+Proving that a webhook came from who it claims to, before anything acts on it.
+
+```c
+// types
+typedef enum { NYA_HTTP_WEBHOOK_HMAC_SHA256 = 0, NYA_HTTP_WEBHOOK_ED25519, NYA_HTTP_WEBHOOK_SCHEME_COUNT, } NYA_HttpWebhookScheme  // Which primitive proves the request, and what goes into the message it is proved over.
+typedef enum { NYA_HTTP_WEBHOOK_REFUSED = 0, NYA_HTTP_WEBHOOK_ACCEPTED, NYA_HTTP_WEBHOOK_REPLAYED, NYA_HTTP_WEBHOOK_UNCONFIGURED, NYA_HTTP_WEBHOOK_VERDICT_COUNT, } NYA_HttpWebhookVerdict  // What verifying answered.
+typedef struct { NYA_HttpWebhookScheme scheme; const u8* secret; u64 secret_size; const NYA_CryptoSignPublicKey* public_key; NYA_ConstCString signature_header; NYA_ConstCString signature_prefix; NYA_ConstCString id_header; NYA_ConstCString timestamp_header; u64 tolerance_s; } NYA_HttpWebhook  // One sender's rules: which scheme, which key, and which headers carry the proof.
+
+// macros
+NYA_HTTP_WEBHOOK_TOLERANCE_S 300  // How far a webhook's timestamp may be from this server's clock, either way.
+NYA_HTTP_WEBHOOK_MAX_SIGNATURE 129  // Longest signature this accepts, as hex.
+NYA_HTTP_WEBHOOK_MAX_MESSAGE (NYA_HTTP_MAX_BODY_BYTES + 256)  // Longest message assembled for signing: the id, the timestamp and the body, with the body's bound the real one.
+
+// functions
+NYA_HttpWebhookVerdict nya_http_webhook_verify(const NYA_HttpExchange* exchange, const NYA_HttpWebhook* webhook)  // Whether this exchange's body really came from the holder of that secret or key.
+b8 nya_http_webhook_id(const NYA_HttpExchange* exchange, const NYA_HttpWebhook* webhook, OUT char* out_id, u64 capacity)  // The message id this request carried, for a caller keeping a list of what it has already acted on.
+NYA_ConstCString nya_http_webhook_verdict_text(NYA_HttpWebhookVerdict verdict)  // "accepted", "refused", ...
+```
+
 ### http_websocket.h
 
 RFC 6455 on the wire: the frame header, the mask, the fragments, the control frames and the closing

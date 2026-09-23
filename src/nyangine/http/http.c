@@ -16,6 +16,7 @@
 /**/
 // the wire format, which depends on nothing here, and then the upgrade, which reads the router's
 // cross-site check and is what http_server.c hands a socket to.
+#include "nyangine/http/http_webhook.c"
 #include "nyangine/http/http_websocket.c"
 #include "nyangine/http/http_websocket_server.c"
 /**/
