@@ -375,6 +375,17 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
   proof: `gnyame` plays, `gnyame serve` runs headless and serves, `gnyame export ...` does its job and exits,
   each with only the subsystems it needs brought up. Components decide what is linked; the command decides what
   is started. Done when gnyame has those paths and CI runs each.
+  - **The parts are runtime parts, not program kinds** (set 2026-09-23). A GUI app, a TUI app, a game loop, a
+    net server and an HTTP server are each a thing that is started, ticked and stopped, and one program runs any
+    combination of them at once: a game hosting its own HTTP API and a TUI on the same process is not a special
+    build, it is three parts started. So each gets the same shape — a config in, a handle out, a tick the
+    program drives or a thread it owns — and `core_system.h`, which already registers engine subsystems and game
+    systems alike, is where they are registered rather than each growing its own `_start`/`_stop` pair called
+    from a hand written `main`.
+  - What that needs, roughly in order: one answer for who owns the frame (today `nya_app_run` owns it and the
+    HTTP server drains on its event, while a headless server has no frame at all); the threaded server from
+    Phase 3, so a part can own a thread instead of a tick; and a part declaring what it needs, so starting the
+    UI part without a window is refused at startup rather than at the first draw.
 - `[ ]` Profiles are just named component lists: `cli`, `tui`, `server`, `desktop`, `game`, `web`. The project,
   every example and every test names one or lists its own components. Done when `cli_app` links no SDL, its size
   is measured and written here, and removing a component from gnyame's list either builds or fails naming the
