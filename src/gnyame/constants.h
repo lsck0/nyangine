@@ -341,6 +341,9 @@
  * how long a formatted counter can be, and how far its fade slider goes before the panel stops being findable.
  */
 #define GNY_WIDGETS_WIDTH        260.0F
+
+/** The guild window. Wide enough for a role's name and a column of permission toggles beside it. */
+#define GNY_GUILD_WIDTH 320.0F
 #define GNY_WIDGETS_CHART_HEIGHT 70.0F
 #define GNY_WIDGETS_SAMPLES      240
 #define GNY_WIDGETS_VALUE_WIDTH  70.0F

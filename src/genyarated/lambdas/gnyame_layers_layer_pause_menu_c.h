@@ -8,7 +8,7 @@
  */
 #pragma once
 
-#line 134 "src/gnyame/layers/layer_pause_menu.c"
+#line 152 "src/gnyame/layers/layer_pause_menu.c"
 NYA_INTERNAL void _nya_lambda_gny_locale_apply(void* data) {
                         u32 index = *(u32*)data;
                         nya_assert(index < nya_carray_length(_GNY_LOCALES));

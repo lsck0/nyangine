@@ -23,6 +23,21 @@ NYA_INTERNAL const struct {
 NYA_INTERNAL NYA_UIWindowState _GNY_LOOK_WINDOW    = { .open = true };
 NYA_INTERNAL NYA_UIWindowState _GNY_WIDGETS_WINDOW = { .open = true };
 
+/** How many of the newest audit entries the guild window lists. */
+#define GNY_GUILD_HISTORY_ROWS 6
+
+/** What each kind of change is called in that list, in NYA_PermissionChange's order. */
+NYA_INTERNAL const NYA_ConstCString _GNY_GUILD_CHANGE_NAMES[NYA_PERMISSION_CHANGE_COUNT] = {
+    [NYA_PERMISSION_CHANGE_ROLE_ADDED]        = "added",
+    [NYA_PERMISSION_CHANGE_ROLE_EDITED]       = "edited",
+    [NYA_PERMISSION_CHANGE_ROLE_REMOVED]      = "removed",
+    [NYA_PERMISSION_CHANGE_ROLE_GRANTED]      = "granted",
+    [NYA_PERMISSION_CHANGE_ROLE_REVOKED]      = "revoked",
+    [NYA_PERMISSION_CHANGE_OVERWRITE_SET]     = "overwrote",
+    [NYA_PERMISSION_CHANGE_OVERWRITE_CLEARED] = "cleared",
+    [NYA_PERMISSION_CHANGE_OWNER_SET]         = "owner",
+};
+
 /** The guild window, which starts closed: a session's roles are not what a player opens the menu for. */
 NYA_INTERNAL NYA_UIWindowState _GNY_GUILD_WINDOW = { 0 };
 
@@ -47,6 +62,9 @@ NYA_INTERNAL void _gny_graphics_panel(NYA_UI* ui);
  * that exercises them, and with the look window beside it, two windows that can be dragged onto each other.
  * */
 NYA_INTERNAL void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui);
+
+/** A window editing this session's roles, over the same table the web interface answers from. */
+NYA_INTERNAL void _gny_guild_panel(NYA_UI* ui);
 
 /** A label and a row of choices sharing the rest, with `*selected` the index of the chosen one. */
 NYA_INTERNAL void _gny_choice_row(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* choices, u32 count, u32* selected);
@@ -216,9 +234,122 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
     _gny_look_panel(ui);
     _gny_graphics_panel(ui);
     _gny_widgets_panel(window, ui);
+    _gny_guild_panel(ui);
 
     nya_ui_style_pop(ui);
     gny_ui_end(window, ui);
+}
+
+/**
+ * The role editor.
+ *
+ * Every row is a call into `permission` with the local player as the actor, so what a player may change
+ * is decided by the resolver rather than by this file: a toggle they may not flip is disabled because
+ * the table would refuse the change, and pressing it anyway would be refused again. The rows come from
+ * what the table holds — the roles in it and the permissions that carry a label — so this window never
+ * learns what game it is editing.
+ * */
+void _gny_guild_panel(NYA_UI* ui) {
+    NYA_Permissions* guild = gny_guild();
+
+    if (guild == nullptr || !_GNY_GUILD_WINDOW.open) return;
+
+    NYA_ConstCString items[_GNY_WINDOW_MENU_COUNT] = {
+        [_GNY_WINDOW_MENU_RESET] = nya_string_menu_reset(),
+        [_GNY_WINDOW_MENU_CLOSE] = nya_string_menu_close(),
+    };
+
+    NYA_UIWindow guild_window = {
+        .panel      = { .anchor = NYA_UI_ANCHOR_TOP_RIGHT, .width = nya_ui_fixed(GNY_GUILD_WIDTH), .text = NYA_UI_TEXT_SMALL },
+        .title      = "guild",
+        .close      = true,
+        .collapse   = true,
+        .resize     = true,
+        .menu       = items,
+        .menu_count = nya_carray_length(items),
+    };
+
+    if (!nya_ui_window_begin(ui, "guild", guild_window, &_GNY_GUILD_WINDOW)) return;
+
+    if (_GNY_GUILD_WINDOW.menu_picked == _GNY_WINDOW_MENU_CLOSE) _GNY_GUILD_WINDOW.open = false;
+    if (_GNY_GUILD_WINDOW.menu_picked == _GNY_WINDOW_MENU_RESET) _GNY_GUILD_WINDOW = (NYA_UIWindowState){ .open = true };
+
+    u64 actor = gny_guild_local();
+
+    char mine[96] = { 0 };
+    (void)snprintf(mine, sizeof(mine), "you are %s", gny_guild_rank_name(actor));
+    nya_ui_label(ui, mine);
+
+    // a section per role, and a toggle per permission that has a name. Both come from the table.
+    NYA_Permission labelled = nya_permission_labelled(guild);
+
+    static b8 open[NYA_PERMISSION_MAX_ROLES] = { 0 };
+
+    for (u32 role = 0; role < nya_permission_role_count(guild); role++) {
+        NYA_ConstCString name = nya_permission_role_name(guild, role);
+        if (name == nullptr) continue;
+
+        if (!nya_ui_section_begin(ui, name, &open[role])) continue;
+
+        for (u32 bit = 0; bit < 64; bit++) {
+            NYA_Permission one = 1ULL << bit;
+
+            if ((labelled & one) == 0) continue;
+
+            b8 allowed = (nya_permission_role_allows(guild, role) & one) != 0;
+
+            /*
+             * Disabled when the table would refuse the change anyway: nobody hands out what they do not
+             * hold, and nobody edits a role at or above their own rank. Asking first rather than letting
+             * the press fail is the only thing this file decides for itself.
+             */
+            b8 may = nya_permission_has(guild, actor, GNY_GUILD_SESSION, NYA_PERMISSION_MANAGE_ROLES | one) &&
+                     nya_permission_role_position(guild, role) < nya_permission_subject_rank(guild, actor);
+
+            if (!may) nya_ui_disabled_begin(ui);
+
+            if (nya_ui_toggle(ui, nya_permission_label(guild, one), &allowed)) {
+                NYA_Permission allows = nya_permission_role_allows(guild, role);
+                NYA_Permission wanted = allowed ? (allows | one) : (allows & ~one);
+
+                NYA_Error edited =
+                    nya_permission_role_edit(guild, actor, role, nya_permission_role_position(guild, role), wanted, nya_clock_get_timestamp_s());
+
+                if (!edited.ok) nya_log_info("Not changed: %s", (NYA_ConstCString)edited.message);
+            }
+
+            if (!may) nya_ui_disabled_end(ui);
+        }
+
+        nya_ui_section_end(ui);
+    }
+
+    // and what has been done to it, newest last, which is the audit trail the web interface reads too.
+    u32 entries = nya_permission_audit_count(guild);
+
+    if (entries > 0) {
+        static b8 history = false;
+
+        if (nya_ui_section_begin(ui, "history", &history)) {
+            u32 from = entries > GNY_GUILD_HISTORY_ROWS ? entries - GNY_GUILD_HISTORY_ROWS : 0;
+
+            for (u32 i = from; i < entries; i++) {
+                NYA_PermissionAudit entry = { 0 };
+                if (!nya_permission_audit_at(guild, i, &entry)) continue;
+
+                NYA_ConstCString about = entry.role < NYA_PERMISSION_MAX_ROLES ? nya_permission_role_name(guild, entry.role) : nullptr;
+
+                char line[96] = { 0 };
+                (void)snprintf(line, sizeof(line), "%s %s", _GNY_GUILD_CHANGE_NAMES[entry.change], about != nullptr ? about : "");
+
+                nya_ui_label(ui, line);
+            }
+
+            nya_ui_section_end(ui);
+        }
+    }
+
+    nya_ui_window_end(ui);
 }
 
 void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
