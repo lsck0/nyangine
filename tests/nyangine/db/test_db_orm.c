@@ -557,6 +557,6 @@ s32 main(void) {
     nya_assert(failures == 0, "the round trip does not hold");
   }
 
-  printf("PASSED: test_orm\n");
+  printf("PASSED: test_db_orm\n");
   return 0;
 }

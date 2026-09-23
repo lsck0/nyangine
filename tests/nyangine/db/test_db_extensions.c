@@ -230,6 +230,6 @@ s32 main(void) {
     nya_assert(scalar(db, arena, "SELECT 1 AS one", "one").as_s64 == 1);
   }
 
-  printf("PASSED: test_sql_extensions\n");
+  printf("PASSED: test_db_extensions\n");
   return 0;
 }

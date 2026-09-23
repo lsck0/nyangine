@@ -54,7 +54,7 @@ s32 main(void) {
     NYA_Object* row = result.rows->items[0];
     nya_assert(row != nullptr);
 
-    // The whole point of the plugin: a row is an ordinary object, so every accessor that works on a
+    // The whole point of the module: a row is an ordinary object, so every accessor that works on a
     // parsed JSON body works here too.
     NYA_Value* name = nya_object_get(row, "name");
     nya_assert(name != nullptr, "columns are keyed by their name");
@@ -109,7 +109,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (a INTEGER, b INTEGER)"));
 
-    // Checked by the plugin rather than surfacing as SQLITE_RANGE, which reads like a database
+    // Checked by the module rather than surfacing as SQLITE_RANGE, which reads like a database
     // problem when the actual fault is that the call site and the string disagree.
     NYA_SqlValue too_few[] = { nya_sql_s64(1) };
     NYA_Error    result    = nya_sql_exec_bound(db, "INSERT INTO t (a, b) VALUES (?, ?)", too_few, 1);
@@ -376,6 +376,6 @@ s32 main(void) {
     nya_assert(nya_string_contains(json, "\"score\""));
   }
 
-  printf("PASSED: test_sql\n");
+  printf("PASSED: test_db_sql\n");
   return 0;
 }
