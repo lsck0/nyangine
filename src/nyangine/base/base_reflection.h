@@ -212,6 +212,20 @@ struct NYA_ReflectField {
     b8 is_redacted;
 
     /**
+     * `@secret` on the field: its value is written encrypted and read back decrypted, so a save file
+     * holds ciphertext where the field's plaintext would be.
+     *
+     * Where `@redact` masks the value in a *log* and still writes its plaintext to a file, `@secret`
+     * round-trips: the reflected save path (nya_reflect_save_file_secret) turns the value into a sealed
+     * base64 string on the way out and back into the value on the way in, and refuses to write the
+     * field at all when no key is given rather than leaking it in the clear. It is the stronger of the
+     * two, so a `@secret` field is also masked by nya_reflect_to_object_redacted: a secret has no
+     * business in a log whether or not it is encrypted at rest. See serde_reflect.h for the codec that
+     * threads the key through, and crypto_seal.h for the box it is sealed in.
+     * */
+    b8 is_secret;
+
+    /**
      * For a member of a tagged union: the value of the tag that selects this member.
      * */
     b8  has_tag_value;
@@ -332,9 +346,11 @@ NYA_API b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) __attr_no_d
  *   and a self referencing type would otherwise never end
  *
  * What it leaves out, because none of it changes what a document means: type names (renaming a
- * struct is not a layout change), hints, `is_key`, `is_redacted` and `on_apply`. Tagging a field
- * `@redact` changes what a *log* holds, never what nya_reflect_to_object writes, so two builds that
- * disagree about it still read each other's documents.
+ * struct is not a layout change), hints, `is_key`, `is_redacted`, `is_secret` and `on_apply`. Tagging
+ * a field `@redact` changes what a *log* holds, never what nya_reflect_to_object writes, so two builds
+ * that disagree about it still read each other's documents. `@secret` is applied a layer up, in the
+ * reflected save path, over the object this describes rather than in the wire encode the hash guards,
+ * so it does not belong here either.
  *
  * Offsets and sizes are the compiler's, so a 32 bit peer disagrees with a 64 bit one over any type
  * holding a pointer, `char*` included. That is the intended strictness; a DTO meant for both carries

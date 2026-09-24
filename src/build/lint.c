@@ -122,7 +122,8 @@ NYA_INTERNAL const NYA_ConstCString _LINT_PRELUDE[] = {
  *
  * The same four src/nyangine/http/http_log.c redacts a query parameter for, and for the same reason: a
  * name is the only evidence there is where nothing describes the value. A reflected field named like
- * one of these carries `@redact`, or says `@loggable` to mean it on purpose.
+ * one of these carries `@redact` (or `@secret`, which redacts a log too and encrypts the field on
+ * disk besides), or says `@loggable` to mean it on purpose.
  * */
 NYA_INTERNAL const NYA_ConstCString _LINT_SECRET_WORDS[] = { "password", "token", "secret", "code" };
 
@@ -597,7 +598,7 @@ void _lint_rule_redact(Lint* lint) {
                     if (tokens->items[look].type != NYA_TOKEN_COMMENT || tokens->items[look].line_number != token->line_number) continue;
 
                     answered = _lint_comment_has(file, look, "@redact") || _lint_comment_has(file, look, "@loggable") ||
-                               _lint_comment_has(file, look, "@skip");
+                               _lint_comment_has(file, look, "@skip") || _lint_comment_has(file, look, "@secret");
                 }
                 if (answered) continue;
 

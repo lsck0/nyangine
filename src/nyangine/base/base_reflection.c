@@ -389,7 +389,9 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
          * field's kind: a tagged string, a tagged struct and a tagged array of them all come out as the
          * same four words, and adding a kind to the switch below cannot open a hole in this.
          */
-        if (redact && field->is_redacted) {
+        // `@secret` is masked here too, not only `@redact`: a value encrypted at rest still has no
+        // place in a log, and the redacting walk is what every logging and dumping path goes through.
+        if (redact && (field->is_redacted || field->is_secret)) {
             nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = NYA_REFLECT_REDACTED });
             continue;
         }

@@ -35,6 +35,10 @@ typedef struct {
      *  logging path goes through; see base_reflection.h. */
     b8 is_redacted;
 
+    /** From `@secret`: the field is written encrypted and read back decrypted. Acted on by the
+     *  reflected save path; see serde_reflect.h. Masked in logs too, like `@redact`. */
+    b8 is_secret;
+
     NYA_ConstCString hint;
 } _NYA_ReflectFieldDecl;
 
@@ -664,6 +668,7 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
             if (_nya_reflect_comment_has(lexer, look, "@skip")) skipped = true;
             if (_nya_reflect_comment_has(lexer, look, "@key")) field.is_key = true;
             if (_nya_reflect_comment_has(lexer, look, "@redact")) field.is_redacted = true;
+            if (_nya_reflect_comment_has(lexer, look, "@secret")) field.is_secret = true;
 
             field.hint = _nya_reflect_hint_from_comment(lexer, look);
 
@@ -1039,10 +1044,11 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                 (void)snprintf(array_symbol, sizeof(array_symbol), "_NYA_REFLECT_%s_%s_ARRAY", decl->name, field->name);
 
                 nya_string_extend_sprintf(out,
-                                          "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s },\n",
+                                          "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s%s },\n",
                                           field->name, array_symbol, decl->name, field->name, field->hint,
                                           field->is_key ? ", .is_key = true" : "",
-                                          field->is_redacted ? ", .is_redacted = true" : "");
+                                          field->is_redacted ? ", .is_redacted = true" : "",
+                                          field->is_secret ? ", .is_secret = true" : "");
                 emitted++;
             } else {
                 nya_log_warn("%s: '%s.%s' has undescribed element type '%s'; skipped. Add @reflect to it, or @skip to the field.",
@@ -1066,10 +1072,11 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
             continue;
         }
 
-        nya_string_extend_sprintf(out, "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s },\n",
+        nya_string_extend_sprintf(out, "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s%s },\n",
                                   field->name, symbol, decl->name, field->name, field->hint,
                                   field->is_key ? ", .is_key = true" : "",
-                                  field->is_redacted ? ", .is_redacted = true" : "");
+                                  field->is_redacted ? ", .is_redacted = true" : "",
+                                  field->is_secret ? ", .is_secret = true" : "");
         emitted++;
     }
 
