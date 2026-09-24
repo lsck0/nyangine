@@ -39,5 +39,8 @@
 #include "build/fuzz.c"
 #include "build/simulation.c"
 #include "build/agent.c"
+// The project scaffolder: writes a new source tree from in-source templates. No dependency on the
+// rules above, so its place here is only that it is another code command beside them.
+#include "build/new.c"
 // Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"

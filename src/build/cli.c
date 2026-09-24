@@ -337,6 +337,23 @@ NYA_INTERNAL NYA_ArgParameter agent_verbose_flag = {
     .description = "Print every action as it is taken, and leave the engine's own logging on.",
 };
 
+NYA_INTERNAL NYA_ArgParameter new_name = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    .name        = "name",
+    .description = "The new program's name. Becomes a C identifier, so letters, digits and underscores.",
+};
+
+NYA_INTERNAL NYA_ArgParameter new_kind = {
+    .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type    = NYA_TYPE_STRING,
+    .name          = "kind",
+    .description   = "What to scaffold: app, example or headless.",
+    // The commonest ask is a place to try something out, which is the example, so it is the default.
+    .default_value = { .type = NYA_TYPE_STRING, .as_string = "example" },
+    .completion    = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &new_completion_kind, },
+};
+
 NYA_INTERNAL NYA_ArgParameter check_sources = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .variadic    = true,
@@ -682,6 +699,13 @@ NYA_INTERNAL NYA_ArgCommand build = {
     },
 };
 
+NYA_INTERNAL NYA_ArgCommand new_command = {
+    .name        = "new",
+    .description = "Scaffold a new nyangine program from a template, e.g. ./build new my_app --kind example",
+    .handler     = &new_runner,
+    .parameters  = { &new_name, &new_kind, },
+};
+
 NYA_INTERNAL NYA_ArgCommand check = {
     .name        = "check",
     .description = "Run clang-tidy over the translation units.",
@@ -837,6 +861,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
         .subcommands = {
             &run,
             &build,
+            &new_command,
             &dist,
             &check,
             &typos,

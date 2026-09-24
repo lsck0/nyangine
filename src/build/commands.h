@@ -224,3 +224,13 @@ void agent_runner(NYA_ArgCommand* command);
 
 /** The agent kinds, for the completions and the usage line. */
 NYA_ConstCString agent_completion_kind(u32 index);
+
+/**
+ * Scaffolds a new nyangine program from a template: a source directory, an entry point and a literate
+ * header, in the shape --kind asks for. Refuses a name that is not an identifier or a directory that
+ * already exists, and prints how to build and run what it wrote. See new.c.
+ * */
+void new_runner(NYA_ArgCommand* command);
+
+/** The scaffold kinds — app, example, headless — for the completions and the usage line. */
+NYA_ConstCString new_completion_kind(u32 index);
