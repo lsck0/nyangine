@@ -10,7 +10,10 @@
 #include "nyangine/template/template.c"
 // Guarded: monocypher is on the project's include line and not the build tool's, which hashes nothing.
 // Before the plugins, whose websocket handshake is SHA-1, and before net and http, which it serves.
-#ifndef NYA_NO_SDL
+// The seam is the header's, not plain NYA_NO_SDL: a headless server (NYA_SERVER) hashes sessions and
+// signs plugins the same as a full build, so crypto's translation units come in for it too. A host
+// build tool (NYA_NO_SDL, no NYA_SERVER) still gets none, exactly as before. See nyangine.h.
+#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)
 #include "nyangine/crypto/crypto.c"
 #endif
 // below net and http, both of which ask it the same question a game asks it. No SDL and no sockets.
@@ -27,11 +30,16 @@
 // Each plugin is behind its own NYA_PLUGIN_* flag; see plugins.h.
 #include "nyangine/plugins/plugins.c"
 
-#ifndef NYA_NO_SDL
+// tls, net, smtp, acme and http: the server half of the engine, and the whole of what a headless
+// server links. The seam is the header's — a full build (no NYA_NO_SDL) and a headless server
+// (NYA_SERVER) both compile these; a host build tool (NYA_NO_SDL, no NYA_SERVER) gets none, the same
+// as before. This is the LINK half of the split the header opened: nyangine.h declares net and http
+// behind this guard, and here is where their translation units are actually compiled for a server.
+// See docs/layering-core-split.md, steps 6–7.
+#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)
 // before http, whose listener wraps an accepted socket in a session. After os, whose descriptor it hands
 // to OpenSSL, and after base, whose arena holds the context.
 #include "nyangine/tls/tls.c"
-#include "nyangine/physics/physics.c"
 #include "nyangine/net/net.c"
 // after tls, whose client session it borrows for the encrypted link, and after os, whose socket it connects.
 // A mail client, so it sits above the transport and below the HTTP server that has a reason to send mail.
@@ -39,8 +47,19 @@
 // beside smtp: an ACME client that signs with crypto and talks to the CA over a transport the program
 // wires, so one binary renews its own certificate. Below http, whose route serves the challenge.
 #include "nyangine/acme/acme.c"
-// before core, for the reason nyangine.h gives.
 #include "nyangine/http/http.c"
+// After the server modules whose types it describes: the builtins and the reflection tables for every
+// server-safe engine type (base, math, serde, net, http, and — behind NYA_MODULE_DB — db and accounts).
+// The SDL-bound half is reflection_engine.c, in the block below; this is the half a headless build gets,
+// and the one place the reflection builtins are defined so a full build has them without a duplicate.
+#include "genyarated/reflection_engine_server.c"
+#endif
+
+#ifndef NYA_NO_SDL
+// physics is box2d/box3d, so it stays on the SDL side with core, the renderer and the rest of the
+// graph a windowed program links. A headless server has no bodies to step.
+#include "nyangine/physics/physics.c"
+// after http, which core_app.c drives once a frame; see nyangine.h.
 #include "nyangine/core/core.c"
 // after core, for the reason nyangine.h gives.
 #include "nyangine/replicate/replicate.c"

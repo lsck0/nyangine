@@ -12,7 +12,7 @@ void _nya_net_write_u32(NYA_String* out, u32 value) {
     for (u32 i = 0; i < 4; i++) nya_string_push_back(out, (u8)((value >> (i * 8)) & 0xFF));
 }
 
-void _nya_net_write_f32(NYA_String* out, f32 value) {
+__attr_maybe_unused void _nya_net_write_f32(NYA_String* out, f32 value) {
     // Through a memcpy rather than a pointer cast: type punning through a cast is undefined, and at
     // -O2 clang is entitled to assume it does not happen. The copy compiles to a register move.
     u32 bits = 0;
@@ -30,7 +30,7 @@ void _nya_net_write_varint(NYA_String* out, u64 value) {
     nya_string_push_back(out, (u8)value);
 }
 
-void _nya_net_write_signed(NYA_String* out, s64 value) {
+__attr_maybe_unused void _nya_net_write_signed(NYA_String* out, s64 value) {
     _nya_net_write_varint(out, ((u64)value << 1) ^ (u64)(value >> 63));
 }
 
@@ -47,7 +47,7 @@ b8 _nya_net_reader_has(_NYA_NetReader* reader, u64 count) {
     return true;
 }
 
-u8 _nya_net_read_u8(_NYA_NetReader* reader) {
+__attr_maybe_unused u8 _nya_net_read_u8(_NYA_NetReader* reader) {
     if (!_nya_net_reader_has(reader, 1)) return 0;
 
     return reader->data[reader->at++];
@@ -73,7 +73,7 @@ u64 _nya_net_read_varint(_NYA_NetReader* reader) {
     return 0;
 }
 
-s64 _nya_net_read_signed(_NYA_NetReader* reader) {
+__attr_maybe_unused s64 _nya_net_read_signed(_NYA_NetReader* reader) {
     u64 folded = _nya_net_read_varint(reader);
 
     return (s64)(folded >> 1) ^ -(s64)(folded & 1);
@@ -90,7 +90,7 @@ u32 _nya_net_read_u32(_NYA_NetReader* reader) {
     return value;
 }
 
-f32 _nya_net_read_f32(_NYA_NetReader* reader) {
+__attr_maybe_unused f32 _nya_net_read_f32(_NYA_NetReader* reader) {
     u32 bits = _nya_net_read_u32(reader);
 
     f32 value = 0.0F;
@@ -99,7 +99,7 @@ f32 _nya_net_read_f32(_NYA_NetReader* reader) {
     return value;
 }
 
-u64 _nya_net_elapsed_ns(u64 now, u64 then) {
+__attr_maybe_unused u64 _nya_net_elapsed_ns(u64 now, u64 then) {
     return now > then ? now - then : 0;
 }
 

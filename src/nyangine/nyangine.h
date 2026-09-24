@@ -40,6 +40,17 @@
 // still gets neither. See docs/layering-core-split.md; the socket transports are why a host tool that
 // never opens one leaves them out.
 #if !defined(NYA_NO_SDL) || defined(NYA_SERVER)
+// Before net and http: net's encode/decode paths open trace scopes and http's DTOs are reflected. A
+// headless build gets neither header through the SDL block below, so it takes them here — both are
+// SDL-free: debug_trace.h names only base and compiles its scopes to no-ops outside a development build,
+// and reflection_engine.h is a wall of extern declarations. Guarded to NYA_NO_SDL so a full build's
+// include graph is unchanged — it still takes both from the block below, where their SDL-bound halves
+// (debug_trace.c, the SDL reflection definitions) live. The server-safe reflection definitions are in
+// reflection_engine_server.c, which nyangine.c compiles in this same seam.
+#ifdef NYA_NO_SDL
+#include "nyangine/debug/debug_trace.h"
+#include "genyarated/reflection_engine.h"
+#endif
 #include "nyangine/net/net.h"
 // Before core, which registers the drain as a frame system and whose metrics resource moved to debug:
 // nothing under http names the app loop any more, which is what lets it come in without core here.
