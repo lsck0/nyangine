@@ -13,6 +13,8 @@
  * http_router.h    routes, the layer chain, the identity extractor, and dispatch
  * http_log.h       what one exchange leaves in the log, and the redaction that happens before it does
  * http_idempotency.h  a retried unsafe request runs once: the Idempotency-Key layer and its store
+ * http_pow.h       a proof-of-work wall: the abuse layer for a server with no IP to rate-limit
+ * http_attestation.h  a signed statement binding an origin to the bytes it serves, so a mirror can be checked
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
  * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
  * http_server.h    the listener, the connections and the drain
@@ -68,7 +70,9 @@
 #include "nyangine/http/http_keyring.h"
 #include "nyangine/http/http_log.h"
 #include "nyangine/http/http_message.h"
+#include "nyangine/http/http_attestation.h"
 #include "nyangine/http/http_openapi.h"
+#include "nyangine/http/http_pow.h"
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/http/http_static.h"

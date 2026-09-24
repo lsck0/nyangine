@@ -8,6 +8,9 @@
 #include "nyangine/http/http_seal.c"
 // after seal, which it seals through with whichever key is newest.
 #include "nyangine/http/http_keyring.c"
+// over crypto's Ed25519 and SHA-256, and independent of the server: a signed statement an origin serves
+// and a mirror is checked against, which is data a program builds rather than a socket the listener knows.
+#include "nyangine/http/http_attestation.c"
 #include "nyangine/http/http_message.c"
 // beside http_auth.c and independent of it: it answers the second factor, where that answers the first.
 #include "nyangine/http/http_totp.c"
@@ -22,6 +25,9 @@
 // after the router, whose chain it wraps, and the message layer, whose response it captures and
 // replays: another layer a program installs, this one making a retried unsafe request run once.
 #include "nyangine/http/http_idempotency.c"
+// after the router, whose chain it wraps, and after seal and crypto, which it mints and opens a sealed
+// challenge through: the abuse layer a public server installs where there is no IP to rate-limit.
+#include "nyangine/http/http_pow.c"
 /**/
 // after the router, whose route table it builds, and beside the server rather than inside it: the
 // bundle is a resource a program merges, not something the listener knows about.
