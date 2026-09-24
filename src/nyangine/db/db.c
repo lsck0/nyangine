@@ -15,3 +15,6 @@
 // After db_sql.c, whose connection, bound values and transactions it claims and reschedules jobs
 // through: a persistent job queue, one SQLite table with retries, backoff, deadlines and unique keys.
 #include "nyangine/db/db_jobs.c"
+// After db_sql.c and db_jobs.c: it opens a connection per worker on the first and drives the second's
+// claim/complete/fail, reading their private database and tuning fields to clone a queue per worker.
+#include "nyangine/db/db_jobworker.c"
