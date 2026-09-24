@@ -598,4 +598,20 @@ void gnyame_deinit(void) {
     gny_world_destroy();
 }
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE APP ENTRY CONTRACT
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * The fixed trio the generic hot-reload host resolves in every app DLL (core_app_entry.h). gnyame is
+ * the default app; these are thin aliases over its own gnyame_init/run/deinit, so the host loads it by
+ * the same symbol names it uses for gnyame-cli or any other app, and nothing in gnyame's internals had
+ * to be renamed. A release build links gnyame in and main.c calls gnyame_init directly instead.
+ */
+b8   nya_app_entry_init(s32 argc, NYA_CString* argv) { return gnyame_init(argc, argv); }
+void nya_app_entry_run(void) { gnyame_run(); }
+void nya_app_entry_deinit(void) { gnyame_deinit(); }
+
 #include "genyarated/reflection.c"

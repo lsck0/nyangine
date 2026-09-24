@@ -1,6 +1,8 @@
 #pragma once
 
 #include "nyangine/core/core_app.h"
+// after core_app.h: the trio here is one layer out from nya_app_init/run/deinit, and its comment refers to them.
+#include "nyangine/core/core_app_entry.h"
 #include "nyangine/core/core_skeleton.h"
 #include "nyangine/core/core_skeleton_inertial.h"
 #include "nyangine/core/core_asset.h"
