@@ -10,6 +10,40 @@
 
 #include "nyangine/nyangine.c"
 
+#ifdef NYA_HTTP_COMPRESSION
+#include <zlib.h>
+
+/**
+ * Inflates a gzip or a zlib stream back to its original bytes, for the round-trip check; returns the
+ * number produced, or zero if the stream did not decode. windowBits 15 + 32 lets zlib detect which of
+ * the two wrappers it was handed, so this one helper covers both the gzip and the `deflate` coding.
+ * */
+static u64 zinflate(const u8* data, u64 size, u8* out, u64 out_capacity) {
+    z_stream stream = { 0 };
+    if (inflateInit2(&stream, 15 + 32) != Z_OK) return 0;
+
+    stream.next_in   = (u8*)data;
+    stream.avail_in  = (uInt)size;
+    stream.next_out  = out;
+    stream.avail_out = (uInt)out_capacity;
+
+    int result   = inflate(&stream, Z_FINISH);
+    u64 produced = (u64)stream.total_out;
+    (void)inflateEnd(&stream);
+
+    return result == Z_STREAM_END ? produced : 0;
+}
+
+/** The value of a response header by name, case-insensitively, or null: what the wire would carry. */
+static NYA_ConstCString response_header(const NYA_HttpResponse* response, NYA_ConstCString name) {
+    for (u32 index = 0; index < response->header_count; index++) {
+        if (_nya_http_equals_ignore_case(response->headers[index].name, strlen(response->headers[index].name), name)) return response->headers[index].value;
+    }
+
+    return nullptr;
+}
+#endif
+
 /** One parse, with the request on the heap: NYA_HttpRequest is twenty kilobytes. */
 static NYA_HttpParse parse(NYA_Arena* arena, NYA_ConstCString text, NYA_HttpRequest** out_request, u64* out_consumed, NYA_HttpStatus* out_status) {
     NYA_HttpRequest* request = nya_arena_alloc(arena, sizeof(NYA_HttpRequest));
@@ -779,6 +813,107 @@ s32 main(void) {
         nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, true, (NYA_Instant){ 0 }, head, sizeof(head), &head_size).ok);
         nya_check(strstr((const char*)head, "X-Request-Id: 0123456789abcdef\r\n") != nullptr, "got:\n%s", (const char*)head);
     }
+
+#ifdef NYA_HTTP_COMPRESSION
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: response compression — negotiated, correct, and reversible.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        // A body that is text and above the threshold and has the repetition deflate lives on, so it
+        // both qualifies and actually shrinks. Kept in one place; every case below answers with it.
+        u8 payload[512] = { 0 };
+        for (u64 index = 0; index < sizeof(payload); index++) payload[index] = (u8)("nyangine compresses well "[index % 25]);
+
+        u8 body[4096] = { 0 };
+
+        NYA_HttpResponse response = { 0 };
+        nya_http_response_create(&response, body, sizeof(body));
+        defer nya_http_response_destroy(&response);
+
+        // ── gzip: the client asks, the body is worth it, and it round-trips ──
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(nya_http_response_compress(&response, arena, "gzip"), "a compressible body with gzip accepted is compressed");
+
+        nya_assert(response.body_size < sizeof(payload), "the compressed body is smaller than the original");
+        nya_assert(response.body[0] == 0x1f && response.body[1] == 0x8b, "a gzip stream opens with its magic bytes");
+        nya_assert(nya_string_equals(response_header(&response, "Content-Encoding"), "gzip"));
+        nya_assert(nya_string_equals(response_header(&response, "Vary"), "Accept-Encoding"), "a shared cache is told the body varies on the ask");
+        nya_assert(response.media_type == NYA_HTTP_MEDIA_TEXT, "a coding is not a type; Content-Type is untouched");
+
+        // the whole point: decompressing gives back exactly what went in.
+        u8  restored[sizeof(payload)] = { 0 };
+        u64 restored_size             = zinflate(response.body, response.body_size, restored, sizeof(restored));
+        nya_assert(restored_size == sizeof(payload), "the gzip body inflates to the original length");
+        nya_assert(nya_memcmp(restored, payload, sizeof(payload)) == 0, "and to the original bytes");
+
+        // and the head announces the compressed length, not the original.
+        u8          head[NYA_HTTP_MAX_RESPONSE_HEAD_BYTES] = { 0 };
+        u64         head_size                              = 0;
+        NYA_Instant date                                   = { 0 };
+        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, true, date, head, sizeof(head), &head_size).ok);
+
+        NYA_String* rendered = nya_string_from(arena, (NYA_ConstCString)head);
+
+        char length_line[64] = { 0 };
+        (void)snprintf(length_line, sizeof(length_line), "Content-Length: %llu\r\n", (unsigned long long)response.body_size);
+        nya_assert(nya_string_contains(rendered, length_line), "Content-Length is the compressed size");
+        nya_assert(nya_string_contains(rendered, "Content-Encoding: gzip\r\n"));
+        nya_assert(nya_string_contains(rendered, "Vary: Accept-Encoding\r\n"));
+
+        // ── no Accept-Encoding: nothing is done, and the body is the plain bytes ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(!nya_http_response_compress(&response, arena, nullptr), "no Accept-Encoding leaves the body alone");
+        nya_assert(response.body_size == sizeof(payload));
+        nya_assert(response_header(&response, "Content-Encoding") == nullptr, "and adds no encoding header");
+        nya_assert(response_header(&response, "Vary") == nullptr);
+
+        // ── the `deflate` coding, also reversible ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(nya_http_response_compress(&response, arena, "deflate"));
+        nya_assert(nya_string_equals(response_header(&response, "Content-Encoding"), "deflate"));
+        u64 deflate_restored = zinflate(response.body, response.body_size, restored, sizeof(restored));
+        nya_assert(deflate_restored == sizeof(payload) && nya_memcmp(restored, payload, sizeof(payload)) == 0, "the deflate body round-trips too");
+
+        // ── brotli wins when the client offers it: `br` in the list beats gzip on this server's order ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(nya_http_response_compress(&response, arena, "gzip, deflate, br"));
+        nya_assert(nya_string_equals(response_header(&response, "Content-Encoding"), "br"), "br is preferred when offered at an equal weight");
+        nya_assert(response.body_size < sizeof(payload), "and it shrinks the body");
+
+        // ── q-values are honoured: a coding ruled out by ;q=0 is not chosen ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(nya_http_response_compress(&response, arena, "br;q=0, gzip;q=0, deflate"), "the one coding left is used");
+        nya_assert(nya_string_equals(response_header(&response, "Content-Encoding"), "deflate"), "gzip and br were ruled out by ;q=0");
+
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(!nya_http_response_compress(&response, arena, "gzip;q=0"), "the only offered coding was refused, so nothing is done");
+        nya_assert(response_header(&response, "Content-Encoding") == nullptr);
+
+        // ── an already-compressed type is left alone, whatever the client asked ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_PNG).ok);
+        nya_assert(!nya_http_response_compress(&response, arena, "gzip"), "a png is bytes already packed; gzip would only grow it");
+        nya_assert(response.body_size == sizeof(payload) && response_header(&response, "Content-Encoding") == nullptr);
+
+        // ── a body under the threshold is not worth the framing ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, 32, NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(!nya_http_response_compress(&response, arena, "gzip"), "a tiny body is left uncompressed");
+        nya_assert(response.body_size == 32);
+
+        // ── never a second coding: a handler that already set Content-Encoding owns the body ──
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
+        nya_assert(nya_http_response_header(&response, "Content-Encoding", "gzip").ok);
+        nya_assert(!nya_http_response_compress(&response, arena, "gzip"), "a body that already declares a coding is not re-encoded");
+        nya_assert(response.body_size == sizeof(payload), "and its bytes are untouched");
+    }
+#endif
 
     printf("PASSED: http message\n");
 
