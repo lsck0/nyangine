@@ -164,6 +164,8 @@ const char* nyangine_demo(void) {
 #include "nyangine/base/base_error.c"
 #include "nyangine/base/base_hash.c"
 #include "nyangine/base/base_logging.c"
+// base_logging's fatal path calls _nya_supervisor_on_fatal; the definition lives here (a no-op off Linux).
+#include "nyangine/base/base_supervisor.c"
 #include "nyangine/base/base_object.c"
 #include "nyangine/base/base_reflection.c"
 #include "nyangine/base/base_string.c"
