@@ -82,11 +82,7 @@
 #include "nyangine/crypto/crypto_rsa.h"
 #include "nyangine/plugins/curl/request.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** An issuer or a discovered endpoint, terminator included. Room for a path past the bare host. */
 #define NYA_OIDC_MAX_URL 512
@@ -170,11 +166,7 @@
 /** Longest access_token this holds onto for a follow up nya_oidc_userinfo call, terminator included. */
 #define NYA_OIDC_MAX_ACCESS_TOKEN_BYTES 2048
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_OidcAlgorithm        NYA_OidcAlgorithm;
 typedef struct NYA_OidcOptions        NYA_OidcOptions;
@@ -290,11 +282,7 @@ struct NYA_OidcClaims {
     const NYA_Object* raw;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Makes a provider. Refuses a missing issuer, client id or redirect uri, and a scope string that does

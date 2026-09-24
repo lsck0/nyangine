@@ -11,11 +11,7 @@
 #include "nyangine/plugins/oidc/oidc.h"
 #include "nyangine/serde/serde.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 
 /**
  * One cached key: the `kid` it answers to, which family it is, and the key itself.
@@ -64,11 +60,7 @@ struct NYA_OidcProvider {
     void* user;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /* The default transport: nya_request_perform, and the engine's clocks. */
 NYA_INTERNAL NYA_Error _nya_oidc_perform(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) __attr_no_discard;
@@ -117,11 +109,7 @@ NYA_INTERNAL NYA_Error _nya_oidc_id_token_verify(
     NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString token, u64 token_size, NYA_ConstCString expected_nonce, OUT NYA_OidcClaims* out_claims
 ) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_oidc_create(NYA_Arena* arena, NYA_OidcOptions options, NYA_OidcProvider** out_provider) {
     nya_assert(arena != nullptr && out_provider != nullptr);
@@ -195,9 +183,7 @@ NYA_Error nya_oidc_discover(NYA_OidcProvider* provider, NYA_Arena* arena) {
         return nya_error(NYA_ERROR_PARSE, "the discovery document has no usable 'issuer'");
     }
 
-    // a discovery document naming a different issuer is exactly what a misrouted proxy or a wrong host
-    // hands back; believing its endpoints anyway is how a login ends up posting a code somewhere the
-    // provider never was.
+    // A discovery document naming a different issuer is what a misrouted proxy hands back; trusting its endpoints would post a code somewhere the provider never was.
     if (!nya_string_equals((NYA_ConstCString)issuer, provider->issuer)) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the discovery document's issuer is not the one this provider was created with");
     }
@@ -220,7 +206,7 @@ NYA_Error nya_oidc_discover(NYA_OidcProvider* provider, NYA_Arena* arena) {
     _nya_oidc_copy(provider->token_endpoint, sizeof(provider->token_endpoint), token_endpoint);
     _nya_oidc_copy(provider->jwks_uri, sizeof(provider->jwks_uri), jwks_uri);
 
-    // optional: absent is a provider with no userinfo endpoint, not a broken discovery document.
+    // Optional: absent is a provider with no userinfo endpoint, not a broken discovery document.
     char userinfo_endpoint[NYA_OIDC_MAX_URL] = { 0 };
     if (_nya_oidc_claim_string(response.body, "userinfo_endpoint", userinfo_endpoint, sizeof(userinfo_endpoint))) {
         _nya_oidc_copy(provider->userinfo_endpoint, sizeof(provider->userinfo_endpoint), userinfo_endpoint);
@@ -255,9 +241,7 @@ NYA_Error nya_oidc_authorize_url(const NYA_OidcProvider* provider, char* out_url
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the code challenge does not fit");
     }
 
-    // client_id, redirect_uri and scope are the caller's configuration and may hold anything that needs
-    // escaping; state, nonce and the challenge are this function's own base64url text, already inside
-    // RFC 3986's unreserved set, so nothing below percent-encodes them.
+    // client_id, redirect_uri and scope are caller config that may need escaping; state, nonce and the challenge are our own base64url, already unreserved, so they are not encoded.
     char client_id_encoded[NYA_OIDC_MAX_CLIENT_ID * 3]    = { 0 };
     char redirect_uri_encoded[NYA_OIDC_MAX_REDIRECT_URI * 3] = { 0 };
     char scope_encoded[NYA_OIDC_MAX_SCOPES * 3]           = { 0 };
@@ -302,9 +286,7 @@ NYA_Error nya_oidc_exchange(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_Co
     nya_object_add(body, "client_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = provider->client_id });
     nya_object_add(body, "code_verifier", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)state->code_verifier });
 
-    // a public client sends none; a confidential one authenticates with it here, same as it would in the
-    // basic auth form some providers prefer instead — this engine's request module cannot express that
-    // second form (see request.h), so every confidential exchange goes through the body.
+    // A public client sends none; a confidential one authenticates via the body here, since this engine's request module cannot express the basic-auth form (see request.h).
     if (provider->client_secret[0] != '\0') {
         nya_object_add(body, "client_secret", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = provider->client_secret });
     }
@@ -317,7 +299,7 @@ NYA_Error nya_oidc_exchange(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_Co
             .url    = provider->token_endpoint,
             .body   = body,
 
-            // what RFC 6749 section 4.1.3 asks for, and the one encoding every provider takes.
+            // What RFC 6749 4.1.3 asks for, and the one encoding every provider takes.
             .body_kind  = NYA_REQUEST_BODY_FORM,
             .timeout_ms = provider->timeout_ms,
         },
@@ -346,12 +328,10 @@ NYA_Error nya_oidc_exchange(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_Co
         return nya_error(NYA_ERROR_PARSE, "the token endpoint's reply has no usable 'id_token'");
     }
 
-    // optional in the strict sense — a request for the id_token alone need not return one — but every
-    // real provider does, and nya_oidc_userinfo wants it.
+    // Optional in the strict sense, but every real provider returns one and nya_oidc_userinfo wants it.
     (void)_nya_oidc_claim_string(response.body, "access_token", out_claims->access_token, sizeof(out_claims->access_token));
 
-    // a token failing any single check below is refused whole: the access_token just read is no
-    // exception, so a failure here clears the entire struct rather than leaving it half filled.
+    // A token failing any single check below is refused whole, so a failure here clears the entire struct rather than leaving it half filled.
     NYA_Error verified = _nya_oidc_id_token_verify(provider, arena, id_token, strlen(id_token), state->nonce, out_claims);
     if (!verified.ok) {
         *out_claims = (NYA_OidcClaims){ 0 };
@@ -392,11 +372,7 @@ NYA_Error nya_oidc_userinfo(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_Co
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_oidc_perform(void* user, NYA_Arena* arena, NYA_Request request, NYA_Response* out_response) {
     (void)user;
@@ -479,8 +455,7 @@ b8 _nya_oidc_claim_u64(const NYA_Object* object, NYA_ConstCString key, u64* out_
     NYA_Value* value = nya_object_get(object, (NYA_CString)key);
     if (value == nullptr) return false;
 
-    // serde reads every JSON integer as s64, so a negative claim is a number that parsed and a value
-    // this has no meaning for.
+    // serde reads every JSON integer as s64, so a negative claim parsed but has no meaning here.
     if (value->type != NYA_TYPE_S64 || value->as_s64 < 0) return false;
 
     *out_value = (u64)value->as_s64;
@@ -519,8 +494,7 @@ NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) {
         provider->user, arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_GET, .url = provider->jwks_uri, .timeout_ms = provider->timeout_ms }, &response
     );
 
-    // stamped whether or not this succeeded: a jwks endpoint that is briefly down should not turn into
-    // one refetch per token while it stays down.
+    // Stamped whether or not this succeeded: a briefly-down jwks endpoint should not become one refetch per token.
     provider->jwks_fetched_at_ms = provider->now_ms(provider->user);
 
     if (!performed.ok) return nya_error(NYA_ERROR_NOT_OK, "fetching the provider's jwks failed: %s", (NYA_ConstCString)performed.message);
@@ -529,8 +503,7 @@ NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) {
     NYA_Value* keys = nya_object_get(response.body, "keys");
     if (keys == nullptr || keys->type != NYA_TYPE_ARRAY) return nya_error(NYA_ERROR_PARSE, "the provider's jwks has no 'keys' array");
 
-    // a fresh fetch replaces the cache wholesale rather than merging, which is what drops a key the
-    // provider itself has retired.
+    // A fresh fetch replaces the cache wholesale rather than merging, which is what drops a key the provider has retired.
     u32 stored = 0;
 
     for (u64 i = 0; i < keys->as_array.length && stored < NYA_OIDC_MAX_KEYS; i++) {
@@ -546,7 +519,7 @@ NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) {
         _NYA_OidcKey held = { 0 };
 
         if (nya_string_equals((NYA_ConstCString)kty, "RSA")) {
-            // a 4096 bit modulus is 683 base64url characters; this leaves slack rather than sizing exactly.
+            // A 4096-bit modulus is 683 base64url characters; this leaves slack rather than sizing exactly.
             char n_text[700] = { 0 };
             char e_text[32]  = { 0 };
             if (!_nya_oidc_claim_string(&entry->as_object, "n", n_text, sizeof(n_text))) continue;
@@ -564,11 +537,7 @@ NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) {
 
             held.algorithm = NYA_OIDC_ALGORITHM_RS256;
         } else if (nya_string_equals((NYA_ConstCString)kty, "EC")) {
-            /*
-             * P-256 and no other curve, because ES256 names exactly that one. A provider that also
-             * publishes a P-384 key for ES384 has that key skipped rather than stored under an
-             * algorithm this cannot verify, which is the same refusal one step earlier.
-             */
+            // P-256 only, because ES256 names exactly that curve; a P-384 key for ES384 is skipped rather than stored under an algorithm this cannot verify.
             char crv[16] = { 0 };
             if (!_nya_oidc_claim_string(&entry->as_object, "crv", crv, sizeof(crv)) || !nya_string_equals((NYA_ConstCString)crv, "P-256")) continue;
 
@@ -617,8 +586,7 @@ NYA_Error _nya_oidc_jwks_ensure(NYA_OidcProvider* provider, NYA_Arena* arena, NY
 
     u64 now_ms = provider->now_ms(provider->user);
 
-    // an id_token naming an unknown kid is either an ordinary rotation or someone hoping a refetch is
-    // free to ask for; past the cooldown it is treated as the latter rather than fetched again.
+    // An id_token naming an unknown kid is a rotation or an attacker's free refetch; inside the cooldown it is treated as the latter and not fetched again.
     if (provider->jwks_fetched_at_ms != 0 && now_ms - provider->jwks_fetched_at_ms < NYA_OIDC_JWKS_REFETCH_COOLDOWN_MS) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's kid does not name a key this provider's jwks holds");
     }
@@ -650,11 +618,7 @@ NYA_Error _nya_oidc_id_token_verify(
         if (token[i] == '.') return nya_error(NYA_ERROR_PARSE, "the id_token does not have three parts");
     }
 
-    /*
-     * The header is trusted for exactly two things: `alg`, to refuse anything but RS256 before a key is
-     * ever chosen, and `kid`, to pick which of this provider's keys to try. Nothing else about the token
-     * is believed until the signature over these exact bytes verifies below.
-     */
+    // The header is trusted for exactly two things — `alg`, to refuse anything but RS256/ES256, and `kid`, to pick a key — and nothing else until the signature over these bytes verifies below.
     u8  header_bytes[512] = { 0 };
     u64 header_size        = 0;
     if (!nya_crypto_base64url_decode(token, first, header_bytes, sizeof(header_bytes), &header_size)) {
@@ -674,8 +638,7 @@ NYA_Error _nya_oidc_id_token_verify(
     if (nya_string_equals((NYA_ConstCString)alg, "ES256")) algorithm = NYA_OIDC_ALGORITHM_ES256;
 
     if (algorithm == NYA_OIDC_ALGORITHM_NONE) {
-        // covers "none", "HS256" and everything else in one refusal: this module never computes an
-        // HMAC over anything, so there is no downgrade path to fall into even for a header that asks.
+        // Covers "none", "HS256" and everything else in one refusal: this module never computes an HMAC, so there is no downgrade path to fall into.
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's alg is neither RS256 nor ES256");
     }
 
@@ -685,11 +648,7 @@ NYA_Error _nya_oidc_id_token_verify(
     const _NYA_OidcKey* key = nullptr;
     NYA_TRY(_nya_oidc_jwks_ensure(provider, arena, kid, &key));
 
-    /*
-     * The key's family has to be the one the header asked for. A `kid` names one key and a provider
-     * would not publish two kinds under it, but "would not" is not a check: an RSA key verifying an
-     * ES256 token is exactly the confusion this refuses before any arithmetic happens.
-     */
+    // The key's family must be the one `alg` named: an RSA key verifying an ES256 token is exactly the confusion this refuses before any arithmetic.
     if (key->algorithm != algorithm) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's alg is not what its kid names a key for");
 
     u8  signature[NYA_CRYPTO_RSA_MAX_BYTES] = { 0 };
@@ -704,10 +663,7 @@ NYA_Error _nya_oidc_id_token_verify(
 
     if (!verified) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's signature does not verify");
 
-    /*
-     * Everything from here on is trusted, because the signature just proved this provider's key signed
-     * exactly these bytes.
-     */
+    // Everything from here on is trusted, since the signature proved this provider's key signed exactly these bytes.
     u8  payload_bytes[NYA_OIDC_MAX_ID_TOKEN_BYTES] = { 0 };
     u64 payload_size                                = 0;
     if (!nya_crypto_base64url_decode(token + first + 1, second - first - 1, payload_bytes, sizeof(payload_bytes), &payload_size)) {
@@ -718,8 +674,7 @@ NYA_Error _nya_oidc_id_token_verify(
     NYA_TRY(nya_deserialize(arena, payload_bytes, payload_size, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &payload));
     if (payload == nullptr) return nya_error(NYA_ERROR_PARSE, "the id_token's payload is not a JSON object");
 
-    // out_claims->issuer is filled here whether or not the check below passes; a caller only ever sees
-    // that on NYA_OK, since nya_oidc_exchange clears the whole struct on any error this returns.
+    // out_claims->issuer is filled here whether or not the check passes; a caller sees it only on NYA_OK, since nya_oidc_exchange clears the struct on any error.
     if (!_nya_oidc_claim_string(payload, "iss", out_claims->issuer, sizeof(out_claims->issuer)) ||
         !nya_string_equals((NYA_ConstCString)out_claims->issuer, provider->issuer)) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's iss is not this provider's issuer");
