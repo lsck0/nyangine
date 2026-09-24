@@ -8,6 +8,8 @@
  * ```
  * ./build run example web_server            # serves on 127.0.0.1:47800 until interrupted
  * ./web_server.example --port 8080
+ * ./web_server.example --address 0.0.0.0 --port 8000   # bind every interface, as the container does
+ *
  *
  * # and over TLS, with a certificate this machine made for itself:
  * openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
@@ -144,8 +146,21 @@
 
 #include "nyangine/nyangine.c"
 
+/*
+ * This server opens no window, no renderer and no frame loop, so the only SDL it touches is the one
+ * call that brings the library's own state up for the asset system to hang off, and the sleep between
+ * ticks — and that second one is the os layer's own primitive, `nya_os_time_sleep_ms`, which is the
+ * same in either build and is what is used below in place of SDL_Delay.
+ *
+ * The include is guarded because a server has no reason to name SDL at all: the day the engine grows a
+ * headless build this file compiles straight through under NYA_NO_SDL. That day is not here yet —
+ * core (the asset, save, callback and event systems this uses), http and crypto all sit behind the
+ * same NYA_NO_SDL wall in nyangine.h today, so the guard buys the seam, not a headless binary. See
+ * this example's Dockerfile and deploy/README.md for what that means for shipping one.
+ */
+#ifndef NYA_NO_SDL
 #include "SDL3/SDL_init.h"
-#include "SDL3/SDL_timer.h"
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -969,10 +984,28 @@ s32 main(s32 argc, char** argv) {
     NYA_ConstCString certificate_path = "";
     NYA_ConstCString key_path         = "";
 
-    // Deliberately not base_args: three options, and the point of the file is the server.
-    for (s32 i = 1; i + 1 < argc; i++) {
+    /*
+     * What to bind. Empty is the NYA_HttpConfig default, which is loopback only: the safe thing for an
+     * example on a laptop, where nothing outside the machine should reach it. A deployment behind
+     * nothing — a container whose only job is this server — has to be told to bind the wildcard, which
+     * is what `--address 0.0.0.0` is for; the Dockerfile passes exactly that. See NYA_HttpConfig.
+     */
+    NYA_ConstCString address = "";
+
+    // A lone flag rather than a pair: --healthcheck turns this binary into a client of itself for one
+    // request and then exits, which is what a container's HEALTHCHECK runs. See below.
+    b8 health_check = false;
+
+    // Deliberately not base_args: a handful of options, and the point of the file is the server.
+    for (s32 i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--healthcheck") == 0) health_check = true;
+
+        // The rest come in pairs, so a value has to follow.
+        if (i + 1 >= argc) continue;
+
         if (strcmp(argv[i], "--certificate") == 0) certificate_path = argv[i + 1];
         if (strcmp(argv[i], "--key") == 0) key_path = argv[i + 1];
+        if (strcmp(argv[i], "--address") == 0) address = argv[i + 1];
 
         if (strcmp(argv[i], "--port") != 0) continue;
 
@@ -982,6 +1015,27 @@ s32 main(s32 argc, char** argv) {
             nya_log_error("--port expects a number from 0 to 65535, got '%s'.", text);
             return EXIT_FAILURE;
         }
+    }
+
+    /*
+     * The container's liveness probe, and the one an image built FROM scratch can run: no curl in the
+     * image, so the binary probes itself. It GETs `/` on the loopback port through the curl client the
+     * server already links and exits 0 only on a 200, which is exactly what a Docker HEALTHCHECK wants —
+     * a zero or a non-zero. It starts none of the server, so it is cheap and safe to run every few
+     * seconds. Pass the same --port the server was given; the address is always loopback here, which the
+     * wildcard the server binds includes. See this example's Dockerfile.
+     */
+    if (health_check) {
+        NYA_Arena* arena = nya_arena_create(.name = "healthcheck");
+        defer       nya_arena_destroy(arena);
+
+        char url[64] = { 0 };
+        (void)snprintf(url, sizeof(url), "http://127.0.0.1:%u/", port);
+
+        NYA_Response response = { 0 };
+        NYA_Error    got      = nya_request_get(arena, url, &response);
+
+        return got.ok && response.status == 200 ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
@@ -995,12 +1049,14 @@ s32 main(s32 argc, char** argv) {
      * because the page below is three assets: an app instance for it to hang off, the callback and
      * event registries it hooks into, and then itself. That is the whole of the engine this needs.
      */
+#ifndef NYA_NO_SDL
     b8 sdl_started = SDL_Init(0);
 
     if (!sdl_started) {
         nya_log_error("SDL could not start: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+#endif
 
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
@@ -1100,7 +1156,7 @@ s32 main(s32 argc, char** argv) {
     // one root layer, outermost, so its record covers the whole exchange.
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
-    NYA_Error started = nya_system_http_init((NYA_HttpConfig){
+    NYA_HttpConfig http_config = {
         .port        = port,
         .secret      = SESSION_SECRET,
         .secret_size = sizeof(SESSION_SECRET),
@@ -1112,7 +1168,13 @@ s32 main(s32 argc, char** argv) {
         // HTTP on loopback, which is what an example on a laptop wants.
         .certificate_path = certificate_path,
         .key_path         = key_path,
-    });
+    };
+
+    // A fixed char array on the config, not a pointer, so it is copied in rather than aliased. Empty
+    // stays empty, which the server reads as loopback.
+    (void)snprintf(http_config.address, sizeof(http_config.address), "%s", address);
+
+    NYA_Error started = nya_system_http_init(http_config);
 
     if (!started.ok) {
         u8 message[256];
@@ -1197,10 +1259,13 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_websocket_route_add(&NOTES_STREAM), "while mounting the notes stream");
     defer nya_http_websocket_route_remove(&NOTES_STREAM);
 
-    nya_log_info("Serving on %s://127.0.0.1:%u — / for the page, /docs for the generated one, ctrl-c to stop.", secure ? "https" : "http",
+    // What the log tells a person to open: the address that was bound, or loopback when none was given.
+    NYA_ConstCString host = address[0] != '\0' ? address : "127.0.0.1";
+
+    nya_log_info("Serving on %s://%s:%u — / for the page, /docs for the generated one, ctrl-c to stop.", secure ? "https" : "http", host,
                  nya_http_server_port());
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
-    nya_log_info("Streaming on %s://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", secure ? "wss" : "ws",
+    nya_log_info("Streaming on %s://%s:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", secure ? "wss" : "ws", host,
                  nya_http_server_port());
     nya_log_info("Liveness at " NYA_HTTP_HEALTHZ_PATH " and readiness at " NYA_HTTP_READYZ_PATH " — %u readiness checks registered.",
                  nya_http_health_check_count());
@@ -1227,8 +1292,10 @@ s32 main(s32 argc, char** argv) {
             stream_push();
         }
 
-        // as net_echo and the frame limiter do: a real sleep, so the loop does not spin a core.
-        SDL_Delay(TICK_SLEEP_MS);
+        // as net_echo and the frame limiter do: a real sleep, so the loop does not spin a core. The os
+        // layer's own, not SDL's: this loop is the one part of the server that is timing and nothing
+        // else, so it has no reason to reach through the window library for a sleep.
+        nya_os_time_sleep_ms(TICK_SLEEP_MS);
     }
 
     nya_log_info("Stopping after " FMTu64 " requests.", nya_http_server_request_count());
