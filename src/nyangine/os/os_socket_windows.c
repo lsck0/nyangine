@@ -4,8 +4,9 @@
 #include <windows.h>
 #include <ws2tcpip.h>
 // for SIO_UDP_CONNRESET, which is not in ws2tcpip.h and is what keeps one refused datagram from
-// taking a udp server down; see nya_os_socket_open.
-#include <mstcpip.h>
+// taking a udp server down; see nya_os_socket_open. mingw-w64 declares this ioctl in mswsock.h, not
+// the mstcpip.h the Windows SDK keeps it in.
+#include <mswsock.h>
 
 #include <stdio.h>
 #include <string.h>
