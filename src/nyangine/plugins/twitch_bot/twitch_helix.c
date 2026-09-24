@@ -7,11 +7,7 @@
 #include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/plugins/twitch_bot/twitch_helix.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 
 /** One queued call, held until it has been sent or has run out of attempts. */
 typedef struct {
@@ -63,11 +59,7 @@ struct NYA_TwitchHelix {
     u64 next_id;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /* The default transport: nya_request_perform, and the engine's clocks. */
 NYA_INTERNAL NYA_Error _nya_twitch_helix_perform(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) __attr_no_discard;
@@ -92,11 +84,7 @@ NYA_INTERNAL void _nya_twitch_helix_observe(NYA_TwitchHelix* helix, const NYA_Re
 /** A u64 header, or `fallback` where it is absent or not a number. */
 NYA_INTERNAL u64 _nya_twitch_helix_header_u64(const NYA_Response* response, NYA_ConstCString name, u64 fallback) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_twitch_helix_create(NYA_Arena* arena, NYA_TwitchHelixOptions options, NYA_TwitchHelix** out_helix) {
     nya_assert(arena != nullptr && out_helix != nullptr);
@@ -106,8 +94,7 @@ NYA_Error nya_twitch_helix_create(NYA_Arena* arena, NYA_TwitchHelixOptions optio
     if (options.token == nullptr || options.token[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a helix client needs a token");
     if (strlen(options.token) >= NYA_TWITCH_HELIX_MAX_TOKEN) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the token is longer than this client holds");
 
-    // Twitch answers a call without one with a 401 that says nothing about which half is missing, so
-    // the client id is required here rather than discovered from a refusal.
+    // Twitch answers a missing client id with a 401 that says nothing about which half is missing, so it is required here rather than discovered from a refusal.
     if (options.client_id == nullptr || options.client_id[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a helix client needs a client id");
     if (strlen(options.client_id) >= NYA_TWITCH_HELIX_MAX_ID) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "that is not a client id");
 
@@ -157,8 +144,7 @@ NYA_Error nya_twitch_helix_subscribe(NYA_TwitchHelix* helix, NYA_ConstCString ty
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a subscription needs the channel it is about");
     }
 
-    // A subscription belongs to one session, and a session id this client never saw is a subscription
-    // that would be accepted and then deliver to nobody.
+    // A subscription belongs to one session, and an unknown session id would be accepted and then deliver to nobody.
     if (session == nullptr || session[0] == '\0' || strlen(session) >= NYA_TWITCH_HELIX_MAX_SESSION) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a subscription needs the session it should arrive on");
     }
@@ -220,8 +206,7 @@ b8 nya_twitch_helix_poll(NYA_TwitchHelix* helix, NYA_TwitchHelixResult* out_resu
 
     if (now_ms < call.ready_at_ms) return false;
 
-    // A bucket Twitch said is empty, until the reset it gave. Asking anyway is how a client earns a
-    // 429, and a 429 on this API is counted against the whole client id rather than this one call.
+    // A bucket Twitch said is empty, until the reset it gave: asking anyway earns a 429, counted against the whole client id rather than this one call.
     if (helix->limit.reset_s != 0 && helix->limit.remaining == 0 && helix->now_s(helix->user) < helix->limit.reset_s) return false;
 
     b8 unsubscribing = call.kind == NYA_TWITCH_HELIX_CALL_UNSUBSCRIBE;
@@ -230,8 +215,7 @@ b8 nya_twitch_helix_poll(NYA_TwitchHelix* helix, NYA_TwitchHelixResult* out_resu
 
     nya_arena_free_all(helix->exchanges);
 
-    // The id goes in the query for the delete, which is where Twitch takes it, and nowhere near the
-    // route a result reports: that stays the bare path so a log line carries no ids.
+    // The id goes in the delete's query, where Twitch takes it, and never in the route a result reports, which stays the bare path so a log line carries no ids.
     if (unsubscribing) {
         (void)snprintf(helix->url, sizeof(helix->url), "%s%s?id=%s", helix->base_url, route, call.subscription_id);
     } else {
@@ -280,8 +264,7 @@ b8 nya_twitch_helix_poll(NYA_TwitchHelix* helix, NYA_TwitchHelixResult* out_resu
         .error  = performed,
     };
 
-    // The refusal a bot actually hits, said in the words that fix it: Twitch's 401 is "Invalid OAuth
-    // token" whether the token is expired, the wrong kind, or missing the scope the call needed.
+    // The refusal a bot actually hits, in the words that fix it: Twitch's 401 is "Invalid OAuth token" whether it is expired, the wrong kind, or missing a scope.
     if (response.status == 401) {
         out_result->error = nya_error(NYA_ERROR_PERMISSION_DENIED,
                                       "twitch refused the token for %s: it must be a user token for the bot account, with the scope this call needs",
@@ -303,11 +286,7 @@ NYA_TwitchHelixLimit nya_twitch_helix_limit(const NYA_TwitchHelix* helix) {
     return helix->limit;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_twitch_helix_perform(void* user, NYA_Arena* arena, NYA_Request request, NYA_Response* out_response) {
     (void)user;
@@ -374,8 +353,7 @@ NYA_Object* _nya_twitch_helix_body(NYA_TwitchHelix* helix, const _NYA_TwitchHeli
             nya_object_add(body, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->type });
             nya_object_add(body, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->version });
 
-            // Who the subscription is about and who is listening. Twitch wants both for the chat types:
-            // the channel whose chat it is, and the user whose token grants the read.
+            // Who the subscription is about and who is listening: Twitch wants both for chat, the channel whose chat it is and the user whose token grants the read.
             NYA_Object* condition = nya_object_create(helix->exchanges);
             nya_object_add(condition, "broadcaster_user_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->broadcaster_id });
             nya_object_add(condition, "user_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = helix->bot_id });

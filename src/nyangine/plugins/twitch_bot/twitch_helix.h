@@ -70,11 +70,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/plugins/curl/request.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** Where the API lives. Overridable per client, which is what a test points at itself. */
 #define NYA_TWITCH_HELIX_URL "https://api.twitch.tv/helix"
@@ -116,11 +112,7 @@
 /** How often one call is attempted before its failure is reported to the caller. */
 #define NYA_TWITCH_HELIX_MAX_ATTEMPTS 3
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_TwitchHelixCallKind  NYA_TwitchHelixCallKind;
 typedef struct NYA_TwitchHelixLimit   NYA_TwitchHelixLimit;
@@ -206,11 +198,7 @@ struct NYA_TwitchHelixResult {
     NYA_Error error;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /** Makes a client. Refuses a missing token or client id; nothing is sent until the first poll. */
 NYA_API NYA_Error nya_twitch_helix_create(NYA_Arena* arena, NYA_TwitchHelixOptions options, OUT NYA_TwitchHelix** out_helix) __attr_no_discard;

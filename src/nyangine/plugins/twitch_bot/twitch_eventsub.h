@@ -67,11 +67,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_websocket.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** Where a socket is opened when a caller names no url. */
 #define NYA_TWITCH_EVENTSUB_URL "wss://eventsub.wss.twitch.tv/ws"
@@ -112,11 +108,7 @@
 /** The longest a reconnect waits. Past this a bot that is down stays down no longer than a minute. */
 #define NYA_TWITCH_EVENTSUB_BACKOFF_MAX_MS 60000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_TwitchEventSubKind          NYA_TwitchEventSubKind;
 typedef enum NYA_TwitchEventSubState         NYA_TwitchEventSubState;
@@ -249,11 +241,7 @@ struct NYA_TwitchEventSubOptions {
     NYA_TwitchEventSubTransport transport;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /** Makes a client. Nothing is opened until the first poll, so a caller decides when the network is touched. */
 NYA_API NYA_Error nya_twitch_eventsub_create(NYA_Arena* arena, NYA_TwitchEventSubOptions options, OUT NYA_TwitchEventSub** out_events)

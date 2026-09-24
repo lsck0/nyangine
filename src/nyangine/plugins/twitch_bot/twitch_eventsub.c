@@ -9,11 +9,7 @@
 #include "nyangine/plugins/twitch_bot/twitch_eventsub.h"
 #include "nyangine/serde/serde_json.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 
 /** The two sockets a reconnect needs: the one being used, and the one being moved to. */
 #define _NYA_TWITCH_SOCKET_LIVE 0
@@ -61,11 +57,7 @@ struct NYA_TwitchEventSub {
     u32  seen_next;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /* The default transport: real websockets, the monotonic clock, and the wall clock. */
 NYA_INTERNAL NYA_Error _nya_twitch_socket_open(void* user, u32 slot, NYA_ConstCString url) __attr_no_discard;
@@ -98,11 +90,7 @@ NYA_INTERNAL b8 _nya_twitch_seen(NYA_TwitchEventSub* events, NYA_ConstCString id
 /** Reads one text frame from a slot into a message. False when it is not one a caller should see. */
 NYA_INTERNAL b8 _nya_twitch_message(NYA_TwitchEventSub* events, u32 slot, const u8* text, u64 size, OUT NYA_TwitchEventSubMessage* out_message);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_twitch_eventsub_create(NYA_Arena* arena, NYA_TwitchEventSubOptions options, NYA_TwitchEventSub** out_events) {
     nya_assert(arena != nullptr && out_events != nullptr);
@@ -128,8 +116,7 @@ NYA_Error nya_twitch_eventsub_create(NYA_Arena* arena, NYA_TwitchEventSubOptions
         .insecure_skip_tls_verify = options.insecure_skip_tls_verify,
     };
 
-    // A transport a caller filled in is taken whole or not at all: half of one is a client that opens
-    // a real socket and reads a fake clock, which no test wants and no program means.
+    // A caller's transport is taken whole or not at all: half of one is a real socket read against a fake clock, which nothing means.
     b8 supplied = options.transport.open != nullptr || options.transport.close != nullptr || options.transport.poll != nullptr;
 
     if (supplied) {
@@ -173,8 +160,7 @@ b8 nya_twitch_eventsub_poll(NYA_TwitchEventSub* events, NYA_TwitchEventSubMessag
 
     u64 now_ms = events->transport.now_ms(events->transport.user);
 
-    // The payload of the message handed over last time. Nobody may read it after this point, which is
-    // exactly what the header promises.
+    // The payload handed over last time; nobody may read it after this point, which is what the header promises.
     nya_arena_free_all(events->messages);
 
     if (events->state == NYA_TWITCH_EVENTSUB_STATE_IDLE || events->state == NYA_TWITCH_EVENTSUB_STATE_WAITING) {
@@ -186,8 +172,7 @@ b8 nya_twitch_eventsub_poll(NYA_TwitchEventSub* events, NYA_TwitchEventSubMessag
         return reported;
     }
 
-    // The socket being moved to, first: it carries the welcome that ends the move, and until it does
-    // the live one is still the one delivering.
+    // The socket being moved to, first: it carries the welcome that ends the move, and until then the live one still delivers.
     if (events->state == NYA_TWITCH_EVENTSUB_STATE_RECONNECTING) {
         NYA_WebSocketEvent event = { 0 };
 
@@ -197,8 +182,7 @@ b8 nya_twitch_eventsub_poll(NYA_TwitchEventSub* events, NYA_TwitchEventSubMessag
             }
 
             if (event.kind == NYA_WEBSOCKET_EVENT_CLOSED) {
-                // The move failed and the old socket is still good, so this is not a disconnection: it
-                // is a reconnect that did not happen, and Twitch will ask again.
+                // The move failed but the old socket is still good, so this is a reconnect that did not happen, not a disconnection; Twitch will ask again.
                 nya_log_warn("The twitch reconnect socket closed before it was welcomed; staying on the old one.");
 
                 events->transport.close(events->transport.user, _NYA_TWITCH_SOCKET_NEXT);
@@ -237,11 +221,7 @@ b8 nya_twitch_eventsub_poll(NYA_TwitchEventSub* events, NYA_TwitchEventSubMessag
         }
     }
 
-    /*
-     * Silence. Twitch promised a keepalive every `keepalive_ms` and has not sent one, which is the way
-     * this socket dies in practice: the connection stays up and nothing comes down it. Dropped rather
-     * than waited on, because a bot that hears nothing is indistinguishable from a bot that is broken.
-     */
+    // Silence past the promised keepalive is how this socket dies in practice (up but delivering nothing); dropped rather than waited on, since it is indistinguishable from broken.
     if (events->heard_at_ms != 0 && now_ms - events->heard_at_ms > events->keepalive_ms + NYA_TWITCH_EVENTSUB_GRACE_MS) {
         _nya_twitch_disconnect(events, "twitch stopped sending keepalives", out_message);
         return true;
@@ -277,11 +257,7 @@ NYA_ConstCString nya_twitch_eventsub_state_name(NYA_TwitchEventSubState state) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_twitch_socket_open(void* user, u32 slot, NYA_ConstCString url) {
     _NYA_TwitchSockets* sockets = (_NYA_TwitchSockets*)user;
@@ -385,8 +361,7 @@ void _nya_twitch_connect(NYA_TwitchEventSub* events, NYA_ConstCString url, NYA_T
     NYA_Error opened = events->transport.open(events->transport.user, _NYA_TWITCH_SOCKET_LIVE, url);
 
     if (!opened.ok) {
-        // A url that will not open will not open the next time either: a hostname that does not
-        // resolve or a scheme that is not websocket is a program's mistake, not a network's.
+        // A url that will not open will not open next time either: an unresolvable host or a non-websocket scheme is a program's mistake, not a network's.
         _nya_twitch_copy(events->reason, sizeof(events->reason), (NYA_ConstCString)opened.message);
 
         events->state = NYA_TWITCH_EVENTSUB_STATE_STOPPED;
@@ -411,8 +386,7 @@ void _nya_twitch_disconnect(NYA_TwitchEventSub* events, NYA_ConstCString reason,
 
     u64 now_ms = events->transport.now_ms(events->transport.user);
 
-    // Doubled per ending and capped, so a Twitch outage is not a bot hammering it, and a single
-    // dropped socket is back inside a second.
+    // Doubled per ending and capped, so an outage is not a bot hammering it and a single dropped socket is back inside a second.
     u64 wait_ms = (u64)NYA_TWITCH_EVENTSUB_BACKOFF_MS << nya_min(events->attempts, 6U);
     if (wait_ms > NYA_TWITCH_EVENTSUB_BACKOFF_MAX_MS) wait_ms = NYA_TWITCH_EVENTSUB_BACKOFF_MAX_MS;
 
@@ -461,11 +435,7 @@ b8 _nya_twitch_message(NYA_TwitchEventSub* events, u32 slot, const u8* text, u64
     NYA_ConstCString type = _nya_twitch_string_at(metadata, "message_type");
     if (type == nullptr) return false;
 
-    /*
-     * The replay rules, before anything acts on the message. Both are Twitch's own: an id may arrive
-     * twice, and nothing older than ten minutes is worth acting on. The timestamp check catches the
-     * case the ring cannot — a capture replayed long after the ids it carried have rolled out of it.
-     */
+    // The replay rules, before anything acts: an id may arrive twice, and nothing older than ten minutes counts; the timestamp catches what the ring cannot, a capture replayed after its ids rolled out.
     NYA_ConstCString stamp = _nya_twitch_string_at(metadata, "message_timestamp");
 
     if (stamp != nullptr) {
@@ -515,8 +485,7 @@ b8 _nya_twitch_message(NYA_TwitchEventSub* events, u32 slot, const u8* text, u64
         return true;
     }
 
-    // Nothing but a heartbeat with a body. Not handed over: a caller that had to ignore these would
-    // be writing the same empty case in every bot.
+    // A heartbeat with a body, not handed over: a caller ignoring these would write the same empty case in every bot.
     if (nya_string_equals(type, "session_keepalive")) return false;
 
     if (nya_string_equals(type, "session_reconnect")) {
@@ -533,8 +502,7 @@ b8 _nya_twitch_message(NYA_TwitchEventSub* events, u32 slot, const u8* text, u64
         NYA_Error opened = events->transport.open(events->transport.user, _NYA_TWITCH_SOCKET_NEXT, events->reconnect_url);
 
         if (!opened.ok) {
-            // The old socket has about thirty seconds left and still works, so this is not fatal: it
-            // will end on its own and the ordinary backoff will open a fresh one.
+            // The old socket has ~30 seconds left and still works, so this is not fatal: it ends on its own and the ordinary backoff opens a fresh one.
             nya_log_warn("The twitch reconnect url would not open (%s); the old socket has a little longer.",
                          (NYA_ConstCString)opened.message);
             return false;
@@ -548,8 +516,7 @@ b8 _nya_twitch_message(NYA_TwitchEventSub* events, u32 slot, const u8* text, u64
     if (nya_string_equals(type, "notification") || nya_string_equals(type, "revocation")) {
         NYA_ConstCString subscription_type = _nya_twitch_string_at(metadata, "subscription_type");
 
-        // Twitch puts it in the metadata of a notification and in the payload of a revocation, so both
-        // are read rather than one being assumed.
+        // Twitch puts it in a notification's metadata and a revocation's payload, so both are read rather than one assumed.
         if (subscription_type == nullptr) subscription_type = _nya_twitch_string_at(_nya_twitch_object_at(body, "subscription"), "type");
 
         _nya_twitch_copy(events->subscription_type, sizeof(events->subscription_type), subscription_type);
@@ -567,8 +534,7 @@ b8 _nya_twitch_message(NYA_TwitchEventSub* events, u32 slot, const u8* text, u64
         return true;
     }
 
-    // A message type this build has never heard of. Logged at debug and stepped over, because Twitch
-    // adds them and a bot that refused one would stop at the first thing it did not recognize.
+    // A message type this build has never heard of, logged at debug and stepped over: Twitch adds them, and refusing one would stop at the first unrecognized thing.
     nya_log_debug("A twitch message of type '%s' was ignored.", type);
 
     return false;
