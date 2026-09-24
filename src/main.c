@@ -149,7 +149,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     // A command line that said its piece — `--help`, or one that could not be understood — leaves
     // nothing running and nothing to take down. See gnyame.h.
-    if (!gnyame_init(argc, argv)) {
+    if (!gnyame_init(argc, argv)) { // NOLINT(clang-analyzer-core.CallAndMessage): dll_load has succeeded, which sets every entry point
         nya_backtrace_deinit();
         return EXIT_SUCCESS;
     }
@@ -351,7 +351,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     // A command line that said its piece — `--help`, or one that could not be understood — leaves
     // nothing running and nothing to take down. See gnyame.h.
-    if (!gnyame_init(argc, argv)) {
+    if (!gnyame_init(argc, argv)) { // NOLINT(clang-analyzer-core.CallAndMessage): dll_load has succeeded, which sets every entry point
         nya_backtrace_deinit();
         return EXIT_SUCCESS;
     }
