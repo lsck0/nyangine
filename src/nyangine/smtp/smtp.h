@@ -64,11 +64,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The largest assembled message this will send, headers, MIME framing and base64 body included.
@@ -87,11 +83,7 @@
 /** How long the whole exchange may take when a config does not say, in milliseconds. */
 #define NYA_SMTP_DEFAULT_TIMEOUT_MS 30000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** How the connection is protected. Both encrypt; see the header on why there is no third option. */
 typedef enum {
@@ -173,11 +165,7 @@ typedef struct {
     NYA_ConstCString html;
 } NYA_SmtpMessage;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Builds the RFC 5322 message `nya_smtp_send` would put in the DATA phase, into `out_message`.

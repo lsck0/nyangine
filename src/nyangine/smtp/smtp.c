@@ -11,20 +11,11 @@
 #include "nyangine/smtp/smtp.h"
 #include "nyangine/tls/tls.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 typedef struct NYA_SmtpChannel NYA_SmtpChannel;
 
-/**
- * The conversation runs over one of these rather than over a socket, so the state machine can be driven
- * over an in-memory script in a test with no network at all. `read` and `write` block until they have
- * moved every byte or failed; `upgrade` turns a plaintext channel into a TLS one after STARTTLS, and is
- * null on a channel that cannot — one that is TLS already, or a test's scripted one.
- * */
+/** The conversation runs over one of these, not a socket, so a test can script it; `upgrade` does STARTTLS and is null when it cannot. */
 struct NYA_SmtpChannel {
     NYA_Error (*write)(NYA_SmtpChannel* self, const u8* data, u64 size);
     NYA_Error (*read)(NYA_SmtpChannel* self, OUT u8* out, u64 capacity, OUT u64* out_read);
@@ -44,11 +35,7 @@ typedef struct {
     u64 deadline_ns;
 } SmtpSocketChannel;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** No carriage return and no line feed, which is the whole of the header-injection defence for a header value. */
 NYA_INTERNAL b8 _nya_smtp_header_safe(NYA_ConstCString value) __attr_no_discard;
@@ -101,11 +88,7 @@ NYA_INTERNAL NYA_Error _nya_smtp_channel_read(NYA_SmtpChannel* self, OUT u8* out
 NYA_INTERNAL NYA_Error _nya_smtp_channel_upgrade(NYA_SmtpChannel* self) __attr_no_discard;
 NYA_INTERNAL NYA_Error _nya_smtp_connect(NYA_ConstCString host, u16 port, u64 deadline_ns, OUT NYA_OsSocket* out_socket) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_smtp_message_build(NYA_Arena* arena, const NYA_SmtpMessage* message, NYA_String** out_message) {
     nya_assert(arena != nullptr && message != nullptr && out_message != nullptr);
@@ -116,8 +99,7 @@ NYA_Error nya_smtp_message_build(NYA_Arena* arena, const NYA_SmtpMessage* messag
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a message needs a from address, a to address and a text body");
     }
 
-    // The header-injection defence: a caller-supplied value with a newline in it is refused before it can
-    // become a header of the attacker's choosing. Addresses are held to more than that; see the checks.
+    // The header-injection defence: a value with a newline is refused; addresses are held to more (see the checks).
     if (!_nya_smtp_address_safe(message->from)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the from address is not a bare address");
     if (!_nya_smtp_address_safe(message->to)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the to address is not a bare address");
     if (!_nya_smtp_header_safe(message->subject)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the subject carries a carriage return or a line feed");
@@ -135,16 +117,14 @@ NYA_Error nya_smtp_message_build(NYA_Arena* arena, const NYA_SmtpMessage* messag
     nya_string_extend_sprintf(out, "Subject: %s\r\n", message->subject != nullptr ? message->subject : "");
     nya_string_extend_sprintf(out, "Date: %s\r\n", _nya_smtp_date(arena, nya_clock_get_timestamp_s()));
 
-    // A Message-ID unique enough for a transactional mail: two clocks that do not move together, at the
-    // sender's own domain. It identifies the mail, so it need not be unpredictable, only distinct.
+    // A Message-ID distinct enough for transactional mail: two independent clocks at the sender's domain, not unpredictable.
     nya_string_extend_sprintf(out, "Message-ID: <%016llx.%016llx@%s>\r\n", (unsigned long long)nya_clock_get_timestamp_ns(),
                               (unsigned long long)nya_clock_get_monotonic_ns(), _nya_smtp_domain(message->from));
 
     nya_string_extend(out, "MIME-Version: 1.0\r\n");
 
     if (message->html != nullptr && message->html[0] != '\0') {
-        // A multipart/alternative carrying both bodies. The boundary holds `=` and `_`, neither of which
-        // is in the base64 alphabet, so it cannot appear inside either encoded part by accident.
+        // A multipart/alternative carrying both bodies; the boundary uses `=` and `_`, outside base64, so it never collides with a part.
         NYA_ConstCString boundary = nya_string_to_cstring(arena, nya_string_sprintf(arena, "=_nyangine_%016llx_=", (unsigned long long)nya_clock_get_monotonic_ns()));
 
         nya_string_extend_sprintf(out, "Content-Type: multipart/alternative; boundary=\"%s\"\r\n\r\n", boundary);
@@ -177,8 +157,7 @@ NYA_Error nya_smtp_send(NYA_Arena* arena, const NYA_SmtpConfig* config, const NY
     if (config->host == nullptr || config->host[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a submission host is required");
     if (config->port == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a port is required");
 
-    // The message first, because it is where a header is refused, and a refused message is a failure that
-    // costs no connection at all.
+    // The message first, since a refused header should fail before any connection is opened.
     NYA_String* blob = nullptr;
     NYA_TRY(nya_smtp_message_build(arena, message, &blob));
 
@@ -209,9 +188,7 @@ NYA_Error nya_smtp_send(NYA_Arena* arena, const NYA_SmtpConfig* config, const NY
         .deadline_ns = deadline_ns,
     };
 
-    // Implicit TLS is a handshake before a single SMTP byte; STARTTLS leaves it for the conversation to
-    // ask for once it has seen the greeting. The tls session lives in the context's pool either way and
-    // is given back when the context is destroyed.
+    // Implicit TLS handshakes before any SMTP byte; STARTTLS waits for the greeting. Either way the session is the context's pool's.
     if (config->security == NYA_SMTP_SECURITY_IMPLICIT) {
         NYA_TRY(nya_tls_session_connect(tls_context, socket, config->host, &channel.tls));
         NYA_TRY(_nya_smtp_tls_handshake(&channel));
@@ -220,11 +197,7 @@ NYA_Error nya_smtp_send(NYA_Arena* arena, const NYA_SmtpConfig* config, const NY
     return _nya_smtp_converse(arena, config, message, nya_string_to_cstring(arena, blob), &channel.base);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION — THE MESSAGE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION — THE MESSAGE
 
 b8 _nya_smtp_header_safe(NYA_ConstCString value) {
     if (value == nullptr) return true;
@@ -309,11 +282,7 @@ void _nya_smtp_append_part(NYA_Arena* arena, NYA_String* out, NYA_ConstCString c
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION — THE CONVERSATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION — THE CONVERSATION
 
 b8 _nya_smtp_reply_complete(const NYA_String* buffer, u32* out_code) {
     u64 start = 0;
@@ -324,8 +293,7 @@ b8 _nya_smtp_reply_complete(const NYA_String* buffer, u32* out_code) {
         u64 end = i;
         if (end > start && buffer->items[end - 1] == '\r') end--;
 
-        // A reply's last line is `NNN ` with a space where a continuation line has a `-`. Three digits,
-        // then the space, is what says the server has finished talking.
+        // A reply's last line is `NNN ` (space, not `-`); three digits then a space means the server has finished.
         u64 length = end - start;
         if (length >= 4 && buffer->items[start + 3] == ' ') {
             u32 code       = 0;
@@ -384,8 +352,7 @@ NYA_Error _nya_smtp_expect(NYA_SmtpChannel* channel, NYA_Arena* arena, u32 expec
     NYA_ConstCString text = nullptr;
     NYA_TRY(_nya_smtp_read_reply(channel, arena, &code, &text));
 
-    // The server's reply text is safe to carry; the command that drew it — an AUTH line — is never put in
-    // an error, so a credential cannot leak through a failure.
+    // The reply text is safe to carry; the command that drew it (an AUTH line) is never put in an error.
     if (code != expected) return nya_error(NYA_ERROR_NOT_OK, "the server refused %s (%u): %s", step, code, text);
 
     return NYA_OK;
@@ -465,8 +432,7 @@ NYA_Error _nya_smtp_converse(NYA_Arena* arena, const NYA_SmtpConfig* config, con
         if (channel->upgrade == nullptr) return nya_error(NYA_ERROR_NOT_SUPPORTED, "the connection cannot be upgraded to TLS");
         NYA_TRY(channel->upgrade(channel));
 
-        // A second EHLO over the now-encrypted link, as the protocol requires: the capabilities before
-        // and after STARTTLS are not the same list, and the earlier one is not to be trusted.
+        // A second EHLO over the encrypted link: capabilities before and after STARTTLS differ and the earlier list is not trusted.
         NYA_TRY(_nya_smtp_ehlo(channel, arena, message));
     }
 
@@ -489,8 +455,7 @@ NYA_Error _nya_smtp_converse(NYA_Arena* arena, const NYA_SmtpConfig* config, con
     NYA_TRY(channel->write(channel, (const u8*)"\r\n.\r\n", 5));
     NYA_TRY(_nya_smtp_expect(channel, arena, 250, "the message"));
 
-    // QUIT is a courtesy: the mail is already accepted, so a server that drops the connection instead of
-    // answering has cost nothing, and its answer is not worth failing the send over.
+    // QUIT is a courtesy: the mail is already accepted, so its answer is not worth failing the send over.
     (void)_nya_smtp_write_line(channel, "QUIT");
     {
         u32 code = 0;
@@ -500,11 +465,7 @@ NYA_Error _nya_smtp_converse(NYA_Arena* arena, const NYA_SmtpConfig* config, con
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION — THE SOCKET CHANNEL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION — THE SOCKET CHANNEL
 
 NYA_Error _nya_smtp_wait(NYA_OsSocket socket, b8 readable, b8 writable, u64 deadline_ns) {
     u64 now = nya_clock_get_monotonic_ns();
