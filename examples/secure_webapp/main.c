@@ -258,7 +258,7 @@ NYA_INTERNAL b8 request_account(NYA_HttpExchange* exchange, OUT NYA_AccountUser*
 }
 
 /** Reads `username` and `password` out of a JSON body, refusing anything that is not both strings. */
-NYA_INTERNAL b8 request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_username, OUT NYA_ConstCString* out_password) {
+NYA_INTERNAL b8 webapp_request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_username, OUT NYA_ConstCString* out_password) {
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return false;
 
@@ -275,7 +275,7 @@ NYA_INTERNAL b8 request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCSt
 }
 
 /** The peer's address as the server sees it, for the session's own record of where it was opened. */
-NYA_INTERNAL NYA_ConstCString request_address(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_ConstCString webapp_request_address(NYA_HttpExchange* exchange) {
     return exchange->address[0] != '\0' ? exchange->address : "unknown";
 }
 
@@ -386,11 +386,11 @@ NYA_INTERNAL NYA_HttpStatus handle_oembed(NYA_HttpExchange* exchange) {
 /* HANDLERS: THE LOGIN, reused from accounts_api */
 
 /** Registration, open to anybody in this example. A taken name or a short password says which. */
-NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus webapp_handle_register(NYA_HttpExchange* exchange) {
     NYA_ConstCString username = nullptr;
     NYA_ConstCString password = nullptr;
 
-    if (!request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!webapp_request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user = { 0 };
     NYA_Error       made = nya_account_register(exchange->arena, NYA_ACCOUNT_REGISTRATION_OPEN, username, password, nullptr, &user);
@@ -411,14 +411,14 @@ NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
  * `accounts` slows a guessing spree whatever the outcome. There is no second factor in this example; the
  * two-step login is accounts_api's subject.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus webapp_handle_login(NYA_HttpExchange* exchange) {
     NYA_ConstCString username = nullptr;
     NYA_ConstCString password = nullptr;
 
-    if (!request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!webapp_request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user    = { 0 };
-    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, request_address(exchange), &user);
+    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, webapp_request_address(exchange), &user);
 
     // One answer for every way it fails — wrong password, no such user, disabled, throttled.
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
@@ -426,7 +426,7 @@ NYA_INTERNAL NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
     NYA_ConstCString agent = nya_http_request_header(exchange->request, "user-agent");
 
     NYA_AccountSession session = { 0 };
-    if (!nya_account_session_issue(exchange->arena, user.id, request_address(exchange), agent, &session).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!nya_account_session_issue(exchange->arena, user.id, webapp_request_address(exchange), agent, &session).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     NYA_Error set = nya_http_response_cookie(exchange->response,
                                              &(NYA_HttpCookie){
@@ -442,7 +442,7 @@ NYA_INTERNAL NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
 }
 
 /** Signing out: the session row is revoked, not only the cookie cleared, so the token cannot be reused. */
-NYA_INTERNAL NYA_HttpStatus handle_logout(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus webapp_handle_logout(NYA_HttpExchange* exchange) {
     NYA_HttpCookieValue cookie = { 0 };
 
     if (nya_http_cookie_read(exchange->request, NYA_HTTP_SESSION_COOKIE, &cookie)) {
@@ -488,13 +488,13 @@ NYA_INTERNAL const NYA_HttpRouter PAGE_ROUTER = {
 };
 
 NYA_INTERNAL const NYA_HttpRoute ACCOUNT_ROUTES[] = {
-    { .method = NYA_HTTP_METHOD_POST, .path = "/api/register", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_register,
+    { .method = NYA_HTTP_METHOD_POST, .path = "/api/register", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = webapp_handle_register,
       .summary = "Makes an account",
       .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = "/api/login", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_login,
+    { .method = NYA_HTTP_METHOD_POST, .path = "/api/login", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = webapp_handle_login,
       .summary = "Logs in and sets the session cookie",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = "/api/logout", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_logout,
+    { .method = NYA_HTTP_METHOD_POST, .path = "/api/logout", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = webapp_handle_logout,
       .summary = "Revokes the session and clears the cookie",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR } },
 };
