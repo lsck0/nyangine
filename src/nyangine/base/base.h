@@ -40,6 +40,7 @@
 #include "nyangine/base/base_lexer.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_memory.h"
+#include "nyangine/base/base_newtype.h"
 #include "nyangine/base/base_object.h"
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/base/base_path.h"
