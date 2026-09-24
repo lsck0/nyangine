@@ -658,11 +658,16 @@ What every kind of program in the examples table needs and `base` does not have 
   with XChaCha20-Poly1305 under a key the program supplies. When the PGP component is present, it can also be
   encrypted to a recipient's public key. For secrets that live in files rather than the database: tokens in a
   config, keys in a save.
-- `[ ]` Structured logging: a record is a message plus typed key/value fields, formatted per sink. A terminal
+- `[x]` Structured logging: a record is a message plus typed key/value fields, formatted per sink. A terminal
   gets a human line and a server's file gets JSON lines. Still fixed buffers and no allocation on the log path,
-  as today. Sinks for stderr, a size bounded rotating file with a retention limit, and the existing ring. A
-  field can carry a correlation id, so everything logged while serving one request, running one job or ticking
-  one session can be found together.
+  as today. `NYA_LogField` (string/int/float/bool) and the `nya_log_*_fields` macros carry up to
+  NYA_LOG_FIELD_MAX fields on one record; the engine composes the human line — the message then `key=value`
+  pairs — for stderr, the rotating file and the ring, and a `NYA_LogRecordSink` is the seam where a second
+  shape lives, with `nya_log_record_render_json` giving one JSON object per line. The stderr sink, the size
+  bounded rotating file with its retention limit, and the ring were already there; this is the typed fields
+  and the per-sink rendering on top of them. A field carries a correlation id the way the per-thread log tag
+  does, so everything logged while serving one request, running one job or ticking one session can be found
+  together.
 - `[ ]` A parsed newtype helper, so `Email`, `UserId` and `Username` are one macro and a fallible `_from_string`
   each rather than bare strings.
 
