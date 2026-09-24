@@ -316,7 +316,25 @@
 
 // -g1 so libbacktrace can print lines in shipped crash reports. The debug sections are covered by the
 // integrity CRC, so never strip after hook_insert_integrity_hash.
-#define FLAGS_SHIPPING "-O3", "-flto", "-fPIE", "-g1", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+//
+// The hardening here is what both the Linux and the mingw Windows toolchains accept: stack canaries
+// (-fstack-protector-strong) and control-flow-integrity landing pads (-fcf-protection=full). The two
+// mitigations that differ by target — the _FORTIFY_SOURCE level and -fstack-clash-protection — live in
+// the FLAGS_HARDEN_* groups below and are added to the per-target compile rules, not here: a single
+// _FORTIFY_SOURCE=N belongs on the command line (a second one is a -Werror macro redefinition), and
+// clang rejects -fstack-clash-protection for the Windows target.
+#define FLAGS_SHIPPING "-O3", "-flto", "-fPIE", "-g1", "-DNYA_ASSET_PREFER_BLOB", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+
+// Compile-time hardening that varies by target, added to the release/dist (and Steam) compile rules
+// beside FLAGS_SHIPPING. glibc's _FORTIFY_SOURCE needs an optimisation level, which FLAGS_SHIPPING's -O3
+// gives it; level 3 adds the dynamic-object-size fortify checks (__*_chk) over level 2's constant ones.
+// -fstack-clash-protection probes each newly touched stack page so a frame larger than the guard page
+// cannot leap over it into the heap — an x86/Linux codegen flag.
+#define FLAGS_HARDEN_LINUX_X86_64   "-D_FORTIFY_SOURCE=3", "-fstack-clash-protection"
+// mingw-w64 carries its own _FORTIFY_SOURCE; keep the level 2 the Windows build already shipped. No
+// -fstack-clash-protection: clang does not support it for the x86_64-w64 PE target (unsupported-option
+// error), and the ELF RELRO/BIND_NOW/NX linker flags below are likewise meaningless for a PE image.
+#define FLAGS_HARDEN_WINDOWS_X86_64 "-D_FORTIFY_SOURCE=2"
 
 // -DNYA_EXECUTION_MODE=2 is required: NYA_DEBUG is (NYA_EXECUTION_MODE == 0) and the default is 0, so
 // without it a release binary compiles the hot reload entry point and skips the integrity check.
@@ -326,7 +344,13 @@
 #define FLAGS_RELEASE_LINK "-fuse-ld=lld", "-Wl,--gc-sections"
 
 // no local symbols, and no COFF symbol table: libbacktrace names frames from the -g1 debug info and never reads them.
-#define FLAGS_RELEASE_LINK_LINUX_X86_64   "-Wl,--discard-all"
+//
+// ELF hardening, Linux only (not in the shared FLAGS_RELEASE_LINK, which the PE link also uses): -z relro
+// plus -z now is full RELRO — the GOT and other relocated data are mapped read-only after the loader has
+// bound every symbol at startup, so a later write cannot repoint a call. -z noexecstack sets the NX bit on
+// the stack (a non-executable PT_GNU_STACK). hook_verify_hardening asserts all three are present on the
+// produced binary, so a toolchain that quietly dropped one fails the build rather than shipping soft.
+#define FLAGS_RELEASE_LINK_LINUX_X86_64   "-Wl,--discard-all", "-Wl,-z,relro", "-Wl,-z,now", "-Wl,-z,noexecstack"
 #define FLAGS_RELEASE_LINK_WINDOWS_X86_64 "-Xlinker", "-Xlink=-debug:dwarf,nosymtab"
 
 /*

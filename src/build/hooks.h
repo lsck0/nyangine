@@ -120,6 +120,19 @@ void hook_convert_perf_data_to_plain(NYA_BuildRule* rule);
 /** Patches the tamper detection CRC into the linked binary. Must run after linking. */
 void hook_insert_integrity_hash(NYA_BuildRule* rule);
 
+#if !OS_WINDOWS
+/**
+ * Asserts, on the produced Linux release binary, that the shipping hardening actually took, rather than
+ * trusting the flag list. Parses `readelf` over the ELF and fails the build (a hard assert) if any of the
+ * mitigations is missing: full RELRO (a GNU_RELRO segment) plus immediate binding (DT_FLAGS BIND_NOW /
+ * DT_FLAGS_1 NOW) from -Wl,-z,relro -Wl,-z,now; a non-executable stack (a GNU_STACK segment, no RWE
+ * segment anywhere) from -Wl,-z,noexecstack; the stack-protector runtime helper __stack_chk_fail from
+ * -fstack-protector-strong; and at least one __*_chk fortify wrapper from _FORTIFY_SOURCE. ELF only, so
+ * it rides only the Linux release/Steam link rules; the mingw PE build is verified by nothing here.
+ * */
+void hook_verify_hardening(NYA_BuildRule* rule);
+#endif
+
 /**
  * Authenticode signs the rule's output file. Must run last, after everything that touches the bytes.
  * */

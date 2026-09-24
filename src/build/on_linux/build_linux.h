@@ -143,6 +143,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_linux_x86_64 = {
             INCLUDE_PATHS,
             FLAGS_PLUGINS,
             FLAGS_RELEASE,
+            FLAGS_HARDEN_LINUX_X86_64,
         },
     },
 
@@ -174,7 +175,8 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
     .vendors          = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies     = { &compile_project_linux_x86_64, },
-    .post_build_hooks = { &hook_insert_integrity_hash, },
+    // Verify the shipping hardening on the final bytes, after the integrity CRC patch.
+    .post_build_hooks = { &hook_insert_integrity_hash, &hook_verify_hardening, },
 };
 
 /*
@@ -217,6 +219,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_linux_x86_64 = {
             INCLUDE_PATHS,
             FLAGS_PLUGINS,
             FLAGS_STEAM,
+            FLAGS_HARDEN_LINUX_X86_64,
             FLAGS_STEAMRT,
         },
     },
@@ -252,7 +255,8 @@ NYA_INTERNAL NYA_BuildRule link_project_steam_linux_x86_64 = {
     .vendors          = { NYA_PROJECT_VENDORS_STEAMRT_X86_64, &vendor_steam_linux_x86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies     = { &compile_project_steam_linux_x86_64, },
-    .post_build_hooks = { &hook_insert_integrity_hash, },
+    // Verify the shipping hardening on the final bytes, after the integrity CRC patch.
+    .post_build_hooks = { &hook_insert_integrity_hash, &hook_verify_hardening, },
 };
 
 /** libsteam_api.so beside the executable, where its $ORIGIN rpath finds it. */

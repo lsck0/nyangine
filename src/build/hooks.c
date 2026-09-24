@@ -559,6 +559,61 @@ void hook_insert_integrity_hash(NYA_BuildRule* rule) {
     NYA_EXPECT(nya_integrity_patch(rule->output_file, &integrity_hash), "while inserting the integrity hash into '%s'", rule->output_file);
 }
 
+#if !OS_WINDOWS
+void hook_verify_hardening(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+    nya_assert(rule->output_file != nullptr, "hook_verify_hardening needs an output_file to inspect.");
+
+    // One readelf pass over the dynamic section (-d), the program headers (-l) and the dynamic symbol
+    // table (--dyn-syms); -W keeps it from truncating wide lines. Every mitigation is read out of this
+    // text, so a toolchain that silently dropped one trips an assert here instead of shipping soft.
+    NYA_Command readelf = {
+        .arena     = nya_arena_global,
+        .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
+        .program   = "readelf",
+        .arguments = { "-W", "-d", "-l", "--dyn-syms", rule->output_file },
+    };
+    NYA_EXPECT(nya_command_run(&readelf), "while running readelf over '%s' to verify its hardening", rule->output_file);
+    nya_assert_always(readelf.exit_code == 0, "readelf could not read '%s' to verify its hardening.", rule->output_file);
+    nya_assert_always(readelf.stdout_content != nullptr && readelf.stdout_content->length > 0, "readelf produced no output for '%s'.", rule->output_file);
+
+    NYA_String* elf = readelf.stdout_content;
+
+    // Full RELRO is -z relro (the GNU_RELRO segment) plus -z now (immediate binding). readelf prints
+    // BIND_NOW in DT_FLAGS and NOW in DT_FLAGS_1; either proves -z now took. Without it the GOT stays
+    // writable and RELRO is only partial.
+    nya_assert_always(nya_string_contains(elf, "GNU_RELRO"),
+                      "%s has no GNU_RELRO segment: -Wl,-z,relro did not take.", rule->output_file);
+    nya_assert_always(nya_string_contains(elf, "BIND_NOW") || nya_string_contains(elf, "NOW"),
+                      "%s has no BIND_NOW / FLAGS_1 NOW: -Wl,-z,now did not take, so RELRO is only partial.", rule->output_file);
+
+    // NX stack: a PT_GNU_STACK segment that is not executable. readelf writes segment flags as e.g. RW,
+    // or RWE when executable; an executable segment is exactly what -z noexecstack forbids on the stack.
+    nya_assert_always(nya_string_contains(elf, "GNU_STACK"),
+                      "%s has no GNU_STACK segment to mark non-executable.", rule->output_file);
+    nya_assert_always(!nya_string_contains(elf, "RWE"),
+                      "%s has a writable-executable (RWE) segment: the stack is not NX. -Wl,-z,noexecstack did not take.", rule->output_file);
+
+    // Stack protector and _FORTIFY_SOURCE leave their runtime helpers as undefined dynamic symbols, which
+    // is proof the codegen flags reached the object rather than only the command line: __stack_chk_fail
+    // for -fstack-protector-strong, and the __*_chk wrappers for the level-3 _FORTIFY_SOURCE. Several
+    // fortify wrappers are checked because which ones appear depends on the source; at least one of these
+    // ubiquitous calls is fortified in any real build.
+    nya_assert_always(nya_string_contains(elf, "__stack_chk_fail"),
+                      "%s references no __stack_chk_fail: -fstack-protector-strong produced no canaries.", rule->output_file);
+    b8 has_fortify = nya_string_contains(elf, "__memcpy_chk") || nya_string_contains(elf, "__memset_chk") ||
+                     nya_string_contains(elf, "__memmove_chk") || nya_string_contains(elf, "__snprintf_chk") ||
+                     nya_string_contains(elf, "__vsnprintf_chk") || nya_string_contains(elf, "__sprintf_chk") ||
+                     nya_string_contains(elf, "__printf_chk") || nya_string_contains(elf, "__fprintf_chk");
+    nya_assert_always(has_fortify,
+                      "%s references no __*_chk fortify wrapper: _FORTIFY_SOURCE produced no checked calls.", rule->output_file);
+
+    nya_log_info("Hardening verified on %s: full RELRO + BIND_NOW, NX stack, and stack-protector + _FORTIFY_SOURCE symbols all present.", rule->output_file);
+
+    nya_command_destroy(&readelf);
+}
+#endif
+
 /** An environment variable if it is set to something, otherwise the compiled in default. */
 NYA_INTERNAL NYA_ConstCString signing_setting(NYA_ConstCString variable, NYA_ConstCString fallback) {
     NYA_ConstCString value = getenv(variable);

@@ -208,6 +208,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_windows_x86_64 = {
             INCLUDE_PATHS,
             FLAGS_PLUGINS,
             FLAGS_RELEASE,
+            FLAGS_HARDEN_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
         },
     },
@@ -271,6 +272,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_windows_x86_64 = {
             INCLUDE_PATHS,
             FLAGS_PLUGINS,
             FLAGS_STEAM,
+            FLAGS_HARDEN_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
         },
     },
