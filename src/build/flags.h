@@ -107,45 +107,55 @@
 #define LINKER_FLAGS  "-lm", "-pthread"
 
 /*
- * Which engine modules are optional today. `db` wants sqlite on the include line, which a host tool
- * build does not have, so it is switched on here rather than compiled unconditionally by
- * nyangine.h. The component system in TODO.md's roadmap replaces this with a component list.
- */
-#define FLAGS_MODULES "-DNYA_MODULE_DB", FLAGS_MODULE_TLS FLAGS_MODULE_COMPRESSION
-
-/*
+ * Which engine modules are optional today, resolved per target rather than per host: `tls` and HTTP
+ * compression are on for a Linux target and off for a Windows one, and the build tool that assembles
+ * these lists is itself a Linux binary when it cross compiles the Windows target — so a plain
+ * `#if OS_WINDOWS` would hand a cross compiled Windows build the Linux module set and look for OpenSSL
+ * headers a mingw sysroot does not have. The two target sets are spelled out, and FLAGS_MODULES below
+ * picks the host's own for the rules built to run here (the tests, the build tool, the checks).
+ *
+ * `db` wants sqlite on the include line, which a host tool build does not have, so it is switched on
+ * here rather than compiled unconditionally by nyangine.h. The component system in TODO.md's roadmap
+ * replaces this with a component list.
+ *
  * `tls` links the system's OpenSSL, which a Windows build has no copy of: curl reaches TLS through
  * Schannel there, so that link line carries no libssl. See tls.h for why the library is the system's
  * rather than vendored, and why nya_tls_available answering false is the honest Windows story for now.
- */
-#if OS_WINDOWS
-#define FLAGS_MODULE_TLS "-DNYA_NO_TLS"
-#else
-#define FLAGS_MODULE_TLS "-DNYA_MODULE_TLS"
-#endif
-
-/*
+ *
  * HTTP response compression reaches the system's zlib and brotli, which a Windows build here has no
  * copy of on the link line — so the feature is Linux only for now and compiles to a no-op elsewhere,
- * the same shape as `tls` above. The libraries themselves are added to the Linux link in
- * FLAGS_LINUX_X86_64, next to the rpath, since they are a system dependency and not a vendored archive.
- * NYA_HTTP_COMPRESSION turns on gzip and deflate; NYA_HTTP_COMPRESSION_BROTLI adds `br`.
+ * the same shape as `tls`. The libraries themselves are added to the Linux link in FLAGS_LINUX_X86_64,
+ * next to the rpath, since they are a system dependency and not a vendored archive. NYA_HTTP_COMPRESSION
+ * turns on gzip and deflate; NYA_HTTP_COMPRESSION_BROTLI adds `br`.
  *
- * A leading comma rather than a trailing one, and no comma before it in FLAGS_MODULES: that is how a
- * macro that may expand to nothing joins a list here without leaving a double comma behind on the
- * platform where it is empty, the same trick FLAGS_TARGET_WINDOWS_X86_64 uses.
+ * The compression macro is a leading comma rather than a trailing one, with no comma before it in the
+ * module lists: that is how a macro that may expand to nothing joins a list without leaving a double
+ * comma behind on the target where it is empty, the same trick FLAGS_TARGET_WINDOWS_X86_64 uses.
  */
+#define FLAGS_MODULE_TLS_LINUX_X86_64           "-DNYA_MODULE_TLS"
+#define FLAGS_MODULE_TLS_WINDOWS_X86_64         "-DNYA_NO_TLS"
+#define FLAGS_MODULE_COMPRESSION_LINUX_X86_64   , "-DNYA_HTTP_COMPRESSION", "-DNYA_HTTP_COMPRESSION_BROTLI"
+#define FLAGS_MODULE_COMPRESSION_WINDOWS_X86_64
+
+#define FLAGS_MODULES_LINUX_X86_64   "-DNYA_MODULE_DB", FLAGS_MODULE_TLS_LINUX_X86_64 FLAGS_MODULE_COMPRESSION_LINUX_X86_64
+#define FLAGS_MODULES_WINDOWS_X86_64 "-DNYA_MODULE_DB", FLAGS_MODULE_TLS_WINDOWS_X86_64 FLAGS_MODULE_COMPRESSION_WINDOWS_X86_64
+
+// The module set for a rule built to run on this host: the tests, the build tool and `./build check`.
+// A Windows host never cross compiles a Linux target, so a host gate is right for the native side.
 #if OS_WINDOWS
-#define FLAGS_MODULE_COMPRESSION
+#define FLAGS_MODULES FLAGS_MODULES_WINDOWS_X86_64
 #else
-#define FLAGS_MODULE_COMPRESSION , "-DNYA_HTTP_COMPRESSION", "-DNYA_HTTP_COMPRESSION_BROTLI"
+#define FLAGS_MODULES FLAGS_MODULES_LINUX_X86_64
 #endif
 
 /*
- * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h. The optional
- * modules ride along, so every rule that compiles the project passes both with one macro.
+ * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h. The plugin list
+ * itself is target independent; only the modules that ride along with it differ, so the Windows target
+ * rules pass FLAGS_PLUGINS_WINDOWS_X86_64 to pin the Windows module set no matter the building host.
  */
-#define FLAGS_PLUGINS FLAGS_MODULES, "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
+#define FLAGS_PLUGIN_LIST "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
+#define FLAGS_PLUGINS               FLAGS_MODULES, FLAGS_PLUGIN_LIST
+#define FLAGS_PLUGINS_WINDOWS_X86_64 FLAGS_MODULES_WINDOWS_X86_64, FLAGS_PLUGIN_LIST
 
 /*
  * The game's one decision about what a Lua plugin may touch, fixed here and nowhere else: nothing at

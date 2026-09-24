@@ -38,7 +38,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_executable_windows = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_DEBUG,
             FLAGS_TARGET_WINDOWS_X86_64
         },
@@ -101,7 +101,7 @@ NYA_INTERNAL NYA_BuildRule compile_terminal_windows = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_DEBUG,
             FLAGS_TERMINAL,
             FLAGS_TARGET_WINDOWS_X86_64
@@ -127,7 +127,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_dll_windows = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_DEBUG,
             FLAGS_TARGET_WINDOWS_X86_64
         },
@@ -206,7 +206,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_windows_x86_64 = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_RELEASE,
             FLAGS_HARDEN_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
@@ -270,7 +270,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_windows_x86_64 = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_STEAM,
             FLAGS_HARDEN_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
@@ -349,7 +349,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_executable_windows = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_DEVELOPER,
             FLAGS_TARGET_WINDOWS_X86_64
         },
@@ -398,7 +398,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_dll_windows = {
             CFLAGS,
             WARNINGS,
             INCLUDE_PATHS,
-            FLAGS_PLUGINS,
+            FLAGS_PLUGINS_WINDOWS_X86_64,
             FLAGS_DEVELOPER,
             FLAGS_TARGET_WINDOWS_X86_64
         },

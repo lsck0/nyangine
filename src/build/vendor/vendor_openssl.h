@@ -13,7 +13,7 @@
  * this program depends on.
  *
  * Linux only. The Windows build reaches TLS through Schannel inside curl and has no libssl to link, so
- * `tls` compiles to its "no TLS library" half there; see FLAGS_MODULE_TLS in flags.h.
+ * `tls` compiles to its "no TLS library" half there; see FLAGS_MODULE_TLS_WINDOWS_X86_64 in flags.h.
  * */
 #pragma once
 
