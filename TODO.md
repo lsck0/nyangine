@@ -33,6 +33,8 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 ---
 
+## In flight (batch 3): water wave-heightfield + depth-foam, WebSocket net transport + key allowlist + version rejection, stereo panner, SBOM + licence allowlist + CVE check, privacy pass (crash PII scrub + metrics loopback).
+
 ## Recently landed (2026-09-24, agent batch)
 
 Shipping hardening (`2c758ee8`, RELRO+BIND_NOW+NX+fortify ELF-verified), UI theme `.nya` files (`14e26f05`), planar water sky-reflection (`03999130`), the `web_frontend` example (`73368828`, seventh example), signed plugins (`f4c21979`, Ed25519 + pinned keys, refuse-unsigned). Earlier same day: particles/fluid wind, weather rain/snow, instanced grass, textureGather web variant + depth/MSAA FBOs, reload-safe handlers, supervised restart, docs site, SSR write-back/styles, and the showcase-dark fix.
