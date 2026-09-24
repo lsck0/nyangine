@@ -79,11 +79,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of the random nonce the server puts in a challenge. Sixteen: a nonce guessed is a wall walked around. */
 #define NYA_HTTP_POW_NONCE_BYTES 16
@@ -132,11 +128,7 @@
 /** The found suffix, base64url, on the request that answers a challenge. */
 #define NYA_HTTP_POW_SOLUTION_HEADER "X-Pow-Solution"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpPowOptions NYA_HttpPowOptions;
 
@@ -149,11 +141,7 @@ struct NYA_HttpPowOptions {
     u64 ttl_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Readies the one store the layer uses: sets its difficulty and TTL, makes its spent-nonce lock out of

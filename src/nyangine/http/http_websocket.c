@@ -9,11 +9,7 @@
 #include "nyangine/http/http_websocket.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Whether `opcode` is one of the six the RFC defines, rather than a reserved value. */
 NYA_INTERNAL b8 _nya_websocket_opcode_is_known(NYA_WebSocketOpcode opcode) __attr_no_discard;
@@ -34,17 +30,9 @@ NYA_INTERNAL void _nya_websocket_reason_set(NYA_WebSocketProtocol* protocol, NYA
 NYA_INTERNAL void
 _nya_websocket_protocol_refuse(NYA_WebSocketProtocol* protocol, NYA_WebSocketClose code, NYA_ConstCString reason, OUT NYA_WebSocketEvent* out_event);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * FRAMING
- * ─────────────────────────────────────────────────────────
- */
+// FRAMING
 
 NYA_Error nya_websocket_frame_encode(
     NYA_WebSocketOpcode opcode,
@@ -80,8 +68,7 @@ NYA_Error nya_websocket_frame_encode(
 
     out_header[at++] = (u8)((fin ? 0x80U : 0U) | ((u32)opcode & 0x0FU));
 
-    // The mask bit is the role: a client masks every frame and a server masks none, so a null key here
-    // is a server's frame rather than a client's that forgot one.
+    // The mask bit is the role: a client masks every frame and a server masks none, so a null key here is a server's frame rather than a client's that forgot one.
     u32 masked = mask != nullptr ? 0x80U : 0U;
 
     if (payload_size < 126) {
@@ -182,8 +169,7 @@ NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char out_accep
 
     u64 length = strlen(key);
 
-    // A key is base64 of sixteen bytes, so it is always exactly this long. A longer one is refused
-    // rather than hashed, which is what keeps the material below a fixed size on the stack.
+    // A key is base64 of sixteen bytes, so always exactly this long; a longer one is refused rather than hashed, which keeps the material below a fixed size on the stack.
     if (length != NYA_WEBSOCKET_KEY_TEXT_BYTES - 1) {
         return nya_error(
             NYA_ERROR_INVALID_ARGUMENT,
@@ -241,11 +227,7 @@ NYA_ConstCString nya_websocket_close_name(NYA_WebSocketClose code) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE PROTOCOL
- * ─────────────────────────────────────────────────────────
- */
+// THE PROTOCOL
 
 NYA_Error nya_websocket_protocol_open(OUT NYA_WebSocketProtocol* protocol, NYA_WebSocketProtocolConfig config) {
     nya_assert(protocol != nullptr);
@@ -323,8 +305,7 @@ NYA_Error nya_websocket_protocol_close(NYA_WebSocketProtocol* protocol, NYA_WebS
     nya_assert(header_size + size <= protocol->send_capacity, "a close frame always fits; see nya_websocket_protocol_open");
 
     if (header_size + size > protocol->send_capacity - protocol->send_size) {
-        // Nothing this end has queued matters more than the goodbye, and the peer is about to stop
-        // reading anyway, so the queue is given over to it rather than the close being dropped.
+        // Nothing this end queued matters more than the goodbye, and the peer is about to stop reading, so the queue is given over to it rather than the close being dropped.
         protocol->send_size = 0;
     }
 
@@ -355,8 +336,7 @@ NYA_Error nya_websocket_protocol_send(NYA_WebSocketProtocol* protocol, NYA_WebSo
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a control frame carries at most %u bytes", (u32)NYA_WEBSOCKET_MAX_CONTROL_BYTES);
     }
 
-    // Checked going out as well as coming in: a peer is entitled to close a connection whose text is
-    // not UTF-8, so sending some would be this end breaking the protocol rather than the other.
+    // Checked going out as well as coming in: a peer may close a connection whose text isn't UTF-8, so sending some would be this end breaking the protocol rather than the other.
     if (opcode == NYA_WEBSOCKET_OPCODE_TEXT && !_nya_websocket_is_utf8(data, size)) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a text message has to be utf-8");
     }
@@ -374,8 +354,7 @@ NYA_Error nya_websocket_protocol_send(NYA_WebSocketProtocol* protocol, NYA_WebSo
 
     nya_assert(protocol->send_size <= protocol->send_capacity);
 
-    // Room for both halves checked before either is written, so a message never goes out as a header
-    // with no body, which a peer cannot recover from.
+    // Room for both halves checked before either is written, so a message never goes out as a header with no body, which a peer can't recover from.
     if (header_size + size > protocol->send_capacity - protocol->send_size) {
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a %llu byte message does not fit the websocket's queue", (unsigned long long)size);
     }
@@ -419,11 +398,7 @@ b8 nya_websocket_protocol_receive(
                 return true;
             }
 
-            /*
-             * The role, which is the one rule a peer cannot be given the benefit of the doubt on: a
-             * client masks everything and a server masks nothing, so a frame the wrong way round is
-             * either a confused peer or something replaying the other direction's traffic back at us.
-             */
+            // The role, the one rule a peer can't be given the benefit of the doubt on: a client masks everything and a server masks nothing, so a frame the wrong way round is a confused peer or something replaying the other direction's traffic back at us.
             if (protocol->role == NYA_WEBSOCKET_ROLE_SERVER && !frame.masked) {
                 _nya_websocket_protocol_refuse(protocol, NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR, "a client frame that is not masked", out_event);
                 return true;
@@ -467,8 +442,7 @@ b8 nya_websocket_protocol_receive(
                     return true;
                 }
 
-                // The bound on the work rather than the size: a peer may not spend forever not finishing
-                // a message. See NYA_WEBSOCKET_MAX_FRAGMENTS.
+                // The bound on the work rather than the size: a peer may not spend forever not finishing a message. See NYA_WEBSOCKET_MAX_FRAGMENTS.
                 if (protocol->message_fragments >= NYA_WEBSOCKET_MAX_FRAGMENTS) {
                     _nya_websocket_protocol_refuse(
                         protocol,
@@ -506,8 +480,7 @@ b8 nya_websocket_protocol_receive(
                 "a payload was let past its bound before it was copied"
             );
 
-            // Unmasked on the way in rather than in place, because `data` is the caller's buffer and the
-            // mask runs across whatever slice of the frame happened to arrive.
+            // Unmasked on the way in rather than in place, because `data` is the caller's buffer and the mask runs across whatever slice of the frame arrived.
             if (protocol->frame.masked) {
                 for (u64 i = 0; i < available; i++) into[i] = (u8)(payload[i] ^ protocol->frame.mask[(protocol->payload_read + i) & 3U]);
             } else {
@@ -533,9 +506,7 @@ b8 nya_websocket_protocol_receive(
 
             switch (protocol->frame.opcode) {
                 case NYA_WEBSOCKET_OPCODE_PING: {
-                    // Answered rather than reported: the RFC requires a pong with the same payload, and a
-                    // caller has nothing to decide about one. A queue with no room for it is a peer that
-                    // has stopped reading, which is the caller's pending-write bound to notice.
+                    // Answered rather than reported: the RFC requires a pong with the same payload and a caller has nothing to decide about one; a queue with no room for it is a peer that stopped reading, the caller's pending-write bound to notice.
                     (void)nya_websocket_protocol_send(protocol, NYA_WEBSOCKET_OPCODE_PONG, protocol->control, protocol->control_size);
                     break;
                 }
@@ -581,11 +552,7 @@ b8 nya_websocket_protocol_receive(
                         return true;
                     }
 
-                    /*
-                     * Echoed once, so the peer may close the socket, unless we already said goodbye. The
-                     * same code back and nothing else: a reason is the sender's to give, and echoing the
-                     * peer's own bytes back at it says nothing it does not know.
-                     */
+                    // Echoed once, so the peer may close the socket, unless we already said goodbye: the same code back and nothing else — a reason is the sender's to give, and echoing the peer's own bytes says nothing it doesn't know.
                     if (!protocol->close_sent) (void)nya_websocket_protocol_close(protocol, code, nullptr);
 
                     protocol->closed     = true;
@@ -683,11 +650,7 @@ b8 nya_websocket_protocol_is_closing(const NYA_WebSocketProtocol* protocol) {
     return protocol->close_sent && !protocol->closed;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_websocket_opcode_is_known(NYA_WebSocketOpcode opcode) {
     return opcode == NYA_WEBSOCKET_OPCODE_CONTINUATION || opcode == NYA_WEBSOCKET_OPCODE_TEXT || opcode == NYA_WEBSOCKET_OPCODE_BINARY ||
@@ -699,8 +662,7 @@ b8 _nya_websocket_opcode_is_control(NYA_WebSocketOpcode opcode) {
 }
 
 b8 _nya_websocket_close_code_is_sendable(u32 code) {
-    // 1005 and 1006 are what a local end reports when nothing was sent at all, and 1015 is the TLS
-    // failure; a peer that puts one on the wire is saying something the RFC says it cannot say.
+    // 1005 and 1006 are what a local end reports when nothing was sent at all, and 1015 is the TLS failure; a peer that puts one on the wire is saying something the RFC says it can't.
     if (code >= 1000 && code <= 1003) return true;
     if (code >= 1007 && code <= 1014) return true;
 
@@ -728,9 +690,7 @@ void _nya_websocket_protocol_refuse(
     nya_assert(protocol != nullptr);
     nya_assert(out_event != nullptr);
 
-    // Said out loud before the connection is given up on: RFC 6455 section 7.1.7 lets a failing endpoint
-    // send one close frame, and a peer that is told 1002 can fix its framing where one that is dropped
-    // learns nothing.
+    // Said out loud before the connection is given up: RFC 6455 section 7.1.7 lets a failing endpoint send one close frame, and a peer told 1002 can fix its framing where one that's dropped learns nothing.
     (void)nya_websocket_protocol_close(protocol, code, reason);
 
     protocol->closed     = true;

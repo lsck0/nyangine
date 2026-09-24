@@ -2,34 +2,19 @@
 #include "nyangine/http/http_doc.h"
 #include "nyangine/http/http_robots.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
-/*
- * The deny-all preset, spelled once. A comment so a person reading the file sees why it is empty of
- * everything but the one rule, then the rule itself: every crawler, nothing allowed.
- */
+// The deny-all preset, spelled once: every crawler, nothing allowed.
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_ROBOTS_STRICT = "# This site asks not to be crawled.\n"
                                                              "User-agent: *\n"
                                                              "Disallow: /\n";
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Whether `text` is safe on a robots.txt line: no control byte, since the format has no way to escape one. */
 NYA_INTERNAL b8 _nya_http_robots_line_safe(NYA_ConstCString text) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_robots_build(NYA_Arena* arena, NYA_HttpRobotsConfig config, OUT NYA_ConstCString* out) {
     nya_assert(arena != nullptr && out != nullptr);
@@ -107,18 +92,13 @@ NYA_Error nya_http_robots_mount_strict(void) {
     return nya_http_doc_serve(NYA_HTTP_ROBOTS_PATH, NYA_HTTP_MEDIA_TEXT, nya_http_robots_strict(), "The crawl rules: deny all");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_robots_line_safe(NYA_ConstCString text) {
     if (text == nullptr) return true;
 
     for (u64 i = 0; text[i] != '\0'; i++) {
-        // Anything below a space is a control byte — a CR or an LF among them — and could split one line
-        // into two directives, which is the one thing a format with no escape cannot allow.
+        // Anything below a space is a control byte (CR or LF among them) that could split one line into two directives, the one thing a format with no escape can't allow.
         if ((unsigned char)text[i] < 0x20) return false;
     }
 

@@ -70,11 +70,7 @@
 #include "nyangine/crypto/crypto_encoding.h"
 #include "nyangine/crypto/crypto_totp.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Longest issuer and account in an enrolment, terminator included. A program's name and a user's name. */
 #define NYA_HTTP_TOTP_ISSUER_MAX  64
@@ -124,11 +120,7 @@
 #define NYA_HTTP_TOTP_ATTEMPTS_MAX     5
 #define NYA_HTTP_TOTP_ATTEMPT_WINDOW_S 60
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_HttpTotpVerdict          NYA_HttpTotpVerdict;
 typedef struct NYA_HttpTotpRecoveryHash   NYA_HttpTotpRecoveryHash;
@@ -221,15 +213,7 @@ struct NYA_HttpTotpGuard {
     u64 window_started_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE DTOs
- * ─────────────────────────────────────────────────────────
- *
- * What a second factor route takes and answers with, on the wire. Reflected, so the OpenAPI document
- * describes them and nothing writes the schema by hand — and tagged, so the one thing every field here
- * holds never reaches a log; see http_log.h and base_reflection.h's `@redact`.
- */
+// THE DTOs — what a second factor route takes and answers with; reflected for OpenAPI, tagged @redact so codes never reach a log.
 
 // @reflect
 /** One submitted code: six digits from an authenticator, or a recovery code off paper. */
@@ -261,17 +245,9 @@ struct NYA_HttpTotpEnrolmentDto {
     NYA_HttpTotpRecoveryDto recovery[NYA_HTTP_TOTP_RECOVERY_CODES];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * ENROLMENT
- * ─────────────────────────────────────────────────────────
- */
+// ENROLMENT
 
 /**
  * A fresh secret, the URI an authenticator scans, and NYA_HTTP_TOTP_RECOVERY_CODES recovery codes.
@@ -291,11 +267,7 @@ NYA_API NYA_Error nya_http_totp_enrol_create(NYA_ConstCString issuer, NYA_ConstC
 /** Wipes the whole enrolment, secret, URI, base32 and codes alike. Safe on one never created. */
 NYA_API void nya_http_totp_enrol_destroy(NYA_HttpTotpEnrolment* enrolment);
 
-/*
- * ─────────────────────────────────────────────────────────
- * VERIFICATION
- * ─────────────────────────────────────────────────────────
- */
+// VERIFICATION
 
 /**
  * Whether `code` is this secret's, for the step `now_s` falls in or either neighbour.

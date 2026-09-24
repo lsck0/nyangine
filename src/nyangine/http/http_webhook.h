@@ -48,11 +48,7 @@
 #include "nyangine/crypto/crypto_sign.h"
 #include "nyangine/http/http_router.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * How far a webhook's timestamp may be from this server's clock, either way.
@@ -69,11 +65,7 @@
 /** Longest message assembled for signing: the id, the timestamp and the body, with the body's bound the real one. */
 #define NYA_HTTP_WEBHOOK_MAX_MESSAGE (NYA_HTTP_MAX_BODY_BYTES + 256)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** Which primitive proves the request, and what goes into the message it is proved over. */
 typedef enum {
@@ -137,11 +129,7 @@ typedef struct {
     u64 tolerance_s;
 } NYA_HttpWebhook;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Whether this exchange's body really came from the holder of that secret or key.

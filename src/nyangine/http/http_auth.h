@@ -53,11 +53,7 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Longest subject, terminator included. A subject is a user name or a tool name, not a sentence. */
 #define NYA_HTTP_MAX_SUBJECT 64
@@ -86,11 +82,7 @@
  * */
 #define NYA_HTTP_CHALLENGE_WINDOW_S 30
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_HttpScope      NYA_HttpScope;
 typedef struct NYA_HttpIdentity NYA_HttpIdentity;
@@ -149,17 +141,9 @@ typedef NYA_Error (*NYA_HttpSecondFactorFn)(
     u64              signature_size
 );
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * TOKENS
- * ─────────────────────────────────────────────────────────
- */
+// TOKENS
 
 /**
  * Signs `identity` into `out_token` as a compact JWS.
@@ -210,20 +194,12 @@ NYA_API b8 nya_http_bearer_token(const NYA_HttpRequest* request, OUT const char*
  * */
 NYA_API b8 nya_http_access_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size);
 
-/*
- * ─────────────────────────────────────────────────────────
- * SCOPES
- * ─────────────────────────────────────────────────────────
- */
+// SCOPES
 
 /** Whether `identity` carries every bit in `required`. NYA_HTTP_SCOPE_NONE is carried by everyone. */
 NYA_API b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope required) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SECOND FACTOR
- * ─────────────────────────────────────────────────────────
- */
+// THE SECOND FACTOR
 
 /**
  * A challenge for `subject`, valid for the window `now_s` falls in.

@@ -7,11 +7,7 @@
 #include "nyangine/http/http_server.h"
 #include "nyangine/http/http_websocket_server.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct _NYA_HttpWebSocketState _NYA_HttpWebSocketState;
 
@@ -54,11 +50,7 @@ struct _NYA_HttpWebSocketState {
     NYA_HttpWebSocket connections[NYA_HTTP_MAX_WEBSOCKETS];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /** Null until a program mounts its first route, which is when a server pays for any of this. */
 NYA_INTERNAL _NYA_HttpWebSocketState* _NYA_HTTP_WEBSOCKET = nullptr;
@@ -70,16 +62,9 @@ NYA_INTERNAL _NYA_HttpWebSocketState* _NYA_HTTP_WEBSOCKET = nullptr;
  * */
 NYA_INTERNAL u32 _NYA_HTTP_WEBSOCKET_COUNT = 0;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/*
- * What http_server.c calls, which is why this file is included before it: a connection becomes a
- * WebSocket where a request would otherwise be answered, and is drained and closed where one would be.
- */
+// What http_server.c calls, which is why this file is included before it: a connection becomes a WebSocket where a request would otherwise be answered, and is drained and closed where one would be.
 
 /** Whether `request` is asking for the upgrade at all, by its two headers and nothing else. */
 NYA_INTERNAL b8 _nya_http_websocket_is_upgrade(const NYA_HttpRequest* request) __attr_no_discard;
@@ -119,17 +104,9 @@ NYA_INTERNAL b8 _nya_http_websocket_flush(NYA_HttpWebSocket* connection) __attr_
 /** Takes `count` bytes off the front of the receive buffer. */
 NYA_INTERNAL void _nya_http_websocket_consume(NYA_HttpWebSocket* connection, u64 count);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────
- */
+// ROUTES
 
 NYA_Error nya_http_websocket_route_add(const NYA_HttpWebSocketRoute* route) {
     if (!nya_http_server_is_running()) return nya_error(NYA_ERROR_NOT_FOUND, "the HTTP server is not running");
@@ -154,8 +131,7 @@ NYA_Error nya_http_websocket_route_add(const NYA_HttpWebSocketRoute* route) {
             return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the websocket table");
         }
 
-        // memset rather than a compound literal: the table is a hundred kilobytes of buffers, and an
-        // unoptimized build would build all of it on the stack first.
+        // memset rather than a compound literal: the table is a hundred kilobytes of buffers, and an unoptimized build would build all of it on the stack first.
         nya_memset(state, 0, sizeof(*state));
         state->allocator = arena;
 
@@ -199,8 +175,7 @@ void nya_http_websocket_route_remove(const NYA_HttpWebSocketRoute* route) {
 
     if (!mounted) return;
 
-    // Whoever is still on it is told the stream is going away rather than left calling back into a
-    // route the program has already forgotten.
+    // Whoever is still on it is told the stream is going away rather than left calling back into a route the program has already forgotten.
     for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
         NYA_HttpWebSocket* connection = &_NYA_HTTP_WEBSOCKET->connections[index];
 
@@ -213,11 +188,7 @@ void nya_http_websocket_route_remove(const NYA_HttpWebSocketRoute* route) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MESSAGES
- * ─────────────────────────────────────────────────────────
- */
+// MESSAGES
 
 NYA_Error nya_http_websocket_send_text(NYA_HttpWebSocket* socket, NYA_ConstCString text) {
     nya_assert(socket != nullptr);
@@ -237,8 +208,7 @@ u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString te
 
         if (connection->socket.handle == 0 || strcmp(connection->route->path, path) != 0) continue;
 
-        // Skipped rather than failing the whole push: one peer that has stopped reading is the
-        // pending-write bound's to deal with, not the other peers' problem.
+        // Skipped rather than failing the whole push: one peer that stopped reading is the pending-write bound's to deal with, not the other peers' problem.
         if (nya_http_websocket_send_text(connection, text).ok) sent++;
     }
 
@@ -251,11 +221,7 @@ NYA_WebSocketProtocol* nya_http_websocket_protocol(NYA_HttpWebSocket* socket) {
     return socket->socket.handle != 0 ? &socket->protocol : nullptr;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTROSPECTION
- * ─────────────────────────────────────────────────────────
- */
+// INTROSPECTION
 
 u32 nya_http_websocket_count(void) {
     return _NYA_HTTP_WEBSOCKET_COUNT;
@@ -288,11 +254,7 @@ NYA_ConstCString nya_http_websocket_address(const NYA_HttpWebSocket* socket) {
     return socket->address;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_websocket_is_upgrade(const NYA_HttpRequest* request) {
     nya_assert(request != nullptr);
@@ -304,8 +266,7 @@ b8 _nya_http_websocket_is_upgrade(const NYA_HttpRequest* request) {
 
     if (upgrade == nullptr || connection == nullptr) return false;
 
-    // Both headers are lists, so both are read as lists: "Connection: keep-alive, Upgrade" is what
-    // every browser actually sends.
+    // Both headers are lists, so both are read as lists: "Connection: keep-alive, Upgrade" is what every browser actually sends.
     return _nya_http_websocket_has_token(upgrade, "websocket") && _nya_http_websocket_has_token(connection, "upgrade");
 }
 
@@ -324,8 +285,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
 
     *out_detail = "";
 
-    // RFC 6455 section 4.1: the handshake is a GET. Anything else with these headers on it is a client
-    // that has invented something, and this server does not guess what.
+    // RFC 6455 section 4.1: the handshake is a GET; anything else with these headers is a client that invented something, and this server doesn't guess what.
     if (request->method != NYA_HTTP_METHOD_GET) {
         *out_detail = "a websocket handshake is a GET";
         return NYA_HTTP_STATUS_BAD_REQUEST;
@@ -341,11 +301,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
         return NYA_HTTP_STATUS_NOT_FOUND;
     }
 
-    /*
-     * The same origin check every request that changes something goes through. An upgrade is a GET, so
-     * nothing about the method would have brought it here, and a socket a page on another site opened
-     * would read everything this program pushes for as long as it stayed open.
-     */
+    // The same origin check every request that changes something goes through: an upgrade is a GET, so nothing about the method would have brought it here, and a socket a page on another site opened would read everything this program pushes for as long as it stayed open.
     if (_nya_http_request_is_cross_site(request)) {
         *out_detail = "a page on another site may not open a socket here";
         return NYA_HTTP_STATUS_FORBIDDEN;
@@ -353,8 +309,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
 
     NYA_ConstCString version = nya_http_request_header(request, "sec-websocket-version");
 
-    // 426 is what the RFC names for this, and this server's status set does not have one; the client
-    // gets the version it must use in the problem body instead of in a header it would have to parse.
+    // 426 is what the RFC names for this and this server's status set lacks it; the client gets the version it must use in the problem body instead of in a header it would have to parse.
     if (version == nullptr || strcmp(version, "13") != 0) {
         *out_detail = "this server speaks websocket version 13 and no other";
         return NYA_HTTP_STATUS_BAD_REQUEST;
@@ -364,19 +319,13 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
 
     char accept[NYA_WEBSOCKET_ACCEPT_LENGTH + 1] = { 0 };
 
-    // The key is hashed rather than trusted, and a key that is not a key is refused by the same
-    // function the client checks the answer with, so neither end has a second idea of what one is.
+    // The key is hashed rather than trusted, and a key that isn't a key is refused by the same function the client checks the answer with, so neither end has a second idea of what one is.
     if (key == nullptr || !nya_websocket_accept_from_key(key, accept).ok) {
         *out_detail = "the handshake carries no usable Sec-WebSocket-Key";
         return NYA_HTTP_STATUS_BAD_REQUEST;
     }
 
-    /*
-     * RFC 6455 section 4.1: a client sends nothing after the handshake until the 101 comes back. Bytes
-     * already in the buffer are therefore either a client that does not follow the protocol or someone
-     * smuggling a second request through whatever is in front of this server, and neither is worth
-     * deciding between.
-     */
+    // RFC 6455 section 4.1: a client sends nothing after the handshake until the 101 comes back, so bytes already in the buffer are either a client that doesn't follow the protocol or someone smuggling a second request through whatever is in front of this server — neither worth deciding between.
     if (trailing > 0) {
         *out_detail = "a client may not send anything before the handshake is answered";
         return NYA_HTTP_STATUS_BAD_REQUEST;
@@ -406,11 +355,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
         return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
     }
 
-    /*
-     * A 101 and nothing else. No Content-Length, no body and none of the response headers the rest of
-     * the server adds: what follows the blank line is frames, and a byte that is not one of them would
-     * be read as the first frame.
-     */
+    // A 101 and nothing else: no Content-Length, no body, none of the response headers the rest of the server adds — what follows the blank line is frames, and a stray byte would be read as the first frame.
     char answer[256] = { 0 };
 
     s32 written = snprintf(
@@ -428,9 +373,7 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
 
     u64 answered = 0;
 
-    // The 101 is under two hundred bytes into a socket that has just been accepted and has written
-    // nothing, so a host that takes part of it has a full buffer for another reason entirely: that is
-    // a connection worth refusing rather than queueing behind.
+    // The 101 is under two hundred bytes into a just-accepted socket that has written nothing, so a host that takes only part of it has a full buffer for another reason entirely: a connection worth refusing rather than queueing behind.
     if (nya_os_socket_send(socket, (const u8*)answer, (u64)written, &answered) != NYA_OS_SOCKET_OK || answered != (u64)written) {
         *out_detail = "the handshake could not be answered";
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -472,8 +415,7 @@ b8 _nya_http_websocket_tick(NYA_OsSocket socket) {
 
     if (connection == nullptr) return false;
 
-    // Whatever has arrived, into whatever room is left. A buffer with no room is a peer that has sent
-    // more than a header without finishing a frame, which the frame bound has already refused.
+    // Whatever has arrived, into whatever room is left: a buffer with no room is a peer that sent more than a header without finishing a frame, which the frame bound already refused.
     u64 room = sizeof(connection->receive) - connection->receive_size;
 
     if (room > 0) {
@@ -493,8 +435,7 @@ b8 _nya_http_websocket_tick(NYA_OsSocket socket) {
         }
     }
 
-    // One tick's worth of messages, so a peer that pipelines cannot take the drain; the rest of what it
-    // sent stays in the buffer for the next one.
+    // One tick's worth of messages, so a peer that pipelines can't take the drain; the rest of what it sent stays in the buffer for the next one.
     for (u32 step = 0; step < NYA_HTTP_WEBSOCKET_MAX_MESSAGES_PER_TICK; step++) {
         NYA_WebSocketEvent event    = { 0 };
         u64                consumed = 0;
@@ -506,8 +447,7 @@ b8 _nya_http_websocket_tick(NYA_OsSocket socket) {
         if (!produced) break;
 
         if (event.kind == NYA_WEBSOCKET_EVENT_CLOSED) {
-            // The goodbye the protocol queued goes out before the socket does; the close is reported
-            // from the detach, so it is reported exactly once however the connection ended.
+            // The goodbye the protocol queued goes out before the socket does; the close is reported from the detach, so it's reported exactly once however the connection ended.
             (void)_nya_http_websocket_flush(connection);
             return false;
         }
@@ -521,8 +461,7 @@ b8 _nya_http_websocket_tick(NYA_OsSocket socket) {
 
     if (!_nya_http_websocket_flush(connection)) return false;
 
-    // A peer that has stopped reading, which is the same bound an HTTP answer is held to: what the
-    // host would not take stays in the protocol's queue, so this is where that stops growing.
+    // A peer that stopped reading, the same bound an HTTP answer is held to: what the host wouldn't take stays in the protocol's queue, so this is where that stops growing.
     u64 pending = 0;
     (void)nya_websocket_protocol_pending(&connection->protocol, &pending);
 
@@ -536,8 +475,7 @@ b8 _nya_http_websocket_tick(NYA_OsSocket socket) {
 
     if (quiet_ns > (u64)NYA_HTTP_WEBSOCKET_IDLE_TIMEOUT_MS * 1000000ULL) return false;
 
-    // One ping per interval, not one per tick: the pong resets `heard_at_ns`, and a peer that is gone
-    // never answers, so the timeout above is what it runs into.
+    // One ping per interval, not one per tick: the pong resets `heard_at_ns`, and a peer that's gone never answers, so the timeout above is what it runs into.
     if (quiet_ns > (u64)NYA_HTTP_WEBSOCKET_PING_INTERVAL_MS * 1000000ULL && connection->pinged_at_ns < connection->heard_at_ns) {
         connection->pinged_at_ns = now_ns;
 
@@ -556,15 +494,12 @@ void _nya_http_websocket_detach(NYA_OsSocket socket) {
 
     NYA_WebSocketClose code = nya_websocket_protocol_close_code(&connection->protocol);
 
-    // A socket that goes away without a close frame is 1006, which is the one code that means exactly
-    // "nobody said goodbye".
+    // A socket that goes away without a close frame is 1006, the one code that means exactly "nobody said goodbye".
     if (!nya_websocket_protocol_is_closed(&connection->protocol)) code = NYA_WEBSOCKET_CLOSE_ABNORMAL;
 
     const NYA_HttpWebSocketRoute* route = connection->route;
 
-    // Cleared before the callback: a handler that asks what is connected must not be told about a
-    // socket that is already gone, and one that tries to send into it gets nothing rather than bytes
-    // queued for a closed connection.
+    // Cleared before the callback: a handler asking what's connected must not be told about an already-gone socket, and one that tries to send into it gets nothing rather than bytes queued for a closed connection.
     connection->socket = NYA_OS_SOCKET_NONE;
 
     nya_assert(_NYA_HTTP_WEBSOCKET_COUNT > 0, "a websocket was detached that was never counted");
@@ -583,8 +518,7 @@ void _nya_http_websocket_shutdown(void) {
 
         if (connection->socket.handle == 0) continue;
 
-        // The socket itself belongs to the HTTP connection, which is closing it in the same breath;
-        // this is only the report and the slot.
+        // The socket itself belongs to the HTTP connection, which is closing it in the same breath; this is only the report and the slot.
         _nya_http_websocket_detach(connection->socket);
     }
 
@@ -637,8 +571,7 @@ b8 _nya_http_websocket_flush(NYA_HttpWebSocket* connection) {
 
     NYA_OsSocketStatus status = nya_os_socket_send(connection->socket, queued, size, &wrote);
 
-    // A full host buffer is a peer reading slowly: what it would not take stays queued, and the bound
-    // in the tick is what decides when that stops being fine.
+    // A full host buffer is a peer reading slowly: what it wouldn't take stays queued, and the bound in the tick decides when that stops being fine.
     if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) {
         nya_websocket_protocol_fail(&connection->protocol, NYA_WEBSOCKET_CLOSE_ABNORMAL, "the connection dropped");
         return false;

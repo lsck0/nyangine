@@ -8,11 +8,7 @@
 #include "nyangine/serde/serde_nya_binary.h"
 #include "nyangine/serde/serde_reflect.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * A DTO to bytes, through its reflection and the wire format. The mirror of _nya_http_response_document_as
@@ -43,11 +39,7 @@ NYA_INTERNAL NYA_Error _nya_http_client_decode(
 /** Whether `status` is a 2xx, i.e. the server did what was asked. */
 NYA_INTERNAL b8 _nya_http_client_ok(NYA_HttpStatus status) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_client_call(
     NYA_Arena*                     arena,
@@ -65,11 +57,7 @@ NYA_Error nya_http_client_call(
 
     if (out_result != nullptr) *out_result = (NYA_HttpClientResult){ 0 };
 
-    /*
-     * The request has to match the route it names: a body exactly when the route declares one, and a place
-     * to put the answer exactly when the route answers with one. Getting this wrong is the caller's mistake
-     * and is caught here rather than sent as a request the server will only reject.
-     */
+    // The request must match the route it names: a body exactly when the route declares one, a place for the answer exactly when it answers with one; a caller mistake, caught here rather than sent for the server to reject.
     if (route->request_type != nullptr && request_dto == nullptr) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the route declares a request body but none was given");
     }
@@ -80,11 +68,7 @@ NYA_Error nya_http_client_call(
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the route answers with a body but nowhere was given to put it");
     }
 
-    /*
-     * The URL is the base and the route's path, with one trailing slash on the base dropped so it is not
-     * doubled against the route's leading one. A route here is one absolute path matched exactly, with no
-     * parameter to bind: which instance is meant travels in the request DTO, not the path. See the header.
-     */
+    // The URL is base plus the route's path, one trailing slash on the base dropped so it isn't doubled; a route is one absolute path matched exactly, no parameter — which instance travels in the request DTO, not the path. See the header.
     u64 base_length = strlen(base_url);
     if (base_length > 0 && base_url[base_length - 1] == '/') base_length--;
 
@@ -114,11 +98,7 @@ NYA_Error nya_http_client_call(
     // The reply's own format where the transport could tell, the one we asked for otherwise, JSON last.
     NYA_HttpMediaType reply_format = reply.media_type != NYA_HTTP_MEDIA_NONE ? reply.media_type : format;
 
-    /*
-     * A status that is not a 2xx is a refusal, never a response DTO: it carries a NYA_HttpProblem, which is
-     * read into the result when there is one to read, and out_response_dto is left untouched. Surfacing it
-     * as an error rather than parsing the problem body into the response type is the whole point.
-     */
+    // A non-2xx status is a refusal, never a response DTO: it carries a NYA_HttpProblem read into the result, and out_response_dto is left untouched — surfacing it as an error rather than parsing the problem into the response type is the point.
     if (!_nya_http_client_ok(reply.status)) {
         if (out_result != nullptr && reply.body != nullptr && reply.body_size > 0) {
             NYA_HttpProblem problem  = { 0 };
@@ -132,8 +112,7 @@ NYA_Error nya_http_client_call(
         return nya_error(NYA_ERROR_NOT_OK, "the server answered %d", (s32)reply.status);
     }
 
-    // A clean 2xx. Decode into a scratch value first and copy over the caller's DTO only once it parsed
-    // whole, so a body that does not fit the type is a clean error and never a half-written struct.
+    // A clean 2xx: decode into a scratch value first and copy to the caller's DTO only once it parsed whole, so a body that doesn't fit is a clean error, never a half-written struct.
     if (route->response_type != nullptr) {
         void* decoded = nya_arena_alloc(arena, route->response_type->size);
         if (decoded == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to decode the response DTO");
@@ -146,11 +125,7 @@ NYA_Error nya_http_client_call(
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_http_client_encode(
     NYA_Arena*                arena,
@@ -168,8 +143,7 @@ NYA_Error _nya_http_client_encode(
     NYA_String* body = nullptr;
 
     switch (media) {
-        // No checksum: the native format carries one to guard a file on disk against a torn write, and a
-        // request body has TCP underneath it. Answered the same way the server reads it.
+        // No checksum: the native format carries one to guard a disk file against a torn write, but a request body has TCP underneath; answered the same way the server reads it.
         case NYA_HTTP_MEDIA_NYA:        body = nya_serialize(arena, object, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM); break;
         case NYA_HTTP_MEDIA_NYA_BINARY: NYA_TRY(nya_serde_nya_binary_encode(arena, object, type, &body)); break;
         default:                        body = nya_serialize(arena, object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NO_CHECKSUM); break;
@@ -205,8 +179,7 @@ NYA_Error _nya_http_client_decode(
 
     if (object == nullptr) return nya_error(NYA_ERROR_PARSE, "the response body is not an object");
 
-    // Zeroed rather than left alone, the same reason nya_http_request_reflect zeroes: a field the document
-    // omits reads as zero rather than as whatever the buffer held.
+    // Zeroed rather than left alone, like nya_http_request_reflect: an omitted field reads as zero, not as whatever the buffer held.
     memset(out_dto, 0, type->size);
 
     NYA_TRY(nya_reflect_from_object(type, out_dto, object));

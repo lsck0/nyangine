@@ -87,11 +87,7 @@
 #include "nyangine/http/http_types.h"
 #include "nyangine/http/http_websocket.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * WebSocket connections held at once, out of the NYA_HTTP_MAX_CONNECTIONS the listener accepts.
@@ -185,11 +181,7 @@
  * */
 #define NYA_HTTP_WEBSOCKET_MAX_MESSAGES_PER_TICK 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** A connection that upgraded. A route's callbacks are handed one; nothing else makes or frees one. */
 typedef struct NYA_HttpWebSocket      NYA_HttpWebSocket;
@@ -228,17 +220,9 @@ struct NYA_HttpWebSocketRoute {
     NYA_HttpWebSocketCloseFn   on_close;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────
- */
+// ROUTES
 
 /**
  * Mounts `route`, so an upgrade on its path is answered rather than refused.
@@ -258,11 +242,7 @@ NYA_API NYA_Error nya_http_websocket_route_add(const NYA_HttpWebSocketRoute* rou
  * */
 NYA_API void nya_http_websocket_route_remove(const NYA_HttpWebSocketRoute* route);
 
-/*
- * ─────────────────────────────────────────────────────────
- * MESSAGES
- * ─────────────────────────────────────────────────────────
- */
+// MESSAGES
 
 /**
  * Queues `text` as one message for `socket`, to go out on the next drain.
@@ -290,11 +270,7 @@ NYA_API u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCS
  * */
 NYA_API NYA_WebSocketProtocol* nya_http_websocket_protocol(NYA_HttpWebSocket* socket) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTROSPECTION
- * ─────────────────────────────────────────────────────────
- */
+// INTROSPECTION
 
 /** How many connections are open. Zero when the server is not running. */
 NYA_API u32 nya_http_websocket_count(void) __attr_no_discard;

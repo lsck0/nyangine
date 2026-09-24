@@ -4,11 +4,7 @@
 #include "nyangine/http/http_doc.h"
 #include "nyangine/http/http_llms.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Whether `text` carries no control byte, so it cannot restructure the Markdown with a stray newline. */
 NYA_INTERNAL b8 _nya_http_llms_field_safe(NYA_ConstCString text) __attr_no_discard;
@@ -19,11 +15,7 @@ NYA_INTERNAL void _nya_http_llms_title(NYA_HttpDoc* doc, NYA_ConstCString title)
 /** The shared builder behind the plain and strict entry points; `strict` writes the restricted-use notice. */
 NYA_INTERNAL NYA_Error _nya_http_llms_build(NYA_Arena* arena, NYA_HttpLlmsConfig config, b8 strict, OUT NYA_ConstCString* out);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_llms_build(NYA_Arena* arena, NYA_HttpLlmsConfig config, OUT NYA_ConstCString* out) {
     return _nya_http_llms_build(arena, config, false, out);
@@ -53,11 +45,7 @@ NYA_Error nya_http_llms_mount_strict(NYA_HttpLlmsConfig config) {
     return nya_http_doc_serve(NYA_HTTP_LLMS_PATH, NYA_HTTP_MEDIA_MARKDOWN, text, "A guide to this site's key content, use restricted");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_http_llms_build(NYA_Arena* arena, NYA_HttpLlmsConfig config, b8 strict, OUT NYA_ConstCString* out) {
     nya_assert(arena != nullptr && out != nullptr);
@@ -81,9 +69,7 @@ NYA_Error _nya_http_llms_build(NYA_Arena* arena, NYA_HttpLlmsConfig config, b8 s
     nya_http_doc_put(&doc, config.name);
     nya_http_doc_put(&doc, "\n\n");
 
-    // The restricted-use notice, up front, so a model reading the file meets it before the links. Its own
-    // blockquote above the summary rather than folded into it, so it reads as the site's terms and not as
-    // a description of the site.
+    // The restricted-use notice up front, so a model meets it before the links; its own blockquote above the summary, so it reads as the site's terms rather than a description of the site.
     if (strict) {
         nya_http_doc_put(&doc, "> ");
         nya_http_doc_put(&doc, NYA_HTTP_LLMS_STRICT_NOTICE);
@@ -125,8 +111,7 @@ NYA_Error _nya_http_llms_build(NYA_Arena* arena, NYA_HttpLlmsConfig config, b8 s
                 return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a link URL in section " FMTu32 " is not an http or https URL", s);
             }
 
-            // A parenthesis in the URL would end or unbalance the `(url)`, and Markdown has no escape for
-            // one inside a link destination, so it is refused rather than emitted broken.
+            // A parenthesis in the URL would end or unbalance the `(url)`, and Markdown has no escape for one inside a link destination, so it's refused rather than emitted broken.
             if (strchr(link->url, '(') != nullptr || strchr(link->url, ')') != nullptr) {
                 return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a link URL in section " FMTu32 " carries a parenthesis", s);
             }

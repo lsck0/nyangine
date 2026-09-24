@@ -4,11 +4,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** One verb: what it is called on the wire, and the two things this server asks about a verb. */
 typedef struct {
@@ -89,11 +85,9 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_TEXT[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
     [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
-    // JSON in shape, so UTF-8 always, but +json has no registered charset parameter (RFC 6839): the
-    // encoding is assumed, and a browser's installability check wants the bare registered type.
+    // JSON in shape, so UTF-8 always, but +json has no registered charset parameter (RFC 6839): the encoding is assumed, and a browser's installability check wants the bare registered type.
     [NYA_HTTP_MEDIA_MANIFEST]   = "application/manifest+json",
-    // The generated discoverability documents. XML for a sitemap, and the two feed dialects each with
-    // the media type that names them exactly, so a reader that asked for a feed is never handed a page.
+    // The generated discoverability documents: XML for a sitemap, and the two feed dialects each with the media type that names it exactly, so a reader asking for a feed is never handed a page.
     [NYA_HTTP_MEDIA_XML]        = "application/xml; charset=utf-8",
     [NYA_HTTP_MEDIA_RSS]        = "application/rss+xml; charset=utf-8",
     [NYA_HTTP_MEDIA_ATOM]       = "application/atom+xml; charset=utf-8",
@@ -127,11 +121,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_ESSENCE[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_OTHER]      = "",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Four decimal octets and nothing else. No leading zeros past one digit, since some readers take those as octal. */
 NYA_INTERNAL b8 _nya_http_parse_ipv4(const char* text, u64 size, OUT u8* out_octets) __attr_no_discard;
@@ -140,12 +130,7 @@ NYA_INTERNAL b8 _nya_http_parse_ipv4(const char* text, u64 size, OUT u8* out_oct
 NYA_INTERNAL b8 _nya_http_parse_ipv6(const char* text, u64 size, OUT u16* out_groups) __attr_no_discard;
 
 
-/*
- * These two are defined here and used by every other file in the module, which works because http.c
- * includes this one first; see the note there. They are not declared in http_types.h on purpose: a
- * NYA_INTERNAL declaration in a public header is a static function in every translation unit that
- * includes it, and the ones that never call it fail the build on -Wunused-function.
- */
+// These two are defined here and used by every other file in the module (works because http.c includes this first; see the note there). Not declared in http_types.h on purpose: a NYA_INTERNAL declaration in a public header is a static in every TU that includes it, and ones that never call it fail -Wunused-function.
 
 /**
  * ASCII lowercase, locale-independent on purpose: a Turkish locale folds 'I' to a dotless 'ı', which
@@ -156,11 +141,7 @@ NYA_INTERNAL char _nya_http_lower(char character) __attr_no_discard;
 /** Whether `size` bytes at `text` are `expected`, ignoring ASCII case. `expected` is null terminated. */
 NYA_INTERNAL b8 _nya_http_equals_ignore_case(const char* text, u64 size, NYA_ConstCString expected) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_ConstCString nya_http_method_text(NYA_HttpMethod method) {
     nya_assert(method >= 0 && method < NYA_HTTP_METHOD_COUNT, "a method outside the enum reached nya_http_method_text");
@@ -261,8 +242,7 @@ NYA_ConstCString nya_http_media_type_text(NYA_HttpMediaType media_type) {
 NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size) {
     if (text == nullptr) return NYA_HTTP_MEDIA_OTHER;
 
-    // the essence is everything before the first ';', trimmed. "application/json ; charset=utf-8" is
-    // the same type as "application/json", and a peer is free to write either.
+    // the essence is everything before the first ';', trimmed: "application/json ; charset=utf-8" is the same type as "application/json", and a peer may write either.
     u64 essence = 0;
     while (essence < size && text[essence] != ';') essence++;
 
@@ -275,11 +255,7 @@ NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size) {
     return NYA_HTTP_MEDIA_OTHER;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_parse_ipv4(const char* text, u64 size, OUT u8* out_octets) {
     u32 octet = 0;

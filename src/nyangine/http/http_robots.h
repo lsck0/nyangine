@@ -38,11 +38,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_HTTP_ROBOTS_PATH "/robots.txt"
 
@@ -56,11 +52,7 @@
 /** User-agent groups one robots.txt here declares. Past this a build is refused. */
 #define NYA_HTTP_ROBOTS_MAX_GROUPS 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpRobotsGroup  NYA_HttpRobotsGroup;
 typedef struct NYA_HttpRobotsConfig NYA_HttpRobotsConfig;
@@ -91,11 +83,7 @@ struct NYA_HttpRobotsConfig {
     NYA_ConstCString sitemap;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Builds the robots.txt body into `out`, allocated from `arena`.

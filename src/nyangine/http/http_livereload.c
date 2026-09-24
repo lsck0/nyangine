@@ -9,13 +9,7 @@
 
 #if !NYA_SHIPPING_BUILD
 
-/*
- * The client snippet, spelled once and served verbatim at /livereload.js. It opens the socket, reloads
- * on the one message the server pushes — NYA_HTTP_LIVERELOAD_MESSAGE, "reload", kept in step with the
- * literal below — and reconnects with a doubling, capped backoff when the socket drops, so a server that
- * restarts is picked up again without a tight loop hammering a port that is not answering yet. It reloads
- * on the message and never merely on reconnecting, so it cannot fall into a loop of its own.
- */
+// The client snippet, served verbatim at /livereload.js: it opens the socket, reloads on the one pushed message (NYA_HTTP_LIVERELOAD_MESSAGE, "reload", kept in step with the literal below), and reconnects with a capped doubling backoff — reloading only on the message, never on reconnect, so it can't loop.
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_LIVERELOAD_CLIENT_JS =
     "(function () {\n"
     "  var url = (location.protocol === \"https:\" ? \"wss://\" : \"ws://\") + location.host + \"/livereload\";\n"
@@ -35,25 +29,13 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_LIVERELOAD_CLIENT_JS =
     "  connect();\n"
     "})();\n";
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
-/*
- * The one number the watch remembers, and whether it has ever seen one. The flag is what makes a first
- * sight record-and-stay-quiet rather than reload: a zero fingerprint is what an unmounted bundle folds
- * to, so zero alone cannot stand in for "nothing recorded yet".
- */
+// The one number the watch remembers, and whether it has seen one: the flag makes a first sight record-and-stay-quiet rather than reload, since a zero fingerprint is what an unmounted bundle folds to and can't stand in for "nothing recorded yet".
 static u64 _FINGERPRINT     = 0;
 static b8  _HAS_FINGERPRINT = false;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ROUTES
 
 /** The push-only stream. No callbacks: the server never hears from the page, it only pushes to it. */
 NYA_INTERNAL const NYA_HttpWebSocketRoute _NYA_HTTP_LIVERELOAD_STREAM = {
@@ -89,11 +71,7 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_LIVERELOAD_ROUTER = {
     .route_count = nya_carray_length(_NYA_HTTP_LIVERELOAD_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_http_livereload_available(void) { return true; }
 
@@ -114,8 +92,7 @@ b8 nya_http_livereload_signal(u64 fingerprint) {
     // Unchanged: two comparisons and no push, which is what makes polling every tick free.
     if (fingerprint == _FINGERPRINT) return false;
 
-    // The bundle moved. Record the new version first, so a broadcast that runs re-entrantly cannot see the
-    // old one, then push exactly one reload to everyone listening.
+    // The bundle moved: record the new version first, so a re-entrant broadcast can't see the old one, then push exactly one reload to everyone listening.
     _FINGERPRINT = fingerprint;
 
     (void)nya_http_websocket_broadcast_text(NYA_HTTP_LIVERELOAD_PATH, NYA_HTTP_LIVERELOAD_MESSAGE);
@@ -134,16 +111,7 @@ NYA_ConstCString nya_http_livereload_client_js(void) { return _NYA_HTTP_LIVERELO
 
 #else // NYA_SHIPPING_BUILD
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SHIPPING: COMPILED OUT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * A page that reloads itself on a message from the port is a development tool, not something a release
- * ships. So the socket, the script and the watch are gone here, and the entry points stay only so a
- * program links whether or not it guarded them: available() is false, the mount refuses, the router is
- * empty, and a signal pushes nothing.
- */
+// SHIPPING: COMPILED OUT — livereload is a dev tool; release stubs it, entry points stay so links succeed.
 
 /** An empty router, so merging it in a shipping build is harmless and serves nothing. */
 NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_LIVERELOAD_ROUTER = {

@@ -1,5 +1,4 @@
-// http_types.c first: every other file here folds a header name through _nya_http_lower, which is
-// defined there. The rest follow their dependencies, which run in one direction only.
+// http_types.c first: every file folds a header name through _nya_http_lower, defined there; the rest follow dependencies, one direction only.
 #include "nyangine/http/http_types.c"
 /**/
 #include "nyangine/http/http_auth.c"
@@ -8,54 +7,42 @@
 #include "nyangine/http/http_seal.c"
 // after seal, which it seals through with whichever key is newest.
 #include "nyangine/http/http_keyring.c"
-// over crypto's Ed25519 and SHA-256, and independent of the server: a signed statement an origin serves
-// and a mirror is checked against, which is data a program builds rather than a socket the listener knows.
+// over crypto's Ed25519/SHA-256 and independent of the server: a signed statement an origin serves and a mirror checks — data a program builds, not a socket.
 #include "nyangine/http/http_attestation.c"
 #include "nyangine/http/http_message.c"
 // beside http_auth.c and independent of it: it answers the second factor, where that answers the first.
 #include "nyangine/http/http_totp.c"
 /**/
 #include "nyangine/http/http_router.c"
-// after the router, whose table it reads, and over serde and the message layer, whose encoding it
-// mirrors: it calls a route by its table entry, the request DTO in and the response DTO out.
+// after the router, whose table it reads, and over serde/the message layer whose encoding it mirrors: it calls a route by its table entry, request DTO in, response DTO out.
 #include "nyangine/http/http_client.c"
-// after the router, whose route table it builds on: two routes an orchestrator polls for liveness and
-// readiness, the readiness checks a small registry the program composes.
+// after the router, whose route table it builds on: two routes an orchestrator polls for liveness and readiness, the readiness checks a small registry the program composes.
 #include "nyangine/http/http_health.c"
-// after the router, whose exchange it reads and whose chain it wraps, and after the message layer,
-// whose bodies it decodes: it is the one layer the engine ships.
+// after the router, whose exchange it reads and whose chain it wraps, and the message layer whose bodies it decodes: the one layer the engine ships.
 #include "nyangine/http/http_log.c"
-// after the router, whose chain it wraps, and the message layer, whose response it captures and
-// replays: another layer a program installs, this one making a retried unsafe request run once.
+// after the router, whose chain it wraps, and the message layer whose response it captures and replays: a layer a program installs to make a retried unsafe request run once.
 #include "nyangine/http/http_idempotency.c"
-// after the router, whose chain it wraps, and after seal and crypto, which it mints and opens a sealed
-// challenge through: the abuse layer a public server installs where there is no IP to rate-limit.
+// after the router, whose chain it wraps, and seal/crypto, which it mints and opens a sealed challenge through: the abuse layer a public server installs where there's no IP to rate-limit.
 #include "nyangine/http/http_pow.c"
 /**/
-// after the router, whose route table it builds, and beside the server rather than inside it: the
-// bundle is a resource a program merges, not something the listener knows about.
+// after the router, whose route table it builds, and beside the server not inside it: the bundle is a resource a program merges, not something the listener knows.
 #include "nyangine/http/http_static.c"
 /**/
-// the discoverability surface: a bounded document builder and a serve registry, then the four documents
-// built on them. After the message layer, whose response they write, and the router, whose table the
-// registry checks. A program merges nya_http_doc_router() the way it merges the bundle above.
+// the discoverability surface: a bounded document builder and serve registry, then the four documents built on them; after the message layer and router. A program merges nya_http_doc_router() like the bundle above.
 #include "nyangine/http/http_doc.c"
 #include "nyangine/http/http_sitemap.c"
 #include "nyangine/http/http_feed.c"
 #include "nyangine/http/http_robots.c"
 #include "nyangine/http/http_llms.c"
 /**/
-// the wire format, which depends on nothing here, and then the upgrade, which reads the router's
-// cross-site check and is what http_server.c hands a socket to.
+// the wire format, which depends on nothing here, then the upgrade, which reads the router's cross-site check and is what http_server.c hands a socket to.
 #include "nyangine/http/http_webhook.c"
 #include "nyangine/http/http_websocket.c"
 #include "nyangine/http/http_websocket_server.c"
-// after the websocket server, whose framing and connection table it wraps as a net transport, and over
-// net, which is compiled before http: a browser peer of a native server.
+// after the websocket server, whose framing and connection table it wraps as a net transport, and over net (compiled before http): a browser peer of a native server.
 #include "nyangine/http/http_net_websocket.c"
 /**/
-// development-only live reload: a push stream on the websocket server above and the change watch over the
-// static bundle's fingerprint, so it comes after both. Compiled out of a shipping build.
+// development-only live reload: a push stream on the websocket server above and the change watch over the static bundle's fingerprint, so it follows both. Compiled out of a shipping build.
 #include "nyangine/http/http_livereload.c"
 /**/
 // after the router, which it dispatches through, and before openapi, which reads its mount table.

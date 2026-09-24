@@ -79,11 +79,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Bytes of one exchange's record, terminator included.
@@ -115,11 +111,7 @@
 /** Hex digits of the body hash a fail-closed record carries. Sixty four bits of BLAKE2b; see http_static.h for the same choice. */
 #define NYA_HTTP_LOG_HASH_DIGITS 16
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_HttpLogLevel     NYA_HttpLogLevel;
 typedef enum NYA_HttpLogAddress   NYA_HttpLogAddress;
@@ -178,11 +170,7 @@ struct NYA_HttpLogConfig {
     char deny[NYA_HTTP_LOG_MAX_DENY_BYTES];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Installs `config`. Copied, so the caller's struct need not outlive the call. */
 NYA_API void nya_http_log_config_set(NYA_HttpLogConfig config);
@@ -208,11 +196,7 @@ NYA_API b8 nya_http_log_header_is_denied(NYA_ConstCString name) __attr_no_discar
  * */
 NYA_API NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 /** What `@on_apply` on NYA_HttpLogConfig names. Named in the generated reflection table, not by hand. */
 NYA_API NYA_Error _nya_http_log_config_apply(void* instance);

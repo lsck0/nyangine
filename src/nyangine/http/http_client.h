@@ -58,11 +58,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpClientWire      NYA_HttpClientWire;
 typedef struct NYA_HttpClientReply     NYA_HttpClientReply;
@@ -148,11 +144,7 @@ struct NYA_HttpClientResult {
     NYA_HttpProblem problem;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Calls `route` on the server at `base_url` with `request_dto`, and writes the answer into `out_response_dto`.

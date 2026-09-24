@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The tightest a framed net message is bounded to: a WebSocket message, less the one tag byte. */
 #define _NYA_NET_WS_MAX_PAYLOAD (NYA_HTTP_WEBSOCKET_MAX_MESSAGE_BYTES - 1)
@@ -95,9 +91,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_WS_VTABLE = {
     .name = "websocket",
     .kind = NYA_NET_TRANSPORT_WEBSOCKET,
 
-    // Browsers dial in, so this transport listens and never connects out, the way a loopback pair never
-    // does. condition and public_key are null: TCP is the wire and wss is the encryption, and neither is
-    // this transport's to shape.
+    // Browsers dial in, so this transport listens and never connects out, like a loopback pair; condition and public_key are null — TCP is the wire and wss the encryption, neither this transport's to shape.
     .listen  = &_nya_net_ws_listen,
     .connect = nullptr,
 
@@ -111,11 +105,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_WS_VTABLE = {
     .destroy      = &_nya_net_ws_destroy,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE HELPERS
 
 NYA_INTERNAL u32 _nya_net_ws_read_u32(const u8* at) {
     return (u32)at[0] | ((u32)at[1] << 8) | ((u32)at[2] << 16) | ((u32)at[3] << 24);
@@ -232,11 +222,7 @@ NYA_INTERNAL void _nya_net_ws_drop(_NYA_NetWsState* state, u32 index, NYA_NetDis
     _nya_net_ws_peer_free(peer);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options, OUT NYA_NetTransport** out_transport) {
     nya_assert(arena != nullptr);
@@ -244,8 +230,7 @@ NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options
 
     *out_transport = nullptr;
 
-    // One per process: the callbacks find their state through the singleton, and the HTTP server they
-    // mount on is itself one per process.
+    // One per process: the callbacks find their state through the singleton, and the HTTP server they mount on is itself one per process.
     if (_NYA_NET_WS != nullptr) return nya_error(NYA_ERROR_ALREADY_EXISTS, "a websocket net transport already exists");
 
     NYA_NetTransport* transport = nya_arena_alloc(arena, sizeof(NYA_NetTransport));
@@ -338,11 +323,7 @@ void nya_net_ws_join_encode(u32 version, const u8 key[NYA_NET_KEY_SIZE], OUT u8 
     nya_memcpy(out_frame + 5, key, NYA_NET_KEY_SIZE);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VTABLE IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// VTABLE IMPLEMENTATION
 
 NYA_Error _nya_net_ws_listen(NYA_NetTransport* transport, u16 port) {
     _NYA_NetWsState* state = transport->state;
@@ -407,8 +388,7 @@ b8 _nya_net_ws_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_
     nya_array_remove(state->events, 0);
 
     if (event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE) {
-        // The previous poll's bytes are done with; this one's move out of the allocator, where the copy
-        // made on receive would otherwise stay for the life of the connection.
+        // The previous poll's bytes are done with; this one's move out of the allocator, where the copy made on receive would otherwise stay for the connection's life.
         nya_arena_free_all(state->delivered);
 
         u8* delivered = nya_arena_alloc(state->delivered, event.size);
@@ -438,8 +418,7 @@ void _nya_net_ws_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer_id, 
     _NYA_NetWsPeer* peer = _nya_net_ws_peer_of(state, peer_id);
     if (peer == nullptr) return;
 
-    // The caller asked to drop this peer, so it is not told again with a DISCONNECTED event; the wire is
-    // closed with a code and a reason the peer can read, and the slot is freed.
+    // The caller asked to drop this peer, so it isn't told again with a DISCONNECTED event; the wire is closed with a code and reason the peer can read, and the slot is freed.
     NYA_ConstCString text = reason == NYA_NET_DISCONNECT_KICKED   ? "kicked"
                           : reason == NYA_NET_DISCONNECT_CHEATING ? "too many rule violations"
                                                                   : "disconnected";
@@ -494,11 +473,7 @@ void _nya_net_ws_destroy(NYA_NetTransport* transport) {
     // The state, its peers, the event array and the scratch all came from the caller's arena.
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE ROUTE'S CALLBACKS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE ROUTE'S CALLBACKS
 
 void _nya_net_ws_on_open(NYA_HttpWebSocket* socket) {
     _NYA_NetWsState* state = _NYA_NET_WS;
@@ -507,16 +482,14 @@ void _nya_net_ws_on_open(NYA_HttpWebSocket* socket) {
     u32             index = 0;
     _NYA_NetWsPeer* peer  = _nya_net_ws_peer_alloc(state, socket, &index);
 
-    // Full at the transport's own ceiling, which is below the HTTP server's: refuse before the join, so
-    // this is a close the browser reads rather than a socket that opens and then goes quiet.
+    // Full at the transport's own ceiling, below the HTTP server's: refuse before the join, so this is a close the browser reads rather than a socket that opens and goes quiet.
     if (peer == nullptr) {
         NYA_WebSocketProtocol* protocol = nya_http_websocket_protocol(socket);
         if (protocol != nullptr) (void)nya_websocket_protocol_close(protocol, NYA_WEBSOCKET_CLOSE_POLICY, "server full");
         return;
     }
 
-    // No CONNECTED event yet: the peer has a slot but has not completed the join, so nothing above hears
-    // of it until its version and key check out.
+    // No CONNECTED event yet: the peer has a slot but hasn't completed the join, so nothing above hears of it until its version and key check out.
 }
 
 void _nya_net_ws_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
@@ -527,12 +500,9 @@ void _nya_net_ws_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* dat
     _NYA_NetWsPeer* peer  = _nya_net_ws_peer_by_socket(state, socket, &index);
     if (peer == nullptr) return; // a socket this transport already dropped; the HTTP server reaps it.
 
-    /*
-     * ── the join, before a peer is connected ──
-     */
+    // ── the join, before a peer is connected ──
     if (!peer->connected) {
-        // A join is one binary frame, tagged, exactly sized. Anything else is a peer that is not speaking
-        // this protocol, refused before it is ever an established peer, so notify is false.
+        // A join is one binary frame, tagged, exactly sized; anything else is a peer not speaking this protocol, refused before it's ever established, so notify is false.
         if (is_text || size != NYA_NET_WS_JOIN_SIZE || data[0] != (u8)NYA_NET_WS_TAG_JOIN) {
             _nya_net_ws_drop(state, index, NYA_NET_DISCONNECT_PROTOCOL, NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR, "expected a binary join frame", false);
             return;
@@ -540,8 +510,7 @@ void _nya_net_ws_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* dat
 
         u32 version = _nya_net_ws_read_u32(data + 1);
         if (version != state->version) {
-            // The one refusal that must be unmistakable: the reason names the mismatch so a client shows
-            // "update your game" rather than "connection lost".
+            // The one refusal that must be unmistakable: the reason names the mismatch so a client shows "update your game" rather than "connection lost".
             _nya_net_ws_drop(state, index, NYA_NET_DISCONNECT_VERSION, NYA_WEBSOCKET_CLOSE_POLICY, "protocol version mismatch", false);
             return;
         }
@@ -552,8 +521,7 @@ void _nya_net_ws_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* dat
             return;
         }
 
-        // Accepted. The peer is connected, its key is remembered for peer_key, and the acceptance goes back
-        // so the client knows it is in rather than inferring it from silence.
+        // Accepted: the peer is connected, its key remembered for peer_key, and the acceptance goes back so the client knows it's in rather than inferring it from silence.
         peer->connected = true;
         peer->has_key   = true;
         nya_memcpy(peer->key, key, NYA_NET_KEY_SIZE);
@@ -572,13 +540,9 @@ void _nya_net_ws_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* dat
         return;
     }
 
-    /*
-     * ── a net message, once connected ──
-     */
+    // ── a net message, once connected ──
 
-    // Every carried message is a tagged binary frame with a payload behind the tag. A text frame, or a
-    // frame that is only its tag, or one tagged as something else, is a peer that has stopped speaking the
-    // protocol: this one *was* established, so it is reported gone.
+    // Every carried message is a tagged binary frame with a payload behind the tag; a text frame, a tag-only frame, or one tagged as something else is a peer that stopped speaking the protocol — this one *was* established, so it's reported gone.
     if (is_text || size <= 1 || data[0] != (u8)NYA_NET_WS_TAG_DATA) {
         _nya_net_ws_drop(state, index, NYA_NET_DISCONNECT_PROTOCOL, NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR, "a malformed net frame", true);
         return;
@@ -598,9 +562,7 @@ void _nya_net_ws_on_close(NYA_HttpWebSocket* socket, NYA_WebSocketClose code) {
     _NYA_NetWsPeer* peer  = _nya_net_ws_peer_by_socket(state, socket, &index);
     if (peer == nullptr) return; // already dropped by a refusal or an explicit disconnect.
 
-    // The socket is already gone by the time this fires, so the wire cannot be closed again; only the
-    // report and the slot are left. A peer that never connected leaves without an event, the way a
-    // refused join does.
+    // The socket is already gone when this fires, so the wire can't be closed again; only the report and the slot are left. A peer that never connected leaves without an event, like a refused join.
     NYA_NetDisconnect reason = code == NYA_WEBSOCKET_CLOSE_NORMAL     ? NYA_NET_DISCONNECT_REQUESTED
                              : code == NYA_WEBSOCKET_CLOSE_GOING_AWAY ? NYA_NET_DISCONNECT_SERVER_CLOSED
                              : code == NYA_WEBSOCKET_CLOSE_ABNORMAL   ? NYA_NET_DISCONNECT_TIMEOUT

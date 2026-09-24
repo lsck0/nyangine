@@ -56,11 +56,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_seal.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of one key. Thirty two, which is what the seal derives its AEAD key from. */
 #define NYA_HTTP_KEYRING_KEY_BYTES 32
@@ -90,11 +86,7 @@
  * */
 #define NYA_HTTP_KEYRING_VERIFY_TAIL_S NYA_HTTP_KEYRING_ROTATE_S
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpKey     NYA_HttpKey;
 typedef struct NYA_HttpKeyring NYA_HttpKeyring;
@@ -119,11 +111,7 @@ struct NYA_HttpKeyring {
     u32         key_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Drops every expired key and mints a new newest one when the current key is due, or when there is none.

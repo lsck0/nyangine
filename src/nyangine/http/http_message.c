@@ -9,13 +9,7 @@
 #include "nyangine/base/base_clock_format.h"
 #include "nyangine/serde/serde.h"
 
-/*
- * The content-coding libraries, on the platform whose link line carries them (see
- * FLAGS_MODULE_COMPRESSION). Both are system libraries: zlib is what gzip and the `deflate` coding are
- * produced with, and libbrotlienc is the `br` one. Where the macros are undefined — a Windows build
- * here, and the build tool, which links neither — nya_http_response_compress compiles to a no-op and
- * none of this is reached.
- */
+// The content-coding libraries, on the platform whose link line carries them (FLAGS_MODULE_COMPRESSION): zlib for gzip and `deflate`, libbrotlienc for `br`. Where the macros are undefined (Windows here, and the build tool), nya_http_response_compress is a no-op and none of this is reached.
 #ifdef NYA_HTTP_COMPRESSION
 #include <zlib.h>
 #ifdef NYA_HTTP_COMPRESSION_BROTLI
@@ -23,29 +17,15 @@
 #endif
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The fixed part of a rendered head: the status line, Content-Length, Content-Type, Connection, Date and X-Request-Id. */
 #define _NYA_HTTP_FIXED_HEAD_BYTES 256
 
-/*
- * Written on every response, so no route, layer or error path can forget one. A response that sets a header of
- * the same name itself replaces the default, which is how the /docs page names its one inline style block.
- *
- * The CSP is the strictest there is: nothing may load, nothing may frame it, and no form or <base> may point
- * anywhere. JSON and .nya need no more, and a page that does says so in its own header. COEP and COOP are what
- * a wasm client's threads need anyway. HSTS is left for TLS, since a browser ignores it over plain HTTP.
- */
+// Written on every response so no route, layer or error path can forget one; a response setting a header of the same name replaces the default (how /docs names its one inline style). The CSP is the strictest there is (nothing loads, frames it, or points a form/<base> anywhere), JSON and .nya need no more, COEP/COOP are what a wasm client's threads need, and HSTS is left for TLS since a browser ignores it over plain HTTP.
 #define _NYA_HTTP_DEFAULT_CSP "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
-/*
- * The three a page is most often asked for by something it embedded rather than by the person reading
- * it. A route that wants one says so itself, the same way it would say its own CSP.
- */
+// The three a page is most often asked for by something it embedded rather than by the reader; a route that wants one says so itself, like its own CSP.
 #define _NYA_HTTP_DEFAULT_PERMISSIONS "geolocation=(), camera=(), microphone=()"
 
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
@@ -56,8 +36,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
     { "Cross-Origin-Embedder-Policy", "require-corp" },
     { "Cross-Origin-Resource-Policy", "same-origin" },
     { "Permissions-Policy",           _NYA_HTTP_DEFAULT_PERMISSIONS },
-    // Belt and suspenders for the CSP's frame-ancestors above: a pre-CSP browser honours only this
-    // one, so twenty four bytes buys the framing protection for the browsers the CSP cannot reach.
+    // Belt and suspenders for the CSP's frame-ancestors above: a pre-CSP browser honours only this one, so twenty-four bytes buys framing protection for the browsers the CSP can't reach.
     { "X-Frame-Options",              "DENY" },
 };
 
@@ -96,11 +75,7 @@ static_assert(
     "the rendered head buffer has to fit every custom header at its full bound, or a handler could be refused for a header it was allowed to set"
 );
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Whether `character` may appear in a header name or a method. RFC 9110's `tchar`, spelled out. */
 NYA_INTERNAL b8 _nya_http_is_token_char(char character) __attr_no_discard;
@@ -222,17 +197,9 @@ NYA_INTERNAL NYA_Error _nya_http_response_document_as(
     const NYA_TypeReflection* type
 ) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * REQUESTS
- * ─────────────────────────────────────────────────────────
- */
+// REQUESTS
 
 NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* out_request, u64* out_consumed, NYA_HttpStatus* out_status) {
     // the caller's own contract, which is our code and not the peer's.
@@ -245,10 +212,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
 
     if (data == nullptr || size == 0) return NYA_HTTP_PARSE_INCOMPLETE;
 
-    /*
-     * The head ends at the first blank line, and it has to do so inside NYA_HTTP_MAX_HEAD_BYTES. A peer
-     * that has sent that much without one is not going to, so it is refused here rather than held open.
-     */
+    // The head ends at the first blank line, and must do so within NYA_HTTP_MAX_HEAD_BYTES: a peer that sent that much without one isn't going to, so it's refused here rather than held open.
     u64 scan_limit = size < NYA_HTTP_MAX_HEAD_BYTES ? size : NYA_HTTP_MAX_HEAD_BYTES;
     u64 head_end   = 0;
 
@@ -278,11 +242,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         return NYA_HTTP_PARSE_REFUSED;
     }
 
-    /*
-     * Built in place rather than in a local: NYA_HttpRequest is twenty kilobytes of fixed buffers, and
-     * a stack copy of it per request would be most of what parsing costs. The price is that the struct
-     * holds scratch until DONE, which is what the header says about it.
-     */
+    // Built in place rather than a local: NYA_HttpRequest is twenty kilobytes of fixed buffers, and a stack copy per request would be most of what parsing costs; the price is the struct holds scratch until DONE, as the header says.
     NYA_HttpRequest* request = out_request;
     *request                 = (NYA_HttpRequest){ 0 };
 
@@ -294,11 +254,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         return NYA_HTTP_PARSE_REFUSED;
     }
 
-    /*
-     * Framing is decided here and nowhere else. Both Content-Length and Transfer-Encoding on one
-     * request is request smuggling: two intermediaries pick different ones and disagree about where
-     * the next request starts. There is no safe preference, so it is refused.
-     */
+    // Framing is decided here and nowhere else: both Content-Length and Transfer-Encoding on one request is request smuggling (two intermediaries pick different ones and disagree where the next request starts), and there's no safe preference, so it's refused.
     b8  chunked        = false;
     b8  has_length     = false;
     u64 content_length = 0;
@@ -317,8 +273,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         // the blank line that ended the head. Everything after it is body.
         if (length == 0) break;
 
-        // a line starting with whitespace is an obsolete folded header. RFC 9112 says a server may
-        // refuse one, and refusing is the only answer that does not have to guess what it folds into.
+        // a line starting with whitespace is an obsolete folded header; RFC 9112 lets a server refuse one, and refusing is the only answer that doesn't have to guess what it folds into.
         if (line[0] == ' ' || line[0] == '\t') {
             *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
             return NYA_HTTP_PARSE_REFUSED;
@@ -355,11 +310,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         const char* value      = line + value_start;
         u64         value_size = value_end - value_start;
 
-        /*
-         * The four headers that change how the request is read are handled whether or not there is
-         * room to store them, so a peer cannot hide a Content-Length behind twenty five padding
-         * headers.
-         */
+        // The four headers that change how the request is read are handled whether or not there's room to store them, so a peer can't hide a Content-Length behind twenty-five padding headers.
         char name[NYA_HTTP_MAX_HEADER_NAME] = { 0 };
 
         b8 name_fits = _nya_http_copy_bounded(name, sizeof(name), line, colon);
@@ -385,8 +336,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
 
             has_length = true;
         } else if (name_fits && nya_string_equals(name, "transfer-encoding")) {
-            // only "chunked", and only on its own: a coding this server cannot undo is 501 rather than
-            // a body read as if it were not encoded at all.
+            // only "chunked", and only on its own: a coding this server can't undo is 501 rather than a body read as if it weren't encoded at all.
             if (value_size != 7 || _nya_http_lower(value[0]) != 'c' || _nya_http_lower(value[1]) != 'h' || _nya_http_lower(value[2]) != 'u' ||
                 _nya_http_lower(value[3]) != 'n' || _nya_http_lower(value[4]) != 'k' || _nya_http_lower(value[5]) != 'e' ||
                 _nya_http_lower(value[6]) != 'd') {
@@ -398,8 +348,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         } else if (name_fits && nya_string_equals(name, "content-type")) {
             request->media_type = nya_http_media_type_parse(value, value_size);
         } else if (name_fits && nya_string_equals(name, "host")) {
-            // Counted whether or not it fits the table, for the reason the four above are: how many
-            // Host headers there are decides whether the request is one request.
+            // Counted whether or not it fits the table, like the four above: how many Host headers there are decides whether the request is one request.
             host_count++;
 
             if (value_size == 0) {
@@ -422,11 +371,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         request->header_count++;
     }
 
-    /*
-     * RFC 9112 makes Host a must on HTTP/1.1 and makes more than one of it invalid at any version. Both
-     * are smuggling cases rather than pedantry: a front end that routes on the second Host and a back
-     * end that routes on the first are two servers that disagree about who the request was for.
-     */
+    // RFC 9112 makes Host a must on HTTP/1.1 and more than one invalid at any version — both smuggling cases, not pedantry: a front end routing on the second Host and a back end on the first are two servers that disagree about who the request was for.
     if (host_count > 1 || (http_1_1 && host_count == 0)) {
         *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
         return NYA_HTTP_PARSE_REFUSED;
@@ -437,12 +382,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         return NYA_HTTP_PARSE_REFUSED;
     }
 
-    /*
-     * A body on a verb that gives one no meaning. RFC 9110 leaves those bytes undefined, no route here
-     * reads them, and an intermediary that counts them as a body while we count them as the start of
-     * the next request is the smuggling case again. Refused rather than skipped, and QUERY is the verb
-     * a read with a document is sent as.
-     */
+    // A body on a verb that gives one no meaning: RFC 9110 leaves those bytes undefined, no route reads them, and an intermediary counting them as a body while we count them as the next request is smuggling again. Refused rather than skipped, and QUERY is the verb a read with a document is sent as.
     if (!nya_http_method_allows_body(request->method) && (chunked || content_length > 0)) {
         *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
         return NYA_HTTP_PARSE_REFUSED;
@@ -452,8 +392,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
 
     if (parsed != NYA_HTTP_PARSE_DONE) return parsed;
 
-    // a body with no Content-Type is not JSON, whatever it looks like. Guessing is how a parser ends up
-    // deciding what a request means on the strength of its first byte.
+    // a body with no Content-Type is not JSON, whatever it looks like: guessing is how a parser ends up deciding what a request means from its first byte.
     if (request->body_size == 0) request->media_type = NYA_HTTP_MEDIA_NONE;
 
     return NYA_HTTP_PARSE_DONE;
@@ -491,8 +430,7 @@ b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString
 
     b8 found = false;
 
-    // a name given twice, a value too long and an absent name all read as no value; the url module says
-    // which it was, and a handler that needs to tell them apart calls it on request->target itself.
+    // a name given twice, a value too long and an absent name all read as no value; the url module says which, and a handler needing to tell them apart calls it on request->target itself.
     if (!nya_url_query_find(&request->target, name, buffer, capacity, &found).ok) return false;
 
     return found;
@@ -503,8 +441,7 @@ b8 nya_http_request_form_value(const NYA_HttpRequest* request, NYA_ConstCString 
 
     buffer[0] = '\0';
 
-    // Only a body that announced itself as a form is read as one: guessing at bytes whose type nobody
-    // stated is how a parser comes to decide what a request means from its first character.
+    // Only a body that announced itself as a form is read as one: guessing at bytes whose type nobody stated is how a parser comes to decide what a request means from its first character.
     if (request->media_type != NYA_HTTP_MEDIA_FORM || request->body_size == 0) return false;
 
     const char* body = (const char*)request->body;
@@ -526,8 +463,7 @@ b8 nya_http_request_form_value(const NYA_HttpRequest* request, NYA_ConstCString 
         const char* value_text = equals < pair_end ? body + equals + 1 : body + pair_end;
         u64         value_size = equals < pair_end ? pair_end - equals - 1 : 0;
 
-        // The key is compared decoded, because a form may percent-encode it; a small stack buffer holds
-        // it, and a key longer than a header value is not one this server has a name to match.
+        // The key is compared decoded, because a form may percent-encode it; a small stack buffer holds it, and a key longer than a header value is not one this server has a name to match.
         char key[NYA_HTTP_MAX_HEADER_VALUE] = { 0 };
 
         if (_nya_http_form_decode(key_text, key_size, key, sizeof(key)) && strcmp(key, name) == 0) {
@@ -561,11 +497,7 @@ NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena
 NYA_HttpMediaType nya_http_request_accepts(const NYA_HttpRequest* request) {
     nya_assert(request != nullptr);
 
-    /*
-     * The native format only when the caller named it. Anything else answers JSON, including no
-     * Accept header at all and the wildcard a browser sends: a client that has never heard of this
-     * engine must not be handed a body it cannot read, and a wildcard is not a statement that it can.
-     */
+    // The native format only when the caller named it; anything else answers JSON, including no Accept header and the wildcard a browser sends — a client that never heard of this engine must not be handed a body it can't read, and a wildcard isn't a statement that it can.
     NYA_ConstCString accepted = nya_http_request_header(request, "accept");
 
     // the binary form first: its name contains the text form's, so the other order would never see it.
@@ -579,13 +511,11 @@ NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* ar
     nya_assert(type != nullptr);
     nya_assert(out_dto != nullptr);
 
-    // Any document format, since a DTO is filled from the NYA_Object and not from the bytes. A binary
-    // body must have been encoded against this very layout, which is the check the hash exists for.
+    // Any document format, since a DTO is filled from the NYA_Object not the bytes; a binary body must have been encoded against this very layout, which is the check the hash exists for.
     NYA_Object* document = nullptr;
     NYA_TRY(_nya_http_request_document_as(request, arena, type, &document));
 
-    // zeroed rather than left alone: nya_reflect_from_object skips a field the document omits, and the
-    // DTO the caller handed us may be a stack struct holding the last request's values.
+    // zeroed rather than left alone: nya_reflect_from_object skips a field the document omits, and the DTO the caller handed us may be a stack struct holding the last request's values.
     memset(out_dto, 0, type->size);
 
     NYA_TRY(nya_reflect_from_object(type, out_dto, document));
@@ -593,11 +523,7 @@ NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* ar
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * RESPONSES
- * ─────────────────────────────────────────────────────────
- */
+// RESPONSES
 
 void nya_http_response_create(NYA_HttpResponse* response, u8* buffer, u64 capacity) {
     nya_assert(response != nullptr);
@@ -714,9 +640,7 @@ NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString 
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a response carries at most %d headers", NYA_HTTP_MAX_RESPONSE_HEADERS);
     }
 
-    // a CR or LF in either half would end the header early and let whatever follows be read as another
-    // header or as the body. Refused rather than stripped: a caller that wanted a newline here is wrong
-    // about something and should find out.
+    // a CR or LF in either half would end the header early and let what follows be read as another header or the body. Refused rather than stripped: a caller that wanted a newline here is wrong about something and should find out.
     for (u64 index = 0; name[index] != '\0'; index++) {
         if (!_nya_http_is_token_char(name[index])) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not a header name", name);
     }
@@ -742,28 +666,24 @@ b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_
     nya_assert(arena != nullptr);
 
 #ifndef NYA_HTTP_COMPRESSION
-    // No zlib on this link line: the response goes out as it is. The parameters are named so a caller
-    // reads the same signature everywhere; nothing here touches them.
+    // No zlib on this link line: the response goes out as is. The parameters are named so a caller reads the same signature everywhere; nothing here touches them.
     (void)response;
     (void)arena;
     (void)accept_encoding;
 
     return false;
 #else
-    // A client that did not ask, a body too small to earn the framing, or a type whose bytes are
-    // already packed — each is a reason to send the body untouched rather than spend a compressor on it.
+    // A client that didn't ask, a body too small to earn the framing, or a type whose bytes are already packed — each is a reason to send the body untouched rather than spend a compressor on it.
     if (response->body == nullptr || accept_encoding == nullptr) return false;
     if (response->body_size < NYA_HTTP_COMPRESS_MIN_BYTES) return false;
     if (!_nya_http_media_type_compressible(response->media_type)) return false;
 
-    // Never a second coding on top of a handler's own: a body that already carries Content-Encoding was
-    // encoded on purpose, and layering gzip over it would leave a client unable to undo either.
+    // Never a second coding on top of a handler's own: a body that already carries Content-Encoding was encoded on purpose, and layering gzip over it would leave a client unable to undo either.
     for (u32 index = 0; index < response->header_count && index < NYA_HTTP_MAX_RESPONSE_HEADERS; index++) {
         if (_nya_http_equals_ignore_case(response->headers[index].name, strlen(response->headers[index].name), "Content-Encoding")) return false;
     }
 
-    // Room for the two headers this adds, checked before anything is encoded: a body compressed but
-    // unannounced, or announced but with the Vary missing, is worse than one left alone.
+    // Room for the two headers this adds, checked before anything is encoded: a body compressed but unannounced, or announced but with the Vary missing, is worse than one left alone.
     if (response->header_count + 2 > NYA_HTTP_MAX_RESPONSE_HEADERS) return false;
 
     _NYA_HttpEncoding encoding = _nya_http_negotiate_encoding(accept_encoding);
@@ -775,15 +695,13 @@ b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_
     switch (encoding) {
         case _NYA_HTTP_ENCODING_GZIP:
         case _NYA_HTTP_ENCODING_DEFLATE: {
-            // gzip and the `deflate` coding are the same deflate stream in two wrappers: windowBits 15
-            // is the zlib wrapper RFC 9110 means by `deflate`, and + 16 swaps it for the gzip one.
+            // gzip and the `deflate` coding are the same deflate stream in two wrappers: windowBits 15 is the zlib wrapper RFC 9110 means by `deflate`, and +16 swaps it for the gzip one.
             int window_bits = encoding == _NYA_HTTP_ENCODING_GZIP ? 15 + 16 : 15;
 
             z_stream stream = { 0 };
             if (deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, window_bits, 8, Z_DEFAULT_STRATEGY) != Z_OK) return false;
 
-            // The bound is the most the coding can produce, so one Z_FINISH always completes; the scratch
-            // lives in the exchange arena and is gone the moment this returns.
+            // The bound is the most the coding can produce, so one Z_FINISH always completes; the scratch lives in the exchange arena and is gone the moment this returns.
             u64 bound   = deflateBound(&stream, response->body_size);
             u8* scratch = nya_arena_alloc(arena, bound);
             if (scratch == nullptr) {
@@ -816,8 +734,7 @@ b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_
             u8*    scratch = nya_arena_alloc(arena, bound > 0 ? bound : 1);
             if (scratch == nullptr) return false;
 
-            // Quality 5 rather than the default 11: a server answers in real time, and 11 spends many
-            // times the CPU for a few percent on bodies this size. GENERIC, since the type is not always text.
+            // Quality 5 rather than the default 11: a server answers in real time, and 11 spends many times the CPU for a few percent on bodies this size. GENERIC, since the type isn't always text.
             size_t encoded = bound;
             if (!BrotliEncoderCompress(5, BROTLI_DEFAULT_WINDOW, BROTLI_MODE_GENERIC, response->body_size, response->body, &encoded, scratch)) {
                 return false;
@@ -839,8 +756,7 @@ b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_
         default:                       return false;
     }
 
-    // The room was checked above, so neither add fails; the body has already been replaced, and these
-    // are what let a client and a cache read it back.
+    // The room was checked above, so neither add fails; the body has already been replaced, and these are what let a client and a cache read it back.
     (void)nya_http_response_header(response, "Content-Encoding", coding_name);
     (void)nya_http_response_header(response, "Vary", "Accept-Encoding");
 
@@ -889,11 +805,7 @@ NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatu
         if (!_nya_http_head_append(buffer, capacity, &size, line)) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
     }
 
-    /*
-     * Over TLS only. A browser ignores this header on a plaintext connection — deliberately, since
-     * honouring it there would let anybody who can answer one request lock a host out of HTTP — so
-     * sending it anyway would be a line in a response that says nothing.
-     */
+    // Over TLS only: a browser ignores this header on a plaintext connection (deliberately, since honouring it there would let anybody who can answer one request lock a host out of HTTP), so sending it anyway would say nothing.
     if (_NYA_HTTP_HSTS_ENABLED) {
         b8 replaced = false;
         for (u32 custom = 0; custom < response->header_count && custom < NYA_HTTP_MAX_RESPONSE_HEADERS; custom++) {
@@ -939,11 +851,7 @@ NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatu
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_is_token_char(char character) {
     if (character >= 'a' && character <= 'z') return true;
@@ -1013,8 +921,7 @@ b8 _nya_http_form_decode(const char* text, u64 size, char* out, u64 capacity) {
             u8 high = 0;
             u8 low  = 0;
 
-            // A '%' with fewer than two hex digits after it is a malformed escape, and a form value is
-            // attacker-controlled, so it is refused rather than passed through as the literal bytes.
+            // A '%' with fewer than two hex digits after it is a malformed escape, and a form value is attacker-controlled, so it's refused rather than passed through as the literal bytes.
             if (index + 2 >= size) return false;
             if (!_nya_http_hex_digit(text[index + 1], &high) || !_nya_http_hex_digit(text[index + 2], &low)) return false;
 
@@ -1141,11 +1048,7 @@ NYA_HttpStatus _nya_http_parse_request_line(const char* line, u64 length, NYA_Ht
         return NYA_HTTP_STATUS_HTTP_VERSION;
     }
 
-    /*
-     * Origin form only: "/path?query". The absolute form is for proxies and this is not one, and the
-     * authority form is for CONNECT, which this server does not implement. Accepting either would mean
-     * deciding what host a request was for, which is a decision a proxy in front has already made.
-     */
+    // Origin form only ("/path?query"): the absolute form is for proxies (this isn't one) and the authority form is for CONNECT (not implemented); accepting either would mean deciding what host a request was for, which a proxy in front has already done.
     NYA_UrlFailure failure = { 0 };
 
     // parsed in place: the request outlives the receive buffer the target was read from.
@@ -1185,8 +1088,7 @@ NYA_HttpParse _nya_http_parse_body(
         return NYA_HTTP_PARSE_DONE;
     }
 
-    // checked when Content-Length was read, and again here because this function is also the one a
-    // future caller would reach for directly.
+    // checked when Content-Length was read, and again here because this function is also the one a future caller would reach for directly.
     if (content_length > NYA_HTTP_MAX_BODY_BYTES) {
         *out_status = NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE;
         return NYA_HTTP_PARSE_REFUSED;
@@ -1233,8 +1135,7 @@ _nya_http_decode_chunked(const u8* data, u64 size, u64 head_end, NYA_HttpRequest
 
         u64 chunk_size = 0;
         if (!_nya_http_parse_hex(line, digits, NYA_HTTP_MAX_BODY_BYTES, &chunk_size)) {
-            // a size that parsed but is over the bound and a size that is not hex are the same refusal
-            // from here; both mean this body is not one we will assemble.
+            // a size that parsed but is over the bound and a size that isn't hex are the same refusal from here; both mean this body is not one we'll assemble.
             *out_status = digits > 0 ? NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE : NYA_HTTP_STATUS_BAD_REQUEST;
             return NYA_HTTP_PARSE_REFUSED;
         }
@@ -1260,10 +1161,7 @@ _nya_http_decode_chunked(const u8* data, u64 size, u64 head_end, NYA_HttpRequest
         cursor  += chunk_size + 2;
     }
 
-    /*
-     * Trailers. Read past and dropped: nothing here reads one, and a trailer a server ignores is not
-     * allowed to become a header a later layer trusts.
-     */
+    // Trailers, read past and dropped: nothing here reads one, and a trailer a server ignores is not allowed to become a header a later layer trusts.
     for (u32 trailer = 0; trailer <= NYA_HTTP_MAX_TRAILERS; trailer++) {
         if (trailer == NYA_HTTP_MAX_TRAILERS) {
             *out_status = NYA_HTTP_STATUS_HEADERS_TOO_LARGE;
@@ -1307,8 +1205,7 @@ b8 _nya_http_head_append(u8* buffer, u64 capacity, u64* size, NYA_ConstCString t
 #ifdef NYA_HTTP_COMPRESSION
 b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) {
     switch (media_type) {
-        // Text and the document formats: every one of these is markup or characters, where deflate finds
-        // the repetition it lives on. `application/nya` is text too and rides along.
+        // Text and the document formats: every one is markup or characters where deflate finds the repetition it lives on; `application/nya` is text too and rides along.
         case NYA_HTTP_MEDIA_JSON:
         case NYA_HTTP_MEDIA_NYA:
         case NYA_HTTP_MEDIA_TEXT:
@@ -1321,17 +1218,13 @@ b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) {
         case NYA_HTTP_MEDIA_ATOM:
         case NYA_HTTP_MEDIA_MARKDOWN: return true;
 
-        // Everything else is bytes already packed — png, woff2 and wasm carry their own compression,
-        // and the native binary document is a compact encoding — or has no body to compress. Spending a
-        // compressor on those costs CPU only to make the response a little larger, and a media type
-        // added later is left uncompressed until it is judged here rather than compressed by accident.
+        // Everything else is bytes already packed (png, woff2, wasm carry their own compression, and the native binary document is compact) or has no body: a compressor there costs CPU only to make the response larger, and a media type added later stays uncompressed until it's judged here rather than compressed by accident.
         default: return false;
     }
 }
 
 s32 _nya_http_qvalue(const char* text, const char* end) {
-    // Leading OWS, then "0"/"1" and an optional "." with up to three digits. Anything the grammar does
-    // not allow is a weight this cannot read, and an unreadable weight is treated as none, so 1000.
+    // Leading OWS, then "0"/"1" and an optional "." with up to three digits; anything the grammar disallows is a weight this can't read, treated as none, so 1000.
     while (text < end && (*text == ' ' || *text == '\t')) text++;
 
     if (text >= end || (*text != '0' && *text != '1')) return 1000;
@@ -1344,8 +1237,7 @@ s32 _nya_http_qvalue(const char* text, const char* end) {
     if (text >= end || *text != '.') return milli;
     text++;
 
-    // Up to three fractional digits, each ten times finer than the last. A fourth is ignored, as the
-    // grammar caps a qvalue at three places anyway.
+    // Up to three fractional digits, each ten times finer than the last; a fourth is ignored, as the grammar caps a qvalue at three places anyway.
     s32 scale = 100;
     for (u32 place = 0; place < 3 && text < end; place++) {
         if (*text < '0' || *text > '9') break;
@@ -1384,8 +1276,7 @@ s32 _nya_http_encoding_quality(NYA_ConstCString accept, NYA_ConstCString token) 
             u64 params_end = params_start;
             while (params_end < length && accept[params_end] != ',') params_end++;
 
-            // Find the "q=" inside the params. Only a 'q' that opens the parameter counts, so the search
-            // is for "q=" run against each position rather than a bare 'q'.
+            // Find the "q=" inside the params: only a 'q' that opens the parameter counts, so the search is for "q=" run against each position rather than a bare 'q'.
             for (u64 scan = params_start; scan + 1 < params_end; scan++) {
                 if ((accept[scan] == 'q' || accept[scan] == 'Q') && accept[scan + 1] == '=') {
                     quality = _nya_http_qvalue(accept + scan + 2, accept + params_end);
@@ -1418,10 +1309,7 @@ _NYA_HttpEncoding _nya_http_negotiate_encoding(NYA_ConstCString accept) {
     s32 brotli = -1;
 #endif
 
-    // The highest weight wins, and a weight has to be above zero to count — a `;q=0` is the client
-    // ruling a coding out. A tie falls to brotli over gzip and gzip over deflate, this server's order
-    // when the client states none: brotli is chosen while it is at least as good as the other two, then
-    // gzip while it is at least as good as deflate, then deflate on its own.
+    // The highest weight wins, and a weight must be above zero to count (a `;q=0` rules a coding out); a tie falls to brotli over gzip over deflate, this server's order when the client states none.
     if (brotli > 0 && brotli >= gzip && brotli >= deflate) return _NYA_HTTP_ENCODING_BROTLI;
     if (gzip > 0 && gzip >= deflate) return _NYA_HTTP_ENCODING_GZIP;
     if (deflate > 0) return _NYA_HTTP_ENCODING_DEFLATE;
@@ -1431,11 +1319,7 @@ _NYA_HttpEncoding _nya_http_negotiate_encoding(NYA_ConstCString accept) {
 
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────
- * DOCUMENTS
- * ─────────────────────────────────────────────────────────
- */
+// DOCUMENTS
 
 NYA_Error
 _nya_http_request_document_as(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT NYA_Object** out_object) {
@@ -1447,21 +1331,13 @@ _nya_http_request_document_as(const NYA_HttpRequest* request, NYA_Arena* arena, 
 
     if (request->body_size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the request has no body");
 
-    /*
-     * Whichever of the three the caller announced. A handler asks for a document and does not care
-     * which one arrived: all parse to the same NYA_Object, which is the point of having one
-     * vocabulary type.
-     */
+    // Whichever of the three the caller announced: a handler asks for a document and doesn't care which arrived, since all parse to the same NYA_Object — the point of one vocabulary type.
     switch (request->media_type) {
         case NYA_HTTP_MEDIA_JSON:
             NYA_TRY(nya_deserialize(arena, request->body, request->body_size, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, out_object));
             break;
 
-        /*
-         * No checksum. The native format carries one for a file on disk, where a torn write is the
-         * thing it guards against; a request body has TCP underneath it and is signed or not at a
-         * different layer entirely, and enforcing it here would refuse every document composed by hand.
-         */
+        // No checksum: the native format carries one for a file on disk (guarding a torn write), but a request body has TCP underneath and is signed or not at a different layer, and enforcing it here would refuse every hand-composed document.
         case NYA_HTTP_MEDIA_NYA:
             NYA_TRY(nya_deserialize(arena, request->body, request->body_size, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, out_object));
             break;

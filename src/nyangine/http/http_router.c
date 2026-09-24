@@ -7,11 +7,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/base/base_clock.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * What a HEAD answers from when the resource wrote no HEAD of its own, most preferred first.
@@ -23,11 +19,7 @@
  * */
 NYA_INTERNAL const NYA_HttpMethod _NYA_HTTP_HEAD_FALLBACK[] = { NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_QUERY };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The table every route's permission is resolved against, and how an identity becomes a subject in it. */
 NYA_INTERNAL struct {
@@ -52,11 +44,7 @@ NYA_INTERNAL b8 _nya_http_route_declares(const NYA_HttpRoute* route, NYA_HttpSta
  * */
 NYA_INTERNAL b8 _nya_http_request_is_cross_site(const NYA_HttpRequest* request) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
     if (router == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a router is not null");
@@ -92,11 +80,7 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
             );
         }
 
-        /*
-         * The one rule that makes "a handler taking a caller cannot run unauthenticated" true rather
-         * than merely intended: the slot a handler sits in and the route's `auth` have to agree, and a
-         * table that gets it wrong does not start.
-         */
+        // The one rule that makes "a handler taking a caller cannot run unauthenticated" true rather than intended: the slot a handler sits in and the route's `auth` must agree, and a table that gets it wrong doesn't start.
         if (route->auth == NYA_HTTP_AUTH_NONE) {
             // Exactly one of the plain pointer or the reload-safe token, and nothing in the identified slots.
             b8 plain = route->handler != nullptr;
@@ -124,11 +108,7 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
             }
         }
 
-        /*
-         * A request DTO on a verb that carries no body is a route nothing can call: the parser refuses
-         * the body before the dispatcher is reached. It is what a QUERY route turned back into a GET
-         * looks like, so it is caught at merge rather than at the first request.
-         */
+        // A request DTO on a verb with no body is a route nothing can call: the parser refuses the body before the dispatcher; it's what a QUERY route turned back into a GET looks like, caught at merge rather than at the first request.
         if (route->request_type != nullptr && !nya_http_method_allows_body(route->method)) {
             return nya_error(
                 NYA_ERROR_INVALID_ARGUMENT,
@@ -164,11 +144,7 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
             );
         }
 
-        /*
-         * A route behind the extractor can be refused by it, so it declares those two whether or not
-         * its handler ever produces them. Otherwise the generated schema would describe a route that
-         * answers 200 and nothing else, which is not what a caller without a token will see.
-         */
+        // A route behind the extractor can be refused by it, so it declares those two statuses whether or not its handler produces them; else the generated schema would describe a route that answers 200 and nothing else, not what a caller without a token sees.
         if (route->auth != NYA_HTTP_AUTH_NONE &&
             (!_nya_http_route_declares(route, NYA_HTTP_STATUS_UNAUTHORIZED) || !_nya_http_route_declares(route, NYA_HTTP_STATUS_FORBIDDEN))) {
             return nya_error(
@@ -179,8 +155,7 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
             );
         }
 
-        // a permission is only answerable for somebody the extractor has identified, and a route that
-        // asks for one can be told no by a server with no table, so it says so in its statuses too.
+        // a permission is only answerable for somebody the extractor has identified, and a route asking for one can be told no by a server with no table, so it says so in its statuses too.
         if (route->permission != NYA_PERMISSION_NONE && route->auth == NYA_HTTP_AUTH_NONE) {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s %s demands a permission, so it needs an identity to resolve one for",
                              nya_http_method_text(route->method), route->path);
@@ -256,8 +231,7 @@ nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA
 }
 
 void nya_http_permissions_set(NYA_Permissions* permissions, u64 (*subject_of)(const NYA_HttpIdentity* identity)) {
-    // both or neither: a table with no way to name a subject in it cannot answer anything, and a
-    // resolver with no table has nothing to ask.
+    // both or neither: a table with no way to name a subject can't answer anything, and a resolver with no table has nothing to ask.
     nya_assert((permissions == nullptr) == (subject_of == nullptr), "a permission table and its subject resolver are installed together");
 
     _NYA_HTTP_PERMISSIONS.permissions = permissions;
@@ -295,10 +269,7 @@ NYA_HttpStatus nya_http_router_dispatch(
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "a request from another site may not change anything here");
     }
 
-    /*
-     * Root layers outside the resource's own, both flattened into one array so the chain is a single
-     * index rather than two nested walks. Bounded by construction: both halves are checked at merge.
-     */
+    // Root layers outside the resource's own, both flattened into one array so the chain is a single index rather than two nested walks; bounded by construction, both halves checked at merge.
     NYA_HttpLayerFn chain_layers[NYA_HTTP_MAX_LAYERS * 2] = { 0 };
     u32             chain_count                           = 0;
 
@@ -312,8 +283,7 @@ NYA_HttpStatus nya_http_router_dispatch(
         const NYA_HttpRouter* router = routers[index];
         if (router == nullptr) continue;
 
-        // the router the matched route came from, found by address: the route table is a contiguous
-        // array, so a pointer inside it identifies its owner without a back pointer per route.
+        // the router the matched route came from, found by address: the route table is a contiguous array, so a pointer inside it identifies its owner without a back pointer per route.
         if (exchange->route < router->routes || exchange->route >= router->routes + router->route_count) continue;
 
         for (u32 layer = 0; layer < router->layer_count && layer < NYA_HTTP_MAX_LAYERS; layer++) {
@@ -329,11 +299,7 @@ NYA_HttpStatus nya_http_router_dispatch(
 
     NYA_HttpStatus status = nya_http_chain_next(exchange, &chain);
 
-    /*
-     * The documented status list, enforced. A handler that answers with something its route does not
-     * declare has made the OpenAPI document wrong, and in a build with assertions on that is a test
-     * failure rather than something a reader of the schema finds out later.
-     */
+    // The documented status list, enforced: a handler answering with something its route doesn't declare has made the OpenAPI document wrong, and with assertions on that's a test failure rather than something a schema reader finds out later.
     nya_assert(
         status >= NYA_HTTP_STATUS_INTERNAL_ERROR || _nya_http_route_declares(exchange->route, status),
         "%s %s answered %d, which its route does not declare",
@@ -379,8 +345,7 @@ NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpSta
     NYA_Error written = nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpProblem), &problem);
 
     if (!written.ok) {
-        // the error body itself would not fit or would not serialize, which is our bug and not the
-        // caller's. The status still goes out; there is just nothing to read with it.
+        // the error body itself wouldn't fit or wouldn't serialize, our bug not the caller's; the status still goes out, there's just nothing to read with it.
         nya_log_error("The %d problem body could not be written.", (s32)status);
         nya_http_response_reset(exchange->response);
     }
@@ -388,11 +353,7 @@ NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpSta
     return status;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 /* How a callback token becomes a function, installed by the program a layer above; null until it is. */
 NYA_INTERNAL NYA_HttpHandlerResolver    _nya_http_handler_resolver    = nullptr;
@@ -445,8 +406,7 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
     exchange->identity   = (NYA_HttpIdentity){ 0 };
 
     if (exchange->secret == nullptr || exchange->secret_size < NYA_HTTP_MIN_SECRET_BYTES) {
-        // a route that needs a token on a server that cannot verify one. Not the caller's fault and not
-        // something they can fix by trying again with credentials.
+        // a route that needs a token on a server that can't verify one: not the caller's fault and not something they can fix by retrying with credentials.
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "this server was started without a signing secret");
     }
 
@@ -456,8 +416,7 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
     if (!nya_http_access_token(exchange->request, &token, &token_size)) {
         NYA_HttpStatus status = nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNAUTHORIZED, "this route needs a bearer token");
 
-        // after the body, not before: writing the problem empties the response, headers included, so
-        // that a layer replacing an answer cannot leave half of the previous one behind.
+        // after the body, not before: writing the problem empties the response (headers included), so a layer replacing an answer can't leave half of the previous one behind.
         NYA_Error announced = nya_http_response_header(exchange->response, "WWW-Authenticate", "Bearer");
         if (!announced.ok) nya_log_warn("The WWW-Authenticate header could not be added to a 401.");
 
@@ -468,10 +427,7 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
         nya_http_jwt_decode(exchange->arena, token, token_size, exchange->secret, exchange->secret_size, exchange->now_s, &exchange->identity);
 
     if (!verified.ok) {
-        /*
-         * One answer for every way a token can be wrong. Telling a caller that their signature was
-         * fine but their token had expired is telling an attacker that their forgery verified.
-         */
+        // One answer for every way a token can be wrong: telling a caller their signature was fine but the token expired tells an attacker their forgery verified.
         exchange->identity = (NYA_HttpIdentity){ 0 };
 
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNAUTHORIZED, "that token is not valid");
@@ -489,24 +445,18 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "that token does not carry the scope this route needs");
     }
 
-    /*
-     * And what the program's own table says about whoever the token names, which is a different question
-     * from what the token claims: a role taken away applies to the next request, where a scope applies
-     * when the token expires. Checked here so that a handler cannot be reached unchecked.
-     */
+    // And what the program's own table says about whoever the token names, a different question from what the token claims: a revoked role applies next request, a scope applies when the token expires. Checked here so a handler can't be reached unchecked.
     if (route->permission != NYA_PERMISSION_NONE) {
         if (_NYA_HTTP_PERMISSIONS.permissions == nullptr || _NYA_HTTP_PERMISSIONS.subject_of == nullptr) {
             exchange->identity = (NYA_HttpIdentity){ 0 };
 
-            // the same shape as a missing signing secret: the server cannot answer the question this
-            // route asks, so it says so rather than letting the request through.
+            // the same shape as a missing signing secret: the server can't answer the question this route asks, so it says so rather than letting the request through.
             return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "this route needs a permission table and none is installed");
         }
 
         u64 subject = _NYA_HTTP_PERMISSIONS.subject_of(&exchange->identity);
 
-        // NYA_PERMISSION_SYSTEM answers yes to everything, so a token resolving to it is refused rather
-        // than obeyed: it is the program's own id, and nothing arriving over a socket may borrow it.
+        // NYA_PERMISSION_SYSTEM answers yes to everything, so a token resolving to it is refused rather than obeyed: it's the program's own id, and nothing over a socket may borrow it.
         if (subject == NYA_PERMISSION_SYSTEM) {
             exchange->identity = (NYA_HttpIdentity){ 0 };
 

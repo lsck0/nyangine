@@ -52,11 +52,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The largest document any of these builders will produce, terminator excluded.
@@ -71,11 +67,7 @@
 /** How many generated documents one server serves at once. Four presets and a little room; well past what any program mounts. */
 #define NYA_HTTP_DOC_MAX_ROUTES 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpDoc NYA_HttpDoc;
 
@@ -100,11 +92,7 @@ struct NYA_HttpDoc {
     b8 overflowed;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * A builder over `capacity` bytes of `arena`, `capacity` clamped to NYA_HTTP_DOC_MAX_BYTES.

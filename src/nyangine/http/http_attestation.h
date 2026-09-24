@@ -60,11 +60,7 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/crypto/crypto_sign.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The path an origin publishes its attestation at, and a mirror serves unchanged. */
 #define NYA_HTTP_ATTESTATION_PATH "/.well-known/mirror-attestation"
@@ -85,11 +81,7 @@
  * */
 #define NYA_HTTP_ATTESTATION_MAX_MESSAGE (NYA_HTTP_ATTESTATION_MAGIC_BYTES + sizeof(u64) + NYA_HTTP_ATTESTATION_MAX_ORIGIN + sizeof(u64) + sizeof(u64) + NYA_CRYPTO_SHA256_BYTES)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpAttestationManifest NYA_HttpAttestationManifest;
 typedef struct NYA_HttpAttestationFile     NYA_HttpAttestationFile;
@@ -115,11 +107,7 @@ struct NYA_HttpAttestationFile {
     u64       size;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * One SHA-256 over `files`, each contributing its path and its bytes, both length-prefixed, in the order

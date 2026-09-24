@@ -8,11 +8,7 @@
 #include "nyangine/http/http_idempotency.h"
 #include "nyangine/http/http_message.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** Where an entry is in its life. Zero is a slot nobody has used, so a zeroed table is an empty one. */
 typedef enum {
@@ -61,11 +57,7 @@ typedef struct {
 /** One server per process, so one store. Zeroed, so the layer works before init at the cost of no lock. */
 NYA_INTERNAL _NYA_HttpIdempotencyStore _NYA_HTTP_IDEMPOTENCY = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The store's TTL, resolving the zero default. Read rather than the field, so the default lives in one place. */
 NYA_INTERNAL u64 _nya_http_idempotency_ttl_s(void) __attr_no_discard;
@@ -88,19 +80,14 @@ NYA_INTERNAL _NYA_HttpIdempotencyEntry* _nya_http_idempotency_find(NYA_ConstCStr
 /** A slot for `key`, marked in-flight. Null only when every slot is a live in-flight request. */
 NYA_INTERNAL _NYA_HttpIdempotencyEntry* _nya_http_idempotency_reserve(NYA_ConstCString key, const u8* fingerprint, u64 now_s) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error _nya_http_idempotency_init(NYA_Arena* arena, NYA_HttpIdempotencyOptions options) {
     nya_assert(arena != nullptr);
 
     _NYA_HTTP_IDEMPOTENCY.ttl_s = options.ttl_s;
 
-    // The lock is made once and kept: a second init is a reload of the TTL, not a new store, and making
-    // a second mutex would leak the first and leave two threads locking different ones.
+    // The lock is made once and kept: a second init reloads the TTL, not the store; a second mutex would leak the first and split threads across two.
     if (_NYA_HTTP_IDEMPOTENCY.mutex == nullptr) {
         NYA_TRY(nya_mutex_create(arena, &_NYA_HTTP_IDEMPOTENCY.mutex));
     }
@@ -153,8 +140,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
             return nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNPROCESSABLE, "this Idempotency-Key was already used for a different request");
         }
 
-        // A completed match: replay it. Copied out under the lock, written to the response after it, so
-        // the store is not held across the response calls and the entry cannot move underneath the copy.
+        // A completed match: replayed. Copied out under the lock and written after it, so the store isn't held across response calls and the entry can't move under the copy.
         NYA_HttpStatus    status = entry->status;
         NYA_HttpMediaType media  = entry->media;
         u8                body[NYA_HTTP_IDEMPOTENCY_MAX_BODY_BYTES];
@@ -171,8 +157,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
             return nya_http_response_problem(exchange, NYA_HTTP_STATUS_INTERNAL_ERROR, "the stored answer could not be replayed");
         }
 
-        // A losable header: a client that ignores it still gets the right answer, and one that reads it
-        // learns the write did not happen twice. Never the reason a replay fails.
+        // A losable header: a client ignoring it still gets the right answer, one reading it learns the write didn't happen twice; never the reason a replay fails.
         (void)nya_http_response_header(exchange->response, "Idempotency-Replayed", "true");
 
         return status;
@@ -181,8 +166,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
     // First time for this key: reserve it in-flight so a concurrent duplicate sees the 409 above.
     entry = _nya_http_idempotency_reserve(key, fingerprint, now_s);
 
-    // Every slot is a live in-flight request. Rather than refuse a new key — which would make the layer
-    // the outage it exists to prevent — this one is not tracked and runs like any un-keyed request.
+    // Every slot is a live in-flight request. Rather than refuse a new key (making the layer the outage it prevents), this one is untracked and runs like any un-keyed request.
     if (entry == nullptr) {
         nya_mutex_unlock(_NYA_HTTP_IDEMPOTENCY.mutex);
         return nya_http_chain_next(exchange, next);
@@ -195,8 +179,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
 
     nya_mutex_lock(_NYA_HTTP_IDEMPOTENCY.mutex);
 
-    // Re-find under the lock: an in-flight entry is never evicted, so it is still ours unless it expired
-    // while the handler ran, in which case there is simply nothing to complete.
+    // Re-find under the lock: an in-flight entry is never evicted, so it's still ours unless it expired while the handler ran, in which case there's nothing to complete.
     entry = _nya_http_idempotency_find(key, now_s);
 
     if (entry != nullptr && entry->state == _NYA_HTTP_IDEMPOTENCY_IN_FLIGHT) {
@@ -208,8 +191,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
             nya_memcpy(entry->body, exchange->response->body, exchange->response->body_size);
             entry->updated_at_s = now_s;
         } else {
-            // Too large to store, so the reservation is dropped and a retry re-runs rather than replaying
-            // a body cut where nobody decided to. See the header note.
+            // Too large to store, so the reservation is dropped and a retry re-runs rather than replaying a body cut where nobody decided to. See the header note.
             entry->state = _NYA_HTTP_IDEMPOTENCY_EMPTY;
             if (_NYA_HTTP_IDEMPOTENCY.count > 0) _NYA_HTTP_IDEMPOTENCY.count--;
         }
@@ -221,8 +203,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
 }
 
 void nya_http_idempotency_deinit(void) {
-    // The lock goes back to its arena, so after this the store is the zeroed table it was before init.
-    // registered stays true: nya_ceiling_register holds the address of the count, which does not move.
+    // The lock goes back to its arena, so the store is again the zeroed table it was before init; registered stays true, since nya_ceiling_register holds the count's address, which doesn't move.
     nya_mutex_destroy(_NYA_HTTP_IDEMPOTENCY.mutex);
     _NYA_HTTP_IDEMPOTENCY.mutex = nullptr;
 
@@ -248,11 +229,7 @@ u32 nya_http_idempotency_count(void) {
     return count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u64 _nya_http_idempotency_ttl_s(void) {
     return _NYA_HTTP_IDEMPOTENCY.ttl_s > 0 ? _NYA_HTTP_IDEMPOTENCY.ttl_s : NYA_HTTP_IDEMPOTENCY_TTL_S;
@@ -269,8 +246,7 @@ b8 _nya_http_idempotency_key_valid(NYA_ConstCString key, u64 size) {
     // strnlen stopped at the bound, so a value that filled it whole has no terminator inside range.
     if (size == 0 || size >= NYA_HTTP_IDEMPOTENCY_MAX_KEY) return false;
 
-    // Printable ASCII with no spaces: a key is a token a client echoes back, not free text, and a space
-    // or a control byte in one is a header this server did not send and will not store.
+    // Printable ASCII, no spaces: a key is a token a client echoes back, not free text; a space or control byte is a header this server didn't send and won't store.
     for (u64 index = 0; index < size; index++) {
         if (key[index] < 0x21 || key[index] > 0x7E) return false;
     }
@@ -283,8 +259,7 @@ void _nya_http_idempotency_fingerprint(const NYA_HttpRequest* request, OUT u8* o
     u8 body_digest[NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES] = { 0 };
     nya_crypto_blake2b(request->body, request->body_size, body_digest, sizeof(body_digest));
 
-    // Then the method and path over that digest, so two requests differing in any of the three differ
-    // here. The path is bounded by NYA_HTTP_MAX_PATH and the method is one byte, so this buffer is fixed.
+    // Then method and path over that digest, so two requests differing in any of the three differ here; path is bounded by NYA_HTTP_MAX_PATH and method is one byte, so this buffer is fixed.
     u8  material[1 + NYA_HTTP_MAX_PATH + NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES] = { 0 };
     u64 used                                                                     = 0;
 
@@ -317,8 +292,7 @@ _NYA_HttpIdempotencyEntry* _nya_http_idempotency_find(NYA_ConstCString key, u64 
 
         if (entry->state == _NYA_HTTP_IDEMPOTENCY_EMPTY) continue;
 
-        // An expired match reads as absent: the key is free to be reserved again, and a stale answer is
-        // never replayed. The slot is reclaimed by the sweep in _reserve, not here, where nothing writes.
+        // An expired match reads as absent: the key is free to reserve again and a stale answer is never replayed; the slot is reclaimed by the sweep in _reserve, not here.
         if (_nya_http_idempotency_expired(entry, now_s)) continue;
 
         if (strcmp(entry->key, key) == 0) return entry;
@@ -344,8 +318,7 @@ _NYA_HttpIdempotencyEntry* _nya_http_idempotency_reserve(NYA_ConstCString key, c
 
         _NYA_HTTP_IDEMPOTENCY.count++;
     } else {
-        // Full of live entries. Only a completed one may be given up — an in-flight entry is the request
-        // this layer is guarding — and among those the oldest, the same choice base_circuit.h makes.
+        // Full of live entries. Only a completed one may be given up (an in-flight entry is the request this layer guards), and among those the oldest, as base_circuit.h chooses.
         for (u32 index = 0; index < NYA_HTTP_IDEMPOTENCY_MAX_ENTRIES; index++) {
             _NYA_HttpIdempotencyEntry* candidate = &_NYA_HTTP_IDEMPOTENCY.entries[index];
 

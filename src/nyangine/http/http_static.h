@@ -107,11 +107,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Where the hashed names live when a mount does not say. One segment, so a bundle is one branch of the tree. */
 #define NYA_HTTP_STATIC_PREFIX "/static"
@@ -146,11 +142,7 @@
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; "                                  \
     "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpStaticFile   NYA_HttpStaticFile;
 typedef struct NYA_HttpStaticConfig NYA_HttpStaticConfig;
@@ -191,11 +183,7 @@ struct NYA_HttpStaticConfig {
     NYA_ConstCString prefix;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Takes a copy of every listed file, hashes it, and builds the route table. Mounts nothing on the

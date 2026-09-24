@@ -8,11 +8,7 @@
 #include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/http/http_webhook.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** One hex digit's value, or false for anything else: a half written signature must not decode to zero. */
 NYA_INTERNAL b8 _nya_http_webhook_hex(char character, OUT u8* out_value) __attr_no_discard;
@@ -23,11 +19,7 @@ NYA_INTERNAL b8 _nya_http_webhook_signature(NYA_ConstCString text, NYA_ConstCStr
 /** The timestamp header as seconds since the epoch: a plain number, or RFC 3339 as Twitch sends it. */
 NYA_INTERNAL b8 _nya_http_webhook_timestamp(NYA_ConstCString text, OUT u64* out_seconds) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_HttpWebhookVerdict nya_http_webhook_verify(const NYA_HttpExchange* exchange, const NYA_HttpWebhook* webhook) {
     nya_assert(exchange != nullptr && exchange->request != nullptr);
@@ -47,12 +39,7 @@ NYA_HttpWebhookVerdict nya_http_webhook_verify(const NYA_HttpExchange* exchange,
 
     if (signature_text == nullptr || timestamp_text == nullptr) return NYA_HTTP_WEBHOOK_REFUSED;
 
-    /*
-     * The message, assembled from what the sender signs: the id and the timestamp in front of the body
-     * for HMAC, the timestamp alone for Ed25519. Built from the bytes that arrived rather than from
-     * anything parsed out of them — a body re-serialized before verifying is a different body, and the
-     * difference is exactly where a forgery lives.
-     */
+    // The message, assembled from what the sender signs: id and timestamp before the body for HMAC, the timestamp alone for Ed25519; built from the bytes that arrived, not anything parsed out — a re-serialized body is a different body, and that difference is where a forgery lives.
     u8  message[NYA_HTTP_WEBHOOK_MAX_MESSAGE] = { 0 };
     u64 length                                = 0;
 
@@ -108,8 +95,7 @@ NYA_HttpWebhookVerdict nya_http_webhook_verify(const NYA_HttpExchange* exchange,
     u64 sent_at_s = 0;
     if (!_nya_http_webhook_timestamp(timestamp_text, &sent_at_s)) return NYA_HTTP_WEBHOOK_REFUSED;
 
-    // signed by the right key and too old to act on: a capture being played back. Said apart from a
-    // refusal because it is the one failure a caller can do something about, such as saying so in a log.
+    // signed by the right key but too old to act on: a capture being replayed. Said apart from a refusal because it's the one failure a caller can act on, such as logging it.
     u64 tolerance = webhook->tolerance_s > 0 ? webhook->tolerance_s : NYA_HTTP_WEBHOOK_TOLERANCE_S;
     u64 drift     = exchange->now_s > sent_at_s ? exchange->now_s - sent_at_s : sent_at_s - exchange->now_s;
 
@@ -148,11 +134,7 @@ NYA_ConstCString nya_http_webhook_verdict_text(NYA_HttpWebhookVerdict verdict) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_webhook_hex(char character, u8* out_value) {
     if (character >= '0' && character <= '9') {
@@ -160,8 +142,7 @@ b8 _nya_http_webhook_hex(char character, u8* out_value) {
         return true;
     }
 
-    // lower case only where a sender has a choice, since two spellings of one signature is one more
-    // thing two readers can disagree about; upper case is accepted because Discord sends it.
+    // lower case only where a sender has a choice, since two spellings of one signature is one more thing two readers can disagree about; upper case is accepted because Discord sends it.
     if (character >= 'a' && character <= 'f') {
         *out_value = (u8)(character - 'a' + 10);
         return true;
@@ -184,8 +165,7 @@ b8 _nya_http_webhook_signature(NYA_ConstCString text, NYA_ConstCString prefix, u
         text += prefix_size;
     }
 
-    // exactly the length the primitive produces: a short signature padded with zeroes would verify
-    // against a tag that happened to start the same way.
+    // exactly the length the primitive produces: a short signature padded with zeroes would verify against a tag that happened to start the same way.
     if (strlen(text) != size * 2) return false;
 
     for (u64 index = 0; index < size; index++) {

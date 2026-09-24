@@ -7,11 +7,7 @@
 #include "nyangine/http/http_doc.h"
 #include "nyangine/http/http_message.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** One served document: the bytes, how many, and what to announce them as. Its path is the route's. */
 typedef struct {
@@ -20,11 +16,7 @@ typedef struct {
     NYA_HttpMediaType media;
 } _NYA_HttpDocEntry;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Appends `size` bytes verbatim, or records an overflow and writes nothing. Every append lands here. */
 NYA_INTERNAL void _nya_http_doc_bytes(NYA_HttpDoc* doc, const char* data, u64 size);
@@ -35,17 +27,9 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_doc_serve(NYA_HttpExchange* exchange);
 /** Copies `text` into the registry's arena, NUL-terminated, or null when it will not fit. */
 NYA_INTERNAL NYA_ConstCString _nya_http_doc_dup(NYA_ConstCString text);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
-/*
- * The served documents, filled at mount and read by the routes after; a fixed table because everything
- * here is bounded. `routes` is parallel to `entries`: a matched route is found by its offset into it,
- * which is why the router below points straight at this array.
- */
+// The served documents, filled at mount and read by the routes after; a fixed table since everything here is bounded. `routes` is parallel to `entries`: a matched route is found by its offset, which is why the router points straight at this array.
 NYA_INTERNAL struct {
     NYA_Arena*        arena;
     _NYA_HttpDocEntry entries[NYA_HTTP_DOC_MAX_ROUTES];
@@ -59,11 +43,7 @@ NYA_INTERNAL NYA_HttpRouter _NYA_HTTP_DOC_ROUTER = {
     .route_count = 0,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION — THE BUILDER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION — THE BUILDER
 
 NYA_HttpDoc nya_http_doc_over(NYA_Arena* arena, u64 capacity) {
     nya_assert(arena != nullptr);
@@ -94,9 +74,7 @@ void nya_http_doc_put(NYA_HttpDoc* doc, NYA_ConstCString text) {
 void nya_http_doc_putf(NYA_HttpDoc* doc, NYA_ConstCString format, ...) {
     nya_assert(doc != nullptr && format != nullptr);
 
-    // A fixed line, as ui_present_html's builder takes: every format string here is short — a number, a
-    // fixed tag, a date already rendered — and one that would not fit is a bug in the caller, caught as
-    // an overflow rather than truncated silently.
+    // A fixed line, as ui_present_html's builder takes: every format string here is short (a number, a fixed tag, a rendered date), and one that wouldn't fit is a caller bug, caught as an overflow rather than truncated silently.
     char line[1024] = { 0 };
 
     va_list args;
@@ -145,12 +123,7 @@ void nya_http_doc_xml_cdata(NYA_HttpDoc* doc, NYA_ConstCString text) {
 
     nya_http_doc_put(doc, "<![CDATA[");
 
-    /*
-     * The only sequence a CDATA section cannot contain is its own terminator, "]]>". Where the data has
-     * one, it is split as "]]" + "]]><![CDATA[" + ">", so the ">" begins a fresh section and no parser
-     * ever sees the closer early. Everything else, "<" and "&" included, is literal inside CDATA — that
-     * is what CDATA is for — so nothing else is escaped here.
-     */
+    // The only sequence a CDATA section can't contain is its terminator "]]>"; where the data has one it's split as "]]" + "]]><![CDATA[" + ">" so no parser sees the closer early. Everything else (< and & included) is literal inside CDATA, so nothing else is escaped.
     for (u64 i = 0; text[i] != '\0'; i++) {
         if (text[i] == ']' && text[i + 1] == ']' && text[i + 2] == '>') {
             nya_http_doc_put(doc, "]]]]><![CDATA[>");
@@ -178,11 +151,7 @@ NYA_Error nya_http_doc_finish(const NYA_HttpDoc* doc, OUT NYA_ConstCString* out)
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION — THE URL GATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION — THE URL GATE
 
 b8 nya_http_doc_url_is_web(NYA_ConstCString text) {
     if (text == nullptr || text[0] == '\0') return false;
@@ -190,18 +159,13 @@ b8 nya_http_doc_url_is_web(NYA_ConstCString text) {
     NYA_Url        url     = { 0 };
     NYA_UrlFailure failure = { 0 };
 
-    // The parser refuses a control byte, a space, a malformed escape and every scheme this engine does
-    // not speak; the two schemes below are the web's, which is all a loc or a link may be.
+    // The parser refuses a control byte, a space, a malformed escape and every scheme this engine doesn't speak; the two schemes below are the web's, all a loc or link may be.
     if (!nya_url_parse(text, strlen(text), &url, &failure).ok) return false;
 
     return url.scheme == NYA_URL_SCHEME_HTTP || url.scheme == NYA_URL_SCHEME_HTTPS;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION — THE SERVE REGISTRY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION — THE SERVE REGISTRY
 
 NYA_Error nya_http_doc_serve(NYA_ConstCString path, NYA_HttpMediaType media, NYA_ConstCString body, NYA_ConstCString summary) {
     if (path == nullptr || path[0] != '/') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a served document needs an absolute path");
@@ -221,8 +185,7 @@ NYA_Error nya_http_doc_serve(NYA_ConstCString path, NYA_HttpMediaType media, NYA
         if (strcmp(_NYA_HTTP_DOCS.routes[i].path, path) == 0) return nya_error(NYA_ERROR_ALREADY_EXISTS, "'%s' is already served", path);
     }
 
-    // The arena is made on the first serve and freed by clear, so the served bytes outlive the caller's
-    // build arena. Everything below is copied into it.
+    // The arena is made on the first serve and freed by clear, so the served bytes outlive the caller's build arena; everything below is copied into it.
     if (_NYA_HTTP_DOCS.arena == nullptr) _NYA_HTTP_DOCS.arena = nya_arena_create(.name = "http_doc");
 
     NYA_ConstCString path_copy    = _nya_http_doc_dup(path);
@@ -249,8 +212,7 @@ NYA_Error nya_http_doc_serve(NYA_ConstCString path, NYA_HttpMediaType media, NYA
     _NYA_HTTP_DOCS.count           = slot + 1;
     _NYA_HTTP_DOC_ROUTER.route_count = _NYA_HTTP_DOCS.count;
 
-    // The table has to be one the server would serve; a malformed route is rolled back rather than left
-    // half-registered, so a refused serve changes nothing.
+    // The table must be one the server would serve; a malformed route is rolled back rather than left half-registered, so a refused serve changes nothing.
     NYA_Error checked = nya_http_router_check(&_NYA_HTTP_DOC_ROUTER);
     if (!checked.ok) {
         _NYA_HTTP_DOCS.entries[slot]   = (_NYA_HttpDocEntry){ 0 };
@@ -279,15 +241,10 @@ void nya_http_doc_clear(void) {
     _NYA_HTTP_DOC_ROUTER.route_count = 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_http_doc_bytes(NYA_HttpDoc* doc, const char* data, u64 size) {
-    // Once overflowed, or with no buffer to write into, every further append is a no-op that keeps the
-    // flag set: finish is what turns it into a refusal, so the builder need not be checked per call.
+    // Once overflowed, or with no buffer, every further append is a no-op that keeps the flag set: finish turns it into a refusal, so the builder need not be checked per call.
     if (doc->overflowed || doc->buffer == nullptr) {
         doc->overflowed = true;
         return;
@@ -307,8 +264,7 @@ void _nya_http_doc_bytes(NYA_HttpDoc* doc, const char* data, u64 size) {
 NYA_HttpStatus _nya_http_doc_serve(NYA_HttpExchange* exchange) {
     nya_assert(exchange->route != nullptr, "the discovery handler is only reachable through one of its routes");
 
-    // Which document, from the route's offset into the parallel arrays; the router points straight at
-    // that array, so the matched route is one of these and the index is exact.
+    // Which document, from the route's offset into the parallel arrays; the router points straight at that array, so the matched route is one of these and the index is exact.
     u64 index = (u64)(exchange->route - _NYA_HTTP_DOCS.routes);
     nya_assert(index < _NYA_HTTP_DOCS.count, "a route outside the registry reached the discovery handler");
 

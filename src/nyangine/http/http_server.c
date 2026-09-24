@@ -13,11 +13,7 @@
 #include "nyangine/os/os_random.h"
 #include "nyangine/os/os_time.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * How long the listener thread sleeps between passes while anything is in flight.
@@ -34,11 +30,7 @@
 /** How long a worker sits on the semaphore before looking at the stop flag again. */
 #define _NYA_HTTP_WORKER_WAIT_MS 20
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct _NYA_HttpConnection _NYA_HttpConnection;
 typedef struct _NYA_HttpSlot       _NYA_HttpSlot;
@@ -218,9 +210,7 @@ struct _NYA_HttpState {
 
     atomic u64 request_count;
 
-    /*
-     * ── the threaded half, all of it null and zero while `workers` is zero ──
-     */
+    // ── the threaded half, all of it null and zero while `workers` is zero ──
 
     /** Worker threads, and therefore handlers that can be running at once. Zero is the unthreaded mode. */
     u32 workers;
@@ -245,20 +235,12 @@ struct _NYA_HttpState {
     atomic b8 stopping;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /** Null when the server is off, which is what makes every call here a no-op and costs nothing. */
 NYA_INTERNAL _NYA_HttpState* _NYA_HTTP = nullptr;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** One drain pass: accept, then read, answer and time out every connection once. */
 NYA_INTERNAL void _nya_http_pass(void);
@@ -359,17 +341,9 @@ NYA_INTERNAL NYA_Error _nya_http_threads_start(_NYA_HttpState* state) __attr_no_
 /** Joins every worker inside NYA_HTTP_SHUTDOWN_GRACE_MS and returns how many were still inside a handler. */
 NYA_INTERNAL u32 _nya_http_workers_join(_NYA_HttpState* state) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * SYSTEM FUNCTIONS
- * ─────────────────────────────────────────────────────────
- */
+// SYSTEM FUNCTIONS
 
 /**
  * The address a config binds: what it named, or loopback when it named nothing. The default is
@@ -387,10 +361,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     if (config.port == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an HTTP server needs a port");
 
-    /*
-     * A secret that is present and too short is refused here rather than at the first request: a
-     * server that came up and only fails when someone tries to log in is a server nobody tested.
-     */
+    // A secret that's present but too short is refused here rather than at the first request: a server that comes up and only fails when someone logs in is a server nobody tested.
     if (config.secret != nullptr && config.secret_size > 0 &&
         (config.secret_size < NYA_HTTP_MIN_SECRET_BYTES || config.secret_size > NYA_HTTP_MAX_SECRET_BYTES)) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a signing secret is %d to %d bytes", NYA_HTTP_MIN_SECRET_BYTES, NYA_HTTP_MAX_SECRET_BYTES);
@@ -413,11 +384,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     if (nya_os_socket_start() != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_NOT_OK, "the host's socket library could not start");
 
-    /*
-     * Loopback unless the caller named something else, so a server nobody asked to be reachable is
-     * not. Resolved here and not on a thread: this is a start-up call rather than a frame, and a name
-     * that will not resolve is a server that will not start either way.
-     */
+    // Loopback unless the caller named something else, so a server nobody asked to be reachable isn't; resolved here not on a thread — this is a start-up call, and a name that won't resolve is a server that won't start either way.
     NYA_ConstCString requested = _nya_http_bind_address(&config);
 
     NYA_OsAddress address = { 0 };
@@ -473,15 +440,10 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     state->request_burst               = config.request_burst != 0 ? config.request_burst : NYA_HTTP_DEFAULT_REQUEST_BURST;
     state->max_connections_per_address = nya_min(state->max_connections_per_address, state->max_connections);
 
-    // clamped rather than refused: a program asking for more threads than this has made a guess about
-    // the machine, and a server that will not start is a worse answer than a server with eight workers.
+    // clamped rather than refused: a program asking for more threads than this has guessed about the machine, and a server that won't start is worse than one with eight workers.
     state->workers = nya_min(config.workers, (u32)NYA_HTTP_MAX_WORKERS);
 
-    /*
-     * One exchange per connection when threaded, so the connection table is what bounds the work in
-     * flight and a slot never has to be found; one for the whole server otherwise, which is the single
-     * request and response buffer this has always had.
-     */
+    // One exchange per connection when threaded, so the connection table bounds the work in flight and a slot never has to be found; one for the whole server otherwise, the single request/response buffer this has always had.
     state->slot_count = state->workers > 0 ? state->max_connections : 1;
     state->slots      = nya_arena_alloc(arena, sizeof(_NYA_HttpSlot) * state->slot_count);
 
@@ -495,11 +457,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     nya_memset(state->slots, 0, sizeof(_NYA_HttpSlot) * state->slot_count);
 
-    /*
-     * The certificate is read here rather than on the first connection: a path that is wrong, a key
-     * that does not match its certificate and a file nobody can read are all things to find out while
-     * a person is watching the server start, not on somebody's first request.
-     */
+    // The certificate is read here rather than on the first connection: a wrong path, a key that doesn't match its certificate, and an unreadable file are all things to find out while a person watches the server start, not on someone's first request.
     if (wants_certificate) {
         NYA_Error ready = nya_tls_context_create(arena, &state->tls, .certificate_path = config.certificate_path, .key_path = config.key_path);
 
@@ -541,11 +499,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     _NYA_HTTP = state;
 
-    /*
-     * The thread that starts the server is the one its NYA_HTTP_AFFINITY_MAIN handlers run on, and the
-     * one every main-thread-only module is checked against. Claimed only when this thread already
-     * counts as the main one, so starting a server from a worker cannot move the claim.
-     */
+    // The thread that starts the server is the one its NYA_HTTP_AFFINITY_MAIN handlers run on and every main-thread-only module is checked against; claimed only when this thread already counts as main, so starting from a worker can't move the claim.
     if (nya_thread_main_is_current()) nya_thread_main_claim();
 
     NYA_Error started = _nya_http_threads_start(state);
@@ -562,8 +516,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         return started;
     }
 
-    // an atomic counter and a plain one have the same bytes; the registry only ever reads it, and it
-    // is atomic because the listener thread is what moves it.
+    // an atomic counter and a plain one have the same bytes; the registry only ever reads it, and it's atomic because the listener thread is what moves it.
     nya_ceiling_register("http_connections", _NYA_HTTP->max_connections, (const u32*)&_NYA_HTTP->connection_count);
     nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
     nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
@@ -596,9 +549,7 @@ void nya_system_http_deinit(void) {
 
     _NYA_HttpState* state = _NYA_HTTP;
 
-    // Retract the ceilings init registered: two of them point into `state`, which this frees, so a
-    // metrics query after deinit would read freed memory. Done up front so both the graceful path and
-    // the leak-on-purpose path below drop them, and so a re-init does not register a second copy.
+    // Retract the ceilings init registered: two point into `state`, which this frees, so a metrics query after deinit would read freed memory. Done up front so both the graceful and leak-on-purpose paths drop them, and so a re-init doesn't register a second copy.
     nya_ceiling_unregister("http_connections");
     nya_ceiling_unregister("http_rate_buckets");
     nya_ceiling_unregister("http_websockets");
@@ -606,14 +557,10 @@ void nya_system_http_deinit(void) {
     // first, so a drain that arrives while the rest of this is running finds nothing to do.
     atomic_store_explicit(&state->stopping, true, memory_order_release);
 
-    /*
-     * The listener first and on its own: once it has returned nothing reads, writes or accepts a
-     * socket, so everything below is happening to a table nobody else is looking at.
-     */
+    // The listener first and on its own: once it has returned nothing reads, writes or accepts a socket, so everything below happens to a table nobody else is looking at.
     if (state->listener_thread != nullptr) nya_thread_join(state->listener_thread);
 
-    // every worker woken at once: one between requests returns immediately, one inside a handler
-    // returns when the handler does, and _nya_http_workers_join is where that stops being waited for.
+    // every worker woken at once: one between requests returns immediately, one inside a handler returns when the handler does, and _nya_http_workers_join is where that stops being waited for.
     for (u32 index = 0; index < state->workers; index++) nya_semaphore_post(state->work);
 
     u32 stuck = _nya_http_workers_join(state);
@@ -626,13 +573,7 @@ void nya_system_http_deinit(void) {
     nya_os_socket_close(state->listener);
     state->listener = NYA_OS_SOCKET_NONE;
 
-    /*
-     * A handler that ignored the deadline is still writing into its slot and reading the secret out of
-     * this state, so the port goes back and the sockets close, and the memory does not: freeing it
-     * would hand a running thread a use-after-free, and wiping the secret would be a write into a
-     * buffer another thread is reading. The process is on its way out; a leak until then is the only
-     * sound answer, and it is loud.
-     */
+    // A handler that ignored the deadline is still writing into its slot and reading the secret out of this state, so the port goes back and the sockets close but the memory doesn't: freeing it would hand a running thread a use-after-free, and wiping the secret a write into a buffer another thread reads. The process is on its way out; a leak until then is the only sound answer, and it's loud.
     if (stuck > 0) {
         nya_log_error(
             "%u HTTP handler(s) were still running %d ms after shutdown started; the port is closed and their memory is leaked on purpose.",
@@ -675,11 +616,7 @@ void nya_system_http_deinit(void) {
 void nya_system_http_tick(void) {
     if (_NYA_HTTP == nullptr) return;
 
-    /*
-     * With workers the listener thread is doing the sockets, and what is left for the tick is the work
-     * that has to happen where the program's own state is: the exchanges whose route asked for it, and
-     * every WebSocket. Without them this is the whole drain, exactly as it has always been.
-     */
+    // With workers the listener thread does the sockets, and what's left for the tick is the work that must happen where the program's own state is: the exchanges whose route asked for it, and every WebSocket. Without them this is the whole drain, as it has always been.
     if (_NYA_HTTP->workers > 0) {
         _nya_http_main_drain();
         _nya_http_websockets_drain();
@@ -690,11 +627,7 @@ void nya_system_http_tick(void) {
     _nya_http_pass();
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROUTERS
- * ─────────────────────────────────────────────────────────
- */
+// ROUTERS
 
 NYA_Error nya_http_server_merge(const NYA_HttpRouter* router) {
     if (_NYA_HTTP == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "the HTTP server is not running");
@@ -735,11 +668,7 @@ void nya_http_server_unmerge(const NYA_HttpRouter* router) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTROSPECTION
- * ─────────────────────────────────────────────────────────
- */
+// INTROSPECTION
 
 b8 nya_http_server_is_running(void) {
     return _NYA_HTTP != nullptr;
@@ -777,11 +706,7 @@ const NYA_HttpRouter* nya_http_server_router_at(u32 index) {
     return _NYA_HTTP->routers[index];
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SECRETS
- * ─────────────────────────────────────────────────────────
- */
+// SECRETS
 
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, u8* buffer, u64 capacity, u64* out_size) {
     nya_assert(variable != nullptr);
@@ -808,18 +733,12 @@ NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, u8* buffer
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_http_pass(void) {
     const b8 threaded = _NYA_HTTP->workers > 0;
 
-    // the whole pass under one lock, and the only other thread that wants it is the tick draining the
-    // WebSockets. A pass is non-blocking socket calls over at most eight connections, so what it makes
-    // the tick wait for is microseconds; a handler never runs under it.
+    // the whole pass under one lock, and the only other thread that wants it is the tick draining the WebSockets; a pass is non-blocking socket calls over at most eight connections, so it makes the tick wait microseconds, and a handler never runs under it.
     nya_mutex_lock(_NYA_HTTP->table_mutex);
     defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
@@ -832,9 +751,7 @@ void _nya_http_pass(void) {
 
         if (connection->socket.handle == 0) continue;
 
-        // a connection that upgraded is drained by the websocket table, under its own bounds; it keeps
-        // the slot it was accepted into, so it never escapes the ones above. With workers that drain is
-        // the tick's, so the listener lets go of the socket here and never looks at it again.
+        // a connection that upgraded is drained by the websocket table under its own bounds; it keeps the slot it was accepted into, so it never escapes the ones above. With workers that drain is the tick's, so the listener lets go of the socket here and never looks at it again.
         if (connection->upgraded) {
             if (threaded) continue;
 
@@ -847,11 +764,7 @@ void _nya_http_pass(void) {
         if (threaded) {
             u32 slot_state = atomic_load_explicit(&slot->state, memory_order_acquire);
 
-            /*
-             * Queued or running: the exchange belongs to somebody else, and so does the connection. It
-             * is not read from, not timed out and not closed until the answer is written, which is what
-             * makes a slow handler cost its own connection and nothing else.
-             */
+            // Queued or running: the exchange belongs to somebody else, and so does the connection — not read from, not timed out and not closed until the answer is written, which makes a slow handler cost its own connection and nothing else.
             if (slot_state == _NYA_HTTP_SLOT_QUEUED || slot_state == _NYA_HTTP_SLOT_RUNNING) continue;
 
             if (slot_state == _NYA_HTTP_SLOT_DONE) {
@@ -878,16 +791,8 @@ void _nya_http_pass(void) {
         // an exchange that was just handed over owns the connection until its answer is written.
         if (threaded && atomic_load_explicit(&slot->state, memory_order_acquire) != _NYA_HTTP_SLOT_IDLE) continue;
 
-        /*
-         * Two reasons to drop a connection that is still open: it has gone quiet in the middle of a
-         * request, and it has stopped reading what we already sent. Both are bounds rather than
-         * checks, because neither has a version that is safe to wait out.
-         */
-        /*
-         * Read after the work rather than once at the top of the tick: receiving stamps the connection
-         * with a fresh reading, so a timestamp taken before it is behind the one being subtracted from
-         * it, and the difference of two unsigned times in that order is an enormous number.
-         */
+        // Two reasons to drop a still-open connection: it has gone quiet mid-request, and it has stopped reading what we already sent. Both are bounds rather than checks, because neither has a version safe to wait out.
+        // Read after the work rather than once at the top of the tick: receiving stamps the connection with a fresh reading, so a timestamp taken before it is behind the one being subtracted from it, and the difference of two unsigned times in that order is an enormous number.
         u64 now_ns = nya_clock_get_monotonic_ns();
 
         if (now_ns > connection->active_at_ns && now_ns - connection->active_at_ns > (u64)NYA_HTTP_IDLE_TIMEOUT_MS * 1000000ULL) {
@@ -929,8 +834,7 @@ void _nya_http_accept(void) {
             break;
         }
 
-        // the connection past the last is closed now rather than queued, so a process that loops on
-        // connect cannot grow anything here.
+        // the connection past the last is closed now rather than queued, so a process that loops on connect can't grow anything here.
         if (slot == nullptr) {
             nya_os_socket_close(socket);
             continue;
@@ -952,20 +856,17 @@ void _nya_http_accept(void) {
             continue;
         }
 
-        // a small answer goes now rather than waiting for company, which is what a request/response
-        // protocol wants: there is nothing else coming to share the packet with.
+        // a small answer goes now rather than waiting for company, which is what a request/response protocol wants: there's nothing else coming to share the packet with.
         (void)nya_os_socket_set_no_delay(socket, true);
 
-        // Cleared rather than assigned a compound literal: a connection holds its read and write
-        // buffers inline, so building one on the stack first is a quarter of a megabyte of frame.
+        // Cleared rather than assigned a compound literal: a connection holds its read and write buffers inline, so building one on the stack first is a quarter of a megabyte of frame.
         nya_memset(slot, 0, sizeof(*slot));
 
         slot->socket       = socket;
         slot->active_at_ns = nya_clock_get_monotonic_ns();
         (void)snprintf(slot->address, sizeof(slot->address), "%s", address);
 
-        // Nothing is read or written here: the handshake happens on the drain passes that follow, so
-        // one peer opening a connection slowly cannot hold up the accept loop.
+        // Nothing is read or written here: the handshake happens on the drain passes that follow, so one peer opening a connection slowly can't hold up the accept loop.
         if (_NYA_HTTP->tls != nullptr) {
             NYA_Error started = nya_tls_session_create(_NYA_HTTP->tls, socket, &slot->tls);
 
@@ -994,8 +895,7 @@ b8 _nya_http_tls_ready(_NYA_HttpConnection* connection) {
             connection->active_at_ns = nya_clock_get_monotonic_ns();
             return true;
 
-        // Still going, and the idle timeout is what bounds how long that may take: a peer that opens a
-        // connection and never finishes a handshake is a peer that has gone quiet.
+        // Still going, and the idle timeout bounds how long that may take: a peer that opens a connection and never finishes a handshake is a peer that has gone quiet.
         case NYA_TLS_WANT_READ: return true;
 
         case NYA_TLS_WANT_WRITE:
@@ -1006,11 +906,7 @@ b8 _nya_http_tls_ready(_NYA_HttpConnection* connection) {
 
         case NYA_TLS_FAILED:
         default:
-            /*
-             * Logged at debug rather than warn: a failed handshake is what a port scanner, a browser
-             * that does not like this certificate and somebody speaking plain HTTP to an https port all
-             * look like, and none of them is a fault of this server's worth a line in a log.
-             */
+            // Logged at debug rather than warn: a failed handshake is what a port scanner, a browser that dislikes this certificate, and someone speaking plain HTTP to an https port all look like, none a fault of this server's worth a log line.
             nya_log_debug("A TLS handshake from %s failed: %s", connection->address, nya_tls_error(connection->tls));
             return false;
     }
@@ -1034,8 +930,7 @@ b8 _nya_http_push(_NYA_HttpConnection* connection, const u8* data, u64 size) {
 b8 _nya_http_flush(_NYA_HttpConnection* connection) {
     if (connection->socket.handle == 0) return false;
 
-    // Nothing may be written before the handshake is done, and the handshake is what a fresh TLS
-    // connection's first pass through here is actually doing.
+    // Nothing may be written before the handshake is done, and the handshake is what a fresh TLS connection's first pass through here is actually doing.
     if (connection->tls != nullptr && !_nya_http_tls_ready(connection)) return false;
 
     while (connection->sent < connection->sending_size) {
@@ -1045,11 +940,7 @@ b8 _nya_http_flush(_NYA_HttpConnection* connection) {
             NYA_TlsProgress progress =
                 nya_tls_send(connection->tls, connection->sending + connection->sent, connection->sending_size - connection->sent, &wrote);
 
-            /*
-             * A TLS write may want to read, because a record cannot be written until whatever the peer
-             * is in the middle of sending has been taken. Both are "come back later" and neither is a
-             * failure; the tick returns here when the socket is ready.
-             */
+            // A TLS write may want to read, because a record can't be written until whatever the peer is mid-send has been taken; both are "come back later" and neither is a failure — the tick returns here when the socket is ready.
             if (progress == NYA_TLS_WANT_READ) break;
 
             if (progress == NYA_TLS_WANT_WRITE) {
@@ -1062,8 +953,7 @@ b8 _nya_http_flush(_NYA_HttpConnection* connection) {
             NYA_OsSocketStatus status =
                 nya_os_socket_send(connection->socket, connection->sending + connection->sent, connection->sending_size - connection->sent, &wrote);
 
-            // The host's buffer is full, which is a peer reading slowly rather than a peer that is gone:
-            // what is left stays queued and the bound above is what decides when that stops being fine.
+            // The host's buffer is full, a peer reading slowly rather than gone: what's left stays queued and the bound above decides when that stops being fine.
             if (status == NYA_OS_SOCKET_WOULD_BLOCK) break;
             if (status != NYA_OS_SOCKET_OK) return false;
         }
@@ -1074,8 +964,7 @@ b8 _nya_http_flush(_NYA_HttpConnection* connection) {
 
     if (connection->sent == 0) return true;
 
-    // Compacted only once the socket has stopped taking bytes, so a whole answer that goes at once
-    // costs no copy at all: the common case leaves the queue empty rather than moving anything.
+    // Compacted only once the socket has stopped taking bytes, so a whole answer that goes at once costs no copy: the common case leaves the queue empty rather than moving anything.
     u64 left = connection->sending_size - connection->sent;
 
     if (left > 0) nya_memmove(connection->sending, connection->sending + connection->sent, left);
@@ -1089,10 +978,7 @@ b8 _nya_http_flush(_NYA_HttpConnection* connection) {
 b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
     u64 room = NYA_HTTP_MAX_REQUEST_BYTES - connection->received_size;
 
-    /*
-     * A full buffer with no complete request in it: the peer has sent more than the worst legal
-     * request and there is nothing left to wait for.
-     */
+    // A full buffer with no complete request in it: the peer has sent more than the worst legal request and there's nothing left to wait for.
     if (room == 0) {
         _nya_http_refuse(connection, slot, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE, "the request could not be parsed", 0);
         return false;
@@ -1119,8 +1005,7 @@ b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
     } else {
         NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->received + connection->received_size, room, &read);
 
-        // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both
-        // the connection going, which is what false means to the caller.
+        // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both the connection going, which is what false means to the caller.
         if (status == NYA_OS_SOCKET_WOULD_BLOCK) return true;
         if (status != NYA_OS_SOCKET_OK) return false;
     }
@@ -1157,8 +1042,7 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
 
         nya_assert(consumed > 0 && consumed <= connection->received_size, "the parser reported consuming more than it was given");
 
-        // shifted before the answer, so a handler cannot see a half-consumed stream and a pipelined
-        // second request is already at the front when the first one's answer is queued.
+        // shifted before the answer, so a handler can't see a half-consumed stream and a pipelined second request is already at the front when the first one's answer is queued.
         connection->received_size -= consumed;
 
         if (connection->received_size > 0) memmove(connection->received, connection->received + consumed, connection->received_size);
@@ -1175,8 +1059,7 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
 
         (void)snprintf(slot->address, sizeof(slot->address), "%s", connection->address);
 
-        // the table as it is right now, so a merge from the frame decides the next request and never
-        // this one. Read under the lock this pass already holds.
+        // the table as it is right now, so a merge from the frame decides the next request and never this one. Read under the lock this pass already holds.
         slot->router_count = _NYA_HTTP->router_count;
         for (u32 router = 0; router < _NYA_HTTP->router_count; router++) slot->routers[router] = _NYA_HTTP->routers[router];
 
@@ -1186,12 +1069,7 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
             return true;
         }
 
-        /*
-         * The upgrade is answered here rather than through the router: what follows a 101 is frames and
-         * not a response, so it cannot go through nya_http_response_head. Everything before this point
-         * still happened to it — it was accepted under the connection bounds, parsed by the same parser
-         * and has spent its token — and the rest of the handshake's rules are the websocket's.
-         */
+        // The upgrade is answered here rather than through the router: what follows a 101 is frames not a response, so it can't go through nya_http_response_head. Everything before still happened to it (accepted under the connection bounds, parsed by the same parser, its token spent), and the rest of the handshake's rules are the websocket's.
         if (slot->upgrade) {
             _nya_http_upgrade(connection, slot);
 
@@ -1209,8 +1087,7 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
 }
 
 void _nya_http_dispatch(_NYA_HttpState* state, _NYA_HttpSlot* slot) {
-    // everything the exchange allocates dies with it. Cleared at the start rather than the end so a
-    // response body that points into it is still valid while it is being written.
+    // everything the exchange allocates dies with it. Cleared at the start rather than the end so a response body that points into it is still valid while it's being written.
     nya_arena_free_all(slot->arena);
 
     nya_http_response_create(&slot->response, slot->response_body, sizeof(slot->response_body));
@@ -1228,8 +1105,7 @@ void _nya_http_dispatch(_NYA_HttpState* state, _NYA_HttpSlot* slot) {
         .address     = slot->address,
     };
 
-    // every line the request causes carries its id, so a report quoting X-Request-Id finds all of them.
-    // The tag is this thread's, so two workers never land on each other's lines.
+    // every line the request causes carries its id, so a report quoting X-Request-Id finds all of them; the tag is this thread's, so two workers never land on each other's lines.
     char tag[NYA_LOG_TAG_MAX_LENGTH] = { 0 };
     (void)snprintf(tag, sizeof(tag), "req=%s", slot->response.request_id);
     nya_log_tag_set(tag);
@@ -1238,10 +1114,7 @@ void _nya_http_dispatch(_NYA_HttpState* state, _NYA_HttpSlot* slot) {
     slot->answer = _NYA_HTTP_ANSWER_WRITE;
     slot->status = nya_http_router_dispatch(&exchange, slot->routers, slot->router_count, state->layers, state->layer_count);
 
-    // The one negotiated content coding, decided by http_message.c, which owns the response bytes: this
-    // hands it the client's Accept-Encoding and it compresses the body in place when that is worth doing,
-    // setting Content-Encoding and Vary and fixing Content-Length. The exchange arena is its scratch. A
-    // HEAD keeps the coding so its headers match the GET's; only the body is held back, downstream.
+    // The one negotiated content coding, decided by http_message.c which owns the response bytes: it's handed the client's Accept-Encoding and compresses the body in place when worth it, setting Content-Encoding and Vary and fixing Content-Length, with the exchange arena as scratch. A HEAD keeps the coding so its headers match the GET's; only the body is held back, downstream.
     (void)nya_http_response_compress(&slot->response, slot->arena, nya_http_request_header(&slot->request, "accept-encoding"));
 }
 
@@ -1264,8 +1137,7 @@ b8 _nya_http_complete(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
         nya_http_response_destroy(&slot->response);
     }
 
-    // the answer is the other half of "active": without this a connection whose handler took longer
-    // than the idle timeout would be closed the moment its answer went out.
+    // the answer is the other half of "active": without this a connection whose handler took longer than the idle timeout would be closed the moment its answer went out.
     connection->active_at_ns = nya_clock_get_monotonic_ns();
 
     slot->answer      = _NYA_HTTP_ANSWER_WRITE;
@@ -1338,9 +1210,7 @@ void _nya_http_problem(_NYA_HttpSlot* slot, NYA_HttpStatus status, NYA_ConstCStr
 void _nya_http_refuse(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, NYA_HttpStatus status, NYA_ConstCString detail, u32 retry_after_s) {
     _nya_http_problem(slot, status, detail, retry_after_s);
 
-    // never keep-alive: a stream the parser gave up on cannot be resynchronised, and guessing where
-    // the next request starts is the request smuggling bug this refuses in the first place. A peer
-    // over its budget is closed too, since anything it pipelined behind the refused request is unread.
+    // never keep-alive: a stream the parser gave up on can't be resynchronised, and guessing where the next request starts is the request-smuggling bug this refuses in the first place; a peer over its budget is closed too, since anything it pipelined behind the refused request is unread.
     (void)_nya_http_write(connection, &slot->response, status, false, false);
 
     nya_http_response_destroy(&slot->response);
@@ -1359,8 +1229,7 @@ b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* resp
 
     if (!_nya_http_push(connection, head, head_size)) return false;
 
-    // a HEAD carries the Content-Length its GET would have and none of the bytes, which is what makes
-    // it a HEAD rather than a GET nobody read.
+    // a HEAD carries the Content-Length its GET would have and none of the bytes, which makes it a HEAD rather than a GET nobody read.
     if (head_only || response->body_size == 0) return true;
 
     return _nya_http_push(connection, response->body, response->body_size);
@@ -1369,8 +1238,7 @@ b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* resp
 void _nya_http_request_id(const _NYA_HttpState* state, OUT char* out) {
     u8 bits[8] = { 0 };
 
-    // an id only has to be unique, not secret, so a CSPRNG that fails falls back to the request count
-    // rather than refusing the request.
+    // an id only has to be unique, not secret, so a CSPRNG that fails falls back to the request count rather than refusing the request.
     if (!nya_os_random_bytes(bits, sizeof(bits))) {
         u64 counted = atomic_load_explicit(&state->request_count, memory_order_relaxed);
 
@@ -1390,20 +1258,12 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
         if (strcmp(_NYA_HTTP->buckets[index].address, address) == 0) bucket = &_NYA_HTTP->buckets[index];
     }
 
-    // a new address starts full. Past the table's bound one budget makes room, and which one is the
-    // whole of whether this table can be used against the addresses already in it; see below.
+    // a new address starts full; past the table's bound one budget makes room, and which one is the whole of whether this table can be used against the addresses already in it (see below).
     if (bucket == nullptr) {
         if (_NYA_HTTP->bucket_count < NYA_HTTP_MAX_RATE_BUCKETS) {
             bucket = &_NYA_HTTP->buckets[_NYA_HTTP->bucket_count++];
         } else {
-            /*
-             * Only a budget that has refilled all the way makes room. An address whose budget is spent
-             * is an address being refused right now, and evicting it would hand it a fresh burst — so
-             * somebody spraying source addresses could clear the table and start over as often as they
-             * liked, which is the eviction attack this bound used to have.
-             *
-             * Among the full ones the stalest goes, because they are all equally not being refused.
-             */
+            // Only a budget refilled all the way makes room: an address whose budget is spent is one being refused right now, and evicting it would hand it a fresh burst — so someone spraying source addresses could clear the table and start over at will, the eviction attack this bound used to have. Among the full ones the stalest goes, since they're all equally not being refused.
             _NYA_HttpRateBucket* victim = nullptr;
 
             for (u32 index = 0; index < NYA_HTTP_MAX_RATE_BUCKETS; index++) {
@@ -1416,8 +1276,7 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
                 if (victim == nullptr || candidate->refilled_at_ns < victim->refilled_at_ns) victim = candidate;
             }
 
-            // Every budget in the table is spent: the table is full of addresses being refused, and this
-            // one waits with them rather than taking a slot from one of them.
+            // Every budget in the table is spent: the table is full of addresses being refused, and this one waits with them rather than taking a slot from one.
             if (victim == nullptr) {
                 *out_retry_after_s = 1;
                 return false;
@@ -1449,11 +1308,7 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
 void _nya_http_close(_NYA_HttpConnection* connection) {
     if (connection->socket.handle == 0) return;
 
-    /*
-     * The session before the socket, and no close_notify with it: a connection being dropped here is
-     * one that timed out, misbehaved or is finished, and none of those is worth a round trip with a
-     * peer that may not answer. A peer that cares whether it got everything has Content-Length.
-     */
+    // The session before the socket, and no close_notify with it: a connection dropped here is one that timed out, misbehaved or is finished, none worth a round trip with a peer that may not answer. A peer that cares whether it got everything has Content-Length.
     if (connection->tls != nullptr) {
         nya_tls_session_destroy(connection->tls);
         connection->tls = nullptr;
@@ -1471,11 +1326,7 @@ void _nya_http_close(_NYA_HttpConnection* connection) {
     (void)atomic_fetch_sub_explicit(&_NYA_HTTP->connection_count, 1, memory_order_relaxed);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE LISTENER AND THE POOL
- * ─────────────────────────────────────────────────────────
- */
+// THE LISTENER AND THE POOL
 
 void _nya_http_queue(_NYA_HttpState* state, u32 index, _NYA_HttpSlot* slot) {
     const b8 on_main = _nya_http_runs_on_main(slot);
@@ -1491,8 +1342,7 @@ void _nya_http_queue(_NYA_HttpState* state, u32 index, _NYA_HttpSlot* slot) {
 }
 
 b8 _nya_http_runs_on_main(const _NYA_HttpSlot* slot) {
-    // the handshake is not a route, and what it registers into is the WebSocket table, which belongs
-    // to whoever ticks; see http_server.h.
+    // the handshake is not a route, and what it registers into is the WebSocket table, which belongs to whoever ticks; see http_server.h.
     if (slot->upgrade) return true;
 
     b8 path_exists = false;
@@ -1515,8 +1365,7 @@ b8 _nya_http_queue_pop(u32* queue, u32* count, OUT u32* out_index) {
 
     *out_index = queue[0];
 
-    // first in, first out, over a table of eight: a shift is four moves and a ring would be state to
-    // get wrong for no measurable gain.
+    // first in, first out, over a table of eight: a shift is four moves and a ring would be state to get wrong for no measurable gain.
     (*count)--;
     for (u32 index = 0; index < *count; index++) queue[index] = queue[index + 1];
 
@@ -1578,28 +1427,20 @@ void _nya_http_listener_wait(_NYA_HttpState* state) {
 
             if (connection->socket.handle == 0) continue;
 
-            /*
-             * An upgraded socket is the tick's and may be destroyed by it at any moment, so it never
-             * goes into a set this thread is about to sleep on. While one is open the listener polls
-             * instead, which costs a wakeup a millisecond and is the price of the socket being
-             * somebody else's.
-             */
+            // An upgraded socket is the tick's and may be destroyed by it at any moment, so it never goes into a set this thread is about to sleep on; while one is open the listener polls instead, which costs a wakeup a millisecond and is the price of the socket being somebody else's.
             if (connection->upgraded) {
                 busy = true;
                 continue;
             }
 
-            // an answer that is being worked on cannot wake a socket, and bytes already buffered will
-            // not arrive again; both are a reason to come straight back rather than sleep.
+            // an answer being worked on can't wake a socket, and bytes already buffered won't arrive again; both are a reason to come straight back rather than sleep.
             if (atomic_load_explicit(&state->slots[index].state, memory_order_acquire) != _NYA_HTTP_SLOT_IDLE) busy = true;
             if (connection->received_size > 0) busy = true;
 
-            // a connection with an answer the peer has not taken wakes on room to write as well, so
-            // a slow reader is served as fast as it will read rather than at the idle timeout.
+            // a connection with an answer the peer hasn't taken wakes on room to write as well, so a slow reader is served as fast as it'll read rather than at the idle timeout.
             b8 owes = connection->sending_size > connection->sent;
 
-            // and so does one whose TLS handshake is waiting on room to write, which is the one case
-            // where a connection owing nothing still has something to say.
+            // and so does one whose TLS handshake is waiting on room to write, the one case where a connection owing nothing still has something to say.
             watched[watched_count++] =
                 (NYA_OsSocketWait){ .socket = connection->socket, .readable = true, .writable = owes || connection->tls_wants_write };
         }
@@ -1628,11 +1469,7 @@ void _nya_http_listener_thread(void* data) {
 void _nya_http_worker_thread(void* data) {
     _NYA_HttpState* state = (_NYA_HttpState*)data;
 
-    /*
-     * The state is handed over rather than read from the global, because a handler that outruns the
-     * shutdown deadline is still here after _NYA_HTTP has been cleared and its memory deliberately
-     * leaked; see nya_system_http_deinit.
-     */
+    // The state is handed over rather than read from the global, because a handler that outruns the shutdown deadline is still here after _NYA_HTTP has been cleared and its memory deliberately leaked; see nya_system_http_deinit.
     while (!atomic_load_explicit(&state->stopping, memory_order_acquire)) {
         if (!nya_semaphore_wait_timeout(state->work, _NYA_HTTP_WORKER_WAIT_MS)) continue;
 
@@ -1684,8 +1521,7 @@ NYA_Error _nya_http_threads_start(_NYA_HttpState* state) {
     state->queue_mutex = queue_mutex;
     state->work        = work;
 
-    // the workers first: a listener with nobody to hand an exchange to would queue one before the pool
-    // exists, and starting the pool afterwards would be a race for no reason.
+    // the workers first: a listener with nobody to hand an exchange to would queue one before the pool exists, and starting the pool afterwards would be a race for no reason.
     for (u32 index = 0; index < state->workers; index++) {
         NYA_Error worker = nya_thread_spawn(state->allocator, _nya_http_worker_thread, state, "HTTP Worker", &state->worker_threads[index]);
 
@@ -1747,11 +1583,7 @@ u32 _nya_http_workers_join(_NYA_HttpState* state) {
 
         while (!nya_thread_is_finished(thread) && nya_clock_get_monotonic_ns() < deadline_ns) nya_os_time_sleep_ms(1);
 
-        /*
-         * Still inside a handler at the deadline. There is no way to stop a thread from out here that
-         * is not worse than the problem — it may be holding a lock, or halfway through a write — so it
-         * is let go of and the deadline is kept by everybody else.
-         */
+        // Still inside a handler at the deadline: there's no way to stop a thread from out here that isn't worse than the problem (it may hold a lock, or be halfway through a write), so it's let go of and the deadline is kept by everybody else.
         if (!nya_thread_is_finished(thread)) {
             nya_thread_abandon(thread);
             stuck++;

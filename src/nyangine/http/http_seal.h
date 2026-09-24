@@ -63,11 +63,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The shortest secret a seal accepts, in bytes. Sixteen: a key below this is guessed, not stolen. */
 #define NYA_HTTP_SEAL_MIN_SECRET_BYTES 16
@@ -90,11 +86,7 @@
  * */
 #define NYA_HTTP_SEAL_MAX_TOKEN 512
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Seals `plaintext` into `out_token`, good for `ttl_s` seconds and bound to `label`.

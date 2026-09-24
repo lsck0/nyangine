@@ -10,11 +10,7 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/http/http_static.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 static_assert(NYA_HTTP_MAX_STATIC_FILE_BYTES <= NYA_HTTP_MAX_RESPONSE_BYTES,
               "a served file leaves in one write out of the shared response buffer, so it cannot be bigger than it");
@@ -46,11 +42,7 @@ static_assert(NYA_HTTP_STATIC_HASH_DIGITS % 2 == 0 && NYA_HTTP_STATIC_HASH_DIGIT
 #define _NYA_HTTP_STATIC_SUMMARY_IMMUTABLE "A file of the web bundle, at the hash of its own bytes"
 #define _NYA_HTTP_STATIC_SUMMARY_NAMED     "A file of the web bundle, at its name"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct _NYA_HttpStaticEntry _NYA_HttpStaticEntry;
 typedef struct _NYA_HttpStaticState _NYA_HttpStaticState;
@@ -96,11 +88,7 @@ typedef struct {
     NYA_HttpMediaType media_type;
 } _NYA_HttpStaticSuffix;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL _NYA_HttpStaticState _NYA_HTTP_STATIC = { 0 };
 
@@ -181,11 +169,7 @@ NYA_INTERNAL NYA_Error _nya_http_static_route_add(NYA_ConstCString path, u32 fil
 /** Checks one file, keeps a copy of it, hashes it and builds its routes. Everything a mount does per file. */
 NYA_INTERNAL NYA_Error _nya_http_static_add(const NYA_HttpStaticFile* file, NYA_ConstCString root, NYA_ConstCString prefix) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_static_mount(NYA_HttpStaticConfig config) {
     if (_NYA_HTTP_STATIC.arena != nullptr) return nya_error(NYA_ERROR_ALREADY_EXISTS, "the web bundle is already mounted");
@@ -212,8 +196,7 @@ NYA_Error nya_http_static_mount(NYA_HttpStaticConfig config) {
     for (u32 index = 0; index < config.count; index++) {
         NYA_Error added = _nya_http_static_add(&config.files[index], root, prefix);
 
-        // all or nothing: a bundle missing one file is a page that half loads, which is worse than a
-        // program that refuses to start and says which file.
+        // all or nothing: a bundle missing one file is a page that half loads, worse than a program that refuses to start and says which file.
         if (!added.ok) {
             nya_http_static_unmount();
             return added;
@@ -257,13 +240,10 @@ NYA_ConstCString nya_http_static_url(NYA_ConstCString asset) {
 u32 nya_http_static_file_count(void) { return _NYA_HTTP_STATIC.file_count; }
 
 u64 nya_http_static_fingerprint(void) {
-    // Nothing mounted folds to zero rather than to a hash of nothing, so a watch reads "no bundle yet" as
-    // a value apart from any real one and never signals a reload onto an empty server.
+    // Nothing mounted folds to zero rather than a hash of nothing, so a watch reads "no bundle yet" as a value apart from any real one and never signals a reload onto an empty server.
     if (_NYA_HTTP_STATIC.file_count == 0) return 0;
 
-    // FNV-1a over each file's ETag in mount order, with a NUL between them so two files cannot pool into
-    // the same stream as one. The ETag is the hash http_static already took at mount, so this is a fold
-    // over sixteen-odd bytes a file, not a second walk of the bytes going out.
+    // FNV-1a over each file's ETag in mount order, with a NUL between so two files can't pool into one stream; the ETag is the hash http_static already took at mount, so this folds over ~16 bytes a file, not a second walk of the bytes.
     u64 hash = NYA_HASH_FNV1A_OFFSET_BASIS;
 
     for (u32 index = 0; index < _NYA_HTTP_STATIC.file_count; index++) {
@@ -275,11 +255,7 @@ u64 nya_http_static_fingerprint(void) {
     return hash;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_static_is_name_char(char character) {
     if (character >= 'a' && character <= 'z') return true;
@@ -323,8 +299,7 @@ NYA_Error _nya_http_static_check_segments(NYA_ConstCString text, u64 size, NYA_C
 
         if (length == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s has an empty segment at offset " FMTu64, what, segment_start);
 
-        // "." and ".." are here, and so is every dot file. A name that starts with a dot is never
-        // something this means to publish, so one rule refuses the climb and the hidden file together.
+        // "." and ".." are here, and every dot file: a name starting with a dot is never something this publishes, so one rule refuses the climb and the hidden file together.
         if (text[segment_start] == '.') {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s has a segment starting with a dot at offset " FMTu64, what, segment_start);
         }
@@ -367,8 +342,7 @@ NYA_ConstCString _nya_http_static_hashed_path(NYA_ConstCString prefix, NYA_Const
     nya_assert(relative != nullptr);
     nya_assert(hash != nullptr);
 
-    // every served file has a suffix from the table, so there is always a dot to insert before, and it
-    // is the last one: "app.min.css" becomes "app.min.<hash>.css".
+    // every served file has a suffix from the table, so there's always a dot to insert before, and it's the last one: "app.min.css" becomes "app.min.<hash>.css".
     u64 dot = strlen(relative);
     while (dot > 0 && relative[dot - 1] != '.') dot--;
 
@@ -400,8 +374,7 @@ b8 _nya_http_static_etag_matches(NYA_ConstCString header, NYA_ConstCString etag)
 
         if (header[index] == 'W' && header[index + 1] == '/') index += 2;
 
-        // a list this parser cannot read is not a list of tags, and guessing at the rest of it would be
-        // guessing at whether a caller's cache is current.
+        // a list this parser can't read is not a list of tags, and guessing at the rest would be guessing at whether a caller's cache is current.
         if (header[index] != '"') return false;
         index++;
 
@@ -424,8 +397,7 @@ NYA_Error _nya_http_static_route_add(NYA_ConstCString path, u32 file, b8 immutab
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a mount builds at most %d routes", _NYA_HTTP_STATIC_MAX_ROUTES);
     }
 
-    // two files answering one path would leave the second unreachable, which reads as a missing file
-    // long after the mount that caused it.
+    // two files answering one path would leave the second unreachable, which reads as a missing file long after the mount that caused it.
     for (u32 index = 0; index < _NYA_HTTP_STATIC.route_count; index++) {
         if (nya_string_equals(_NYA_HTTP_STATIC.routes[index].path, path)) {
             return nya_error(NYA_ERROR_ALREADY_EXISTS, "'%s' is already served by another file", path);
@@ -456,8 +428,7 @@ NYA_Error _nya_http_static_add(const NYA_HttpStaticFile* file, NYA_ConstCString 
     nya_assert(prefix != nullptr);
 
     if (file->asset == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a file with no asset handle");
-    // an empty file is a read that went wrong somewhere upstream far more often than it is a file, and
-    // serving zero bytes under a hash of zero bytes helps nobody find out which.
+    // an empty file is a read that went wrong upstream far more often than it's a file, and serving zero bytes under a hash of zero bytes helps nobody find out which.
     if (file->data == nullptr || file->size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' was handed no bytes", file->asset);
 
     u64 asset_size = strlen(file->asset);
@@ -467,11 +438,7 @@ NYA_Error _nya_http_static_add(const NYA_HttpStaticFile* file, NYA_ConstCString 
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is longer than %d bytes", file->asset, NYA_HTTP_MAX_STATIC_ASSET);
     }
 
-    /*
-     * Under the root, spelled exactly: the handle has to begin with the root and a separator. This is
-     * the check that refuses an absolute path, a sibling directory and a handle that climbs, and it is
-     * done on the text before anything looks at the filesystem.
-     */
+    // Under the root, spelled exactly: the handle must begin with the root and a separator. This refuses an absolute path, a sibling directory and a climbing handle, done on the text before anything looks at the filesystem.
     if (asset_size <= root_size + 1 || strncmp(file->asset, root, root_size) != 0 || file->asset[root_size] != '/') {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not under '%s'", file->asset, root);
     }
@@ -486,12 +453,7 @@ NYA_Error _nya_http_static_add(const NYA_HttpStaticFile* file, NYA_ConstCString 
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' has no suffix this server has a media type for", file->asset);
     }
 
-    /*
-     * Where the assets are still files, what the handle names has to be a file. A symlink is a name for
-     * bytes somewhere else, which is the traversal this cannot otherwise see, and a directory is not a
-     * thing this serves at all. A release reads from the baked blob and there is nothing to stat; the
-     * build walked the tree then, and the blob's integrity hash is checked on load.
-     */
+    // Where the assets are still files, what the handle names must be a file: a symlink names bytes elsewhere (the traversal this can't otherwise see) and a directory isn't served at all. A release reads from the baked blob with nothing to stat — the build walked the tree then, and the blob's integrity hash is checked on load.
     NYA_FileInfo info = { 0 };
 
     if (nya_filesystem_info(file->asset, &info).ok && info.type != NYA_FILE_TYPE_FILE) {
@@ -547,8 +509,7 @@ NYA_Error _nya_http_static_add(const NYA_HttpStaticFile* file, NYA_ConstCString 
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not an absolute path that fits one", file->path);
     }
 
-    // "/" is the entry point and the one path with no segments; anything else is held to the same
-    // spelling as the handle behind it.
+    // "/" is the entry point and the one path with no segments; anything else is held to the same spelling as the handle behind it.
     if (file->path[1] != '\0') NYA_TRY(_nya_http_static_check_segments(file->path + 1, strlen(file->path) - 1, "the served path"));
 
     return _nya_http_static_route_add(file->path, slot, false);
@@ -586,8 +547,7 @@ NYA_HttpStatus _nya_http_static_serve(NYA_HttpExchange* exchange) {
     if (!nya_http_response_header(exchange->response, "ETag", file->etag).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
     if (!nya_http_response_header(exchange->response, "Cache-Control", cache).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // a page has to be able to load its own stylesheet, which the server's default policy forbids. Only
-    // a document gets the looser one; everything else keeps default-src 'none'.
+    // a page must be able to load its own stylesheet, which the server's default policy forbids; only a document gets the looser one, everything else keeps default-src 'none'.
     if (file->media_type == NYA_HTTP_MEDIA_HTML &&
         !nya_http_response_header(exchange->response, "Content-Security-Policy", NYA_HTTP_STATIC_PAGE_CSP).ok) {
         return NYA_HTTP_STATUS_INTERNAL_ERROR;

@@ -73,11 +73,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_router.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The WebSocket the page holds open. One stream, push only: the server speaks and the page listens. */
 #define NYA_HTTP_LIVERELOAD_PATH "/livereload"
@@ -88,11 +84,7 @@
 /** The one text message a change pushes. The client reloads on exactly this and ignores anything else. */
 #define NYA_HTTP_LIVERELOAD_MESSAGE "reload"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Whether this build has live reload at all: true in a development build, false in a shipping one.

@@ -14,64 +14,30 @@
 #include "nyangine/http/http_totp.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The second-factor table, one row per account, opened on the config's database beside the accounts tables. */
 #define TOTP_TABLE "account_totp"
 
-/*
- * The cookie that carries "this password was right, the code is still owed", and how it is sealed.
- *
- * A `__Host-` cookie like the session, so a browser pins it to this exact host, and sealed with the
- * config's key so its only content — which account is half way in — cannot be read or forged by whoever
- * holds it. Good for five minutes: long enough to read a code off a phone, short enough that a captured
- * one is worthless by the time it is replayed.
- */
+// The "password was right, code still owed" cookie: a __Host- cookie sealed with the config key (content unreadable/unforgeable), good 5 min — long enough to read a code, short enough a captured one is stale.
 #define LOGIN_COOKIE        "__Host-login"
 #define LOGIN_SEAL_LABEL    "accounts-login-totp"
 #define LOGIN_PENDING_TTL_S 300
 
-/*
- * The passkey ceremonies carry their "who this half-finished flow is about" the same sealed-cookie way the
- * second factor does, and for the same reason: no row, a short life, and content a client cannot read or
- * forge. Two of them, under labels of their own so a register cookie cannot open a login slot and neither
- * can be replayed as the TOTP one — the same purpose separation accounts_passkey keeps on its challenges.
- *
- * The register cookie is only ever set on the signed-out path, where a passwordless account was just made
- * and there is no session yet to say who is enrolling; the login cookie names which account an assertion
- * challenge was minted for, so the finish verifies against that account and no other. Five minutes each,
- * which is the challenge's own life (NYA_ACCOUNTS_PASSKEY_CHALLENGE_TTL_S) — a cookie outliving the
- * challenge it points at would open nothing anyway.
- */
+// Passkey ceremonies carry "who this flow is about" the same sealed-cookie way, under two separate labels so a register cookie can't open a login slot nor be replayed as the TOTP one; 5 min each (the challenge's own TTL).
 #define PASSKEY_REGISTER_COOKIE     "__Host-passkey-register"
 #define PASSKEY_REGISTER_SEAL_LABEL "accounts-passkey-register"
 #define PASSKEY_LOGIN_COOKIE        "__Host-passkey-login"
 #define PASSKEY_LOGIN_SEAL_LABEL    "accounts-passkey-login"
 #define PASSKEY_PENDING_TTL_S       ((s64)NYA_ACCOUNTS_PASSKEY_CHALLENGE_TTL_S)
 
-/*
- * The secret and the recovery hashes are bytes, and the ORM keeps INTEGER, REAL or TEXT and nothing else
- * (see db_orm.h), so they are held as text a column can carry: the secret as the same base32 an
- * authenticator reads, the ten recovery hashes as base64url joined by commas. Both are decoded back to
- * bytes the moment they are used and never logged.
- */
+// Secret and recovery hashes are bytes but the ORM stores only INTEGER/REAL/TEXT, so held as text (secret as base32, ten recovery hashes as comma-joined base64url); decoded on use, never logged.
 #define TOTP_SECRET_TEXT   NYA_HTTP_TOTP_SECRET_TEXT_BYTES // 32 base32 characters and a terminator.
 #define TOTP_RECOVERY_TEXT 512                             // Ten base64url hashes with commas fit inside this.
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
-/*
- * The second factor as a row: the secret and the recovery codes as text, the guard as three integers,
- * and whether the enrolment was ever confirmed. Stored per account, keyed by the account id.
- */
+// The second factor as a row: secret and recovery codes as text, the guard as three integers, and whether enrolment was confirmed; one per account, keyed by account id.
 typedef struct {
     s64  owner; // The account id, and the key: one second factor per account.
     char secret[TOTP_SECRET_TEXT];
@@ -119,28 +85,16 @@ NYA_INTERNAL const NYA_TypeReflection _NYA_HTTP_ACCOUNTS_TOTP_MODEL = {
     .field_count = nya_carray_length(_NYA_HTTP_ACCOUNTS_TOTP_FIELDS),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
-/*
- * The module's one state: the config a mount was opened with and the second-factor table it opened. A
- * route's handler is a plain function pointer with no user data, so what it reads is here rather than
- * threaded through the exchange; one process mounts once, exactly as `accounts` opens once.
- */
+// The module's one state: the config a mount opened with and the second-factor table; handlers are plain function pointers with no user data, so what they read lives here. One process mounts once, like accounts.
 NYA_INTERNAL struct {
     b8                    open;
     NYA_HttpAccountsConfig config;
     NYA_OrmTable*         totp;
 } _STATE = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * REQUEST HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// REQUEST HELPERS
 
 /** Reads `username` and `password` out of a JSON body, refusing anything that is not both strings. */
 NYA_INTERNAL b8 request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_username, OUT NYA_ConstCString* out_password) {
@@ -201,11 +155,7 @@ NYA_INTERNAL b8 request_code(NYA_HttpExchange* exchange, OUT NYA_ConstCString* o
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SESSION HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SESSION HELPERS
 
 /** Sets the session cookie from a token, with the attributes a session cookie must have. */
 NYA_INTERNAL NYA_HttpStatus set_session_cookie(NYA_HttpExchange* exchange, NYA_ConstCString token) {
@@ -326,11 +276,7 @@ NYA_INTERNAL b8 read_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCSt
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SECOND FACTOR HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SECOND FACTOR HELPERS
 
 /** Whether a submission is an authenticator code — exactly six digits — rather than a recovery code. */
 NYA_INTERNAL b8 code_is_totp_shaped(NYA_ConstCString code) {
@@ -423,11 +369,7 @@ NYA_INTERNAL b8 totp_is_enrolled(NYA_HttpExchange* exchange, u64 owner) {
     return totp_find(exchange, owner, &row) && row.confirmed != 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: ACCOUNTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// HANDLERS: ACCOUNTS
 
 /** Registration, under the config's policy. A taken name, a short password or a bad invite says which. */
 NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
@@ -441,9 +383,7 @@ NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
     NYA_Error       made = nya_account_register(exchange->arena, _STATE.config.registration, username, password, invite, &user);
 
     if (!made.ok) {
-        // A taken name, a bad password and a refused invite are the caller's to fix, so they are told;
-        // anything else is a server fault the caller can do nothing about. Registration is not a login:
-        // the person is not yet an attacker to hide the reason from. See accounts_invite.h.
+        // A taken name, bad password or refused invite are the caller's to fix, so they're told; anything else is a server fault. Registration isn't a login: no reason to hide. See accounts_invite.h.
         if (made.kind == NYA_ERROR_ALREADY_EXISTS || made.kind == NYA_ERROR_INVALID_ARGUMENT || made.kind == NYA_ERROR_PERMISSION_DENIED
             || made.kind == NYA_ERROR_NOT_FOUND) {
             return NYA_HTTP_STATUS_UNPROCESSABLE;
@@ -482,12 +422,10 @@ NYA_INTERNAL NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
     NYA_AccountUser user    = { 0 };
     NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, request_address(exchange), &user);
 
-    // One answer for every way it fails — wrong password, no such user, disabled, throttled — so the
-    // response says nothing a guesser can use. 401, since it is the credentials that were refused.
+    // One answer for every failure (wrong password, no such user, disabled, throttled) so the response tells a guesser nothing; 401, since credentials were refused.
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    // A confirmed second factor makes this only the first of two steps: hold the account in a sealed
-    // cookie and issue nothing a request can act with until the second step answers with a code.
+    // A confirmed second factor makes this only the first of two steps: hold the account in a sealed cookie and issue nothing actionable until the code answers.
     if (totp_is_enrolled(exchange, user.id)) return answer_second_factor_required(exchange, user.id);
 
     return issue_session(exchange, user.id);
@@ -518,12 +456,7 @@ NYA_INTERNAL NYA_HttpStatus handle_login_totp(NYA_HttpExchange* exchange) {
 
     NYA_HttpTotpGuard guard = totp_guard_of(&row);
 
-    // A six-digit code is read as an authenticator code, anything else as a recovery code off paper: the
-    // two forms never overlap, so routing on the shape spends one attempt rather than two and never tells
-    // the two apart in the answer. Redeeming a recovery code zeroes the matched hash, so on success the
-    // row's recovery column is rewritten from the hashes — and if that re-encode ever failed the code
-    // would be spent in memory but live on disk, so a failure there refuses rather than issuing a session
-    // on an unsaved spend.
+    // Six digits read as an authenticator code, anything else as a recovery code: the forms never overlap, so routing on shape spends one attempt and never distinguishes them in the answer; a redeemed recovery code is zeroed and the row rewritten, and a failed re-encode refuses rather than issuing a session on an unsaved spend.
     NYA_HttpTotpVerdict verdict = NYA_HTTP_TOTP_REFUSED;
 
     if (code_is_totp_shaped(code)) {
@@ -540,8 +473,7 @@ NYA_INTERNAL NYA_HttpStatus handle_login_totp(NYA_HttpExchange* exchange) {
         }
     }
 
-    // The guard moved whatever the verdict — an attempt was spent, or a counter advanced — so it is
-    // written back before anything else, or the replay guard forgets and the rate limit resets.
+    // The guard moved whatever the verdict (an attempt spent, or a counter advanced), so it's written back first, or the replay guard forgets and the rate limit resets.
     totp_guard_store(&row, &guard);
     if (!nya_orm_update(_STATE.totp, &row).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -566,8 +498,7 @@ NYA_INTERNAL NYA_HttpStatus handle_logout(NYA_HttpExchange* exchange) {
 
             NYA_AccountSession session = { 0 };
 
-            // Validate to find the row, then revoke it. A cookie that is already invalid is nothing to
-            // revoke, and clearing it is still the right thing to do.
+            // Validate to find the row, then revoke it; an already-invalid cookie is nothing to revoke, but clearing it is still right.
             if (nya_account_session_validate(exchange->arena, token, &session).ok) {
                 (void)nya_account_session_revoke(exchange->arena, session.id);
             }
@@ -593,11 +524,7 @@ NYA_INTERNAL NYA_HttpStatus handle_session(NYA_HttpExchange* exchange) {
     return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: THE SECOND FACTOR
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// HANDLERS: THE SECOND FACTOR
 
 /**
  * Begins enrolling a second factor for the signed-in account.
@@ -629,8 +556,7 @@ NYA_INTERNAL NYA_HttpStatus handle_totp_enrol(NYA_HttpExchange* exchange) {
     NYA_Error stored = present ? nya_orm_update(_STATE.totp, &row) : nya_orm_insert(_STATE.totp, &row);
     if (!stored.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // The one answer that carries the secret. The DTO's fields are all `@redact`, so the request log that
-    // sees this response keeps none of it; see http_totp.h and http_log.h.
+    // The one answer that carries the secret; the DTO's fields are all `@redact`, so the request log keeps none of it. See http_totp.h and http_log.h.
     NYA_HttpTotpEnrolmentDto dto = { 0 };
     (void)snprintf(dto.uri, sizeof(dto.uri), "%s", enrolment.uri);
     (void)snprintf(dto.secret, sizeof(dto.secret), "%s", enrolment.secret_base32);
@@ -679,11 +605,7 @@ NYA_INTERNAL NYA_HttpStatus handle_totp_confirm(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_NO_CONTENT;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PASSKEY HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PASSKEY HELPERS
 
 /** An optional string field of a JSON body, or null when it is absent or not a string. */
 NYA_INTERNAL NYA_ConstCString passkey_body_string(NYA_Object* body, NYA_ConstCString key) {
@@ -790,11 +712,7 @@ NYA_INTERNAL NYA_HttpStatus passkey_request_options(NYA_HttpExchange* exchange, 
     return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: PASSKEYS, THE PASSWORDLESS FACTOR
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// HANDLERS: PASSKEYS, THE PASSWORDLESS FACTOR
 
 /**
  * Begins enrolling a passkey, and answers the creation options and a challenge.
@@ -807,8 +725,7 @@ NYA_INTERNAL NYA_HttpStatus passkey_request_options(NYA_HttpExchange* exchange, 
  * before a passkey is added.
  * */
 NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exchange) {
-    // The body is optional on the signed-in path (nothing to say but "give me a challenge") and carries the
-    // username on the signed-out one; a failed parse simply leaves it null, which the signed-out path checks.
+    // The body is optional on the signed-in path and carries the username on the signed-out one; a failed parse leaves it null, which the signed-out path checks.
     NYA_Object* body = nullptr;
     (void)nya_http_request_document(exchange->request, exchange->arena, &body);
 
@@ -821,9 +738,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exch
         NYA_ConstCString username = passkey_body_string(body, "username");
         if (username == nullptr || username[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
 
-        // A passwordless account: the password column stays empty, so nya_account_authenticate refuses it,
-        // and the passkey is the only way in until somebody sets a password. A taken or malformed name is
-        // the caller's to fix — this is a sign-up, not a login, so it may know why it was refused.
+        // A passwordless account: the password column stays empty so nya_account_authenticate refuses it, and the passkey is the only way in until a password is set. A taken/malformed name is the caller's to fix — a sign-up, not a login.
         NYA_Error made = nya_account_create_without_password(exchange->arena, username, &user);
         if (!made.ok) {
             if (made.kind == NYA_ERROR_ALREADY_EXISTS || made.kind == NYA_ERROR_INVALID_ARGUMENT) return NYA_HTTP_STATUS_UNPROCESSABLE;
@@ -834,8 +749,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exch
     NYA_AccountPasskeyChallenge challenge = { 0 };
     if (!nya_account_passkey_register_begin(exchange->arena, user.id, &challenge).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // Only the signed-out path needs the binding cookie; a signed-in enrolment is bound by the session the
-    // finish revalidates, so it sets nothing here.
+    // Only the signed-out path needs the binding cookie; a signed-in enrolment is bound by the session the finish revalidates, so it sets nothing here.
     if (!signed_in && !set_sealed_user_cookie(exchange, PASSKEY_REGISTER_COOKIE, PASSKEY_REGISTER_SEAL_LABEL, user.id, (u64)PASSKEY_PENDING_TTL_S))
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -886,8 +800,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exc
 
     NYA_Error stored = nya_account_passkey_register_finish(exchange->arena, user_id, &request, nullptr);
     if (!stored.ok) {
-        // A registration is the account's own, so it may know which way its response was wrong. A challenge
-        // or origin that does not match is the one exception kept opaque, since that is the anti-phishing check.
+        // A registration is the account's own, so it may know how its response was wrong; a mismatched challenge or origin stays opaque, since that's the anti-phishing check.
         switch (stored.kind) {
             case NYA_ERROR_ALREADY_EXISTS:    return NYA_HTTP_STATUS_CONFLICT;
             case NYA_ERROR_NOT_SUPPORTED:     return NYA_HTTP_STATUS_UNPROCESSABLE;
@@ -927,8 +840,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_begin(NYA_HttpExchange* exchang
     b8              known = nya_account_find(exchange->arena, username, &user).ok && !user.disabled;
 
     if (!known) {
-        // A decoy: a random challenge never stored, and a cookie naming user zero. Same shape, same cost,
-        // and a finish that fails just as a wrong assertion for a real account does — no enumeration.
+        // A decoy: a random challenge never stored and a cookie naming user zero — same shape, same cost, failing just as a wrong assertion for a real account would, so no enumeration.
         u8 bytes[NYA_ACCOUNTS_PASSKEY_CHALLENGE_BYTES] = { 0 };
         if (!nya_os_random_bytes(bytes, sizeof(bytes))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -997,24 +909,15 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_finish(NYA_HttpExchange* exchan
         .signature_size          = signature_size,
     };
 
-    // accounts_passkey answers one refusal for every way this is not valid — an unknown credential, a spent
-    // or forged challenge, a bad origin or RP id hash, a clear user-present flag, a signature that does not
-    // verify, a counter that did not climb, and the decoy's user zero. This route does not soften it.
+    // accounts_passkey answers one refusal for every invalid case (unknown credential, spent/forged challenge, bad origin or RP id hash, clear user-present, bad signature, non-climbing counter, decoy user zero); this route doesn't soften it.
     if (!nya_account_passkey_assert_finish(exchange->arena, user_id, &request, nullptr).ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     return issue_session(exchange, user_id);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ROUTES
 
-/*
- * Every handler touches the one database on the ticking thread, so every route is MAIN: no route here
- * runs on a worker, and two requests never race the same rows.
- */
+// Every handler touches the one database on the ticking thread, so every route is MAIN: no route runs on a worker, and two requests never race the same rows.
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_ACCOUNTS_ROUTES[] = {
     { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_REGISTER_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_register,
       .summary = "Makes an account", .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
@@ -1036,9 +939,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_ACCOUNTS_ROUTES[] = {
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_NOT_FOUND,
                     NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_TOO_MANY_REQUESTS, NYA_HTTP_STATUS_FORBIDDEN } },
 
-    // The passkey routes are the last PASSKEY_ROUTE_COUNT entries, so the password-only router names the
-    // array short of them and the passwordless one names the whole of it; see nya_http_accounts_open. Keep
-    // them together at the end, or the two route counts stop lining up.
+    // The passkey routes are the last PASSKEY_ROUTE_COUNT entries, so the password-only router names the array short of them and the passwordless one names all of it (see nya_http_accounts_open); keep them at the end or the counts stop lining up.
     { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_BEGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_passkey_register_begin,
       .summary = "Begins enrolling a passkey; opens a passwordless account when signed out",
       .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
@@ -1057,11 +958,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_ACCOUNTS_ROUTES[] = {
 /** The passkey routes at the tail of the array, the count the two routers differ by. */
 #define PASSKEY_ROUTE_COUNT 4
 
-/*
- * Two views on the one array. The password-only router stops before the passkey routes; the passwordless
- * one names the whole array. nya_http_accounts_open returns whichever the config asked for, so a mount that
- * named no relying party never answers on any passkey path, and OpenAPI shows only what actually mounts.
- */
+// Two views on the one array: the password-only router stops before the passkey routes, the passwordless one names the whole array; nya_http_accounts_open returns whichever the config asked for, so a mount with no relying party answers no passkey path and OpenAPI shows only what mounts.
 NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_ACCOUNTS_ROUTER = {
     .name        = "accounts",
     .routes      = _NYA_HTTP_ACCOUNTS_ROUTES,
@@ -1074,11 +971,7 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_ACCOUNTS_ROUTER_PASSKEY = {
     .route_count = nya_carray_length(_NYA_HTTP_ACCOUNTS_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user) {
     nya_memset(out_user, 0, sizeof(NYA_AccountUser));
@@ -1130,8 +1023,7 @@ const NYA_HttpRouter* nya_http_accounts_open(NYA_HttpAccountsConfig config) {
         return nullptr;
     }
 
-    // The relying party is optional but paired: both or neither. Half of it is a check that could not run,
-    // so it is refused rather than mounted broken; with both, the passkey routes mount alongside the rest.
+    // The relying party is optional but paired — both or neither; half of it is a check that couldn't run, so it's refused rather than mounted broken. With both, the passkey routes mount alongside the rest.
     b8 has_rp_id  = config.passkey_rp_id != nullptr && config.passkey_rp_id[0] != '\0';
     b8 has_origin = config.passkey_origin != nullptr && config.passkey_origin[0] != '\0';
 

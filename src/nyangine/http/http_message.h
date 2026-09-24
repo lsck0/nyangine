@@ -73,11 +73,7 @@
 #include "nyangine/http/http_types.h"
 #include "nyangine/base/base_clock_instant.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Bytes the rendered status line and headers may take.
@@ -98,11 +94,7 @@
  * */
 #define NYA_HTTP_COMPRESS_MIN_BYTES 256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_HttpParse NYA_HttpParse;
 
@@ -124,17 +116,9 @@ enum NYA_HttpParse {
     NYA_HTTP_PARSE_REFUSED,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * REQUESTS
- * ─────────────────────────────────────────────────────────
- */
+// REQUESTS
 
 /**
  * Parses one request out of the front of `data`.
@@ -228,11 +212,7 @@ NYA_API NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Aren
 NYA_API NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT void* out_dto)
     __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * RESPONSES
- * ─────────────────────────────────────────────────────────
- */
+// RESPONSES
 
 /**
  * Binds `response` to `buffer`, which is where every later body write lands and which the response

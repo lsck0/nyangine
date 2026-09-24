@@ -13,11 +13,7 @@
 static_assert(NYA_HTTP_LOG_MAX_RECORD_BYTES <= NYA_LOG_MESSAGE_MAX_LENGTH,
               "a record longer than a log message is a record the formatter cuts where nobody decided to");
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The headers no level ever writes, lowercased as NYA_HttpRequest stores them.
@@ -37,11 +33,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_LOG_DENIED[] = { "authorization", 
  * */
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_LOG_SECRET_WORDS[] = { "password", "token", "secret", "code" };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** What nya_http_log_config_set installed. One server per process, so one of these. */
 NYA_INTERNAL NYA_HttpLogConfig _NYA_HTTP_LOG_CONFIG = { 0 };
@@ -90,15 +82,10 @@ NYA_INTERNAL void _nya_http_log_headers(_NYA_HttpLogRecord* record, NYA_ConstCSt
 /** The query string with every secret parameter's value replaced. Empty when there is no query. */
 NYA_INTERNAL void _nya_http_log_query(const NYA_HttpExchange* exchange, OUT char* out, u64 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_http_log_config_set(NYA_HttpLogConfig config) {
-    // a level outside the enum is a config file with a name this build does not know; the summary is
-    // the safe reading of it, since it is the level that carries the least.
+    // a level outside the enum is a config file with a name this build doesn't know; the summary is the safe reading, since it carries the least.
     if ((u32)config.level >= (u32)NYA_HTTP_LOG_LEVEL_COUNT) config.level = NYA_HTTP_LOG_SUMMARY;
     if ((u32)config.address >= (u32)NYA_HTTP_LOG_ADDRESS_COUNT) config.address = NYA_HTTP_LOG_ADDRESS_NETWORK;
 
@@ -144,11 +131,7 @@ NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* nex
 
     _NYA_HttpLogRecord record = { 0 };
 
-    /*
-     * The route's own path, never the request's: that is the caller's text, query string and all, and a
-     * token in a query would land in the log. An unmatched request is logged as such for the same
-     * reason. The request id is not here because the server's log tag already puts it on this line.
-     */
+    // The route's own path, never the request's (the caller's text, query and all, where a token could land in the log); an unmatched request is logged as such for the same reason. The request id isn't here because the server's log tag already puts it on the line.
     _nya_http_log_append(
         &record,
         "%s %s -> %d (%llu us, %llu in, %llu out) from %s as %s",
@@ -200,22 +183,13 @@ NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* nex
 
     if (record.overflowed) _nya_http_log_append(&record, "%s", "\n  ...");
 
-    /*
-     * One call, and the first moment any of this leaves this function. Everything above substituted
-     * rather than filtered, so there is no version of the record holding a secret for a sink to be
-     * trusted with: whatever the file sink writes is what the ring holds and what a crash report
-     * prints, because it is the same bytes.
-     */
+    // One call, and the first moment any of this leaves the function: everything above is substituted rather than filtered, so no version of the record holds a secret for a sink to be trusted with — what the file sink writes, the ring holds, and a crash report prints are the same bytes.
     nya_log_info("%s", record.buffer);
 
     return status;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_http_log_config_apply(void* instance) {
     if (instance == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no config to apply");
@@ -242,8 +216,7 @@ void _nya_http_log_append(_NYA_HttpLogRecord* record, NYA_ConstCString format, .
 
     if (written < 0) return;
 
-    // a write that did not fit is dropped whole rather than half written: half a header line reads as a
-    // shorter value, and a reader has no way to tell that from the real one.
+    // a write that didn't fit is dropped whole rather than half-written: half a header line reads as a shorter value, indistinguishable from the real one.
     if ((u64)written >= room) {
         record->buffer[record->length] = '\0';
         record->overflowed             = true;
@@ -322,8 +295,7 @@ b8 _nya_http_log_query_is_secret(const NYA_HttpRoute* route, const char* name, u
         if (_nya_http_log_contains_word(text, _NYA_HTTP_LOG_SECRET_WORDS[index])) return true;
     }
 
-    // and what the route's own request type says, which is the only structural evidence a query has:
-    // a parameter spelled like a `@redact` field of the DTO is the same value by another route in.
+    // and what the route's own request type says, the only structural evidence a query has: a parameter spelled like a `@redact` field of the DTO is the same value by another route in.
     return route != nullptr && _nya_http_log_type_redacts(route->request_type, name, name_size, 0);
 }
 
@@ -354,18 +326,13 @@ void _nya_http_log_body(
         return;
     }
 
-    // every way of not knowing what these bytes are ends in the same place, which is the point: a route
-    // with no DTO, a format the route did not declare, and a body that is not a document at all.
+    // every way of not knowing what these bytes are ends in the same place, which is the point: a route with no DTO, a format the route didn't declare, and a body that isn't a document at all.
     if (arena == nullptr || type == nullptr || type->kind != NYA_REFLECT_STRUCT) {
         _nya_http_log_fingerprint(data, size, out, capacity);
         return;
     }
 
-    /*
-     * A type carrying `@on_apply` is refused rather than round tripped: reading a document into one runs
-     * the program's own apply function, and logging a request must not run anything. No route DTO has
-     * one; this is here so that none can be given one by accident.
-     */
+    // A type carrying `@on_apply` is refused rather than round-tripped: reading a document into one runs the program's apply function, and logging a request must run nothing. No route DTO has one; this is here so none can be given one by accident.
     if (type->on_apply != nullptr) {
         _nya_http_log_fingerprint(data, size, out, capacity);
         return;
@@ -378,8 +345,7 @@ void _nya_http_log_body(
         case NYA_HTTP_MEDIA_JSON: parsed = nya_deserialize(arena, data, size, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &document); break;
         case NYA_HTTP_MEDIA_NYA:  parsed = nya_deserialize(arena, data, size, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &document); break;
 
-        // the binary form decodes against this very type, so a peer built from other headers is refused
-        // by its layout hash rather than read into the wrong fields and logged as those.
+        // the binary form decodes against this very type, so a peer built from other headers is refused by its layout hash rather than read into the wrong fields and logged as those.
         case NYA_HTTP_MEDIA_NYA_BINARY: parsed = nya_serde_nya_binary_decode(arena, data, size, type, &document); break;
 
         default: break;
@@ -390,8 +356,7 @@ void _nya_http_log_body(
         return;
     }
 
-    // fail closed on a key this type has no field for: an unknown key is a value nothing described, and
-    // a value nothing described is a value nothing could have tagged `@redact`.
+    // fail closed on a key this type has no field for: an unknown key is a value nothing described, and a value nothing described is one nothing could have tagged `@redact`.
     if (nya_reflect_check(type, document, nullptr, nullptr) != 0) {
         _nya_http_log_fingerprint(data, size, out, capacity);
         return;
@@ -451,8 +416,7 @@ void _nya_http_log_query(const NYA_HttpExchange* exchange, OUT char* out, u64 ca
         u64 name = 0;
         while (name < pair && query[start + name] != '=') name++;
 
-        // the value never goes through unexamined: a name with no '=' carries nothing, and a name that
-        // is or contains a secret word carries something nobody meant to write down.
+        // the value never goes through unexamined: a name with no '=' carries nothing, and a name that is or contains a secret word carries something nobody meant to write down.
         b8 secret = _nya_http_log_query_is_secret(exchange->route, query + start, name);
 
         s32 written = snprintf(

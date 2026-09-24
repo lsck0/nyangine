@@ -3,11 +3,7 @@
 #include "nyangine/http/http_doc.h"
 #include "nyangine/http/http_feed.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The checks both dialects share: the channel's three required fields, the item count, and every link. */
 NYA_INTERNAL NYA_Error _nya_http_feed_validate(NYA_HttpFeedConfig config);
@@ -15,11 +11,7 @@ NYA_INTERNAL NYA_Error _nya_http_feed_validate(NYA_HttpFeedConfig config);
 /** The feed's date for Atom: the given one, else the newest item's, else `have` is false and Atom refuses. */
 NYA_INTERNAL NYA_Instant _nya_http_feed_updated(NYA_HttpFeedConfig config, OUT b8* have);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_feed_rss(NYA_Arena* arena, NYA_HttpFeedConfig config, OUT NYA_ConstCString* out) {
     nya_assert(arena != nullptr && out != nullptr);
@@ -62,8 +54,7 @@ NYA_Error nya_http_feed_rss(NYA_Arena* arena, NYA_HttpFeedConfig config, OUT NYA
         nya_http_doc_xml_text(&doc, item->link);
         nya_http_doc_put(&doc, "</link>\n");
 
-        // guid, or the link when none was given. isPermaLink="false" so a reader treats it as an opaque
-        // identity and not a URL to fetch, which is what a caller-supplied guid usually is.
+        // guid, or the link when none was given; isPermaLink="false" so a reader treats it as an opaque identity, not a URL to fetch, which is what a caller-supplied guid usually is.
         NYA_ConstCString guid = item->guid != nullptr && item->guid[0] != '\0' ? item->guid : item->link;
         nya_http_doc_put(&doc, "      <guid isPermaLink=\"false\">");
         nya_http_doc_xml_text(&doc, guid);
@@ -104,8 +95,7 @@ NYA_Error nya_http_feed_atom(NYA_Arena* arena, NYA_HttpFeedConfig config, OUT NY
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the feed self link '%s' is not an http or https URL", config.self_link);
     }
 
-    // Atom requires a feed-level <updated>; without a given one and without a dated item there is none to
-    // write, so the feed is refused rather than emitted invalid.
+    // Atom requires a feed-level <updated>; with no given one and no dated item there is none to write, so the feed is refused rather than emitted invalid.
     b8          have_updated = false;
     NYA_Instant updated      = _nya_http_feed_updated(config, &have_updated);
     if (!have_updated) {
@@ -159,8 +149,7 @@ NYA_Error nya_http_feed_atom(NYA_Arena* arena, NYA_HttpFeedConfig config, OUT NY
         nya_http_doc_xml_text(&doc, entry_id);
         nya_http_doc_put(&doc, "</id>\n");
 
-        // An entry needs its own <updated>: its date when it has one, else the feed's, which is always
-        // present here since the feed refused above without one.
+        // An entry needs its own <updated>: its date when it has one, else the feed's, always present here since the feed refused above without one.
         NYA_Instant entry_updated = item->has_published ? item->published : updated;
 
         u8 entry_stamp[NYA_RFC3339_LENGTH_MAX + 1] = { 0 };
@@ -199,11 +188,7 @@ NYA_Error nya_http_feed_mount(NYA_HttpFeedConfig config) {
     return nya_http_doc_serve(NYA_HTTP_FEED_ATOM_PATH, NYA_HTTP_MEDIA_ATOM, atom, "The feed: recent items, as Atom 1.0");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_http_feed_validate(NYA_HttpFeedConfig config) {
     if (config.title == nullptr || config.title[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a feed needs a channel title");

@@ -5,11 +5,7 @@
 #include "nyangine/http/http_cookie.h"
 #include "nyangine/http/http_message.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * A token character, as RFC 9110 spells it. Its own copy rather than http_message.c's: that one is
@@ -29,11 +25,7 @@ NYA_INTERNAL b8 _nya_http_cookie_token_is(NYA_ConstCString text) __attr_no_disca
 /** Whether a path or a domain is safe to put in the header: no control byte, no semicolon, no comma. */
 NYA_INTERNAL b8 _nya_http_cookie_attribute_is(NYA_ConstCString text) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_http_cookie_parse(const char* header, u64 size, NYA_HttpCookieValue* out_names, NYA_HttpCookieValue* out_values, u32* out_count) {
     nya_assert(out_names != nullptr && out_values != nullptr && out_count != nullptr);
@@ -68,8 +60,7 @@ b8 nya_http_cookie_parse(const char* header, u64 size, NYA_HttpCookieValue* out_
 
         u64 value_size = at - value_start;
 
-        // a quoted value is legal in the grammar and is one more thing two parsers can read differently,
-        // so it is refused here: what goes in is what comes out, byte for byte.
+        // a quoted value is legal in the grammar and one more thing two parsers can read differently, so it's refused here: what goes in comes out byte for byte.
         if (name_size == 0 || name_size >= NYA_HTTP_MAX_COOKIE_NAME || value_size >= NYA_HTTP_MAX_COOKIE_VALUE) return false;
 
         for (u64 index = name_start; index < name_start + name_size; index++) {
@@ -180,8 +171,7 @@ NYA_Error nya_http_response_cookie(NYA_HttpResponse* response, const NYA_HttpCoo
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the domain of '%s' is not one", cookie->name);
     }
 
-    // a prefix a browser enforces, enforced here too: a name that claims one and does not keep it is
-    // silently ignored by the browser, which is a session that never arrives and nothing saying why.
+    // a prefix a browser enforces, enforced here too: a name claiming one and not keeping it is silently ignored by the browser — a session that never arrives with nothing saying why.
     b8 host_prefix   = strncmp(cookie->name, "__Host-", 7) == 0;
     b8 secure_prefix = strncmp(cookie->name, "__Secure-", 9) == 0;
 
@@ -255,11 +245,7 @@ NYA_Error nya_http_response_cookie_clear(NYA_HttpResponse* response, NYA_ConstCS
                                     });
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_cookie_name_char(char character) {
     if (character >= 'a' && character <= 'z') return true;

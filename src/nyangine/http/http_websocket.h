@@ -68,11 +68,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Longest frame header: two bytes, an eight byte length, and a four byte mask. */
 #define NYA_WEBSOCKET_MAX_HEADER_BYTES 14
@@ -120,11 +116,7 @@
  * */
 #define NYA_WEBSOCKET_MAX_FRAMES_PER_RECEIVE 64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_WebSocketOpcode           NYA_WebSocketOpcode;
 typedef enum NYA_WebSocketClose            NYA_WebSocketClose;
@@ -328,23 +320,11 @@ struct NYA_WebSocketProtocol {
     char               close_reason[NYA_WEBSOCKET_MAX_CLOSE_REASON_BYTES + 1];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * FRAMING
- * ─────────────────────────────────────────────────────────
- */
+// FRAMING
 
-/*
- * The wire format on its own, as two pure functions. Public because they are the part worth testing
- * directly and the part a fuzzer drives, and because the handshake in http_websocket_server.c and the
- * one in the curl plugin both need to agree about what a frame is.
- */
+// The wire format on its own, as two pure functions: public because they're the part worth testing directly and the part a fuzzer drives, and because the handshake here and in the curl plugin must agree about what a frame is.
 
 /**
  * Writes the header for a frame of `payload_size` bytes into `out_header`, and says how long it is.
@@ -393,11 +373,7 @@ NYA_API NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char o
 /** A close code as text, for a log line. Never null, including for a code nobody has defined. */
 NYA_API NYA_ConstCString nya_websocket_close_name(NYA_WebSocketClose code) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE PROTOCOL
- * ─────────────────────────────────────────────────────────
- */
+// THE PROTOCOL
 
 /**
  * Opens a protocol over a connection whose handshake is already done, filling `protocol` and taking

@@ -45,11 +45,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_HTTP_FEED_PATH      "/feed.xml"
 #define NYA_HTTP_FEED_ATOM_PATH "/atom.xml"
@@ -57,11 +53,7 @@
 /** Items one feed here carries. A loop ceiling under the shared byte bound (NYA_HTTP_DOC_MAX_BYTES), which is the hard backstop. */
 #define NYA_HTTP_FEED_MAX_ITEMS 500
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpFeedItem   NYA_HttpFeedItem;
 typedef struct NYA_HttpFeedConfig NYA_HttpFeedConfig;
@@ -102,11 +94,7 @@ struct NYA_HttpFeedConfig {
     u32                     count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Builds the RSS 2.0 document into `out`, allocated from `arena`.

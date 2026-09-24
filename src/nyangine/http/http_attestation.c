@@ -5,11 +5,7 @@
 #include "nyangine/crypto/crypto_encoding.h"
 #include "nyangine/http/http_attestation.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Appends `value` as eight little-endian bytes at `cursor` and returns the advanced cursor. */
 NYA_INTERNAL u8* _nya_http_attestation_put_u64(u8* cursor, u64 value);
@@ -20,11 +16,7 @@ NYA_INTERNAL char* _nya_http_attestation_dup(NYA_Arena* arena, NYA_ConstCString 
 /** Reads one string field, base64url-decodes it into `out`, and fails unless it was exactly `expected` bytes. */
 NYA_INTERNAL NYA_Error _nya_http_attestation_field(const NYA_Object* object, NYA_CString key, OUT u8* out, u64 expected) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_http_attestation_bundle_digest(const NYA_HttpAttestationFile* files, u64 count, OUT NYA_CryptoSha256Digest* out_digest) {
     nya_assert(out_digest != nullptr);
@@ -36,9 +28,7 @@ void nya_http_attestation_bundle_digest(const NYA_HttpAttestationFile* files, u6
     for (u64 index = 0; index < count; index++) {
         const NYA_HttpAttestationFile* file = &files[index];
 
-        // Path and bytes, each behind its own length, so a file renamed, a byte changed, or two files
-        // whose contents would otherwise run together are all a different digest. Little-endian lengths,
-        // the same order everywhere, so an origin and a verifier fold the identical stream.
+        // Path and bytes each behind its own length, so a rename, a changed byte, or two files that would run together each hash differently; little-endian lengths everywhere, so origin and verifier fold the identical stream.
         u64 path_size = file->path != nullptr ? strlen(file->path) : 0;
 
         u8 length[sizeof(u64)] = { 0 };
@@ -60,15 +50,13 @@ NYA_Error nya_http_attestation_encode(const NYA_HttpAttestationManifest* manifes
 
     if (capacity < NYA_HTTP_ATTESTATION_MAX_MESSAGE) return nya_error(NYA_ERROR_NOT_OK, "the attestation message buffer is too small");
 
-    // The origin must be NUL terminated inside its bound: a field that runs to the end of the buffer has
-    // no honest length, and a length is what the whole layout leans on.
+    // The origin must be NUL-terminated inside its bound: a field running to the buffer's end has no honest length, and the whole layout leans on lengths.
     u64 origin_size = strnlen(manifest->origin, NYA_HTTP_ATTESTATION_MAX_ORIGIN);
     if (origin_size >= NYA_HTTP_ATTESTATION_MAX_ORIGIN) return nya_error(NYA_ERROR_NOT_OK, "the attestation origin is not terminated inside its bound");
 
     u8* cursor = out_message;
 
-    // The magic and version, then each variable field behind its length. See the header note on why the
-    // lengths are not optional: without them two different manifests could serialize to the same bytes.
+    // Magic and version, then each variable field behind its length; the lengths aren't optional (see header) or two manifests could serialize to the same bytes.
     nya_memcpy(cursor, NYA_HTTP_ATTESTATION_MAGIC, NYA_HTTP_ATTESTATION_MAGIC_BYTES);
     cursor += NYA_HTTP_ATTESTATION_MAGIC_BYTES;
 
@@ -106,8 +94,7 @@ b8 nya_http_attestation_verify(const NYA_CryptoSignPublicKey* public_key, const 
     u8  message[NYA_HTTP_ATTESTATION_MAX_MESSAGE] = { 0 };
     u64 message_size                              = 0;
 
-    // A manifest that will not encode cannot have been signed either, so it verifies as false rather than
-    // being read past. The one early return, and it is on the manifest's own shape, not on the signature.
+    // A manifest that won't encode can't have been signed either, so it verifies false rather than being read past; the one early return, on the manifest's shape not the signature.
     if (!nya_http_attestation_encode(manifest, message, sizeof(message), &message_size).ok) return false;
 
     return nya_crypto_sign_verify(public_key, message, message_size, signature);
@@ -131,9 +118,7 @@ NYA_Error nya_http_attestation_to_json(
 
     NYA_Object* object = nya_object_create(arena);
 
-    // Every string is copied into the arena: nya_object_add keeps the pointer it is handed, and the base64
-    // buffers and the origin are the caller's stack, gone the moment this returns. The arena outlives the
-    // object, so the copies are what the serializer reads later.
+    // Every string is copied into the arena: nya_object_add keeps the pointer, and the base64 buffers and origin are caller stack gone at return; the arena outlives the object, so the copies are what the serializer reads.
     nya_object_add(object, "version", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_HTTP_ATTESTATION_VERSION });
     nya_object_add(object, "origin", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _nya_http_attestation_dup(arena, manifest->origin) });
     nya_object_add(object, "issued_at_s", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = manifest->issued_at_s });
@@ -160,8 +145,7 @@ NYA_Error nya_http_attestation_from_json(
     if (strnlen(origin->as_string, NYA_HTTP_ATTESTATION_MAX_ORIGIN) >= NYA_HTTP_ATTESTATION_MAX_ORIGIN) return nya_error(NYA_ERROR_NOT_OK, "the attestation origin is too long");
     (void)snprintf(out_manifest->origin, sizeof(out_manifest->origin), "%s", origin->as_string);
 
-    // JSON parses every integer as signed, and a timestamp is never negative: an S64 is what serde hands
-    // back, and a U64 is accepted too for a producer that annotated it. Anything else is a malformed field.
+    // JSON parses every integer as signed and a timestamp is never negative, so an S64 (or a U64 for an annotated producer) is accepted; anything else is malformed.
     NYA_Value* issued = nya_object_get(object, "issued_at_s");
     if (issued == nullptr || (issued->type != NYA_TYPE_S64 && issued->type != NYA_TYPE_U64)) return nya_error(NYA_ERROR_NOT_OK, "the attestation has no issued_at_s");
     if (issued->type == NYA_TYPE_S64 && issued->as_s64 < 0) return nya_error(NYA_ERROR_NOT_OK, "the attestation issued_at_s is negative");
@@ -174,11 +158,7 @@ NYA_Error nya_http_attestation_from_json(
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u8* _nya_http_attestation_put_u64(u8* cursor, u64 value) {
     for (u64 byte = 0; byte < sizeof(u64); byte++) cursor[byte] = (u8)(value >> (byte * 8));
@@ -202,8 +182,7 @@ NYA_Error _nya_http_attestation_field(const NYA_Object* object, NYA_CString key,
 
     u64 decoded = 0;
 
-    // The decode fails a spelling that is not base64url; the length check fails one that is, but of the
-    // wrong size — a 31-byte digest, a truncated signature — so a field is either exactly right or refused.
+    // The decode fails a non-base64url spelling; the length check fails a valid one of the wrong size (a 31-byte digest, a truncated signature), so a field is exactly right or refused.
     if (!nya_crypto_base64url_decode(value->as_string, strlen(value->as_string), out, expected, &decoded) || decoded != expected) {
         return nya_error(NYA_ERROR_NOT_OK, "an attestation field is not base64url of the expected length");
     }

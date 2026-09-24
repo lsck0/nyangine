@@ -9,11 +9,7 @@
 #include "nyangine/http/http_cookie.h"
 #include "nyangine/serde/serde.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The only header this server signs and the only one it accepts. Compared whole; see the file note. */
 #define _NYA_HTTP_JWT_HEADER "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
@@ -29,20 +25,12 @@
 /** Longest JSON payload this encodes or will decode. The claims are four short fields. */
 #define _NYA_HTTP_JWT_PAYLOAD_BYTES 256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /** What nya_http_second_factor_set installed. Null is the shipped state; see the file note. */
 NYA_INTERNAL NYA_HttpSecondFactorFn _NYA_HTTP_SECOND_FACTOR = nullptr;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * Whether `subject` is one this server will put in a token: one to NYA_HTTP_MAX_SUBJECT - 1 characters
@@ -60,17 +48,9 @@ NYA_INTERNAL b8 _nya_http_claim_u64(const NYA_Object* payload, NYA_ConstCString 
 NYA_INTERNAL void
 _nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 window, OUT u8 out_challenge[NYA_CRYPTO_SHA256_BYTES]);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * TOKENS
- * ─────────────────────────────────────────────────────────
- */
+// TOKENS
 
 NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret, u64 secret_size, char* out_token, u64 capacity) {
     nya_assert(identity != nullptr);
@@ -185,10 +165,7 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
         if (token[index] == '.') return nya_error(NYA_ERROR_PARSE, "a token has three parts");
     }
 
-    /*
-     * The signature, before the header and before the payload. A token that does not verify never has
-     * its claims parsed, so a forged one cannot reach a JSON parser at all.
-     */
+    // The signature before the header and payload: a token that doesn't verify never has its claims parsed, so a forged one can't reach a JSON parser at all.
     u8  signature[NYA_CRYPTO_SHA256_BYTES + 4] = { 0 };
     u64 signature_size                  = 0;
 
@@ -205,10 +182,7 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the signature does not match");
     }
 
-    /*
-     * `alg`, whole and compared against one value. Reading the algorithm out of the token and then
-     * trusting it is the `alg: none` bug, and accepting anything but HS256 here is the downgrade one.
-     */
+    // `alg` whole, compared against one value: reading the algorithm from the token and trusting it is the `alg: none` bug, and accepting anything but HS256 is the downgrade one.
     u8  header[_NYA_HTTP_JWT_PAYLOAD_BYTES] = { 0 };
     u64 header_size                         = 0;
 
@@ -310,11 +284,7 @@ b8 nya_http_bearer_token(const NYA_HttpRequest* request, const char** out_token,
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SCOPES
- * ─────────────────────────────────────────────────────────
- */
+// SCOPES
 
 b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope required) {
     nya_assert(identity != nullptr);
@@ -322,11 +292,7 @@ b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope requi
     return ((u32)identity->scope & (u32)required) == (u32)required;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SECOND FACTOR
- * ─────────────────────────────────────────────────────────
- */
+// THE SECOND FACTOR
 
 NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, u8 out_challenge[NYA_CRYPTO_SHA256_BYTES]) {
     nya_assert(out_challenge != nullptr);
@@ -352,10 +318,7 @@ b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 sec
 
     u64 window = now_s / NYA_HTTP_CHALLENGE_WINDOW_S;
 
-    /*
-     * This window and the one before it. Both are always computed and both comparisons always run, so
-     * how long this takes says nothing about which one matched or whether either did.
-     */
+    // This window and the one before it: both are always computed and both comparisons always run, so timing says nothing about which matched or whether either did.
     u8 current[NYA_CRYPTO_SHA256_BYTES]  = { 0 };
     u8 previous[NYA_CRYPTO_SHA256_BYTES] = { 0 };
 
@@ -376,11 +339,7 @@ NYA_HttpSecondFactorFn nya_http_second_factor(void) {
     return _NYA_HTTP_SECOND_FACTOR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_http_subject_is_valid(NYA_ConstCString subject, u64 size) {
     if (subject == nullptr || size == 0 || size >= NYA_HTTP_MAX_SUBJECT) return false;
@@ -405,8 +364,7 @@ b8 _nya_http_claim_u64(const NYA_Object* payload, NYA_ConstCString key, u64* out
     NYA_Value* value = nya_object_get(payload, (NYA_CString)key);
     if (value == nullptr) return false;
 
-    // serde reads every JSON integer as s64, so a negative claim is a number that parsed and a value
-    // this has no meaning for. Refused rather than cast, which would make -1 an enormous scope.
+    // serde reads every JSON integer as s64, so a negative claim parsed but is meaningless here; refused rather than cast, which would make -1 an enormous scope.
     if (value->type != NYA_TYPE_S64 || value->as_s64 < 0) return false;
 
     *out_value = (u64)value->as_s64;
@@ -415,8 +373,7 @@ b8 _nya_http_claim_u64(const NYA_Object* payload, NYA_ConstCString key, u64* out
 }
 
 void _nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 window, u8 out_challenge[NYA_CRYPTO_SHA256_BYTES]) {
-    // the window as text beside the subject, separated by a byte the subject alphabet excludes, so no
-    // pair of (subject, window) can be written two ways.
+    // the window as text beside the subject, separated by a byte the subject alphabet excludes, so no (subject, window) pair can be written two ways.
     char message[NYA_HTTP_MAX_SUBJECT + 32] = { 0 };
 
     s32 size = snprintf(message, sizeof(message), "%s:%llu", subject, (unsigned long long)window);

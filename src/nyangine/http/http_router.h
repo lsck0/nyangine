@@ -112,11 +112,7 @@
 #include "nyangine/http/http_types.h"
 #include "nyangine/permission/permission.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Statuses one route may declare. Two successes and five refusals is past every route written so far. */
 #define NYA_HTTP_MAX_STATUSES 8
@@ -127,11 +123,7 @@
 /** Routers merged at the root: one per resource, so this is a count of resources. */
 #define NYA_HTTP_MAX_ROUTERS 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_HttpAuth       NYA_HttpAuth;
 typedef enum NYA_HttpAffinity   NYA_HttpAffinity;
@@ -375,11 +367,7 @@ struct NYA_HttpRouter {
     u32                    layer_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Installs the table every route's `permission` is resolved against, and how a verified identity

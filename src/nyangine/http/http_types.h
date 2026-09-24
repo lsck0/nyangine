@@ -39,11 +39,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_url.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Connections held at once. A browser opens up to six to one origin for a single page, so six is the
@@ -171,11 +167,7 @@
 /** Longest path after percent-decoding, terminator included. The raw target is bounded by NYA_URL_MAX_BYTES. */
 #define NYA_HTTP_MAX_PATH 256
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE STATIC BUNDLE
- * ─────────────────────────────────────────────────────────
- */
+// THE STATIC BUNDLE
 
 /**
  * Files one mount of the web bundle serves; see http_static.h.
@@ -230,11 +222,7 @@
  * */
 #define NYA_HTTP_MAX_STATIC_ASSET 192
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_HttpMethod     NYA_HttpMethod;
 typedef enum NYA_HttpStatus     NYA_HttpStatus;
@@ -354,11 +342,7 @@ enum NYA_HttpMediaType {
     NYA_HTTP_MEDIA_TEXT,
     NYA_HTTP_MEDIA_HTML,
 
-    /*
-     * What a web bundle is made of. Each one is here so that http_static.h can name a file's type from
-     * the file's own suffix and refuse to serve a suffix that is not in this list: a served byte range
-     * whose type nobody could name is exactly what `nosniff` exists to stop a browser guessing at.
-     */
+    // What a web bundle is made of: each is here so http_static.h can name a file's type from its suffix and refuse a suffix not in this list — a served byte range whose type nobody could name is exactly what `nosniff` stops a browser guessing at.
 
     NYA_HTTP_MEDIA_CSS,
     NYA_HTTP_MEDIA_JAVASCRIPT,
@@ -483,11 +467,7 @@ struct NYA_HttpResponse {
     char request_id[NYA_HTTP_REQUEST_ID_SIZE];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** "GET", "POST", ... Asserts on a value outside the enum, which only our own code can produce. */
 NYA_API NYA_ConstCString nya_http_method_text(NYA_HttpMethod method) __attr_no_discard;

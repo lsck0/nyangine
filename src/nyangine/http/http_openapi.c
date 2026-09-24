@@ -6,11 +6,7 @@
 #include "nyangine/http/http_server.h"
 #include "nyangine/serde/serde.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** An NYA_Value holding `text`, which the caller has to keep alive for as long as the document. */
 NYA_INTERNAL NYA_Value _nya_http_json_string(NYA_ConstCString text) __attr_no_discard;
@@ -44,17 +40,9 @@ NYA_INTERNAL void _nya_http_page_escape(NYA_String* html, NYA_ConstCString text)
 NYA_INTERNAL NYA_HttpStatus _nya_http_openapi_get(NYA_HttpExchange* exchange);
 NYA_INTERNAL NYA_HttpStatus _nya_http_docs_get(NYA_HttpExchange* exchange);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
-/*
- * The two GET routes in a module whose resources are otherwise written in QUERY, POST, PUT and DELETE.
- * A browser opening /docs and a generator fetching /openapi.json both send GET and neither has any
- * parameters to carry, which is the only thing QUERY buys; see the note in http_openapi.h.
- */
+// The two GET routes in a module whose resources are otherwise QUERY, POST, PUT and DELETE: a browser opening /docs and a generator fetching /openapi.json both send GET with no parameters, the only thing QUERY buys; see http_openapi.h.
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_OPENAPI_ROUTES[] = {
     {
      .method      = NYA_HTTP_METHOD_GET,
@@ -82,11 +70,7 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_OPENAPI_ROUTER = {
     .route_count = nya_carray_length(_NYA_HTTP_OPENAPI_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 const NYA_HttpRouter* nya_http_openapi_router(void) {
     return &_NYA_HTTP_OPENAPI_ROUTER;
@@ -115,9 +99,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
     nya_object_add(info, "description", _nya_http_json_string("Generated from the route tables of a running nyangine program."));
     nya_object_add(document, "info", _nya_http_json_object(info));
 
-    /*
-     * One tag per mounted resource, in mount order, so a reader sees the same grouping the code has.
-     */
+    // One tag per mounted resource, in mount order, so a reader sees the same grouping the code has.
     NYA_ArrayᐸNYA_Valueᐳ* tags = nya_array_create(arena, NYA_Value);
 
     NYA_Object* paths   = nya_object_create(arena);
@@ -137,10 +119,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
             NYA_Object* operation = _nya_http_operation_of(arena, router, route);
             if (operation == nullptr) continue;
 
-            /*
-             * OpenAPI keys a path by its methods, so two routes on one path share an entry. Looked up
-             * rather than replaced, which is what lets a GET and a POST on the same path both appear.
-             */
+            // OpenAPI keys a path by its methods, so two routes on one path share an entry: looked up rather than replaced, which lets a GET and a POST on the same path both appear.
             NYA_Value* existing = nya_object_get(paths, (NYA_CString)route->path);
 
             NYA_Object* item = nullptr;
@@ -151,11 +130,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
                 item = nya_object_create(arena);
             }
 
-            /*
-             * Lowercase, which is what the specification requires of a method key. "query" is a field
-             * of the Path Item Object as of OpenAPI 3.2.0 and of nothing before it, which is why
-             * NYA_HTTP_OPENAPI_VERSION says 3.2.0; the reasoning is in http_openapi.h.
-             */
+            // Lowercase, as the spec requires of a method key; "query" is a Path Item Object field as of OpenAPI 3.2.0 and nothing before it, which is why NYA_HTTP_OPENAPI_VERSION says 3.2.0 (reasoning in http_openapi.h).
             char method[16] = { 0 };
 
             NYA_ConstCString text = nya_http_method_text(route->method);
@@ -186,8 +161,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
         }
     }
 
-    // the error body is on every route that can refuse, which is all of them, so it is named once here
-    // rather than by each.
+    // the error body is on every route that can refuse, which is all of them, so it's named once here rather than by each.
     if (nya_object_get(schemas, "NYA_HttpProblem") == nullptr) {
         NYA_Object* problem = _nya_http_schema_of(arena, nya_reflect_of(NYA_HttpProblem), 0);
 
@@ -197,10 +171,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
     nya_object_add(document, "tags", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tags });
     nya_object_add(document, "paths", _nya_http_json_object(paths));
 
-    /*
-     * One security scheme, because there is one: a bearer JWT. Named here and referenced by every
-     * operation that needs it, which is how a generated client knows to send the header.
-     */
+    // One security scheme, because there is one: a bearer JWT, named here and referenced by every operation that needs it, which is how a generated client knows to send the header.
     NYA_Object* bearer = nya_object_create(arena);
     nya_object_add(bearer, "type", _nya_http_json_string("http"));
     nya_object_add(bearer, "scheme", _nya_http_json_string("bearer"));
@@ -329,11 +300,7 @@ NYA_Error nya_http_openapi_page(NYA_Arena* arena, NYA_String** out_html) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_HttpStatus _nya_http_openapi_get(NYA_HttpExchange* exchange) {
     NYA_String* json = nullptr;
@@ -408,11 +375,7 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
         case NYA_REFLECT_UNION:     {
             NYA_Object* properties = nya_object_create(arena);
 
-            /*
-             * Every field is required. A DTO is a C struct with no absent fields: nya_reflect_to_object
-             * writes all of them, so a schema that called any optional would be describing an answer
-             * this server never sends.
-             */
+            // Every field is required: a DTO is a C struct with no absent fields, and nya_reflect_to_object writes all of them, so a schema calling any optional would describe an answer this server never sends.
             NYA_ArrayᐸNYA_Valueᐳ* required = nya_array_create(arena, NYA_Value);
 
             for (u32 index = 0; index < type->field_count; index++) {
@@ -454,8 +417,7 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
         }
 
         case NYA_REFLECT_POINTER: {
-            // `char*` is a string and every other pointer is an address in one run of one process,
-            // which is nothing a document can carry. See base_reflection.h.
+            // `char*` is a string and every other pointer is an address in one run of one process, nothing a document can carry. See base_reflection.h.
             if (type->element == nullptr || type->element->kind != NYA_REFLECT_PRIMITIVE || type->element->primitive != NYA_TYPE_CHAR) return nullptr;
 
             nya_object_add(schema, "type", _nya_http_json_string("string"));
@@ -469,10 +431,7 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
 }
 
 NYA_Object* _nya_http_schema_of_field(NYA_Arena* arena, const NYA_ReflectField* field, u32 depth) {
-    /*
-     * An integer with @flags(SomeEnum) is written as a list of names, exactly as a bitflags enum is,
-     * so it is described as one. The field's own type is an integer and says nothing about that.
-     */
+    // An integer with @flags(SomeEnum) is written as a list of names, like a bitflags enum, so it's described as one; the field's own type is an integer and says nothing about that.
     if (field->hint == NYA_HINT_BITFLAGS && field->type != nullptr && field->type->element != nullptr) {
         return _nya_http_schema_of_enum(arena, field->type->element, true);
     }
@@ -487,8 +446,7 @@ NYA_Object* _nya_http_schema_of_enum(NYA_Arena* arena, const NYA_TypeReflection*
     NYA_ArrayᐸNYA_Valueᐳ* variants = nya_array_create(arena, NYA_Value);
 
     for (u32 index = 0; index < type->variant_count; index++) {
-        // a zero flag is "none" and never appears in a list of set flags, so it is not a value the
-        // list form can hold.
+        // a zero flag is "none" and never appears in a list of set flags, so it's not a value the list form can hold.
         if (bitflags && type->variants[index].value == 0) continue;
 
         nya_array_push_back(variants, _nya_http_json_string(type->variants[index].name));
@@ -562,10 +520,7 @@ NYA_Object* _nya_http_responses_of(NYA_Arena* arena, const NYA_HttpRoute* route)
         NYA_Object* response = nya_object_create(arena);
         nya_object_add(response, "description", _nya_http_json_string(nya_http_status_text(status)));
 
-        /*
-         * A success carries the route's response DTO and a refusal carries NYA_HttpProblem. That is
-         * not a convention this file imposes: it is what nya_http_router_dispatch writes.
-         */
+        // A success carries the route's response DTO and a refusal carries NYA_HttpProblem — not a convention this file imposes but what nya_http_router_dispatch writes.
         const NYA_TypeReflection* body = status < NYA_HTTP_STATUS_BAD_REQUEST ? route->response_type : nya_reflect_of(NYA_HttpProblem);
 
         if (body != nullptr && status != NYA_HTTP_STATUS_NO_CONTENT) {

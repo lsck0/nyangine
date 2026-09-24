@@ -8,11 +8,7 @@
 #include "nyangine/http/http_totp.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** A recovery code without its dash: sixteen base32 characters, which is what the hash is taken over. */
 #define _NYA_HTTP_TOTP_RECOVERY_CHARACTERS NYA_CRYPTO_BASE32_LENGTH(NYA_HTTP_TOTP_RECOVERY_SECRET_BYTES)
@@ -45,11 +41,7 @@ NYA_INTERNAL b8 _nya_http_totp_attempt(NYA_HttpTotpGuard* guard, u64 now_s) __at
  * */
 __attr_no_sanitize("unsigned-integer-overflow") NYA_INTERNAL u64 _nya_http_totp_mask(b8 condition) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_http_totp_name_check(NYA_ConstCString name, u64 bound, NYA_ConstCString what, OUT u64* out_length) {
     *out_length = 0;
@@ -60,8 +52,7 @@ NYA_Error _nya_http_totp_name_check(NYA_ConstCString name, u64 bound, NYA_ConstC
     while (length < bound && name[length] != '\0') {
         u8 character = (u8)name[length];
 
-        // a colon separates the label's two halves, so one inside a half would let an app read a
-        // smuggled issuer as the account; control bytes have no business in a label at all.
+        // a colon separates the label's two halves, so one inside a half would let an app read a smuggled issuer as the account; control bytes have no business in a label.
         if (character == ':') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the %s of an enrolment cannot contain a colon", what);
         if (character < 0x20 || character == 0x7F) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the %s of an enrolment cannot contain control characters", what);
 
@@ -99,12 +90,7 @@ NYA_Error _nya_http_totp_enrol_fill(NYA_ConstCString issuer, NYA_ConstCString ac
     NYA_TRY(nya_percent_encode((const u8*)issuer, issuer_length, issuer_encoded, sizeof(issuer_encoded), &encoded_length));
     NYA_TRY(nya_percent_encode((const u8*)account, account_length, account_encoded, sizeof(account_encoded), &encoded_length));
 
-    /*
-     * The label is "issuer:account" and `issuer` is repeated as a parameter, which is what the Key Uri
-     * Format asks for: older apps read only the label and newer ones only the parameter. The algorithm,
-     * digit and period parameters are written out rather than left to the app's default, because an app's
-     * default is not something this server can check.
-     */
+    // The label is "issuer:account" with `issuer` repeated as a parameter, as the Key Uri Format asks (older apps read the label, newer the parameter); the algorithm, digit and period parameters are written out rather than left to an app default this server can't check.
     s32 written = snprintf(
         out_enrolment->uri,
         sizeof(out_enrolment->uri),
@@ -198,10 +184,7 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 _nya_http_totp_mask(b8 condi
 }
 
 b8 _nya_http_totp_attempt(NYA_HttpTotpGuard* guard, u64 now_s) {
-    /*
-     * A window that has fully elapsed starts again, and so does one that appears to be in the future,
-     * which is a clock that went backwards rather than a reason to lock an account out for ever.
-     */
+    // A window that has fully elapsed starts again, as does one that appears to be in the future — a backwards clock, not a reason to lock an account out forever.
     b8 elapsed = now_s < guard->window_started_s || (now_s - guard->window_started_s) >= NYA_HTTP_TOTP_ATTEMPT_WINDOW_S;
 
     if (elapsed) {
@@ -216,11 +199,7 @@ b8 _nya_http_totp_attempt(NYA_HttpTotpGuard* guard, u64 now_s) {
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_totp_enrol_create(NYA_ConstCString issuer, NYA_ConstCString account, OUT NYA_HttpTotpEnrolment* out_enrolment) {
     nya_assert(out_enrolment != nullptr);
@@ -229,8 +208,7 @@ NYA_Error nya_http_totp_enrol_create(NYA_ConstCString issuer, NYA_ConstCString a
 
     NYA_Error result = _nya_http_totp_enrol_fill(issuer, account, out_enrolment);
 
-    // a half built enrolment still holds a real secret, and a caller that ignored the error would
-    // hand it out without the URI that goes with it.
+    // a half-built enrolment still holds a real secret, and a caller that ignored the error would hand it out without the URI that goes with it.
     if (!result.ok) nya_http_totp_enrol_destroy(out_enrolment);
 
     return result;
@@ -275,8 +253,7 @@ NYA_HttpTotpVerdict nya_http_totp_verify(NYA_HttpTotpGuard* guard, const NYA_Cry
 
     nya_crypto_wipe(submitted, sizeof(submitted));
 
-    // one verdict for a wrong code and for a replayed one: a caller that could tell them apart would
-    // be telling an attacker which of their guesses had once been somebody's real code.
+    // one verdict for a wrong code and a replayed one: telling them apart would tell an attacker which guess had once been somebody's real code.
     if (!any || matched <= guard->last_counter) return NYA_HTTP_TOTP_REFUSED;
 
     guard->last_counter = matched;

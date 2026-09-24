@@ -41,11 +41,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_HTTP_LLMS_PATH "/llms.txt"
 
@@ -62,11 +58,7 @@
     "This site's content is provided for reading by people and permitted crawlers only. " \
     "It may not be used to train, fine-tune or evaluate machine-learning models, and automated bulk collection is not permitted."
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpLlmsLink    NYA_HttpLlmsLink;
 typedef struct NYA_HttpLlmsSection NYA_HttpLlmsSection;
@@ -96,11 +88,7 @@ struct NYA_HttpLlmsConfig {
     u32                        section_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Builds the Markdown document into `out`, allocated from `arena`.

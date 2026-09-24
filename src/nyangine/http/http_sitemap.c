@@ -3,11 +3,7 @@
 #include "nyangine/http/http_doc.h"
 #include "nyangine/http/http_sitemap.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /** The changefreq vocabulary as text. NONE is the empty string, which the builder never emits. */
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SITEMAP_CHANGEFREQ[NYA_HTTP_SITEMAP_CHANGEFREQ_COUNT] = {
@@ -21,11 +17,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SITEMAP_CHANGEFREQ[NYA_HTTP_SITEMA
     [NYA_HTTP_SITEMAP_NEVER]           = "never",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_sitemap_build(NYA_Arena* arena, NYA_HttpSitemapConfig config, OUT NYA_ConstCString* out) {
     nya_assert(arena != nullptr && out != nullptr);
@@ -44,8 +36,7 @@ NYA_Error nya_http_sitemap_build(NYA_Arena* arena, NYA_HttpSitemapConfig config,
     for (u32 i = 0; i < config.count; i++) {
         const NYA_HttpSitemapUrl* url = &config.urls[i];
 
-        // The one hard gate: a loc a crawler would not fetch, or one carrying a scheme that is an
-        // injection here, refuses the whole build rather than being emitted or silently dropped.
+        // The one hard gate: a loc a crawler wouldn't fetch, or one carrying a scheme that's an injection here, refuses the whole build rather than being emitted or silently dropped.
         if (!nya_http_doc_url_is_web(url->loc)) {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the loc '%s' is not an http or https URL", url->loc != nullptr ? url->loc : "(null)");
         }

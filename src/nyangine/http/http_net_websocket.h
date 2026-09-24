@@ -57,11 +57,7 @@
 #include "nyangine/net/net_crypto.h"
 #include "nyangine/net/net_transport.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The route mounted when NYA_NetWsOptions.path is null. */
 #define NYA_NET_WS_DEFAULT_PATH "/ws/net"
@@ -80,11 +76,7 @@
 /** An accept frame: the tag and the server's version, so a client learns it is in. */
 #define NYA_NET_WS_ACCEPT_SIZE (1 + 4)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_NetWsOptions NYA_NetWsOptions;
 
@@ -103,11 +95,7 @@ struct NYA_NetWsOptions {
     u32 version;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * A server-side net transport over a WebSocket. The HTTP server must already be running

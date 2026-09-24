@@ -56,11 +56,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_router.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_HTTP_HEALTHZ_PATH "/healthz"
 #define NYA_HTTP_READYZ_PATH  "/readyz"
@@ -75,11 +71,7 @@
 /** Longest check name, terminator included. A dependency's name — "db", "keyring" — fits easily. */
 #define NYA_HTTP_HEALTH_MAX_NAME 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpHealthDto      NYA_HttpHealthDto;
 typedef struct NYA_HttpReadyCheckDto  NYA_HttpReadyCheckDto;
@@ -137,11 +129,7 @@ struct NYA_HttpHealthCircuit {
     NYA_ConstCString    key;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Adds a readiness check the /readyz route runs. `name` is copied; `check` is called with `user` on

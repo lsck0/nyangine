@@ -10,11 +10,7 @@
 #include "nyangine/http/http_cookie.h"
 #include "nyangine/http/http_seal.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The one version this reads and writes. A token that starts with anything else was not made here. */
 #define _NYA_HTTP_SEAL_VERSION 1
@@ -41,20 +37,12 @@ static_assert(
 
 static_assert(NYA_HTTP_SEAL_MAX_TOKEN <= NYA_HTTP_MAX_COOKIE_VALUE, "a sealed token does not fit a cookie value");
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The 32 byte AEAD key for `label`, derived from the secret and this module's domain. */
 NYA_INTERNAL void _nya_http_seal_key(const u8* secret, u64 secret_size, NYA_ConstCString label, OUT NYA_CryptoKey32* out_key);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_seal(
     const u8* secret, u64 secret_size, NYA_ConstCString label, const u8* plaintext, u64 plaintext_size, u64 ttl_s, char* out_token, u64 capacity
@@ -91,8 +79,7 @@ NYA_Error nya_http_seal(
     NYA_CryptoKey32 key = { 0 };
     _nya_http_seal_key(secret, secret_size, label, &key);
 
-    // A fresh random nonce per seal: XChaCha20's 24 bytes are wide enough that random never repeats in
-    // practice, which is what lets this be stateless — there is no counter to keep.
+    // A fresh random nonce per seal: XChaCha20's 24 bytes are wide enough that random never repeats in practice, which is what lets this be stateless — no counter to keep.
     NYA_CryptoNonce24 nonce = { 0 };
 
     if (!nya_crypto_nonce_random(&nonce).ok) {
@@ -100,8 +87,7 @@ NYA_Error nya_http_seal(
         return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
     }
 
-    // The blob: nonce, then the ciphertext in place, then the tag. The label is authenticated as
-    // associated data, so it is not in the blob and yet a wrong one makes the tag not match.
+    // The blob: nonce, ciphertext in place, then the tag. The label is authenticated as associated data, so it's not in the blob yet a wrong one makes the tag not match.
     u8 blob[_NYA_HTTP_SEAL_MAX_BLOB] = { 0 };
 
     nya_memcpy(blob, nonce.bytes, sizeof(nonce.bytes));
@@ -170,8 +156,7 @@ b8 nya_http_unseal(
     NYA_CryptoKey32 key = { 0 };
     _nya_http_seal_key(secret, secret_size, label, &key);
 
-    // Decrypts in place only when the tag matches. A wrong secret, a wrong label, or a single altered
-    // byte all land here as false, and the plaintext is never even looked at.
+    // Decrypts in place only when the tag matches: a wrong secret, a wrong label, or a single altered byte all land here as false, and the plaintext is never looked at.
     b8 opened = nya_crypto_aead_decrypt(
         &key, &nonce,
         (NYA_CryptoAeadMessage){
@@ -201,8 +186,7 @@ b8 nya_http_unseal(
     u64 expires_at_s = 0;
     for (u32 index = 0; index < 8; index++) expires_at_s |= (u64)message[1 + index] << (index * 8);
 
-    // Expired is not open. The check is against the wall clock, so a token also stops opening if that
-    // clock is set back past when it was made, which is the safe direction to be wrong in.
+    // Expired is not open. Checked against the wall clock, so a token also stops opening if the clock is set back past when it was made — the safe direction to be wrong in.
     if (nya_clock_get_timestamp_s() >= expires_at_s) {
         nya_crypto_wipe(blob, sizeof(blob));
         return false;
@@ -224,23 +208,10 @@ b8 nya_http_unseal(
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_http_seal_key(const u8* secret, u64 secret_size, NYA_ConstCString label, NYA_CryptoKey32* out_key) {
-    /*
-     * blake2b keyed by the secret, over the domain and the label. Keying with the secret rather than
-     * hashing it in is what makes this a proper key derivation: the domain separates this key from every
-     * other use of the same secret, and the label is in the message so two labels are two keys — a token
-     * cannot be moved between them even by somebody who could forge one, which is belt and suspenders
-     * over the associated data that already binds the label.
-     *
-     * The secret is bounded here because blake2b's key is at most 64 bytes; a longer one is folded to a
-     * key first, so the whole of it still matters.
-     */
+    // blake2b keyed by the secret over the domain and label: keying (not hashing the secret in) makes this a proper KDF, the domain separates this key from every other use of the secret, and the label in the message makes two labels two keys — so a token can't be moved between them even by a forger (belt and suspenders over the associated data). The secret is bounded here because blake2b's key is at most 64 bytes; a longer one is folded first.
     u8 seal_key[NYA_CRYPTO_BLAKE2B_KEY_BYTES_MAX] = { 0 };
     u64 seal_key_size = secret_size;
 

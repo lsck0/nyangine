@@ -121,11 +121,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * How long a connection may sit without a complete request before it is dropped.
@@ -179,11 +175,7 @@
  * */
 #define NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpConfig NYA_HttpConfig;
 
@@ -252,17 +244,9 @@ struct NYA_HttpConfig {
     u32                    layer_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * SYSTEM FUNCTIONS
- * ─────────────────────────────────────────────────────────
- */
+// SYSTEM FUNCTIONS
 
 /**
  * Binds `config.port` and starts accepting, and hooks the drain onto NYA_EVENT_HANDLING_STARTED so a
@@ -311,11 +295,7 @@ NYA_API void nya_system_http_deinit(void);
  * */
 NYA_API void nya_system_http_tick(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROUTERS
- * ─────────────────────────────────────────────────────────
- */
+// ROUTERS
 
 /**
  * Mounts one resource's router at the root, after checking it with nya_http_router_check.
@@ -332,11 +312,7 @@ NYA_API NYA_Error nya_http_server_merge(const NYA_HttpRouter* router) __attr_no_
 /** Removes a mount. A router that was never mounted is a no-op. */
 NYA_API void nya_http_server_unmerge(const NYA_HttpRouter* router);
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTROSPECTION
- * ─────────────────────────────────────────────────────────
- */
+// INTROSPECTION
 
 NYA_API b8 nya_http_server_is_running(void) __attr_no_discard;
 
@@ -352,11 +328,7 @@ NYA_API u64 nya_http_server_request_count(void) __attr_no_discard;
 NYA_API u32                   nya_http_server_router_count(void) __attr_no_discard;
 NYA_API const NYA_HttpRouter* nya_http_server_router_at(u32 index) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * SECRETS
- * ─────────────────────────────────────────────────────────
- */
+// SECRETS
 
 /**
  * Reads a signing secret out of the environment variable `variable`.

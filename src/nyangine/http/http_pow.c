@@ -11,11 +11,7 @@
 #include "nyangine/http/http_seal.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** One nonce that has already bought a request, kept until its challenge would have expired. */
 typedef struct {
@@ -50,11 +46,7 @@ typedef struct {
 /** One server per process, so one store. Zeroed, so the layer works before init at the cost of no lock. */
 NYA_INTERNAL _NYA_HttpPowStore _NYA_HTTP_POW = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The difficulty in force, resolving the zero default and the clamp, so the policy lives in one place. */
 NYA_INTERNAL u8 _nya_http_pow_difficulty(void) __attr_no_discard;
@@ -80,11 +72,7 @@ NYA_INTERNAL void _nya_http_pow_digest(const u8* nonce, const u8* solution, u64 
 /** Issues a fresh challenge onto `exchange` and answers 401 without running the chain. */
 NYA_INTERNAL NYA_HttpStatus _nya_http_pow_issue(NYA_HttpExchange* exchange) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error _nya_http_pow_init(NYA_Arena* arena, NYA_HttpPowOptions options) {
     nya_assert(arena != nullptr);
@@ -92,8 +80,7 @@ NYA_Error _nya_http_pow_init(NYA_Arena* arena, NYA_HttpPowOptions options) {
     _NYA_HTTP_POW.difficulty = options.difficulty;
     _NYA_HTTP_POW.ttl_s      = options.ttl_s;
 
-    // The lock is made once and kept: a second init is a reload of the policy, not a new store, and making
-    // a second mutex would leak the first and leave two threads locking different ones.
+    // The lock is made once and kept: a second init reloads the policy, not the store; a second mutex would leak the first and split threads across two.
     if (_NYA_HTTP_POW.mutex == nullptr) {
         NYA_TRY(nya_mutex_create(arena, &_NYA_HTTP_POW.mutex));
     }
@@ -107,8 +94,7 @@ NYA_Error _nya_http_pow_init(NYA_Arena* arena, NYA_HttpPowOptions options) {
 }
 
 void nya_http_pow_deinit(void) {
-    // The lock goes back to its arena, so after this the store is the zeroed table it was before init.
-    // registered stays true: nya_ceiling_register holds the address of the count, which does not move.
+    // The lock goes back to its arena, so the store is again the zeroed table it was before init; registered stays true, since nya_ceiling_register holds the count's address, which doesn't move.
     nya_mutex_destroy(_NYA_HTTP_POW.mutex);
     _NYA_HTTP_POW.mutex = nullptr;
 
@@ -157,16 +143,13 @@ u32 nya_http_pow_leading_zero_bits(const u8* digest, u64 size) {
 b8 nya_http_pow_solve(const u8* nonce, u64 nonce_size, u8 difficulty, OUT u8* out_solution, u64 capacity, OUT u64* out_size) {
     nya_assert(nonce != nullptr && out_solution != nullptr && out_size != nullptr);
 
-    // A difficulty past the clamp is one the layer would never mint, so refuse rather than spin forever
-    // on a target that cannot be hit. Eight bytes is the counter's width; a buffer below it cannot hold one.
+    // A difficulty past the clamp is one the layer would never mint, so refuse rather than spin forever on an unhittable target; eight bytes is the counter's width, and a buffer below it can't hold one.
     if (difficulty > NYA_HTTP_POW_MAX_DIFFICULTY || capacity < sizeof(u64)) return false;
 
-    // The nonce is bound to the challenge by the caller, not by its length: the digest reads a fixed
-    // NYA_HTTP_POW_NONCE_BYTES, so a size argument is here for symmetry with the layer and nothing else.
+    // The nonce is bound to the challenge by the caller, not its length: the digest reads a fixed NYA_HTTP_POW_NONCE_BYTES, so a size argument is here only for symmetry with the layer.
     nya_unused(nonce_size);
 
-    // A counter, little-endian, walked from zero: deterministic, so the same challenge yields the same
-    // suffix, and monotone, so every candidate is tried once. The first whose digest clears the bar wins.
+    // A counter, little-endian, from zero: deterministic (same challenge, same suffix) and monotone (every candidate tried once); the first whose digest clears the bar wins.
     for (u64 counter = 0;; counter++) {
         u8 suffix[sizeof(u64)] = { 0 };
         for (u64 byte = 0; byte < sizeof(u64); byte++) suffix[byte] = (u8)(counter >> (byte * 8));
@@ -185,8 +168,7 @@ b8 nya_http_pow_solve(const u8* nonce, u64 nonce_size, u8 difficulty, OUT u8* ou
 NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* next) {
     nya_assert(exchange != nullptr && exchange->request != nullptr && exchange->response != nullptr);
 
-    // No secret is nothing to seal a challenge with. Fail closed: a wall that cannot be raised must refuse,
-    // not wave every request through, which is the same shape http_router.h takes for a missing permission table.
+    // No secret is nothing to seal a challenge with. Fail closed: a wall that can't be raised must refuse, not wave everyone through — the shape http_router.h takes for a missing permission table.
     if (exchange->secret == nullptr || exchange->secret_size == 0) {
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the proof-of-work wall has no secret to seal a challenge with");
     }
@@ -197,8 +179,7 @@ NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* nex
     // A request that carries neither is a first contact: hand it a challenge and let it come back.
     if (token == nullptr || token[0] == '\0' || solution == nullptr || solution[0] == '\0') return _nya_http_pow_issue(exchange);
 
-    // The found suffix, decoded from the header. A body that is not base64url, or is longer than any
-    // solution should be, is a malformed request rather than a wrong answer: 400, not a fresh challenge.
+    // The found suffix, decoded from the header; a body that isn't base64url or is longer than any solution should be is a malformed request (400), not a wrong answer.
     u8  solution_bytes[NYA_HTTP_POW_MAX_SOLUTION] = { 0 };
     u64 solution_size                             = 0;
     u64 solution_text_size                        = strnlen(solution, NYA_HTTP_SEAL_MAX_TOKEN);
@@ -207,8 +188,7 @@ NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* nex
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_BAD_REQUEST, "the " NYA_HTTP_POW_SOLUTION_HEADER " is not valid base64url, or is too long");
     }
 
-    // Open the token with this server's own secret. A token that does not open — tampered, forged under
-    // another key, or expired — is refused with a fresh challenge, the honest refusal the client can retry.
+    // Open the token with this server's own secret; one that doesn't open (tampered, forged under another key, or expired) is refused with a fresh challenge the client can retry.
     u8  sealed[NYA_HTTP_POW_SEALED] = { 0 };
     u64 sealed_size                 = 0;
     u64 token_size                  = strnlen(token, NYA_HTTP_SEAL_MAX_TOKEN);
@@ -217,12 +197,10 @@ NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* nex
         return _nya_http_pow_issue(exchange);
     }
 
-    // The layout http_pow.h fixes: a version byte, a difficulty byte, then the nonce. Anything else is a
-    // token this layer did not mint, and is refused rather than read past.
+    // The layout http_pow.h fixes: a version byte, a difficulty byte, then the nonce; anything else is a token this layer didn't mint, refused rather than read past.
     if (sealed_size != NYA_HTTP_POW_SEALED || sealed[0] != NYA_HTTP_POW_VERSION) return _nya_http_pow_issue(exchange);
 
-    // The difficulty is the sealed one, never the X-Pow-Difficulty header: a client cannot lower the bar it
-    // was set, because the byte lives inside a token it cannot open.
+    // The difficulty is the sealed one, never the X-Pow-Difficulty header: a client can't lower the bar it was set, since the byte lives inside a token it can't open.
     u8        difficulty = sealed[1];
     const u8* nonce      = sealed + 2;
 
@@ -232,8 +210,7 @@ NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* nex
     // Below the bar is not a wrong answer worth a 400: it is an unsolved challenge, refused with a fresh one.
     if (nya_http_pow_leading_zero_bits(digest.bytes, sizeof(digest.bytes)) < difficulty) return _nya_http_pow_issue(exchange);
 
-    // The work is proven. One request per proof: a nonce already spent is a replay, refused with a fresh
-    // challenge; otherwise it is remembered for as long as the token would have lived and the chain runs.
+    // The work is proven. One request per proof: a spent nonce is a replay, refused with a fresh challenge; otherwise it's remembered as long as the token would live and the chain runs.
     nya_mutex_lock(_NYA_HTTP_POW.mutex);
 
     if (_nya_http_pow_seen(nonce, exchange->now_s)) {
@@ -248,11 +225,7 @@ NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* nex
     return nya_http_chain_next(exchange, next);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u8 _nya_http_pow_difficulty(void) {
     u8 difficulty = _NYA_HTTP_POW.difficulty != 0 ? _NYA_HTTP_POW.difficulty : NYA_HTTP_POW_DEFAULT_DIFFICULTY;
@@ -285,8 +258,7 @@ b8 _nya_http_pow_seen(const u8* nonce, u64 now_s) {
 
         if (!entry->used) continue;
 
-        // An expired match reads as absent: its window is over, so the same nonce being resent is simply
-        // a stale token, refused for expiry rather than for replay, and its slot is the sweep's to reclaim.
+        // An expired match reads as absent: its window is over, so a resent nonce is a stale token refused for expiry not replay, and its slot is the sweep's to reclaim.
         if (_nya_http_pow_expired(entry, now_s)) continue;
 
         if (nya_memcmp(entry->nonce, nonce, NYA_HTTP_POW_NONCE_BYTES) == 0) return true;
@@ -296,8 +268,7 @@ b8 _nya_http_pow_seen(const u8* nonce, u64 now_s) {
 }
 
 void _nya_http_pow_spend(const u8* nonce, u64 now_s, u64 expires_at_s) {
-    // Reclaim expired slots first, as of now — not the new expiry, which is in the future and would sweep
-    // entries that are still live — so the count is honest and a table full of stale nonces takes a new one.
+    // Reclaim expired slots first, as of now — not the future new expiry, which would sweep still-live entries — so the count is honest and a table full of stale nonces takes a new one.
     _nya_http_pow_sweep(now_s);
 
     _NYA_HttpPowSpent* slot = nullptr;
@@ -312,8 +283,7 @@ void _nya_http_pow_spend(const u8* nonce, u64 now_s, u64 expires_at_s) {
 
         _NYA_HTTP_POW.count++;
     } else {
-        // Every slot is live. Give up the one that expires soonest: it is the closest to being reclaimed
-        // anyway, so its token has the least life left to replay. A full table is a burst, not a leak.
+        // Every slot is live. Give up the one that expires soonest: closest to being reclaimed anyway, so its token has the least life left to replay. A full table is a burst, not a leak.
         for (u32 index = 0; index < NYA_HTTP_POW_MAX_SPENT; index++) {
             _NYA_HttpPowSpent* candidate = &_NYA_HTTP_POW.entries[index];
             if (slot == nullptr || candidate->expires_at_s < slot->expires_at_s) slot = candidate;
@@ -328,8 +298,7 @@ void _nya_http_pow_spend(const u8* nonce, u64 now_s, u64 expires_at_s) {
 }
 
 void _nya_http_pow_digest(const u8* nonce, const u8* solution, u64 solution_size, OUT NYA_CryptoSha256Digest* out_digest) {
-    // A fixed buffer: the nonce is fixed and the solution is bounded, so the material never allocates and
-    // the concatenation is unambiguous — the nonce is always the first NYA_HTTP_POW_NONCE_BYTES.
+    // A fixed buffer: the nonce is fixed and the solution bounded, so the material never allocates and the concatenation is unambiguous — the nonce is always the first NYA_HTTP_POW_NONCE_BYTES.
     nya_assert(solution_size <= NYA_HTTP_POW_MAX_SOLUTION);
 
     u8 material[NYA_HTTP_POW_NONCE_BYTES + NYA_HTTP_POW_MAX_SOLUTION] = { 0 };
@@ -349,8 +318,7 @@ NYA_HttpStatus _nya_http_pow_issue(NYA_HttpExchange* exchange) {
 
     u8 difficulty = _nya_http_pow_difficulty();
 
-    // The sealed plaintext, in the fixed layout: version, difficulty, nonce. Sealed with the exchange's own
-    // secret so the client holds it, sends it back untouched, and cannot read the nonce or lower the difficulty.
+    // The sealed plaintext in the fixed layout (version, difficulty, nonce), sealed with the exchange's own secret so the client holds it, returns it untouched, and can't read the nonce or lower the difficulty.
     u8 sealed[NYA_HTTP_POW_SEALED] = { 0 };
     sealed[0]                      = NYA_HTTP_POW_VERSION;
     sealed[1]                      = difficulty;
@@ -372,9 +340,7 @@ NYA_HttpStatus _nya_http_pow_issue(NYA_HttpExchange* exchange) {
     char difficulty_text[8] = { 0 };
     (void)snprintf(difficulty_text, sizeof(difficulty_text), "%u", (unsigned)difficulty);
 
-    // The problem body first — it resets the response and writes the shape a refusal carries — then the
-    // three headers the client needs. A losable header is never the reason a refusal fails, so these are
-    // added after the status is decided; a client that reads them retries, one that does not sees a plain 401.
+    // The problem body first (it resets the response and writes a refusal's shape), then the three headers; a losable header is never why a refusal fails, so they're added after the status — a client reading them retries, one that doesn't sees a plain 401.
     NYA_HttpStatus status = nya_http_response_problem(
         exchange, NYA_HTTP_STATUS_UNAUTHORIZED,
         "solve the proof-of-work challenge: find a suffix whose SHA-256 with " NYA_HTTP_POW_CHALLENGE_HEADER " has "

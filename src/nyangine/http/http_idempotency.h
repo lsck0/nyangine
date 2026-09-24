@@ -74,11 +74,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Keys held at once. A handful of clients each retrying a handful of requests is well inside this. */
 #ifndef NYA_HTTP_IDEMPOTENCY_MAX_ENTRIES
@@ -103,11 +99,7 @@
 /** How long an entry lives past its last touch, in seconds, when the options leave it unset. */
 #define NYA_HTTP_IDEMPOTENCY_TTL_S 300
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpIdempotencyOptions NYA_HttpIdempotencyOptions;
 
@@ -117,11 +109,7 @@ struct NYA_HttpIdempotencyOptions {
     u64 ttl_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Readies the one store the layer uses: sets its TTL, makes its lock out of `arena`, and registers its

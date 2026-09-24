@@ -111,11 +111,7 @@
 #include "nyangine/http/http_cookie.h"
 #include "nyangine/http/http_router.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The paths this module answers on. Exported so a client, a test or a reverse proxy names the same ones. */
 #define NYA_HTTP_ACCOUNTS_REGISTER_PATH     "/api/register"
@@ -132,11 +128,7 @@
 #define NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_BEGIN_PATH     "/api/passkey/login/begin"
 #define NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_FINISH_PATH    "/api/passkey/login/finish"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_HttpAccountsConfig NYA_HttpAccountsConfig;
 
@@ -204,11 +196,7 @@ struct NYA_HttpAccountsConfig {
     NYA_ConstCString passkey_origin;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Opens the second-factor table, stores `config`, and answers the router to merge — or null on a

@@ -86,11 +86,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/http/http_router.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_HTTP_OPENAPI_PATH "/openapi.json"
 #define NYA_HTTP_DOCS_PATH    "/docs"
@@ -111,11 +107,7 @@
  * */
 #define NYA_HTTP_OPENAPI_MAX_DEPTH 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * The routes that serve the document and the page. A router like any other; merge it or do not.

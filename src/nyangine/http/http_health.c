@@ -5,11 +5,7 @@
 #include "nyangine/http/http_health.h"
 #include "nyangine/http/http_message.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** One registered readiness check: what it is called, and the function and state that decide it. */
 typedef struct {
@@ -18,44 +14,20 @@ typedef struct {
     void*           user;
 } _NYA_HttpHealthCheck;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL NYA_HttpStatus _nya_http_healthz(NYA_HttpExchange* exchange);
 NYA_INTERNAL NYA_HttpStatus _nya_http_readyz(NYA_HttpExchange* exchange);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
-/*
- * The registry, filled at startup and read by the /readyz route after; see the file note on when
- * registering is safe. A fixed table because everything in this engine is bounded, and readiness has a
- * handful of dependencies at most.
- */
+// The registry, filled at startup and read by the /readyz route after (see the file note on when registering is safe); a fixed table since everything here is bounded and readiness has a handful of dependencies at most.
 static _NYA_HttpHealthCheck _CHECKS[NYA_HTTP_HEALTH_MAX_CHECKS];
 static u32                  _CHECK_COUNT = 0;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ROUTES
 
-/*
- * Liveness is NYA_HTTP_AFFINITY_WORKER: it reads nothing, so it is answered on whichever worker takes
- * it and does not wait on the frame. That is what liveness is for — a 200 as long as the process can
- * answer at all, even a beat before the loop next runs.
- *
- * Readiness is NYA_HTTP_AFFINITY_MAIN: the checks read the program's own state — a database handle, a
- * breaker — which is the main thread's, exactly as the metrics resource's reads are. Answered inside
- * nya_system_http_tick, at the cost of up to one frame of latency, which a readiness poll can spend.
- */
+// Liveness is NYA_HTTP_AFFINITY_WORKER: it reads nothing, so any worker answers it without waiting on the frame — a 200 as long as the process can answer at all. Readiness is NYA_HTTP_AFFINITY_MAIN: its checks read the program's own state (a database handle, a breaker), answered inside nya_system_http_tick at up to one frame of latency.
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_HEALTH_ROUTES[] = {
     {
      .method        = NYA_HTTP_METHOD_GET,
@@ -88,11 +60,7 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_HEALTH_ROUTER = {
     .route_count = nya_carray_length(_NYA_HTTP_HEALTH_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_health_check_register(NYA_ConstCString name, NYA_HttpReadyFn check, void* user) {
     if (name == nullptr || name[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a readiness check needs a name");
@@ -129,12 +97,10 @@ u32 nya_http_health_check_count(void) {
 b8 nya_http_health_circuit_ready(void* user) {
     const NYA_HttpHealthCircuit* circuit = user;
 
-    // No breaker is not-ready rather than a crash: a misconfigured check should take the route to 503,
-    // not the process down.
+    // No breaker is not-ready rather than a crash: a misconfigured check should take the route to 503, not the process down.
     if (circuit == nullptr || circuit->breaker == nullptr) return false;
 
-    // OPEN is the breaker saying the dependency is down and calls are being failed fast, which is
-    // exactly "not ready to serve". CLOSED and HALF_OPEN both let calls through, so both read as ready.
+    // OPEN is the breaker failing calls fast because the dependency is down — "not ready to serve"; CLOSED and HALF_OPEN both let calls through, so both read as ready.
     return nya_circuit_state(circuit->breaker, circuit->key) != NYA_CIRCUIT_OPEN;
 }
 
@@ -142,11 +108,7 @@ const NYA_HttpRouter* nya_http_health_router(void) {
     return &_NYA_HTTP_HEALTH_ROUTER;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_HttpStatus _nya_http_healthz(NYA_HttpExchange* exchange) {
     NYA_HttpHealthDto health = { 0 };
@@ -164,8 +126,7 @@ NYA_HttpStatus _nya_http_healthz(NYA_HttpExchange* exchange) {
 NYA_HttpStatus _nya_http_readyz(NYA_HttpExchange* exchange) {
     NYA_HttpReadinessDto readiness = { .ready = true };
 
-    // The count is bounded at register, so this can only ever be the table's length; the clamp is a
-    // belt over that braces so the fixed array below is never overrun.
+    // The count is bounded at register, so this can only be the table's length; the clamp is a belt over those braces so the fixed array is never overrun.
     u32 count = _CHECK_COUNT < NYA_HTTP_HEALTH_MAX_CHECKS ? _CHECK_COUNT : (u32)NYA_HTTP_HEALTH_MAX_CHECKS;
 
     readiness.count = count;
@@ -186,11 +147,9 @@ NYA_HttpStatus _nya_http_readyz(NYA_HttpExchange* exchange) {
         exchange->response, exchange->arena, nya_reflect_of(NYA_HttpReadinessDto), &readiness, nya_http_request_accepts(exchange->request)
     );
 
-    // The body could not be written: a server fault, not a readiness verdict, so it is a 500 rather
-    // than a 503 that would read as "not ready" when the truth is "could not say".
+    // The body couldn't be written: a server fault, not a readiness verdict, so a 500 rather than a 503 that would read as "not ready" when the truth is "couldn't say".
     if (!written.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // The status carries the same verdict the body does: 200 when everything passed, 503 when anything
-    // did not, which is what takes this instance out of rotation without killing it.
+    // The status carries the same verdict as the body: 200 when everything passed, 503 when anything didn't, which takes this instance out of rotation without killing it.
     return readiness.ready ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
 }
