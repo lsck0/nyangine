@@ -1,0 +1,1 @@
+{"count":2,"truncated":0,"rows":[{"name":"arena-pool","capacity":1024,"live":128,"fullness":0.125},{"name":"entity-slots","capacity":4096,"live":4096,"fullness":1.0}]}
