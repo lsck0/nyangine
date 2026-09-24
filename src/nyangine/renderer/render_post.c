@@ -116,8 +116,7 @@ NYA_INTERNAL b8 _nya_post_pass_ready(const NYA_PostPass* pass) {
  * into.
  */
 NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chain) {
-    // Minimised or mid resize. The GPU will not make a target of no size, and the caller falls back
-    // to drawing straight to the window.
+    // Minimised or mid-resize; the GPU makes no zero-size target, and the caller falls back to drawing straight to the window.
     if (window->screen_width == 0 || window->screen_height == 0) return false;
 
     // a 3D scene at the render scale, stretched over the window by the last pass. a 2D world is drawn in window pixels.
@@ -141,8 +140,7 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         nya_render_texture_destroy(&chain->targets[0]);
         nya_render_texture_destroy(&chain->targets[1]);
 
-        // the scene multisampled like the window, so a 3D scene occludes itself and its edges are smoothed as they
-        // would be on the swapchain.
+        // The scene multisampled like the window, so a 3D scene occludes itself and its edges smooth as on the swapchain.
         chain->targets[0] = nya_render_texture_create_with(window, width, height, scene);
         chain->width      = width;
         chain->height     = height;
@@ -165,8 +163,7 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         );
     }
 
-    // its own, since the debug view reads the occlusion after depth of field has run. light shafts and bloom reuse it
-    // after it, and shafts only over a 3D scene.
+    // Its own, since the debug view reads the occlusion after depth of field; light shafts and bloom reuse it, shafts only over a 3D scene.
     b8 shafts = _nya_post_on(window, NYA_RENDER_FEATURE_LIGHT_SHAFTS, render->post_light_shafts.enabled)
              && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
 
@@ -495,10 +492,7 @@ b8 nya_post_begin(NYA_Window* window, NYA_PostChain* chain) {
 
     chain->capturing = false;
 
-    /*
-     * Switched off, the scene draws straight to the window: no chain, no targets, and the caller's own passes do
-     * not run either. That is what a master switch has to mean for it to cost nothing.
-     */
+    // Switched off, the scene draws straight to the window: no chain, no targets, no caller passes, so the master switch costs nothing.
     if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST)) {
         nya_post_chain_destroy(chain);
         return false;
@@ -509,8 +503,7 @@ b8 nya_post_begin(NYA_Window* window, NYA_PostChain* chain) {
     chain->scene_index = 0;
     chain->capturing   = true;
 
-    // Transparent, not a colour: whatever was drawn to the window before this is underneath and the
-    // chain composites over it. See the header.
+    // Transparent, not a colour: what was on the window is underneath and the chain composites over it (see the header).
     nya_render_texture_begin(window, &chain->targets[chain->scene_index], NYA_COLOR_TRANSPARENT);
 
     return true;
@@ -531,9 +524,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     nya_render_texture_end(window);
     chain->capturing = false;
 
-    /*
-     * The built-in passes, queued only for what is on. Their uniforms live here until the passes below have run.
-     */
+    // The built-in passes, queued only for what is on; their uniforms live here until the passes below run.
     _NYA_PostStep before[_NYA_POST_BUILT_IN_MAX];
     // the bloom's gather and apply, speed lines, then the debug view.
     _NYA_PostStep after[4];
@@ -597,8 +588,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         };
     }
 
-    // classic hemisphere SSAO, sharing the half resolution buffer the stylised occlusion uses: its gather writes the
-    // raw occlusion there and its blur reads it straight back, before the occlusion above could overwrite it.
+    // Classic hemisphere SSAO sharing the half-res buffer: its gather writes the raw occlusion and its blur reads it straight back.
     const NYA_PostSsao* ssao_options = &render->post_ssao;
 
     b8 ssao_written = false;
@@ -636,8 +626,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         };
     }
 
-    // screen-space reflections over the scene, one full resolution pass reading the colour and the normal buffer. The
-    // still-water reflection is planar and drawn in the 3D pass; this is the opt-in for everything else.
+    // Screen-space reflections, one full-res pass reading colour and normals; still-water reflection is planar in the 3D pass, this is the opt-in for the rest.
     const NYA_PostSsr* ssr_options = &render->post_ssr;
 
     if (scene && _nya_post_on(window, NYA_RENDER_FEATURE_SSR, ssr_options->enabled)
@@ -909,10 +898,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     nya_assert(before_count <= _NYA_POST_BUILT_IN_MAX);
     nya_assert(after_count <= nya_carray_length(after));
 
-    /*
-     * A caller's pass whose pipeline has not finished loading is skipped rather than drawn. The built-in ones were
-     * only queued once loaded.
-     */
+    // A caller's pass whose pipeline is not loaded is skipped; the built-in ones were only queued once loaded.
     u32 usable = 0;
 
     for (u32 i = 0; i < before_count; i++) usable += before[i].target != nullptr ? 0 : 1;
@@ -1102,11 +1088,7 @@ NYA_PostSsr nya_post_ssr(NYA_Window* window) {
     return window->render_system.post_ssr;
 }
 
-/*
- * The raymarched volumetric's parameters. Plain render-option get/set on the window, beside SSR's and compiled on
- * every build, so nya_settings_graphics_apply gates the effect through them; the compute pass that reads them lives
- * in render_compute_volumetric.c and is desktop only. See render_compute_volumetric.h.
- */
+// The volumetric's parameters: plain render-option get/set compiled on every build; the compute pass that reads them is in render_compute_volumetric.c, desktop only.
 
 void nya_volumetric_params_set(NYA_Window* window, NYA_VolumetricParams params) {
     nya_assert(window != nullptr);
