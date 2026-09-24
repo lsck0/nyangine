@@ -2,11 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "SDL3/SDL_error.h"
-// what a listener and its connections are made of; nothing in this file is SDL's any more.
-#include "SDL3/SDL_thread.h"
-#include "SDL3/SDL_timer.h"
-
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_ceiling.h"
 #include "nyangine/base/base_compare.h"
@@ -16,6 +11,7 @@
 #include "nyangine/http/http_server.h"
 #include "nyangine/base/base_clock.h"
 #include "nyangine/os/os_random.h"
+#include "nyangine/os/os_time.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -356,8 +352,6 @@ NYA_INTERNAL void _nya_http_listener_wait(_NYA_HttpState* state);
 
 NYA_INTERNAL void _nya_http_listener_thread(void* data);
 NYA_INTERNAL void _nya_http_worker_thread(void* data);
-
-/** What every thread here runs on its way out, to give SDL back what it keeps per thread. */
 
 /** Starts the listener and the pool. Leaves nothing running when it fails. */
 NYA_INTERNAL NYA_Error _nya_http_threads_start(_NYA_HttpState* state) __attr_no_discard;
@@ -1751,7 +1745,7 @@ u32 _nya_http_workers_join(_NYA_HttpState* state) {
 
         state->worker_threads[index] = nullptr;
 
-        while (!nya_thread_is_finished(thread) && nya_clock_get_monotonic_ns() < deadline_ns) SDL_Delay(1);
+        while (!nya_thread_is_finished(thread) && nya_clock_get_monotonic_ns() < deadline_ns) nya_os_time_sleep_ms(1);
 
         /*
          * Still inside a handler at the deadline. There is no way to stop a thread from out here that
