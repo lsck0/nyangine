@@ -126,8 +126,7 @@ static NYA_Error loopback_perform(void* userdata, const NYA_HttpClientWire* wire
     nya_assert(request != nullptr);
     *request = (NYA_HttpRequest){ .method = wire->method, .keep_alive = true, .media_type = wire->content_type };
 
-    // the path as the parser would leave it, so router_find matches: a full URL when the base carried an
-    // authority, a bare target when it did not.
+    // the path as the parser would leave it, so router_find matches: a full URL when the base carried an authority, a bare target when it did not.
     NYA_UrlFailure failure  = { 0 };
     b8             has_authority = strstr(wire->url, "://") != nullptr;
     NYA_Error      parsed        = has_authority ? nya_url_parse(wire->url, strlen(wire->url), &request->target, &failure)
@@ -230,8 +229,7 @@ s32 main(void) {
         RoomQuery request = { .room = 5 };
         RoomReply reply   = { 0 };
 
-        // The loopback reads only the path out of the URL, so a real-looking base proves the join, not the
-        // transport: "http://localhost:8080/" + "/api/room" must not double the slash.
+        // The loopback reads only the path out of the URL, so a real-looking base proves the join, not the transport: "http://localhost:8080/" + "/api/room" must not double the slash.
         nya_assert(nya_http_client_call(arena, &loopback, "http://localhost:8080/", &ROUTES[ROUTE_QUERY], &request, &reply, nullptr).ok);
         nya_assert(reply.doubled == 10);
     }

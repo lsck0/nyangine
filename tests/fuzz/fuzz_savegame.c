@@ -42,8 +42,7 @@ static void fuzz_once(const u8* data, u64 size) {
 
     if (!nya_file_write(FUZZ_SAVE_PATH, content).ok) return;
 
-    // every flag a save may have been written with, since the reader branches on each and the file
-    // does not say which were used.
+    // every flag a save may have been written with, since the reader branches on each and the file does not say which were used.
     for (u32 flags = 0; flags <= (NYA_SERDE_OBFUSCATE | NYA_SERDE_NO_CHECKSUM); flags++) {
         NYA_Object* object = nullptr;
 
@@ -52,8 +51,7 @@ static void fuzz_once(const u8* data, u64 size) {
         // the version field a migration would branch on, read the way the loaders read it.
         (void)nya_save_version(object);
 
-        // and what a settings file does next: applied to live state, with nothing between the bytes
-        // on disk and the values the game runs with.
+        // and what a settings file does next: applied to live state, with nothing between the bytes on disk and the values the game runs with.
         nya_settings_from_object(object);
     }
 

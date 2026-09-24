@@ -66,8 +66,7 @@ s32 main(void) {
         nya_check(nya_occlusion_test(&buffer, (f32x3){ 0, 0, -20 }, 0.2F), "a small sphere behind the small wall is hidden");
         nya_check(!nya_occlusion_test(&buffer, (f32x3){ 6, 0, -20 }, 0.2F), "one beside it is not");
 
-        // The conservative case, and the one worth having a test for: the sphere is mostly behind the
-        // wall, and the part that is not is what has to keep it visible.
+        // The conservative case, and the one worth having a test for: the sphere is mostly behind the wall, and the part that is not is what has to keep it visible.
         nya_check(!nya_occlusion_test(&buffer, (f32x3){ 0, 0, -20 }, 4.0F), "a sphere poking out from behind it is not hidden");
     }
 
@@ -144,8 +143,7 @@ s32 main(void) {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -5.0F, 1000.0F);
 
-        // fully on screen, behind the wall, and about 41×41 pixels, over the tenth of the buffer
-        // NYA_OCCLUSION_MAX_QUERY_PIXELS allows.
+        // fully on screen, behind the wall, and about 41×41 pixels, over the tenth of the buffer NYA_OCCLUSION_MAX_QUERY_PIXELS allows.
         (void)nya_occlusion_test(&buffer, (f32x3){ 0, 0, -12 }, 2.5F);
 
         nya_check(nya_occlusion_stats(&buffer).abandoned == 1, "the oversized query was abandoned, got %u",

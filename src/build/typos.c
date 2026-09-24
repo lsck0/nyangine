@@ -32,8 +32,7 @@ NYA_INTERNAL b8 _typos_program_exists(void);
 void typos_runner(NYA_ArgCommand* command) {
     nya_unused(command);
 
-    // A missing tool is a skip with a notice, never a hard failure: the same contract the CVE hook in
-    // sbom.c keeps, so a machine without `typos` still runs every other command.
+    // A missing tool is a skip with a notice, never a hard failure: the same contract the CVE hook in sbom.c keeps, so a machine without `typos` still runs every other command.
     if (!_typos_program_exists()) {
         nya_log_info("Spell check skipped: '%s' is not installed. Install it with", TYPOS_PROGRAM);
         nya_log_info("  cargo install typos-cli");
@@ -46,8 +45,7 @@ void typos_runner(NYA_ArgCommand* command) {
 
     nya_log_info("Spell-checking src/, tests/, examples/ and docs/ with %s (see .typos.toml).", TYPOS_PROGRAM);
 
-    // The trees to read. The generated and vendored paths within them, and every deliberate non-word,
-    // are handled by .typos.toml, which `typos` discovers by walking up from these paths to the root.
+    // The trees to read. The generated and vendored paths within them, and every deliberate non-word, are handled by .typos.toml, which `typos` discovers by walking up from these paths to the root.
     NYA_Command scan = {
         .flags     = NYA_COMMAND_FLAG_OUTPUT_SHOW,
         .program   = TYPOS_PROGRAM,
@@ -68,9 +66,7 @@ void typos_runner(NYA_ArgCommand* command) {
 /* PRIVATE API IMPLEMENTATION */
 
 b8 _typos_program_exists(void) {
-    // A program missing from PATH still spawns — the forked child fails execvp and _exit(127)s, so
-    // nya_command_run returns ok with a 127 exit. Presence is the clean exit, not the spawn; `typos`
-    // answers --version with 0. This is the probe sbom.c uses for osv-scanner.
+    // A program missing from PATH still spawns — the forked child fails execvp and _exit(127)s, so nya_command_run returns ok with a 127 exit. Presence is the clean exit, not the spawn; `typos` answers --version with 0. This is the probe sbom.c uses for osv-scanner.
     NYA_Command probe = {
         .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
         .program   = TYPOS_PROGRAM,

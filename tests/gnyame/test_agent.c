@@ -102,17 +102,14 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
     if (seed == 0) seed = seed_fresh();
 
-    // armed before anything comes up and stopped after everything goes down, since a hang in bring-up
-    // or teardown is still a hang. A training run is as long as whoever started it asked for.
+    // armed before anything comes up and stopped after everything goes down, since a hang in bring-up or teardown is still a hang. A training run is as long as whoever started it asked for.
     if (kind == NYA_AGENT_KIND_COUNT) nya_test_deadline_start("test_agent", REGRESSION_DEADLINE_S);
     defer nya_test_deadline_stop();
 
-    // no display: the agent plays headless, which is the whole point of playing it
-    // a thousand times faster than a person could.
+    // no display: the agent plays headless, which is the whole point of playing it a thousand times faster than a person could.
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
 
-    // settings and saves load from the data directory, so a scratch one keeps the player's own bindings
-    // and volumes out of a run that presses every key it can find.
+    // settings and saves load from the data directory, so a scratch one keeps the player's own bindings and volumes out of a run that presses every key it can find.
     NYA_Arena*  scratch   = nya_arena_create(.name = "test_agent_scratch");
     NYA_String* temp_root = nullptr;
     NYA_EXPECT(nya_filesystem_temp_directory(scratch, &temp_root));
@@ -126,10 +123,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     defer nya_arena_destroy(scratch);
     defer (void)nya_filesystem_delete_recursive(data_home);
 
-    /*
-     * The real application, headless: every engine subsystem the game has, brought up in the order the
-     * game brings them up in, with the renderer reported unavailable rather than fatal.
-     */
+    /* The real application, headless: every engine subsystem the game has, brought up in the order the game brings them up in, with the renderer reported unavailable rather than fatal. */
     NYA_EXPECT(nya_app_init(.headless = true, .app_id = "gnyame"));
     defer nya_app_deinit();
 
@@ -160,8 +154,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     GNY_LAYER_UI     = layer_stub(GNY_LAYER_UI_ID);
     GNY_LAYER_CUBE3D = layer_stub(GNY_LAYER_CUBE3D_ID);
 
-    // the HUD's update is the pause key and nothing else, so it is the one hook a stub keeps: without
-    // it the agent walks into the 2D scene and can never leave, which is not what the application does.
+    // the HUD's update is the pause key and nothing else, so it is the one hook a stub keeps: without it the agent walks into the 2D scene and can never leave, which is not what the application does.
     GNY_LAYER_UI.on_update = nya_callback(gny_layer_ui_on_update);
 
     // and the same for the 3D scene, which has no HUD layer of its own. See scene_stub_on_event.
@@ -189,11 +182,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
                                                  .tick_count = ticks,
                                                  .verbose    = verbose });
     } else {
-        /*
-         * No kind named: the regression run, which is what `./build run test` executes. Every kind
-         * plays, because what is being tested is that each of them can drive the application at all,
-         * not that any of them has learned anything in two episodes.
-         */
+        /* No kind named: the regression run, which is what `./build run test` executes. Every kind plays, because what is being tested is that each of them can drive the application at all, not that any of them has learned anything in two episodes. */
         printf("TEST: three agent kinds, %d episodes of %d ticks each, seed 0x%016llX\n", REGRESSION_EPISODES, REGRESSION_TICKS,
                (unsigned long long)seed);
 

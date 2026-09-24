@@ -114,8 +114,7 @@ s32 main(void) {
         (void)nya_entity_parent_set(b, a);
         (void)nya_entity_parent_set(c, b);
 
-        // Doubling the root doubles both offsets, which is what makes the chain a single pass rather
-        // than one level per tick: c is 10 from b, b is 10 from a, so c ends at 40.
+        // Doubling the root doubles both offsets, which is what makes the chain a single pass rather than one level per tick: c is 10 from b, b is 10 from a, so c ends at 40.
         nya_entity_get(a)->scale = (f32x3){ 2.0F, 2.0F, 2.0F };
         propagate();
 
@@ -223,12 +222,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    /*
-     * ── Despawning a child leaves its parent's list intact.
-     *
-     * The failure this guards against is silent: a sibling list still naming a despawned slot walks
-     * into whatever reuses it, and the propagation then writes a transform onto an unrelated entity.
-     */
+    /* ── Despawning a child leaves its parent's list intact. The failure this guards against is silent: a sibling list still naming a despawned slot walks into whatever reuses it, and the propagation then writes a transform onto an unrelated entity. */
     {
         NYA_EntityHandle parent = nya_entity_spawn(.name = "parent", .position = { 5.0F, 0, 0 }, .scale = { 1, 1, 1 });
 
@@ -269,8 +263,7 @@ s32 main(void) {
 
         nya_entity_get(parent)->position.x = 100.0F;
 
-        // without a sync the child is where the last propagation left it, the documented cost of propagating
-        // once per tick.
+        // without a sync the child is where the last propagation left it, the documented cost of propagating once per tick.
         nya_check(near_enough(nya_entity_get(child)->position.x, 10.0F), "the child is stale until something propagates");
 
         nya_entity_transform_sync(parent);

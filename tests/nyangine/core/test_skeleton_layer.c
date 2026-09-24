@@ -71,8 +71,7 @@ s32 main(void) {
         nya_check(mask.weights[BONE_MID] == 1.0F, "'mid' itself is included");
         nya_check(mask.weights[BONE_END] == 1.0F, "and everything below it");
 
-        // Reported, not an empty mask: a layer through an all-zero mask silently does nothing, which is
-        // far harder to trace back to a misspelled bone name.
+        // Reported, not an empty mask: a layer through an all-zero mask silently does nothing, which is far harder to trace back to a misspelled bone name.
         nya_check(!nya_skeleton_mask_from_bone(&skeleton, "no such bone", &mask), "a missing bone must be reported");
 
         nya_skeleton_mask_set(&skeleton, &mask, BONE_MID, 0.5F, false);
@@ -185,8 +184,7 @@ s32 main(void) {
         nya_check(second >= 2 && second <= 4, "and so should the one at 0.95s, got %u", second);
     }
 
-    // ── An event on the start point fires on the first update, and backward playback does not report a
-    //    loop every frame. Quarter second steps, so every crossing is exact.
+    // ── An event on the start point fires on the first update, and backward playback does not report a loop every frame. Quarter second steps, so every crossing is exact.
     {
         static const NYA_SkeletonEvent events[] = {
             { .time_s = 0.0F, .id = 1 },
@@ -213,8 +211,7 @@ s32 main(void) {
                 }
             }
 
-            // forward: 0 at the start and at both wraps. backward from the end: 0 as the clock reaches it,
-            // twice, and one wrap between.
+            // forward: 0 at the start and at both wraps. backward from the end: 0 as the clock reaches it, twice, and one wrap between.
             u32 want_start = direction == 0 ? 3 : 2;
             u32 want_loops = direction == 0 ? 2 : 1;
 

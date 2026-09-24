@@ -49,10 +49,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  /*
-   * Both variables, since Linux reads XDG_DATA_HOME and Windows APPDATA. Pointed at a scratch directory
-   * so the round trip does not write into the developer's real data directory.
-   */
+  /* Both variables, since Linux reads XDG_DATA_HOME and Windows APPDATA. Pointed at a scratch directory so the round trip does not write into the developer's real data directory. */
   NYA_Arena*  scratch_arena = nya_arena_create(.name = "test_settings_scratch");
   NYA_String* temp_root     = nullptr;
   NYA_EXPECT(nya_filesystem_temp_directory(scratch_arena, &temp_root));
@@ -60,8 +57,7 @@ s32 main(void) {
   NYA_String* save_home = nya_path_join(scratch_arena, nya_string_to_cstring(scratch_arena, temp_root), "nyangine-test-settings");
   NYA_CString save_home_cstring = nya_string_to_cstring(scratch_arena, save_home);
 
-  // Not NYA_EXPECT: on a clean checkout there is nothing there to delete, and NOT_FOUND is the
-  // successful outcome of "make sure this is gone".
+  // Not NYA_EXPECT: on a clean checkout there is nothing there to delete, and NOT_FOUND is the successful outcome of "make sure this is gone".
   (void)nya_filesystem_delete_recursive(save_home_cstring);
 
   nya_assert(nya_host_environment_add("XDG_DATA_HOME", save_home_cstring));
@@ -90,8 +86,7 @@ s32 main(void) {
     nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, 0.25F);
     nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 0.25F);
 
-    // Out of range is clamped rather than trusted, so a dragged slider cannot hand the mixer a
-    // negative or a value above unity.
+    // Out of range is clamped rather than trusted, so a dragged slider cannot hand the mixer a negative or a value above unity.
     nya_settings_volume_set(NYA_VOLUME_CHANNEL_SOUND, 2.5F);
     nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_SOUND) == 1.0F);
     nya_settings_volume_set(NYA_VOLUME_CHANNEL_SOUND, -3.0F);
@@ -146,8 +141,7 @@ s32 main(void) {
     nya_assert(nya_settings()->bindings[ACTION_JUMP][0].key == NYA_KEY_SPACE);
     nya_assert(nya_settings()->bindings[ACTION_JUMP][1].key == NYA_KEY_W);
 
-    // Binding a key already on the action updates its modifiers in place rather than consuming
-    // the other slot.
+    // Binding a key already on the action updates its modifiers in place rather than consuming the other slot.
     nya_input_action_bind(ACTION_JUMP, NYA_KEY_SPACE, NYA_KEYMOD_SHIFT);
     nya_assert(nya_settings()->bindings[ACTION_JUMP][0].modifiers == NYA_KEYMOD_SHIFT);
     nya_assert(nya_settings()->bindings[ACTION_JUMP][1].key == NYA_KEY_W);
@@ -254,10 +248,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: an unwanted modifier suppresses a plain binding
-  //
-  // This is the reason the match is exact rather than "at least these": otherwise a bare W would
-  // fire in the middle of typing Ctrl+W.
+  // TEST: an unwanted modifier suppresses a plain binding This is the reason the match is exact rather than "at least these": otherwise a bare W would fire in the middle of typing Ctrl+W.
   printf("TEST: extra modifiers suppress\n");
   {
     nya_settings_reset();
@@ -344,8 +335,7 @@ s32 main(void) {
   {
     nya_settings_reset();
 
-    // The game's actions have to be named before they can be persisted. An unnamed action is skipped
-    // on write, which is the behaviour the last assertion in this block checks.
+    // The game's actions have to be named before they can be persisted. An unnamed action is skipped on write, which is the behaviour the last assertion in this block checks.
     nya_input_action_name_set(ACTION_JUMP, "jump");
     nya_input_action_name_set(ACTION_FIRE, "fire");
 
@@ -376,15 +366,13 @@ s32 main(void) {
     nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "the primary binding came back");
     nya_assert(nya_input_action_get(ACTION_JUMP, 1).key == NYA_KEY_W, "and so did the alternative");
 
-    // The modifier has to survive as well, or a Ctrl+S binding loads as a bare S and fires on every
-    // typed letter.
+    // The modifier has to survive as well, or a Ctrl+S binding loads as a bare S and fires on every typed letter.
     nya_assert(nya_input_action_get(ACTION_FIRE, 0).key == NYA_KEY_S, "the chorded binding's key came back");
     nya_assert(nya_input_action_get(ACTION_FIRE, 0).modifiers == NYA_KEYMOD_CTRL, "and its modifier came with it");
 
     nya_assert(!nya_input_action_bound(ACTION_SAVE), "an unnamed action is not persisted");
 
-    // Loading twice must not append duplicates into the second slot, which is what makes
-    // nya_settings_from_object replace rather than add.
+    // Loading twice must not append duplicates into the second slot, which is what makes nya_settings_from_object replace rather than add.
     NYA_EXPECT(nya_settings_load());
     nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "a second load is idempotent");
     nya_assert(nya_input_action_get(ACTION_JUMP, 1).key == NYA_KEY_W, "on both slots");
@@ -411,8 +399,7 @@ s32 main(void) {
     NYA_String* contents = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(nya_string_to_cstring(arena, path), contents));
 
-    // The point of choosing the native format over anything binary: these are the strings a player
-    // would look for if they opened the file to change a key.
+    // The point of choosing the native format over anything binary: these are the strings a player would look for if they opened the file to change a key.
     nya_assert(nya_string_contains(contents, "jump"), "the action is named in the file");
     nya_assert(nya_string_contains(contents, "Space"), "and its key is spelled out");
     nya_assert(nya_string_contains(contents, "Ctrl+S"), "chords are one editable token");
@@ -491,12 +478,7 @@ s32 main(void) {
     NYA_String* path         = nya_save_path(arena, NYA_SETTINGS_FILE);
     NYA_CString path_cstring = nya_string_to_cstring(arena, path);
 
-    /*
-     * Written by hand rather than edited out of a saved one, because that is the case under test: a
-     * player opened the file, changed a value, misspelled a key, and put a word where a number goes.
-     * The checksum in the header says zero, which is what every honest edit does to it, and must not
-     * be read as corruption.
-     */
+    /* Written by hand rather than edited out of a saved one, because that is the case under test: a player opened the file, changed a value, misspelled a key, and put a word where a number goes. The checksum in the header says zero, which is what every honest edit does to it, and must not be read as corruption. */
     NYA_ConstCString edited =
       "nya 2 0\n"
       "{\n"
@@ -524,8 +506,7 @@ s32 main(void) {
     nya_assert(!nya_settings_graphics().bloom, "and so is a switch turned off by hand");
     nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "and the binding beside them");
 
-    // The two bad lines cost their own lines and nothing else: the field they could not fill keeps
-    // the value it had, and everything else in the file still loaded.
+    // The two bad lines cost their own lines and nothing else: the field they could not fill keeps the value it had, and everything else in the file still loaded.
     nya_assert(nya_settings_graphics().render_scale == 1.0F, "a value of the wrong kind leaves its field alone, got %f",
                (f64)nya_settings_graphics().render_scale);
     nya_assert(nya_settings_graphics().fov == 60.0F, "and a misspelled key leaves its field alone, got %f",
@@ -539,9 +520,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a value that is in range for its type but not for its meaning is
-  //       corrected out loud, naming the key, what was in the file, and what
-  //       was kept
+  // TEST: a value that is in range for its type but not for its meaning is corrected out loud, naming the key, what was in the file, and what was kept
   printf("TEST: out of range settings\n");
   {
     nya_settings_reset();
@@ -552,11 +531,7 @@ s32 main(void) {
     NYA_String* path         = nya_save_path(arena, NYA_SETTINGS_FILE);
     NYA_CString path_cstring = nya_string_to_cstring(arena, path);
 
-    /*
-     * Every one of these parses. A checker that only asks about types has nothing to say about any of
-     * them, and the setter quietly corrected all four, which is what made a hand edited file feel
-     * ignored: the number in the file and the number in the game disagreed and nothing said why.
-     */
+    /* Every one of these parses. A checker that only asks about types has nothing to say about any of them, and the setter quietly corrected all four, which is what made a hand edited file feel ignored: the number in the file and the number in the game disagreed and nothing said why. */
     NYA_ConstCString edited =
       "nya 2 0\n"
       "{\n"
@@ -588,8 +563,7 @@ s32 main(void) {
     nya_check(nya_settings_graphics().fov == 120.0F, "a field of view of 200 becomes 120, got %f", (f64)nya_settings_graphics().fov);
     nya_check(nya_settings_graphics().render_scale == 1.0F, "a render scale of 4 becomes 1, got %f", (f64)nya_settings_graphics().render_scale);
 
-    // And said so. Each message has to carry the key, since a player with a broken file needs to know
-    // which line to go and fix.
+    // And said so. Each message has to carry the key, since a player with a broken file needs to know which line to go and fix.
     NYA_ConstCString expected_keys[] = { "volumes.master", "graphics.msaa_samples", "graphics.fov", "graphics.render_scale" };
 
     for (u32 i = 0; i < sizeof(expected_keys) / sizeof(expected_keys[0]); i++) {
@@ -624,8 +598,7 @@ s32 main(void) {
 
     NYA_Error loaded = nya_settings_load();
 
-    // An error the game can act on, rather than a crash, and the settings in memory are untouched:
-    // a file that cannot be parsed at all is the one case where there is nothing to salvage.
+    // An error the game can act on, rather than a crash, and the settings in memory are untouched: a file that cannot be parsed at all is the one case where there is nothing to salvage.
     nya_check(!loaded.ok, "a file that is not a document should be an error");
     nya_check(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 0.5F, "and must not reset what is already loaded");
 
@@ -641,8 +614,7 @@ s32 main(void) {
     nya_assert(nya_save_path(arena, "saves/../../outside.nya") == nullptr, "and so is one in the middle");
     nya_assert(nya_save_path(arena, "/etc/passwd") == nullptr, "an absolute path is not relative to anything");
 
-    // A dot in a filename is not a parent segment, and refusing those would be a rule nobody could
-    // predict from the outside.
+    // A dot in a filename is not a parent segment, and refusing those would be a rule nobody could predict from the outside.
     nya_assert(nya_save_path(arena, "saves/..config.nya") != nullptr, "a leading dot-dot in a name is fine");
     nya_assert(nya_save_path(arena, "saves/slot..nya") != nullptr, "and so is one in the middle of a name");
 

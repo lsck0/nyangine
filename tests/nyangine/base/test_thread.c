@@ -122,12 +122,7 @@ s32 main(void) {
         nya_mutex_destroy(mutex);
     }
 
-    /*
-     * ── A null lock is no lock at all.
-     *
-     * What the unthreaded HTTP server runs on: the same call sites, with nothing behind them. It has to
-     * be a no-op rather than a crash or nothing in that mode would answer a request at all.
-     */
+    /* ── A null lock is no lock at all. What the unthreaded HTTP server runs on: the same call sites, with nothing behind them. It has to be a no-op rather than a crash or nothing in that mode would answer a request at all. */
     {
         nya_mutex_lock(nullptr);
         nya_mutex_unlock(nullptr);
@@ -135,12 +130,7 @@ s32 main(void) {
         nya_semaphore_destroy(nullptr);
     }
 
-    /*
-     * ── A thread can be let go of instead of joined.
-     *
-     * After it has finished, so nothing is still writing into the record when the arena goes: that is
-     * the deal nya_thread_abandon documents, and the case it exists for keeps its arena forever.
-     */
+    /* ── A thread can be let go of instead of joined. After it has finished, so nothing is still writing into the record when the arena goes: that is the deal nya_thread_abandon documents, and the case it exists for keeps its arena forever. */
     {
         Shared shared = { 0 };
 

@@ -38,21 +38,12 @@
  * properties of the language, hard-coded for a representative set, so a purely computational example
  * can lean on them directly.
  * */
-// nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls
-// in libc, and a system header included ahead of it has already fixed them at another value.
+// nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls in libc, and a system header included ahead of it has already fixed them at another value.
 #include "nyangine/nyangine.h"
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DATA
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * One invoice, built in memory so the example needs no input file. The strings are chosen to carry
- * exactly the metacharacters each output language reserves: the ampersands, angle brackets and the
- * `<100% uptime>` all have to survive as data, never as markup or a command.
- */
+/* THE DATA One invoice, built in memory so the example needs no input file. The strings are chosen to carry exactly the metacharacters each output language reserves: the ampersands, angle brackets and the `<100% uptime>` all have to survive as data, never as markup or a command. */
 
 /** One line of the invoice, laid out as it goes into the context. */
 typedef struct LineItem {
@@ -151,9 +142,7 @@ NYA_INTERNAL NYA_Object* invoice_create(NYA_Arena* arena, NYA_ConstCString local
     }
     nya_object_add(invoice, "items", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *items });
 
-    // The localised summary strings: the plural-correct line count and the grouped grand total.
-    // The template reads a string value as a C string, so each goes in NUL-terminated. The grouped
-    // total is copied out of nya_i18n_format_integer's shared ring before later calls overwrite it.
+    // The localised summary strings: the plural-correct line count and the grouped grand total. The template reads a string value as a C string, so each goes in NUL-terminated. The grouped total is copied out of nya_i18n_format_integer's shared ring before later calls overwrite it.
     NYA_String* count_label = item_count_label(arena, locale, (s64)items->length);
     nya_object_add(invoice, "count_label", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, count_label) });
 
@@ -205,8 +194,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);
     nya_backtrace_init();
 
-    // Headless: every engine subsystem the framework has except the renderer, which needs a display.
-    // The i18n system's number-formatting ring lives on the app, so it has to be up before we format.
+    // Headless: every engine subsystem the framework has except the renderer, which needs a display. The i18n system's number-formatting ring lives on the app, so it has to be up before we format.
     NYA_EXPECT(nya_app_init(.headless = true, .app_id = "doc_render"));
     defer nya_app_deinit();
 
@@ -228,10 +216,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_log_info("HTML render (autoescaped):\n" NYA_FMT_STRING, NYA_FMT_STRING_ARG(html));
     nya_log_info("LaTeX render (LaTeX-autoescaped):\n" NYA_FMT_STRING, NYA_FMT_STRING_ARG(latex));
 
-    // ── context-aware escaping, asserted ────────────────────────────────────────────────────────
-    //
-    // Neither template contains a literal `&lt;`, `&amp;`, `\$` or `\&`, so each of these can only be
-    // an escaped data character. Their presence is proof the value was neutralised for its language.
+    // ── context-aware escaping, asserted ──────────────────────────────────────────────────────── Neither template contains a literal `&lt;`, `&amp;`, `\$` or `\&`, so each of these can only be an escaped data character. Their presence is proof the value was neutralised for its language.
 
     nya_assert(nya_string_contains(html, "&lt;"),  "HTML render did not escape a '<' in the data");
     nya_assert(nya_string_contains(html, "&amp;"), "HTML render did not escape an '&' in the data");
@@ -243,10 +228,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_log_info("Escaping checks passed: HTML neutralised '<' and '&'; LaTeX neutralised '$' and '&'.");
 
-    // ── plural selection and grouped numbers across locales ─────────────────────────────────────
-    //
-    // The same counts, worded per language. English flips at 1; German uses one form; Russian reaches
-    // three of its categories over 1 / 2 / 5.
+    // ── plural selection and grouped numbers across locales ───────────────────────────────────── The same counts, worded per language. English flips at 1; German uses one form; Russian reaches three of its categories over 1 / 2 / 5.
 
     const s64        sample_counts[] = { 1, 2, 5 };
     const NYA_ConstCString locales[] = { "en", "de", "ru" };

@@ -70,8 +70,7 @@ static void fake_close(void* user) {
 
   fake->closes += 1;
 
-  // A closed connection has no backlog: anything scripted and unread belonged to the socket that just
-  // went away, which is what makes a reconnect scenario start from an empty script.
+  // A closed connection has no backlog: anything scripted and unread belonged to the socket that just went away, which is what makes a reconnect scenario start from an empty script.
   fake->script_count = 0;
   fake->script_read  = 0;
 }
@@ -152,8 +151,7 @@ s32 main(void) {
 
   // TEST: the close code table, which is the one thing that must not be wrong twice
   {
-    // The whole point of the component. A bot that retries any of these has its token disabled by
-    // Discord, so each one is named rather than covered by a range.
+    // The whole point of the component. A bot that retries any of these has its token disabled by Discord, so each one is named rather than covered by a range.
     nya_assert(nya_discord_gateway_close_action(4004) == NYA_DISCORD_GATEWAY_CLOSE_FATAL);
     nya_assert(nya_discord_gateway_close_action(4010) == NYA_DISCORD_GATEWAY_CLOSE_FATAL);
     nya_assert(nya_discord_gateway_close_action(4011) == NYA_DISCORD_GATEWAY_CLOSE_FATAL);
@@ -161,8 +159,7 @@ s32 main(void) {
     nya_assert(nya_discord_gateway_close_action(4013) == NYA_DISCORD_GATEWAY_CLOSE_FATAL);
     nya_assert(nya_discord_gateway_close_action(4014) == NYA_DISCORD_GATEWAY_CLOSE_FATAL);
 
-    // A connection that broke rather than a session that ended, so the events since the last sequence
-    // are still there to be replayed.
+    // A connection that broke rather than a session that ended, so the events since the last sequence are still there to be replayed.
     nya_assert(nya_discord_gateway_close_action(1006) == NYA_DISCORD_GATEWAY_CLOSE_RESUME);
     nya_assert(nya_discord_gateway_close_action(4000) == NYA_DISCORD_GATEWAY_CLOSE_RESUME);
     nya_assert(nya_discord_gateway_close_action(4008) == NYA_DISCORD_GATEWAY_CLOSE_RESUME);
@@ -172,8 +169,7 @@ s32 main(void) {
     nya_assert(nya_discord_gateway_close_action(4007) == NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY);
     nya_assert(nya_discord_gateway_close_action(4009) == NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY);
 
-    // A code Discord has not invented yet. Failing towards a fresh login costs a round trip; failing
-    // towards a resume would cost the events in between.
+    // A code Discord has not invented yet. Failing towards a fresh login costs a round trip; failing towards a resume would cost the events in between.
     nya_assert(nya_discord_gateway_close_action(4099) == NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY);
   }
 
@@ -200,8 +196,7 @@ s32 main(void) {
     );
     nya_assert(no_token.kind == NYA_ERROR_INVALID_ARGUMENT, "a gateway with no token is a caller mistake");
 
-    // A quote would close the JSON string the token goes into, which is the whole reason the check is
-    // there. The message says what was wrong and does not quote the thing that was wrong.
+    // A quote would close the JSON string the token goes into, which is the whole reason the check is there. The message says what was wrong and does not quote the thing that was wrong.
     NYA_Error quoted = nya_discord_gateway_create(
       arena, (NYA_DiscordGatewayOptions){ .token = "abc\"def", .transport = fake_transport(&fake) }, &gateway
     );
@@ -266,10 +261,7 @@ s32 main(void) {
     nya_assert(nya_discord_gateway_state(gateway) == NYA_DISCORD_GATEWAY_STATE_READY);
     nya_assert_eq(nya_discord_gateway_sequence(gateway), (s64)1);
 
-    /*
-     * The first heartbeat, jittered. With a jitter of a half it is due half an interval in, and not one
-     * millisecond before: the whole point of the jitter is that this is not the same for every bot.
-     */
+    /* The first heartbeat, jittered. With a jitter of a half it is due half an interval in, and not one millisecond before: the whole point of the jitter is that this is not the same for every bot. */
     fake.now_ms += 22499;
     nya_assert(!nya_discord_gateway_poll(gateway, &event));
     nya_assert(fake.sent_count == 1U, "the first heartbeat is not due yet");
@@ -287,10 +279,7 @@ s32 main(void) {
     nya_assert(!nya_discord_gateway_poll(gateway, &event));
     nya_assert(fake.sent_count == 3U, "the second heartbeat is a full interval after the first");
 
-    /*
-     * This one goes unanswered. A socket that is open and silent is the case a heartbeat exists to catch,
-     * so the next due beat drops the connection instead of sending into it.
-     */
+    /* This one goes unanswered. A socket that is open and silent is the case a heartbeat exists to catch, so the next due beat drops the connection instead of sending into it. */
     fake.now_ms += 45000;
     nya_assert(nya_discord_gateway_poll(gateway, &event));
     nya_assert(event.kind == NYA_DISCORD_GATEWAY_EVENT_DISCONNECTED);
@@ -363,8 +352,7 @@ s32 main(void) {
     NYA_DiscordGatewayEvent event = { 0 };
     nya_assert(!nya_discord_gateway_poll(gateway, &event));
 
-    // 4014: the bot asked for an intent its application page does not have enabled. Reconnecting cannot
-    // enable it, and a client that keeps asking gets the token disabled.
+    // 4014: the bot asked for an intent its application page does not have enabled. Reconnecting cannot enable it, and a client that keeps asking gets the token disabled.
     fake_push_close(&fake, (NYA_WebSocketClose)4014, "Disallowed intent(s).");
 
     nya_assert(nya_discord_gateway_poll(gateway, &event));
@@ -385,8 +373,7 @@ s32 main(void) {
 
   // TEST: a close that is not fatal is retried, and the waits grow
   {
-    // Jitter of one, so the wait is the whole delay and the arithmetic below is exact: half the backoff
-    // plus a full half is the backoff.
+    // Jitter of one, so the wait is the whole delay and the arithmetic below is exact: half the backoff plus a full half is the backoff.
     Fake fake = { .jitter = 1.0F, .now_ms = 1000 };
 
     NYA_DiscordGateway* gateway = nullptr;
@@ -490,8 +477,7 @@ s32 main(void) {
 
     u32 sent_before = fake.sent_count;
 
-    // Opcode 1 from the server, which it uses when it is about to go away and wants to know who is still
-    // there. It is answered at once rather than at the next scheduled beat.
+    // Opcode 1 from the server, which it uses when it is about to go away and wants to know who is still there. It is answered at once rather than at the next scheduled beat.
     fake_push(&fake, "{\"op\":1,\"d\":null}");
     nya_assert(!nya_discord_gateway_poll(gateway, &event));
     nya_assert_eq(fake.sent_count, sent_before + 1);
@@ -510,8 +496,7 @@ s32 main(void) {
 
     NYA_DiscordGateway* gateway = nullptr;
 
-    // The ordinary state of a machine that has just booted with no route yet. Failing here would make
-    // every caller write the retry themselves.
+    // The ordinary state of a machine that has just booted with no route yet. Failing here would make every caller write the retry themselves.
     NYA_EXPECT(nya_discord_gateway_create(
       arena, (NYA_DiscordGatewayOptions){ .token = TEST_TOKEN, .transport = fake_transport(&fake) }, &gateway
     ));
@@ -547,8 +532,7 @@ s32 main(void) {
     fake_push(&fake, "{\"op\":0,\"s\":9,\"t\":\"READY\",\"d\":{\"session_id\":\"session-four\",\"user\":{\"username\":\"nyabot\"}}}");
     nya_assert(nya_discord_gateway_poll(gateway, &event));
 
-    // Truncated by a proxy, or an opcode from a version of the protocol this does not know. Neither is a
-    // reason to throw away a session and replay from a sequence.
+    // Truncated by a proxy, or an opcode from a version of the protocol this does not know. Neither is a reason to throw away a session and replay from a sequence.
     fake_push(&fake, "{\"op\":0,\"s\":10,\"t\":");
     fake_push(&fake, "{\"op\":4242,\"d\":{}}");
     nya_assert(!nya_discord_gateway_poll(gateway, &event));

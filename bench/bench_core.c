@@ -79,8 +79,7 @@ s32 main(void) {
         nya_bench_keep(mixed);
     });
 
-    // The comparison that matters for the integer-id question: what a lookup would cost if the handle
-    // were already a number.
+    // The comparison that matters for the integer-id question: what a lookup would cost if the handle were already a number.
     nya_bench("integer mix x1024", HASHES, {
         u64 mixed = 0;
         // Widened intent made explicit: this is a mixing step, and wraparound is what it is for.

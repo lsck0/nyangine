@@ -121,8 +121,7 @@ s32 main(void) {
 
         NYA_SkeletonPose pose = { 0 };
 
-        // Three full cycles at a step that does not divide the duration, so the seam lands mid-step
-        // rather than exactly on a frame boundary.
+        // Three full cycles at a step that does not divide the duration, so the seam lands mid-step rather than exactly on a frame boundary.
         for (u32 i = 0; i < 300; i++) {
             nya_skeleton_player_update(&player, 0.03F, &pose);
 
@@ -169,8 +168,7 @@ s32 main(void) {
 
         NYA_RootMotion delta = nya_skeleton_player_root_delta(&player);
 
-        // Half of a quarter turn about +y. Compared through the axis the rotation is about, which is
-        // the component a quaternion for that rotation puts the sine of the half angle in.
+        // Half of a quarter turn about +y. Compared through the axis the rotation is about, which is the component a quaternion for that rotation puts the sine of the half angle in.
         f32 expected = sinf(1.5707963F * 0.5F * 0.5F);
 
         nya_check(fabsf(delta.rotation.y - expected) < 1e-3F, "half the clip is half the turn: %f, want %f", (f64)delta.rotation.y, (f64)expected);

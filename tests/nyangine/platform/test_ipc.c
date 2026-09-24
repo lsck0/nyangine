@@ -250,11 +250,7 @@ s32 main(void) {
     drain(listener, &drained);
     nya_assert(drained.connects == 1);
 
-    /*
-     * The kernel accepts into its backlog, so connecting succeeds and the refusal arrives as an end of
-     * file the moment the listener looks. That is the behaviour worth pinning: a full listener says no
-     * immediately instead of leaving a tool waiting on a connection that will never be answered.
-     */
+    /* The kernel accepts into its backlog, so connecting succeeds and the refusal arrives as an end of file the moment the listener looks. That is the behaviour worth pinning: a full listener says no immediately instead of leaving a tool waiting on a connection that will never be answered. */
     NYA_IpcClient* refused = nullptr;
     NYA_EXPECT(nya_ipc_client_create(arena, name, &refused));
 
@@ -298,10 +294,7 @@ s32 main(void) {
     u8* block = nya_arena_alloc(arena, NYA_IPC_BUFFER_BYTES);
     nya_memset(block, 'a', NYA_IPC_BUFFER_BYTES);
 
-    /*
-     * Sent without the client ever reading. The kernel takes a socket buffer's worth and then the
-     * listener's own queue fills, at which point the send has to fail rather than allocate.
-     */
+    /* Sent without the client ever reading. The kernel takes a socket buffer's worth and then the listener's own queue fills, at which point the send has to fail rather than allocate. */
     b8 refused = false;
 
     for (u32 attempt = 0; attempt < 256 && !refused; attempt++) {

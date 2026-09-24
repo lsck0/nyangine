@@ -34,10 +34,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: nya_string_extend_front_sprintf
-  //
-  // The prepend has to survive content already being there: the formatted text goes at the front
-  // and everything that was in the string stays intact behind it.
+  // TEST: nya_string_extend_front_sprintf The prepend has to survive content already being there: the formatted text goes at the front and everything that was in the string stays intact behind it.
   printf("TEST: extend_front_sprintf\n");
   {
     // Onto an empty string first, which is the simplest case.
@@ -377,9 +374,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: extend with itself
-  //
-  // Self-extension has to read the original bytes even though the buffer may move underneath it.
+  // TEST: extend with itself Self-extension has to read the original bytes even though the buffer may move underneath it.
   printf("TEST: self extend\n");
   {
     NYA_String* s = nya_string_from(arena, "ab");
@@ -392,10 +387,7 @@ s32 main(void) {
   {
     printf("TEST: oversized separator\n");
 
-    /*
-     * nya_string_split and nya_string_count copy their needle onto the stack with nya_alloca for a null
-     * terminated copy. The length comes from the caller, so the bound must stop a long needle.
-     */
+    /* nya_string_split and nya_string_count copy their needle onto the stack with nya_alloca for a null terminated copy. The length comes from the caller, so the bound must stop a long needle. */
     NYA_String* haystack = nya_string_from(arena, "the quick brown fox");
 
     NYA_String* huge = nya_string_create_with_capacity(arena, NYA_ALLOCA_MAX + 64);
@@ -405,10 +397,7 @@ s32 main(void) {
     nya_expect_crash((void)nya_string_split(arena, haystack, huge));
     nya_expect_crash((void)nya_string_count(haystack, huge));
 
-    /*
-     * The boundary itself still works, so the bound is a ceiling rather than a haircut. One under
-     * the limit, because the copy is the separator plus its terminator.
-     */
+    /* The boundary itself still works, so the bound is a ceiling rather than a haircut. One under the limit, because the copy is the separator plus its terminator. */
     NYA_String* at_limit = nya_string_create_with_capacity(arena, NYA_ALLOCA_MAX);
     for (u64 i = 0; i < NYA_ALLOCA_MAX - 1; i++) nya_string_push_back(at_limit, 'y');
 

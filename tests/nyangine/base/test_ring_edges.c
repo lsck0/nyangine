@@ -65,8 +65,7 @@ s32 main(void) {
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
 
-    // Fill, drain most of it, then refill: head is now part way along the array and the contents
-    // straddle the end.
+    // Fill, drain most of it, then refill: head is now part way along the array and the contents straddle the end.
     for (u32 i = 1; i <= 4; i++) nya_ring_push(ring, ((Item){ .id = i }));
     (void)nya_ring_pop(ring);
     (void)nya_ring_pop(ring);
@@ -84,10 +83,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: growing a wrapped ring preserves order
-  //
-  // The existing resize test grows a ring that never wrapped, so the copy loop's modulo never did
-  // anything. This is the case it exists for.
+  // TEST: growing a wrapped ring preserves order The existing resize test grows a ring that never wrapped, so the copy loop's modulo never did anything. This is the case it exists for.
   printf("TEST: resize a wrapped ring\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -112,11 +108,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: resizing to exactly the current length
-  //
-  // tail is set to the length after a resize, which is only a valid index while the capacity is
-  // strictly greater. When they are equal, tail has to wrap to zero or the next push writes one
-  // past the end of the buffer.
+  // TEST: resizing to exactly the current length tail is set to the length after a resize, which is only a valid index while the capacity is strictly greater. When they are equal, tail has to wrap to zero or the next push writes one past the end of the buffer.
   printf("TEST: resize to exactly the length\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 8);

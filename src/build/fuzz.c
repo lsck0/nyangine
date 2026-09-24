@@ -32,10 +32,7 @@ void fuzz_runner(NYA_ArgCommand* command) {
 
     NYA_ArrayᐸNYA_Stringᐳ* targets = _fuzz_discover(nya_arena_global);
 
-    /*
-     * No target named: say what there is rather than guessing one. A fuzzing session runs until it is
-     * stopped, so starting the wrong one costs an afternoon.
-     */
+    /* No target named: say what there is rather than guessing one. A fuzzing session runs until it is stopped, so starting the wrong one costs an afternoon. */
     if (target_name->values_count == 0) {
         nya_log_info("Fuzz targets under " FUZZ_DIRECTORY ":");
         nya_array_foreach (targets, target) nya_log_info("  %s", nya_string_to_cstring(nya_arena_global, target));
@@ -43,8 +40,7 @@ void fuzz_runner(NYA_ArgCommand* command) {
         return;
     }
 
-    // one session per invocation: afl-fuzz owns the terminal until it is stopped, and two of them
-    // would fight over it and over the findings directory.
+    // one session per invocation: afl-fuzz owns the terminal until it is stopped, and two of them would fight over it and over the findings directory.
     if (target_name->values_count > 1) {
         nya_log_error("Fuzz one target at a time; %u were named.", target_name->values_count);
         return;
@@ -85,8 +81,7 @@ void fuzz_runner(NYA_ArgCommand* command) {
         .policy      = NYA_BUILD_ALWAYS,
         .output_file = binary,
 
-        // the same codegen a test gets: a target is a unity build of the engine and reads the
-        // generated strings, assets and reflection tables.
+        // the same codegen a test gets: a target is a unity build of the engine and reads the generated strings, assets and reflection tables.
         .dependencies = { &build_shaders, &index_assets, },
 
         .command = {
@@ -99,9 +94,7 @@ void fuzz_runner(NYA_ArgCommand* command) {
                 INCLUDE_PATHS,
                 LINKER_FLAGS,
                 FLAGS_PLUGINS,
-                // the same flags a test is built with: assertions live, headless, NYA_TESTING on. A
-                // target that fuzzed a build with different assertions would be fuzzing a different
-                // program from the one the suite checks.
+                // the same flags a test is built with: assertions live, headless, NYA_TESTING on. A target that fuzzed a build with different assertions would be fuzzing a different program from the one the suite checks.
                 FLAGS_TEST,
                 FLAGS_HOST_NATIVE_COMPILE
                 FLAGS_HOST_NATIVE_LINK,
@@ -128,29 +121,17 @@ void fuzz_runner(NYA_ArgCommand* command) {
             .arguments = { "-i", corpus, "-o", findings, "--", binary },
 
             .environment = {
-                /*
-                 * The shared sanitizer settings plus the two AFL refuses to start without, which is
-                 * why `./build run fuzz` could not run one: abort_on_error, because the driver watches
-                 * for a child dying on a signal and asan exiting quietly with a status is a crash it
-                 * never hears about, and symbolize=0, because resolving a backtrace per crash is far
-                 * slower than the rest of an iteration. Spelled out here rather than added to
-                 * SANITIZER_ENVIRONMENT: everything else that runs an instrumented binary wants asan's
-                 * own symbolized report and not a bare SIGABRT.
-                 */
+                /* The shared sanitizer settings plus the two AFL refuses to start without, which is why `./build run fuzz` could not run one: abort_on_error, because the driver watches for a child dying on a signal and asan exiting quietly with a status is a crash it never hears about, and symbolize=0, because resolving a backtrace per crash is far slower than the rest of an iteration. Spelled out here rather than added to SANITIZER_ENVIRONMENT: everything else that runs an instrumented binary wants asan's own symbolized report and not a bare SIGABRT. */
                 "ASAN_OPTIONS=suppressions=./.sanitizers/asan.supp:detect_leaks=1:strict_string_checks=1:halt_on_error=1:abort_on_error=1:symbolize=0",
                 "LSAN_OPTIONS=suppressions=./.sanitizers/lsan.supp:symbolize=0",
                 "TSAN_OPTIONS=suppressions=./.sanitizers/tsan.supp:symbolize=0",
                 "UBSAN_OPTIONS=suppressions=./.sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1:abort_on_error=1:symbolize=0",
 
-                // AFL refuses to start against an asan build unless it is told the memory limit is
-                // deliberate: asan reserves terabytes of address space, which looks like a runaway
-                // target to the driver's own accounting.
+                // AFL refuses to start against an asan build unless it is told the memory limit is deliberate: asan reserves terabytes of address space, which looks like a runaway target to the driver's own accounting.
                 "AFL_MAP_SIZE=262144",
                 "AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1",
 
-                // AFL stops on a CPU governor that is not `performance`, which is every laptop. It is
-                // a warning about throughput and not about correctness, and refusing to fuzz at all
-                // because the machine might fuzz slowly is worse than fuzzing slowly.
+                // AFL stops on a CPU governor that is not `performance`, which is every laptop. It is a warning about throughput and not about correctness, and refusing to fuzz at all because the machine might fuzz slowly is worse than fuzzing slowly.
                 "AFL_SKIP_CPUFREQ=1",
             },
         },
@@ -160,10 +141,7 @@ void fuzz_runner(NYA_ArgCommand* command) {
 }
 
 NYA_ConstCString fuzz_completion_target_name(u32 index) {
-    /*
-     * Listed once and cached, since completion asks for one name at a time. Same arrangement as
-     * example_completion_name, and for the same reason.
-     */
+    /* Listed once and cached, since completion asks for one name at a time. Same arrangement as example_completion_name, and for the same reason. */
     static NYA_Arena*             arena   = nullptr;
     static NYA_ArrayᐸNYA_Stringᐳ* targets = nullptr;
 
@@ -226,8 +204,7 @@ b8 _fuzz_program_exists(NYA_ConstCString program) {
 
     NYA_Error probed = nya_command_run(&probe);
 
-    // afl-fuzz answers --version with a usage banner and a non-zero code depending on the build, so
-    // running at all is the test rather than the exit code.
+    // afl-fuzz answers --version with a usage banner and a non-zero code depending on the build, so running at all is the test rather than the exit code.
     return probed.ok;
 }
 

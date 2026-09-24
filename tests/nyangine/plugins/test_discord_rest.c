@@ -173,8 +173,7 @@ s32 main(void) {
     nya_assert(wait == 1200ULL, "Retry-After is what the server says about this bucket now");
     nya_assert(nya_discord_rate_limit_ready(&limits, "POST /applications/{id}/commands", 1000, &wait), "and only about this bucket");
 
-    // The one Discord escalates to a ban when a client keeps pushing through it, so it stops everything
-    // rather than one route.
+    // The one Discord escalates to a ban when a client keeps pushing through it, so it stops everything rather than one route.
     NYA_Response global = canned(arena, 429, "x-ratelimit-global: true\nretry-after: 10\n");
     nya_discord_rate_limit_observe(&limits, "POST /applications/{id}/commands", 429, &global, 2000);
 
@@ -194,8 +193,7 @@ s32 main(void) {
     nya_discord_rate_limit_observe(&limits, "POST /channels/1/messages", 200, &spent, 1000);
     nya_assert(!nya_discord_rate_limit_ready(&limits, "POST /channels/1/messages", 1000, &wait));
 
-    // A reply that says nothing about the limit says nothing about the limit. Reading it as a refill
-    // would reopen a bucket the server never said was open.
+    // A reply that says nothing about the limit says nothing about the limit. Reading it as a refill would reopen a bucket the server never said was open.
     NYA_Response bare = canned(arena, 200, "content-type: application/json\n");
     nya_discord_rate_limit_observe(&limits, "POST /channels/1/messages", 200, &bare, 2000);
 
@@ -223,8 +221,7 @@ s32 main(void) {
     nya_assert(nya_discord_rest_message_send(rest, "", "hello", &id).kind == NYA_ERROR_INVALID_ARGUMENT, "a message needs a channel");
     nya_assert(nya_discord_rest_message_send(rest, "42", "", &id).kind == NYA_ERROR_INVALID_ARGUMENT, "and something to say");
 
-    // Refused rather than cut: cutting UTF-8 mid codepoint makes a body Discord rejects for a reason
-    // the caller cannot see.
+    // Refused rather than cut: cutting UTF-8 mid codepoint makes a body Discord rejects for a reason the caller cannot see.
     char long_content[NYA_DISCORD_REST_MAX_CONTENT + 8] = { 0 };
     for (u32 i = 0; i < sizeof(long_content) - 1; i++) long_content[i] = 'a';
     nya_assert(nya_discord_rest_message_send(rest, "42", long_content, &id).kind == NYA_ERROR_INVALID_ARGUMENT);
@@ -306,8 +303,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(fake.last_body, "\"type\":4"), "type 4 is a message the user sees");
     nya_assert(nya_string_contains(fake.last_body, "\"content\":\"pong\""));
 
-    // The interaction token is a credential for that one interaction, so it is in the url and nowhere a
-    // log line would reach.
+    // The interaction token is a credential for that one interaction, so it is in the url and nowhere a log line would reach.
     nya_assert(nya_string_equals(result.route, "POST /interactions/{id}/{token}/callback"));
   }
 
@@ -329,8 +325,7 @@ s32 main(void) {
     nya_assert(nya_discord_rest_pending(rest) == 1U, "so the request is still queued");
     nya_assert_eq(fake.performed, 1U);
 
-    // Polled as often as the caller likes, and nothing goes out: this is the part that keeps a token off
-    // Discord's bad list, and it costs nothing to ask.
+    // Polled as often as the caller likes, and nothing goes out: this is the part that keeps a token off Discord's bad list, and it costs nothing to ask.
     for (u32 i = 0; i < 100; i++) nya_assert(!nya_discord_rest_poll(rest, &result));
     nya_assert(fake.performed == 1U, "not one request while the bucket was closed");
 
@@ -357,8 +352,7 @@ s32 main(void) {
     for (u32 i = 0; i + 1 < NYA_DISCORD_REST_MAX_ATTEMPTS; i++) {
       nya_assert(!nya_discord_rest_poll(rest, &result), "a 5xx is Discord's problem and worth another try");
 
-      // A 5xx carries no Retry-After, so the wait is this client's own and the clock has to pass it: a
-      // retry that went out on the next poll would be a bot hammering an API that is already struggling.
+      // A 5xx carries no Retry-After, so the wait is this client's own and the clock has to pass it: a retry that went out on the next poll would be a bot hammering an API that is already struggling.
       nya_assert(!nya_discord_rest_poll(rest, &result), "and not one millisecond later");
       fake.now_ms += 10000;
     }

@@ -168,8 +168,7 @@ static const NYA_HttpRouter ROUTER = {
 static void make_request(OUT NYA_HttpRequest* request, NYA_HttpMethod method, NYA_ConstCString path, NYA_ConstCString authorization) {
     *request = (NYA_HttpRequest){ .method = method, .keep_alive = true };
 
-    // path and query as the parser would leave them: a route matches the path, and a query is read
-    // from the target, so a helper that put the whole target in the path would match nothing.
+    // path and query as the parser would leave them: a route matches the path, and a query is read from the target, so a helper that put the whole target in the path would match nothing.
     NYA_UrlFailure failure = { 0 };
     NYA_EXPECT(nya_url_parse_target(path, strlen(path), &request->target, &failure), "while building a request");
 
@@ -198,8 +197,7 @@ dispatch(NYA_Arena* arena, const NYA_HttpRequest* request, NYA_HttpResponse* res
 
     nya_http_response_reset(response);
 
-    // the body is bytes and carries no terminator, so the buffer is cleared rather than compared as a
-    // string against whatever the last answer left in it.
+    // the body is bytes and carries no terminator, so the buffer is cleared rather than compared as a string against whatever the last answer left in it.
     nya_memset(response->body, 0, response->body_capacity);
 
     ORDER_LENGTH = 0;
@@ -243,10 +241,7 @@ s32 main(void) {
         NYA_HttpRouter writer     = { .name = "x", .routes = &undeclared, .route_count = 1 };
         nya_assert(!nya_http_router_check(&writer).ok, "a write route without 403 would describe a refusal it cannot make");
 
-        /*
-         * The rule that makes the extractor structural: a handler taking a caller may only sit on a
-         * route that demands one, and a route that demands one may only hold that kind of handler.
-         */
+        /* The rule that makes the extractor structural: a handler taking a caller may only sit on a route that demands one, and a route that demands one may only hold that kind of handler. */
         NYA_HttpRoute misplaced = ROUTES[1];
         misplaced.auth          = NYA_HTTP_AUTH_NONE;
 
@@ -285,10 +280,7 @@ s32 main(void) {
         NYA_HttpRouter hopeful = { .name = "x", .routes = &optimistic, .route_count = 1 };
         nya_assert(!nya_http_router_check(&hopeful).ok);
 
-        /*
-         * The two halves of writing a read as a GET again: a request DTO on a verb whose body the
-         * parser refuses, and a verb that changes nothing claiming to have created something.
-         */
+        /* The two halves of writing a read as a GET again: a request DTO on a verb whose body the parser refuses, and a verb that changes nothing claiming to have created something. */
         NYA_HttpRoute bodiless = ROUTES[2];
         bodiless.request_type  = nya_reflect_of(NYA_HttpAccountingDto);
 
@@ -319,8 +311,7 @@ s32 main(void) {
 
         nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_PUT, "/api/thing", &exists) == &ROUTES[1]);
 
-        // a HEAD is a read whose body is dropped, so it answers from the read route: the GET where
-        // there is one, and the QUERY where there is not.
+        // a HEAD is a read whose body is dropped, so it answers from the read route: the GET where there is one, and the QUERY where there is not.
         nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_HEAD, "/api/legacy", &exists) == &ROUTES[2]);
         nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_HEAD, "/api/thing", &exists) == &ROUTES[0]);
 
@@ -360,8 +351,7 @@ s32 main(void) {
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_OK);
         nya_assert(nya_string_equals((NYA_ConstCString)response.body, "legacy"), "GET is not gone, it is only not the default");
 
-        // a HEAD on a path that answers only QUERY runs the QUERY handler, with no body to read from:
-        // the server drops the bytes on the way out, which is what makes it a HEAD.
+        // a HEAD on a path that answers only QUERY runs the QUERY handler, with no body to read from: the server drops the bytes on the way out, which is what makes it a HEAD.
         make_request(request, NYA_HTTP_METHOD_HEAD, "/api/thing", nullptr);
 
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_OK);
@@ -535,8 +525,7 @@ s32 main(void) {
         char token[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
         nya_assert(nya_http_jwt_encode(&sweeper, SECRET, SECRET_SIZE, token, sizeof(token)).ok);
 
-        // no table installed: the server cannot answer the question the route asks, so it says so
-        // rather than letting the request through.
+        // no table installed: the server cannot answer the question the route asks, so it says so rather than letting the request through.
         nya_http_permissions_set(nullptr, nullptr);
 
         make_request(request, NYA_HTTP_METHOD_DELETE, "/api/room?room=3", token);
@@ -582,8 +571,7 @@ s32 main(void) {
         nya_assert(nya_http_router_dispatch(&exchange, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_FORBIDDEN);
         nya_assert(ORDER_LENGTH == 0, "another room is another answer");
 
-        // a token naming nobody the program knows resolves to the system id, which is refused rather
-        // than obeyed: that id answers yes to everything.
+        // a token naming nobody the program knows resolves to the system id, which is refused rather than obeyed: that id answers yes to everything.
         NYA_HttpIdentity nobody = sweeper;
         (void)snprintf(nobody.subject, sizeof(nobody.subject), "%s", "not-a-number");
 

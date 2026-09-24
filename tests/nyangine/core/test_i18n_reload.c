@@ -35,8 +35,7 @@ static void write_fixture(NYA_ConstCString moved) {
   for (u32 i = 0; i < NYA_STRING_COUNT; i++) {
     NYA_ConstCString value = nya_string_equals(NYA_STRING_KEYS[i], MOVED_KEY) ? moved : nya_i18n_raw(i);
 
-    // JSON escaping, for the two characters that would otherwise end the string early. The locales in
-    // this repository contain neither, which is why it is done here rather than assumed.
+    // JSON escaping, for the two characters that would otherwise end the string early. The locales in this repository contain neither, which is why it is done here rather than assumed.
     NYA_String* escaped = nya_string_create(arena);
     for (const char* c = value; *c != '\0'; c++) {
       if (*c == '"' || *c == '\\') nya_string_push_back(escaped, '\\');
@@ -55,8 +54,7 @@ static void write_fixture(NYA_ConstCString moved) {
 
   NYA_EXPECT(nya_file_write(FIXTURE_PATH, out));
 
-  // rewritten until the timestamp moves, as in test_runtime_config.c: a coarse filesystem clock can give two
-  // quick writes the same one, and the watch compares timestamps.
+  // rewritten until the timestamp moves, as in test_runtime_config.c: a coarse filesystem clock can give two quick writes the same one, and the watch compares timestamps.
   for (u32 attempt = 0; existed && attempt < 200; attempt++) {
     u64 after = 0;
     NYA_EXPECT(nya_filesystem_last_modified(FIXTURE_PATH, &after));
@@ -91,10 +89,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  /*
-   * The base locale first, so write_fixture has real strings and specifiers, and one fixture for the
-   * whole run; the third case depends on its lifetime.
-   */
+  /* The base locale first, so write_fixture has real strings and specifiers, and one fixture for the whole run; the third case depends on its lifetime. */
   NYA_EXPECT(nya_i18n_load(NYA_I18N_BASE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
 
   write_fixture("before");
@@ -121,12 +116,10 @@ s32 main(void) {
 
     nya_assert(reloaded, "the edit should have been picked up, got '%s'", nya_string_menu_start());
 
-    // And only that string moved: the reload re-resolved the whole file rather than patching one key,
-    // so a key it did not touch has to still be there.
+    // And only that string moved: the reload re-resolved the whole file rather than patching one key, so a key it did not touch has to still be there.
     nya_assert(nya_string_equals(nya_string_menu_quit(), "quit"), "the untouched keys survived, got '%s'", nya_string_menu_quit());
 
-    // Still the same locale. A reload is not a language change, and reporting one would send any UI
-    // listening for a locale switch chasing a change that did not happen.
+    // Still the same locale. A reload is not a language change, and reporting one would send any UI listening for a locale switch chasing a change that did not happen.
     nya_assert(nya_string_equals(nya_i18n_locale(), FIXTURE_LOCALE), "the locale is unchanged, got '%s'", nya_i18n_locale());
 
     printf("  PASSED\n");
@@ -153,8 +146,7 @@ s32 main(void) {
                  nya_string_menu_start());
     }
 
-    // And the failure is not sticky: finishing the write is picked up, because a reload that failed
-    // does not record the timestamp it failed on.
+    // And the failure is not sticky: finishing the write is picked up, because a reload that failed does not record the timestamp it failed on.
     write_fixture("recovered");
 
     b8 recovered = false;
@@ -183,10 +175,7 @@ s32 main(void) {
     }
     nya_assert(present, "the starting state, got '%s'", nya_string_menu_start());
 
-    /*
-     * Deleting the file is how an editor that saves atomically looks from the outside: it writes a
-     * temporary and renames it over the target, so for an instant the path is not there.
-     */
+    /* Deleting the file is how an editor that saves atomically looks from the outside: it writes a temporary and renames it over the target, so for an instant the path is not there. */
     (void)remove(FIXTURE_PATH);
 
     for (u32 frame = 0; frame < 15; frame++) {
@@ -194,8 +183,7 @@ s32 main(void) {
       end_frame();
     }
 
-    // The strings survive the file going away. There is nothing better to show than the last thing
-    // that parsed, and blanking the UI because a translator's editor was mid-save would be worse.
+    // The strings survive the file going away. There is nothing better to show than the last thing that parsed, and blanking the UI because a translator's editor was mid-save would be worse.
     nya_assert(nya_string_equals(nya_string_menu_start(), "present"), "a missing file changes nothing, got '%s'",
                nya_string_menu_start());
 

@@ -13,10 +13,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create();
     defer      nya_arena_destroy(arena);
 
-    // TEST: reading a zero capacity container reports empty rather than dividing
-    //
-    // Lookups take `hash(key) % capacity` before the probe loop, whose own bound would not run, so a get
-    // on a never written container must not divide by zero.
+    // TEST: reading a zero capacity container reports empty rather than dividing Lookups take `hash(key) % capacity` before the probe loop, whose own bound would not run, so a get on a never written container must not divide by zero.
     printf("TEST: reading a zero capacity container\n");
     {
         NYA_HMapᐸu32ˏu32ᐳ* map  = nya_hmap_create_with_capacity(arena, u32, u32, 0);

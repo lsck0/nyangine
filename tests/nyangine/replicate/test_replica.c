@@ -44,11 +44,7 @@ s32 main(void) {
   defer nya_world_destroy(client_world);
   defer nya_world_destroy(server_world);
 
-  /*
-   * On the arena, not the stack: NYA_NetReplicaMap is 624 KB, and Windows gives a thread 1 MB by
-   * default against Linux's 8, so a stack copy overflowed and the test exited 0xC00000FD there
-   * while passing here. Every use below is already through a pointer.
-   */
+  /* On the arena, not the stack: NYA_NetReplicaMap is 624 KB, and Windows gives a thread 1 MB by default against Linux's 8, so a stack copy overflowed and the test exited 0xC00000FD there while passing here. Every use below is already through a pointer. */
   NYA_NetReplicaMap* map = nya_arena_alloc(arena, sizeof(NYA_NetReplicaMap));
   nya_assert(map != nullptr);
 
@@ -109,8 +105,7 @@ s32 main(void) {
 
     printf("  server a=%u b=%u  ->  client a=%u b=%u\n", server_a.index, server_b.index, local_a.index, local_b.index);
 
-    // And the right entity landed under the right mapping, which is what the indices differing makes
-    // possible to get wrong.
+    // And the right entity landed under the right mapping, which is what the indices differing makes possible to get wrong.
     NYA_Entity* got_a = nya_entity_get(local_a);
     NYA_Entity* got_b = nya_entity_get(local_b);
 
@@ -148,11 +143,7 @@ s32 main(void) {
       nya_system_sim_apply_commands();
     }
 
-    /*
-     * Still two. Without the map this would be twenty-two: every apply would fail to recognise what it
-     * had already spawned and add another copy, and a real session would grow without bound at the
-     * snapshot rate.
-     */
+    /* Still two. Without the map this would be twenty-two: every apply would fail to recognise what it had already spawned and add another copy, and a real session would grow without bound at the snapshot rate. */
     nya_assert(replicated_count() == 2, "ten snapshots produced %u entities instead of 2", replicated_count());
 
     // And the movement was applied to the existing entity rather than to a fresh one.
@@ -164,8 +155,7 @@ s32 main(void) {
   // TEST: what the server removes is removed; what the client owns is not
   printf("TEST: the sweep removes replicas and spares local entities\n");
   {
-    // an entity the client made itself, marked replicated. The server's silence says nothing about it, so
-    // sweeping by flag instead of by map would destroy it.
+    // an entity the client made itself, marked replicated. The server's silence says nothing about it, so sweeping by flag instead of by map would destroy it.
     (void)nya_world_set(client_world);
     NYA_EntityHandle client_owned = nya_entity_spawn(.name = "client effect", .flags = FLAG_REPLICATED, .position = { -50.0F, 0.0F, 0.0F });
 
@@ -272,8 +262,7 @@ s32 main(void) {
     nya_assert(predicted != nullptr, "the predicted entity was swept");
     nya_assert(predicted->position.x == 999.0F, "the predicted entity was overwritten by a snapshot (x = %f)", (f64)predicted->position.x);
 
-    // And it is spared by the sweep too: a snapshot that omits it entirely must not remove it, because
-    // that snapshot is a round trip old.
+    // And it is spared by the sweep too: a snapshot that omits it entirely must not remove it, because that snapshot is a round trip old.
     (void)nya_world_set(server_world);
     nya_entity_despawn(server_player);
 
@@ -384,10 +373,7 @@ s32 main(void) {
   // TEST: clearing the map without touching the entities
   printf("TEST: clearing a map leaves its entities alone\n");
   {
-    /*
-     * The non-destructive counterpart to nya_net_replica_map_despawn_all, for a caller that is about to
-     * destroy the world anyway.
-     */
+    /* The non-destructive counterpart to nya_net_replica_map_despawn_all, for a caller that is about to destroy the world anyway. */
     (void)nya_world_set(client_world);
 
     NYA_EntityHandle survivor = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 1.0F, 2.0F, 3.0F });

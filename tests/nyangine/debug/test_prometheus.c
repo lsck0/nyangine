@@ -22,15 +22,7 @@
 
 #define NOW_S 1700000000ULL
 
-/*
- * ── a just-enough Prometheus text validator ──
- *
- * Not a general parser: it knows the shapes this renderer produces. Every line is blank, a `# HELP`/
- * `# TYPE` comment, or a sample. A sample is a metric name, an optional `{label="value",…}` block, a
- * space, and a value that strtod accepts. Names are held to the charset; label values are read with
- * the format's escapes, so an unescaped quote or a bare newline inside a value is a parse failure —
- * which is exactly the injection a hostile registered name would attempt.
- */
+/* ── a just-enough Prometheus text validator ── Not a general parser: it knows the shapes this renderer produces. Every line is blank, a `# HELP`/ `# TYPE` comment, or a sample. A sample is a metric name, an optional `{label="value",…}` block, a space, and a value that strtod accepts. Names are held to the charset; label values are read with the format's escapes, so an unescaped quote or a bare newline inside a value is a parse failure — which is exactly the injection a hostile registered name would attempt. */
 
 /** Whether `c` may begin a metric or label name. */
 static b8 is_name_head(char c) {
@@ -99,8 +91,7 @@ static b8 line_is_valid(const char* line) {
     if (line[0] == '\0') return true; // a blank line is allowed between families
 
     if (line[0] == '#') {
-        // The only comments this renderer writes are HELP and TYPE, each naming a valid metric, and a
-        // TYPE always says gauge.
+        // The only comments this renderer writes are HELP and TYPE, each naming a valid metric, and a TYPE always says gauge.
         if (strncmp(line, "# HELP ", 7) == 0) return parse_name(line + 7) != nullptr;
         if (strncmp(line, "# TYPE ", 7) == 0) {
             const char* after = parse_name(line + 7);
@@ -120,8 +111,7 @@ static b8 line_is_valid(const char* line) {
     if (*p != ' ') return false;
     p++;
 
-    // The value: strtod has to accept it and consume something, and only an optional timestamp may
-    // follow. This renderer writes no timestamp, so the rest must be empty.
+    // The value: strtod has to accept it and consume something, and only an optional timestamp may follow. This renderer writes no timestamp, so the rest must be empty.
     char* end = nullptr;
     (void)strtod(p, &end);
     if (end == p) return false;
@@ -221,13 +211,11 @@ int main(void) {
 
     // TEST: the hostile name comes out escaped, in a label, and never raw.
     {
-        // The escaped label value: a\"b\\c\nd.e-f{g} — the quote, the backslash and the newline are the
-        // format's two-byte escapes; the dot, the dash and the braces are legal in a value and untouched.
+        // The escaped label value: a\"b\\c\nd.e-f{g} — the quote, the backslash and the newline are the format's two-byte escapes; the dot, the dash and the braces are legal in a value and untouched.
         const char* escaped = "nyangine_ceiling_live{ceiling=\"a\\\"b\\\\c\\nd.e-f{g}\"} 3\n";
         nya_check(strstr(text, escaped) != nullptr, "the hostile name is an escaped label value with its live count");
 
-        // Nothing raw leaked: the un-escaped 'a"b' never appears (the quote is always preceded by a
-        // backslash), and no real newline sits inside a ceiling label.
+        // Nothing raw leaked: the un-escaped 'a"b' never appears (the quote is always preceded by a backslash), and no real newline sits inside a ceiling label.
         nya_check(strstr(text, "a\"b") == nullptr, "the quote in the name was escaped, not emitted raw");
         nya_check(strstr(text, "ceiling=\"a\"") == nullptr, "the name did not close its own label early");
 

@@ -62,10 +62,7 @@ void format_runner(NYA_ArgCommand* command) {
     NYA_Arena* arena = nya_arena_create(.name = "format_runner");
     defer nya_arena_destroy(arena);
 
-    // Every hand-written .c and .h under the trees, plus the two roots that sit on their own. The style
-    // file at the repo root does the rest; nothing here decides how a file is formatted, only which ones.
-    // Collected on the global arena, as the linter and the bench runner collect theirs, since the walk
-    // callback is handed the array and nothing else.
+    // Every hand-written .c and .h under the trees, plus the two roots that sit on their own. The style file at the repo root does the rest; nothing here decides how a file is formatted, only which ones. Collected on the global arena, as the linter and the bench runner collect theirs, since the walk callback is handed the array and nothing else.
     NYA_ArrayᐸNYA_Stringᐳ* files = nya_array_create(nya_arena_global, NYA_String);
     for (u32 i = 0; i < nya_carray_length(_FORMAT_ROOTS); i++) {
         NYA_EXPECT(nya_filesystem_walk(nya_arena_global, _FORMAT_ROOTS[i], _format_collect, files), "while listing %s", _FORMAT_ROOTS[i]);
@@ -85,8 +82,7 @@ void format_runner(NYA_ArgCommand* command) {
         NYA_CString path = nya_string_to_cstring(arena, file);
 
         NYA_Command run = {
-            // Suppressed: check mode names the file itself, and write mode says nothing per file. A parse
-            // failure still surfaces through the exit code below.
+            // Suppressed: check mode names the file itself, and write mode says nothing per file. A parse failure still surfaces through the exit code below.
             .flags   = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
             .program = FORMAT_PROGRAM,
             .arena   = arena,
@@ -144,8 +140,7 @@ b8 _format_program_exists(void) {
 b8 _format_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* files = (NYA_ArrayᐸNYA_Stringᐳ*)user_data;
 
-    // Corpora and kept crashes are inputs to parsers, not source. Filtered per file, because returning false
-    // ends the whole walk, and a directory's callback comes after its children anyway. See _lint_collect.
+    // Corpora and kept crashes are inputs to parsers, not source. Filtered per file, because returning false ends the whole walk, and a directory's callback comes after its children anyway. See _lint_collect.
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
     if (nya_string_contains(path, "/corpus/") || nya_string_contains(path, "/crashes/")) return true;
 

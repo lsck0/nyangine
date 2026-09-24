@@ -19,8 +19,7 @@ static NYA_Value scalar(NYA_Database* db, NYA_Arena* arena, NYA_ConstCString sql
 
   nya_assert(result.rows->length == 1, "'%s' was expected to return exactly one row, got " FMTu64, sql, result.rows->length);
 
-  // Cast because nya_object_get takes a mutable key while every caller here passes a literal. It
-  // only reads it; the signature is the thing that is wrong, not this call.
+  // Cast because nya_object_get takes a mutable key while every caller here passes a literal. It only reads it; the signature is the thing that is wrong, not this call.
   NYA_Value* value = nya_object_get(result.rows->items[0], (NYA_CString)column);
   nya_assert(value != nullptr, "'%s' returned no column named '%s'", sql, column);
 
@@ -46,9 +45,7 @@ s32 main(void) {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
 
-    // Two sources for one fact: the compiled in macro, and what the registered SQL function says.
-    // They disagree if the archive was built from a different checkout than the header, which is
-    // exactly what a stale build directory or a cache restored across a submodule bump produces.
+    // Two sources for one fact: the compiled in macro, and what the registered SQL function says. They disagree if the archive was built from a different checkout than the header, which is exactly what a stale build directory or a cache restored across a submodule bump produces.
     NYA_Value version = scalar(db, arena, "SELECT vec_version() AS version", "version");
     nya_assert(version.type == NYA_TYPE_STRING);
     nya_assert(strcmp(version.as_string, nya_sql_vec_version()) == 0, "the linked archive says %s, the header says %s", version.as_string,
@@ -60,8 +57,7 @@ s32 main(void) {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
 
-    // (1,2,3) to (4,5,6) is a distance of sqrt(27), and picking a case with a known answer is the
-    // point: a function that is registered but computing nonsense passes a "did it run" check.
+    // (1,2,3) to (4,5,6) is a distance of sqrt(27), and picking a case with a known answer is the point: a function that is registered but computing nonsense passes a "did it run" check.
     NYA_Value l2 = scalar(db, arena, "SELECT vec_distance_l2(vec_f32('[1,2,3]'), vec_f32('[4,5,6]')) AS d", "d");
     nya_assert(l2.type == NYA_TYPE_F64);
     nya_assert(fabs(l2.as_f64 - 5.196152) < 0.0001, "expected sqrt(27), got %f", l2.as_f64);
@@ -82,9 +78,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_sql_exec(db, "CREATE VIRTUAL TABLE items USING vec0(embedding float[3])"));
 
-    // Bound as a blob of little endian f32, which is how vec0 stores a vector. Deliberately not
-    // through vec_f32('[...]') here: the blob path is the one a real caller uses, since an embedding
-    // arrives as floats rather than as text.
+    // Bound as a blob of little endian f32, which is how vec0 stores a vector. Deliberately not through vec_f32('[...]') here: the blob path is the one a real caller uses, since an embedding arrives as floats rather than as text.
     const f32 vectors[3][3] = {
       { 1.0f, 0.0f, 0.0f },
       { 0.0f, 1.0f, 0.0f },
@@ -96,8 +90,7 @@ s32 main(void) {
       NYA_EXPECT(nya_sql_exec_bound(db, "INSERT INTO items (rowid, embedding) VALUES (?, ?)", row, 2));
     }
 
-    // Querying with (1,0,0) exactly: rowid 1 is that vector, rowid 3 is close to it, rowid 2 is
-    // orthogonal. Asserting the *order* is what makes this a search test rather than a scan.
+    // Querying with (1,0,0) exactly: rowid 1 is that vector, rowid 3 is close to it, rowid 2 is orthogonal. Asserting the *order* is what makes this a search test rather than a scan.
     const f32 query[3] = { 1.0f, 0.0f, 0.0f };
 
     NYA_SqlValue  search[] = { nya_sql_blob((const u8*)query, sizeof(query)) };
@@ -108,8 +101,7 @@ s32 main(void) {
     nya_assert(nya_object_get(nearest.rows->items[0], "rowid")->as_s64 == 1, "the exact match should come first");
     nya_assert(nya_object_get(nearest.rows->items[1], "rowid")->as_s64 == 3, "the near match should come second, not the orthogonal one");
 
-    // the exact match is at distance zero, and the distance is an ordinary column, which is why results
-    // are NYA_Objects rather than a vector type.
+    // the exact match is at distance zero, and the distance is an ordinary column, which is why results are NYA_Objects rather than a vector type.
     NYA_Value* distance = nya_object_get(nearest.rows->items[0], "distance");
     nya_assert(distance->type == NYA_TYPE_F64);
     nya_assert(fabs(distance->as_f64) < 0.0001, "expected 0, got %f", distance->as_f64);
@@ -157,8 +149,7 @@ s32 main(void) {
     NYA_Value distinct = scalar(db, arena, "SELECT uuid4() <> uuid4() AS d", "d");
     nya_assert(distinct.as_s64 == 1, "two uuid4 calls returned the same value");
 
-    // time_now returns a sqlean instant, and time_fmt_iso renders it. Only the shape is asserted:
-    // the value is the wall clock, which a test cannot pin down.
+    // time_now returns a sqlean instant, and time_fmt_iso renders it. Only the shape is asserted: the value is the wall clock, which a test cannot pin down.
     NYA_Value now = scalar(db, arena, "SELECT time_fmt_iso(time_now()) AS t", "t");
     nya_assert(strlen(now.as_string) > 10, "expected an ISO timestamp, got '%s'", now.as_string);
   }
@@ -168,11 +159,7 @@ s32 main(void) {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
 
-    // The body of a defined function calls another sqlean function on purpose. That is the ordering
-    // constraint sqlean_extensions.c documents: define_init has to run after everything else, and
-    // when it does not this is what fails, with "no such function: text_reverse".
-    // Two arguments: a name and an expression. The parameters are the `:name` placeholders in the
-    // body, bound positionally when the function is called.
+    // The body of a defined function calls another sqlean function on purpose. That is the ordering constraint sqlean_extensions.c documents: define_init has to run after everything else, and when it does not this is what fails, with "no such function: text_reverse". Two arguments: a name and an expression. The parameters are the `:name` placeholders in the body, bound positionally when the function is called.
     NYA_EXPECT(nya_sql_exec(db, "SELECT define('backwards', 'text_reverse(:t)')"));
 
     NYA_Value result = scalar(db, arena, "SELECT backwards('abc') AS r", "r");
@@ -181,9 +168,7 @@ s32 main(void) {
 
   // TEST: every connection gets them, not only the first
   {
-    // sqlite3_auto_extension applies to connections opened *after* registration, so a bug that
-    // registered once against the first handle rather than globally would pass every test above and
-    // fail here. Two handles open at once, both used.
+    // sqlite3_auto_extension applies to connections opened *after* registration, so a bug that registered once against the first handle rather than globally would pass every test above and fail here. Two handles open at once, both used.
     NYA_Database* first = open_memory(arena);
     defer         nya_sql_close(first);
 
@@ -200,13 +185,10 @@ s32 main(void) {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
 
-    // writefile comes from sqlean's fileio, left out because queries from save data or mods should not
-    // write anywhere the process can. If this passes, fileio was added deliberately; update this and
-    // sqlean_extensions.c together.
+    // writefile comes from sqlean's fileio, left out because queries from save data or mods should not write anywhere the process can. If this passes, fileio was added deliberately; update this and sqlean_extensions.c together.
     nya_assert(!prepares(db, arena, "SELECT writefile('/tmp/nyangine-should-not-exist', 'x')"), "sqlean's fileio is not meant to be registered");
 
-    // regexp needs PCRE2 in an archive of its own; crypto needs a header upstream downloads at build
-    // time. Both are absent for build reasons rather than policy ones.
+    // regexp needs PCRE2 in an archive of its own; crypto needs a header upstream downloads at build time. Both are absent for build reasons rather than policy ones.
     nya_assert(!prepares(db, arena, "SELECT regexp_like('abc', 'a.c')"), "sqlean's regexp is not meant to be registered");
     nya_assert(!prepares(db, arena, "SELECT sha256('abc')"), "sqlean's crypto is not meant to be registered");
 

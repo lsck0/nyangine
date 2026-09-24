@@ -257,8 +257,7 @@ s32 main(void) {
 
         f32x2 in = anchor(box_of(pos_b), false, 0);
 
-        // the detach is reported on the press, the pass a caller reads it the same as the connect, so it is checked
-        // there rather than after the release, which the next pass would have cleared.
+        // the detach is reported on the press, the pass a caller reads it the same as the connect, so it is checked there rather than after the release, which the next pass would have cleared.
         pointer_move(in);
         pointer_button(true);
         graph(NYA_UI_PASS_INPUT);

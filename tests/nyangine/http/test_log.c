@@ -163,8 +163,7 @@ static u32 fill_text(const NYA_TypeReflection* type, void* address, NYA_ConstCSt
     if (type == nullptr || depth >= NYA_REFLECT_LAYOUT_DEPTH_MAX) return 0;
 
     if (nya_reflect_is_char_array(type)) {
-        // an array too short to hold the whole marker would go out truncated, and a truncated marker
-        // is a different string to search for. Left alone and not counted instead.
+        // an array too short to hold the whole marker would go out truncated, and a truncated marker is a different string to search for. Left alone and not counted instead.
         if (type->element_count <= strlen(marker)) return 0;
 
         (void)snprintf((char*)address, type->element_count, "%s", marker);
@@ -367,8 +366,7 @@ s32 main(void) {
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_BODIES });
 
-        // a key this type has no field for. It parses as JSON and is refused all the same, because a
-        // field nothing describes is a field nothing could have tagged.
+        // a key this type has no field for. It parses as JSON and is refused all the same, because a field nothing describes is a field nothing could have tagged.
         capture_reset();
         make_request(request, TYPED_PATH, "{\"code\":\"123456\",\"extra\":\"a-secret-nobody-declared\"}");
 
@@ -432,11 +430,7 @@ s32 main(void) {
 
             if (type->kind != NYA_REFLECT_STRUCT) continue;
 
-            /*
-             * Per type and unlike anything else in the program, so a hit is this field and not a
-             * coincidence in a path, a header name or a duration. Short, because it has to fit the
-             * smallest tagged `char[N]` in the tree whole: half a marker is a different string.
-             */
+            /* Per type and unlike anything else in the program, so a hit is this field and not a coincidence in a path, a header name or a duration. Short, because it has to fit the smallest tagged `char[N]` in the tree whole: half a marker is a different string. */
             char marker[16] = { 0 };
             (void)snprintf(marker, sizeof(marker), "zq%04llxqz", (unsigned long long)(nya_hash_fnv1a(type->name) & 0xFFFF));
 
@@ -447,8 +441,7 @@ s32 main(void) {
 
             covered++;
 
-            // the unredacted document is what a caller would have sent, which is the whole point: the
-            // marker really is in the bytes the server reads.
+            // the unredacted document is what a caller would have sent, which is the whole point: the marker really is in the bytes the server reads.
             NYA_Object* document = nya_reflect_to_object(arena, type, instance);
             NYA_String* text     = nya_serialize(arena, document, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
 

@@ -37,8 +37,7 @@ void agent_runner(NYA_ArgCommand* command) {
         .policy      = NYA_BUILD_ALWAYS,
         .output_file = object,
 
-        // the codegen a test gets, for the same reason: the runner is a unity build of the engine and
-        // the game, and reads the generated strings, assets and reflection tables.
+        // the codegen a test gets, for the same reason: the runner is a unity build of the engine and the game, and reads the generated strings, assets and reflection tables.
         .dependencies = { &build_shaders, &index_assets, },
 
         .command = {
@@ -50,8 +49,7 @@ void agent_runner(NYA_ArgCommand* command) {
                 WARNINGS,
                 INCLUDE_PATHS,
                 FLAGS_PLUGINS,
-                // exactly what a test is built with, because it is one: the assertions are the oracle,
-                // so an agent playing a differently asserted program is testing a different program.
+                // exactly what a test is built with, because it is one: the assertions are the oracle, so an agent playing a differently asserted program is testing a different program.
                 FLAGS_TEST,
                 FLAGS_HOST_NATIVE_COMPILE
             },
@@ -106,8 +104,7 @@ void agent_runner(NYA_ArgCommand* command) {
             .environment = { SANITIZER_ENVIRONMENT, },
         },
 
-        // kept, like the simulation's: a failing seed is replayed against this exact build, and
-        // rebuilding it first would be a different program if anything changed in between.
+        // kept, like the simulation's: a failing seed is replayed against this exact build, and rebuilding it first would be a different program if anything changed in between.
     };
 
     if (verbose_flag->value.as_b8) {
@@ -131,16 +128,14 @@ void agent_runner(NYA_ArgCommand* command) {
 /* PRIVATE API IMPLEMENTATION */
 
 u64 _agent_seed_fresh(void) {
-    // hashed rather than used raw, so two runs started in the same millisecond do not get seeds that
-    // differ only in their low bits and explore the same corner.
+    // hashed rather than used raw, so two runs started in the same millisecond do not get seeds that differ only in their low bits and explore the same corner.
     u64 now = nya_clock_get_monotonic_ns();
 
     return nya_hash_wyhash(&now, sizeof(now));
 }
 
 NYA_ConstCString agent_completion_kind(u32 index) {
-    // the same three names testing_agent.h answers to, restated here because the build tool does not
-    // link the engine's testing facilities.
+    // the same three names testing_agent.h answers to, restated here because the build tool does not link the engine's testing facilities.
     NYA_ConstCString kinds[] = { "random", "dqn", "neat" };
 
     if (index >= nya_carray_length(kinds)) return nullptr;

@@ -22,15 +22,13 @@ s32 main(void) {
     // The call the renderer makes: top is 0, bottom is the height, so y grows downward.
     f32_4x4 screen = nya_matrix_orthographic(0.0F, 1920.0F, 0.0F, 1080.0F);
 
-    // Top left of the screen is the top left of clip space, which is y = +1 because clip space y
-    // points up. This single assertion is what "y down" means in practice.
+    // Top left of the screen is the top left of clip space, which is y = +1 because clip space y points up. This single assertion is what "y down" means in practice.
     assert_near(project(screen, 0.0F, 0.0F), -1.0F, 1.0F, "top left");
     assert_near(project(screen, 1920.0F, 0.0F), 1.0F, 1.0F, "top right");
     assert_near(project(screen, 0.0F, 1080.0F), -1.0F, -1.0F, "bottom left");
     assert_near(project(screen, 1920.0F, 1080.0F), 1.0F, -1.0F, "bottom right");
 
-    // The centre of the screen is the origin. Falls out of the other four, but it is the value a
-    // wrong translate term breaks first while leaving the corners looking plausible.
+    // The centre of the screen is the origin. Falls out of the other four, but it is the value a wrong translate term breaks first while leaving the corners looking plausible.
     assert_near(project(screen, 960.0F, 540.0F), 0.0F, 0.0F, "centre");
   }
 
@@ -41,14 +39,12 @@ s32 main(void) {
     f32x2 near_top    = project(screen, 400.0F, 100.0F);
     f32x2 near_bottom = project(screen, 400.0F, 500.0F);
 
-    // The direction, not the values. A projection that got the magnitude right and the sign wrong
-    // passes every "is this corner in the corner" check by symmetry, and fails this one.
+    // The direction, not the values. A projection that got the magnitude right and the sign wrong passes every "is this corner in the corner" check by symmetry, and fails this one.
     nya_assert(near_top[1] > near_bottom[1], "a smaller screen y must be higher on screen");
     nya_assert(near_top[1] > 0.0F, "the upper half of the screen is positive clip y");
     nya_assert(near_bottom[1] < 0.0F, "the lower half of the screen is negative clip y");
 
-    // x is not flipped, and never was. Asserted so that a future change to the y term cannot quietly
-    // take x with it.
+    // x is not flipped, and never was. Asserted so that a future change to the y term cannot quietly take x with it.
     f32x2 left  = project(screen, 100.0F, 300.0F);
     f32x2 right = project(screen, 700.0F, 300.0F);
     nya_assert(left[0] < right[0], "a smaller screen x must be further left");
@@ -56,8 +52,7 @@ s32 main(void) {
 
   // TEST: swapping top and bottom gives the y-up convention a world camera wants
   {
-    // Same function, top greater than bottom. No flag and no second function: the sign of the scale
-    // falls out of the arguments, which is what makes one implementation serve both cameras.
+    // Same function, top greater than bottom. No flag and no second function: the sign of the scale falls out of the arguments, which is what makes one implementation serve both cameras.
     f32_4x4 world = nya_matrix_orthographic(0.0F, 100.0F, 100.0F, 0.0F);
 
     assert_near(project(world, 0.0F, 0.0F), -1.0F, -1.0F, "y-up origin is bottom left");
@@ -66,8 +61,7 @@ s32 main(void) {
 
   // TEST: an off-centre viewport, which a split screen or a scrolled camera produces
   {
-    // Nothing requires the rectangle to start at the origin. A camera scrolled to (200, 100) passes
-    // its own bounds and everything else is unchanged.
+    // Nothing requires the rectangle to start at the origin. A camera scrolled to (200, 100) passes its own bounds and everything else is unchanged.
     f32_4x4 scrolled = nya_matrix_orthographic(200.0F, 520.0F, 100.0F, 340.0F);
 
     assert_near(project(scrolled, 200.0F, 100.0F), -1.0F, 1.0F, "scrolled top left");
@@ -79,9 +73,7 @@ s32 main(void) {
   {
     f32_4x4 screen = nya_matrix_orthographic(0.0F, 640.0F, 0.0F, 480.0F);
 
-    // Depth is 0..1 rather than -1..1 in this convention. The batch writes z = 0, so what matters is
-    // that it survives unchanged and stays inside the range rather than landing outside it, where a
-    // clipper is free to discard the whole vertex.
+    // Depth is 0..1 rather than -1..1 in this convention. The batch writes z = 0, so what matters is that it survives unchanged and stays inside the range rather than landing outside it, where a clipper is free to discard the whole vertex.
     f32x4 at_zero = nya_matrix_times_vector(screen, (f32x4){320.0F, 240.0F, 0.0F, 1.0F});
     nya_assert(fabsf(at_zero[2]) < 0.0001F, "z = 0 must stay at 0, got %f", (f64)at_zero[2]);
     nya_assert(fabsf(at_zero[3] - 1.0F) < 0.0001F, "w must stay 1, got %f", (f64)at_zero[3]);

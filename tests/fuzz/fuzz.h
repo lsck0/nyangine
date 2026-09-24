@@ -128,11 +128,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     // AFL feeds the input through its own buffer, so the command line is unused under it.
     nya_unused(argc, argv);
 
-    /*
-     * Persistent mode: AFL restarts this loop with a new input instead of forking a process per case.
-     * __AFL_INIT has to come after everything one-time, since the fork server snapshots the process
-     * here and every later iteration starts from this point.
-     */
+    /* Persistent mode: AFL restarts this loop with a new input instead of forking a process per case. __AFL_INIT has to come after everything one-time, since the fork server snapshots the process here and every later iteration starts from this point. */
     __AFL_INIT();
 
     u8* input = __AFL_FUZZ_TESTCASE_BUF;
@@ -161,10 +157,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         return EXIT_SUCCESS;
     }
 
-    /*
-     * No arguments: the regression run. Every committed input and every kept crash, which is what
-     * makes `./build run test` the thing that notices a fixed bug coming back.
-     */
+    /* No arguments: the regression run. Every committed input and every kept crash, which is what makes `./build run test` the thing that notices a fixed bug coming back. */
     u32 corpus  = _fuzz_replay_directory(FUZZ_CORPUS_DIRECTORY);
     u32 crashes = _fuzz_replay_directory(FUZZ_CRASHES_DIRECTORY);
 

@@ -184,8 +184,7 @@ static b8 law_row_round_trips(NYA_Property* property) {
     return false;
   }
 
-  // The key was zero, so the database chose one and wrote it back. A row with no identity cannot be
-  // read again, so this is part of the law rather than a separate check.
+  // The key was zero, so the database chose one and wrote it back. A row with no identity cannot be read again, so this is part of the law rather than a separate check.
   if (written.id == 0) {
     nya_property_note(property, "the assigned key was not written back");
     return false;
@@ -240,8 +239,7 @@ s32 main(void) {
 
     NYA_OrmTable* table = nullptr;
 
-    // The point of refusing here: none of these touch the database, so the mistake is reported when
-    // the type is bound rather than at the first insert of a real row.
+    // The point of refusing here: none of these touch the database, so the mistake is reported when the type is bound rather than at the first insert of a real row.
     nya_assert(nya_orm_open(arena, db, &NO_KEY, "rows", &table).kind == NYA_ERROR_INVALID_ARGUMENT, "a type with no @key is not a table");
     nya_assert(nya_orm_open(arena, db, &NESTED, "rows", &table).kind == NYA_ERROR_NOT_SUPPORTED, "a nested struct has no column type");
     nya_assert(nya_orm_open(arena, db, nya_reflect_of(NYA_Color), "rows", &table).kind == NYA_ERROR_INVALID_ARGUMENT, "NYA_Color has no key");
@@ -448,8 +446,7 @@ s32 main(void) {
     NYA_EXPECT(nya_sql_query(db, arena, "SELECT mood FROM feelings", nullptr, 0, &raw));
     nya_assert(nya_string_equals(nya_object_get(raw.rows->items[0], "mood")->as_string, "TEST_MOOD_ANGRY"));
 
-    // A value the enum has no name for would come back as text naming no variant and be dropped on
-    // the way into the struct, so it is refused on the way in instead.
+    // A value the enum has no name for would come back as text naming no variant and be dropped on the way into the struct, so it is refused on the way in instead.
     TestFeeling nameless = { .mood = TEST_MOOD_COUNT };
     nya_assert(nya_orm_insert(feelings, &nameless).kind == NYA_ERROR_INVALID_ARGUMENT, "an unnamed enum value is refused");
   }
@@ -459,8 +456,7 @@ s32 main(void) {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
 
-    // What an older build left behind: the key is not the key, one column is missing and one holds a
-    // type whose affinity would convert every value that went through it.
+    // What an older build left behind: the key is not the key, one column is missing and one holds a type whose affinity would convert every value that went through it.
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE rows (id INTEGER, score TEXT, ratio REAL, flag INTEGER)"));
 
     NYA_OrmTable* rows = nullptr;
@@ -471,12 +467,10 @@ s32 main(void) {
     nya_assert(nya_orm_schema_check(rows, count_problems, &problems) == 3, "a missing column, a wrong type and a key that is not one");
     nya_assert(problems == 3);
 
-    // CREATE TABLE IF NOT EXISTS says nothing about a table that is already there, so the check is
-    // what decides. Refused rather than written to; see the migration note in orm.h.
+    // CREATE TABLE IF NOT EXISTS says nothing about a table that is already there, so the check is what decides. Refused rather than written to; see the migration note in orm.h.
     nya_assert(nya_orm_schema_create(rows).kind == NYA_ERROR_CORRUPT, "a drifted table is not worked against");
 
-    // A column no field describes is a warning and nothing more: every statement names its columns,
-    // so one this build never heard of is neither read nor written.
+    // A column no field describes is a warning and nothing more: every statement names its columns, so one this build never heard of is neither read nor written.
     NYA_EXPECT(nya_sql_exec(db, "DROP TABLE rows"));
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE rows (id INTEGER PRIMARY KEY, score INTEGER, ratio REAL, flag INTEGER, name TEXT, "
                                 "ended TEXT DEFAULT CURRENT_TIMESTAMP)"));

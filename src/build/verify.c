@@ -53,8 +53,7 @@ NYA_INTERNAL s32 _verify_compare_paths(const NYA_String* a, const NYA_String* b)
 void verify_runner(NYA_ArgCommand* command) {
     nya_unused(command);
 
-    // A missing tool is a skip with a notice, never a hard failure: the same contract the CVE hook in
-    // sbom.c keeps, so a machine without `cbmc` still runs every other command.
+    // A missing tool is a skip with a notice, never a hard failure: the same contract the CVE hook in sbom.c keeps, so a machine without `cbmc` still runs every other command.
     if (!_verify_program_exists()) {
         nya_log_info("Model checking skipped: '%s' is not installed. Install it with", VERIFY_PROGRAM);
         nya_log_info("  your package manager's cbmc package, or grab a release from github.com/diffblue/cbmc,");
@@ -96,14 +95,11 @@ void verify_runner(NYA_ArgCommand* command) {
             .arguments = {
                 source,
 
-                // The two safety checks the task asks of every harness: no out-of-bounds read or write,
-                // and no invalid pointer, proved for every input the harness admits.
+                // The two safety checks the task asks of every harness: no out-of-bounds read or write, and no invalid pointer, proved for every input the harness admits.
                 "--bounds-check",
                 "--pointer-check",
 
-                // The small bound, and the assertion that the bound is big enough — without it a loop
-                // that could run longer would be silently assumed done, and the proof would mean less
-                // than it says.
+                // The small bound, and the assertion that the bound is big enough — without it a loop that could run longer would be silently assumed done, and the proof would mean less than it says.
                 "--unwind", VERIFY_UNWIND,
                 "--unwinding-assertions",
             },
@@ -112,8 +108,7 @@ void verify_runner(NYA_ArgCommand* command) {
         NYA_Error ran = nya_command_run(&proof);
         if (!ran.ok) nya_log_panic("could not run %s (%s).", VERIFY_PROGRAM, ran.message);
 
-        // A non-zero exit from a checker that did run is a failed proof: a real counterexample, or a
-        // loop that outran the unwind bound. CBMC prints the trace above.
+        // A non-zero exit from a checker that did run is a failed proof: a real counterexample, or a loop that outran the unwind bound. CBMC prints the trace above.
         if (proof.exit_code != 0) {
             nya_log_error("Proof failed: %s", source);
             failed++;
@@ -128,9 +123,7 @@ void verify_runner(NYA_ArgCommand* command) {
 /* PRIVATE API IMPLEMENTATION */
 
 b8 _verify_program_exists(void) {
-    // A program missing from PATH still spawns — the forked child fails execvp and _exit(127)s, so
-    // nya_command_run returns ok with a 127 exit. Presence is the clean exit, not the spawn; `cbmc`
-    // answers --version with 0. This is the probe sbom.c uses for osv-scanner.
+    // A program missing from PATH still spawns — the forked child fails execvp and _exit(127)s, so nya_command_run returns ok with a 127 exit. Presence is the clean exit, not the spawn; `cbmc` answers --version with 0. This is the probe sbom.c uses for osv-scanner.
     NYA_Command probe = {
         .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
         .program   = VERIFY_PROGRAM,

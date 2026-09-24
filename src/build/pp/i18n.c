@@ -68,8 +68,7 @@ void nya_i18n_generate(void) {
     nya_dict_foreach_key (base, key_slot) {
         NYA_CString key = *key_slot;
 
-        // keys starting with an underscore are metadata, such as the locale name or translator notes, and
-        // generate nothing.
+        // keys starting with an underscore are metadata, such as the locale name or translator notes, and generate nothing.
         if (key[0] == '_') continue;
 
         NYA_Value* value = nya_object_get(base, key);
@@ -121,8 +120,7 @@ void nya_i18n_generate(void) {
         NYA_Object* translated = nullptr;
         NYA_EXPECT(nya_deserialize(arena, text->items, text->length, NYA_SERDE_FORMAT_JSONC, NYA_SERDE_NONE, &translated), "while parsing a locale");
 
-        // Every key the base has, and with the same arguments. A missing one would silently fall back
-        // to English, so a half-finished translation would ship looking finished.
+        // Every key the base has, and with the same arguments. A missing one would silently fall back to English, so a half-finished translation would ship looking finished.
         for (u32 i = 0; i < key_count; i++) {
             NYA_Value* value = nya_object_get(translated, keys[i].key);
 
@@ -130,8 +128,7 @@ void nya_i18n_generate(void) {
                 nya_log_panic("i18n: locale '%s' is missing key '%s'", name, keys[i].key);
             }
 
-            // A plural key stays plural in every locale: a translation that flattened it to one string
-            // would silently lose the count agreement the base spells out.
+            // A plural key stays plural in every locale: a translation that flattened it to one string would silently lose the count agreement the base spells out.
             NYA_Type wanted = keys[i].is_plural ? NYA_TYPE_OBJECT : NYA_TYPE_STRING;
             if (value->type != wanted) {
                 nya_log_panic(
@@ -147,12 +144,7 @@ void nya_i18n_generate(void) {
             }
 
             /* Sorted before comparison, so a translation may reorder its arguments positionally. */
-            /*
-             * Zeroed, not just assigned into.
-             *
-             * _nya_i18n_sort_specifiers walks to the first '\0' and nya_string_equals reads the buffers again, so
-             * leftover stack bytes made keys intermittently report specifiers they did not have.
-             */
+            /* Zeroed, not just assigned into. _nya_i18n_sort_specifiers walks to the first '\0' and nya_string_equals reads the buffers again, so leftover stack bytes made keys intermittently report specifiers they did not have. */
             char expected[NYA_I18N_MAX_ARGUMENTS + 1] = { 0 };
             char actual[NYA_I18N_MAX_ARGUMENTS + 1]   = { 0 };
 
@@ -170,8 +162,7 @@ void nya_i18n_generate(void) {
             }
         }
 
-        // The other direction: a key here that the base does not have is a key that was renamed in
-        // the base and not here, so its translation is already dead and nobody would notice.
+        // The other direction: a key here that the base does not have is a key that was renamed in the base and not here, so its translation is already dead and nobody would notice.
         nya_dict_foreach_key (translated, key_slot) {
             NYA_CString key = *key_slot;
             if (key[0] == '_') continue;
@@ -209,12 +200,9 @@ void nya_i18n_generate(void) {
 
     nya_string_extend(out, "\n    NYA_STRING_COUNT,\n} NYA_StringId;\n\n");
 
-    // The key names, so the runtime can look a locale's JSON up by them without the header and the
-    // loader having to agree on an order by hand.
+    // The key names, so the runtime can look a locale's JSON up by them without the header and the loader having to agree on an order by hand.
     nya_string_extend(out, "/** The JSON key each id came from, in id order. Read by nya_i18n_load. */\n");
-    // __attr_allow_unused for the same reason the accessors below carry it: this header is included
-    // by every translation unit that draws text, and one that never calls nya_i18n_load still gets
-    // the table. Without it that is -Wunused-const-variable in each of them.
+    // __attr_allow_unused for the same reason the accessors below carry it: this header is included by every translation unit that draws text, and one that never calls nya_i18n_load still gets the table. Without it that is -Wunused-const-variable in each of them.
     nya_string_extend(out, "static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {\n");
 
     for (u32 i = 0; i < key_count; i++) nya_string_extend_sprintf(out, "    \"%s\",\n", keys[i].key);
@@ -238,8 +226,7 @@ void nya_i18n_generate(void) {
             }
         }
 
-        // A plural accessor selects the variant on its first argument, the count, and passes that same
-        // argument on to be formatted; a plain one formats its string directly.
+        // A plural accessor selects the variant on its first argument, the count, and passes that same argument on to be formatted; a plain one formats its string directly.
         if (keys[i].is_plural) {
             nya_string_extend_sprintf(out, ") {\n    return _nya_i18n_format_plural(NYA_STRING_%s, (s64)a0", name);
         } else {
@@ -253,8 +240,7 @@ void nya_i18n_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_I18N_OUTPUT, out), "while writing the generated strings header");
 
-    // Formatted like the asset index is, and for the same reason: it is a header a human reads when
-    // they want to know what keys exist.
+    // Formatted like the asset index is, and for the same reason: it is a header a human reads when they want to know what keys exist.
     NYA_Command format_command = {
         .program   = "clang-format",
         .arguments = { "-i", NYA_I18N_OUTPUT },
@@ -340,8 +326,7 @@ void _nya_i18n_plural_key(NYA_Object* object, NYA_ConstCString where, NYA_ConstC
     (void)snprintf(expected, sizeof(expected), "%s", out_key->specifiers);
     _nya_i18n_sort_specifiers(expected);
 
-    // Every variant present takes the same arguments as `other`, and no key may be one CLDR does not
-    // name: a typo like `"ohter"` would otherwise be dropped in silence and the language fall back.
+    // Every variant present takes the same arguments as `other`, and no key may be one CLDR does not name: a typo like `"ohter"` would otherwise be dropped in silence and the language fall back.
     nya_dict_foreach_key (object, slot) {
         NYA_CString variant_name = *slot;
         if (variant_name[0] == '_') continue;

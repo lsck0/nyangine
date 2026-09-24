@@ -359,9 +359,7 @@ s32 main(void) {
 
   // TEST: _nya_integrity_pe_regions rejects an e_lfanew that would wrap its own bounds check
   {
-    // e_lfanew is read straight out of the file, so it is whatever a corrupt or hostile binary says
-    // it is. Computed in u32, `pe_offset + 24` wraps for anything this large and the bounds check
-    // passes, after which the PE magic is read from far past the end of the buffer.
+    // e_lfanew is read straight out of the file, so it is whatever a corrupt or hostile binary says it is. Computed in u32, `pe_offset + 24` wraps for anything this large and the bounds check passes, after which the PE magic is read from far past the end of the buffer.
     u8 image[0x100];
     memset(image, 0, sizeof(image));
     image[0] = 'M';
@@ -379,10 +377,7 @@ s32 main(void) {
 
   // TEST: a stamped PE stays valid once a signature is appended to it
   {
-    /*
-     * A minimal PE, only as real as the fields the hashing looks at: the e_lfanew pointer, the PE
-     * magic, one section header, and a PE32+ optional header long enough to hold a data directory.
-     */
+    /* A minimal PE, only as real as the fields the hashing looks at: the e_lfanew pointer, the PE magic, one section header, and a PE32+ optional header long enough to hold a data directory. */
     const u64 pe_offset       = 0x80;
     const u64 optional_offset = pe_offset + 24;
     const u64 optional_size   = 240;

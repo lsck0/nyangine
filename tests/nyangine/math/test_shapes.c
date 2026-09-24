@@ -63,10 +63,7 @@ s32 main(void) {
     nya_assert(!nya_rect_contains(rect, (f32x2){ 5.0F, 10.0F }), "the bottom edge is outside");
     nya_assert(!nya_rect_contains(rect, (f32x2){ -0.001F, 5.0F }));
 
-    /*
-     * The reason it is half open, stated as the case that motivated it: two menu items stacked edge
-     * to edge share no point, so a click on the seam hits exactly one of them.
-     */
+    /* The reason it is half open, stated as the case that motivated it: two menu items stacked edge to edge share no point, so a click on the seam hits exactly one of them. */
     NYA_Rectf first  = { 0.0F, 0.0F, 100.0F, 24.0F };
     NYA_Rectf second = { 0.0F, 24.0F, 100.0F, 24.0F };
 
@@ -96,8 +93,7 @@ s32 main(void) {
     nya_assert(nya_rect_area(negative) == 0.0F, "area is zero rather than the product of two negatives");
     nya_assert(nya_rect_area(flat) == 0.0F);
 
-    // Contained-ness of an empty rectangle is false, not vacuously true: a collapsed box must not
-    // report as being inside something it is nowhere near.
+    // Contained-ness of an empty rectangle is false, not vacuously true: a collapsed box must not report as being inside something it is nowhere near.
     nya_assert(!nya_rect_contains_rect(real, zero));
   }
 
@@ -154,8 +150,7 @@ s32 main(void) {
 
     nya_assert(rect_equals(nya_rect_translate(rect, (f32x2){ 5.0F, -5.0F }), (NYA_Rectf){ 15.0F, 5.0F, 20.0F, 20.0F }));
 
-    // Inside, the closest point is the point itself; outside, it is clamped onto the border, corner
-    // included. That last case is what makes the circle/rectangle test below correct.
+    // Inside, the closest point is the point itself; outside, it is clamped onto the border, corner included. That last case is what makes the circle/rectangle test below correct.
     f32x2 inside = nya_rect_closest_point(rect, (f32x2){ 20.0F, 20.0F });
     nya_assert(inside.x == 20.0F && inside.y == 20.0F);
 
@@ -193,8 +188,7 @@ s32 main(void) {
     nya_assert(nya_circle_overlaps_rect((NYA_Circlef){ .center = { 25.0F, 15.0F }, .radius = 10.0F }, box), "beside an edge is a hit");
     nya_assert(nya_circle_overlaps_rect((NYA_Circlef){ .center = { 25.0F, 25.0F }, .radius = 1.0F }, box), "a circle inside the box is a hit");
 
-    // Just off the corner: 5√2 ≈ 7.07 away, so a radius of 7 misses and 8 hits. This is exactly the
-    // pair a corner-distance test gets wrong.
+    // Just off the corner: 5√2 ≈ 7.07 away, so a radius of 7 misses and 8 hits. This is exactly the pair a corner-distance test gets wrong.
     NYA_Circlef near_corner_miss = { .center = { 15.0F, 15.0F }, .radius = 7.0F };
     NYA_Circlef near_corner_hit  = { .center = { 15.0F, 15.0F }, .radius = 8.0F };
 

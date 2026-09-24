@@ -75,8 +75,7 @@ s32 main(void) {
     nya_system_callback_init();
     defer nya_system_callback_deinit();
 
-    // TEST: a phase callback follows the reload. The registry is never told anything
-    // changed; it resolves the handle again and gets the new image's function.
+    // TEST: a phase callback follows the reload. The registry is never told anything changed; it resolves the handle again and gets the new image's function.
     {
         _nya_system_registry_reset_for_test();
 
@@ -95,14 +94,12 @@ s32 main(void) {
         nya_system_registry_run(NYA_SYSTEM_PHASE_TICK, 0.016F);
         nya_assert(generation_ran == 2, "after the reload the new generation should run, ran %u", generation_ran);
 
-        // the entry did not change: what changed is what the name resolves to, which is the difference
-        // between a handle and a pointer.
+        // the entry did not change: what changed is what the name resolves to, which is the difference between a handle and a pointer.
         nya_assert(nya_system_registry_at(0)->tick == before, "the entry's handle must be the same handle after a reload");
         nya_assert(nya_system_registry_runs_phase_at(0, NYA_SYSTEM_PHASE_TICK), "and it must still count as having tick work");
     }
 
-    // TEST: the lifetime pair follows too, so a system brought up by one generation is
-    // torn down by the one that is loaded when it goes.
+    // TEST: the lifetime pair follows too, so a system brought up by one generation is torn down by the one that is loaded when it goes.
     {
         _nya_system_registry_reset_for_test();
 
@@ -121,9 +118,7 @@ s32 main(void) {
         nya_assert(generation_ran == 2, "and so should deinit, ran %u", generation_ran);
     }
 
-    // TEST: the registry keeps its own copy of every name it is given, so a name that
-    // lived in the caller's storage is still readable once that storage is gone. In a
-    // reloading build that storage is a string literal in the image being replaced.
+    // TEST: the registry keeps its own copy of every name it is given, so a name that lived in the caller's storage is still readable once that storage is gone. In a reloading build that storage is a string literal in the image being replaced.
     {
         _nya_system_registry_reset_for_test();
 
@@ -136,8 +131,7 @@ s32 main(void) {
         nya_system_register((NYA_SystemEntry){ .name = "anchor", .tick = nya_callback(tick_v1) });
         nya_system_register((NYA_SystemEntry){ .name = name, .after = after, .tick = nya_callback(tick_v2) });
 
-        // the caller's bytes, overwritten with something else entirely. An entry still pointing at them
-        // would now be a system called "gone".
+        // the caller's bytes, overwritten with something else entirely. An entry still pointing at them would now be a system called "gone".
         (void)snprintf(name, sizeof(name), "%s", "gone");
         (void)snprintf(after, sizeof(after), "%s", "gone");
 
@@ -157,9 +151,7 @@ s32 main(void) {
         nya_assert(generation_ran == 2, "'borrowed' runs after 'anchor', so it wrote last, ran %u", generation_ran);
     }
 
-    // TEST: the copies survive the two things that move rows: the sort's permutation
-    // and the shift an unregister leaves behind. Both used to leave an entry naming
-    // whichever row now sits where it used to.
+    // TEST: the copies survive the two things that move rows: the sort's permutation and the shift an unregister leaves behind. Both used to leave an entry naming whichever row now sits where it used to.
     {
         _nya_system_registry_reset_for_test();
 
@@ -176,8 +168,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(nya_system_registry_at(1)->after, "first"), "got '%s'", nya_system_registry_at(1)->after);
         nya_assert(nya_string_equals(nya_system_registry_at(2)->after, "second"), "got '%s'", nya_system_registry_at(2)->after);
 
-        // "third" names "second", so "second" cannot go; "third" can, and taking it shifts nothing.
-        // Taking "first" out from under the other two is what the shift has to survive.
+        // "third" names "second", so "second" cannot go; "third" can, and taking it shifts nothing. Taking "first" out from under the other two is what the shift has to survive.
         nya_system_unregister("third");
         nya_system_unregister("second");
         nya_system_unregister("first");
@@ -195,8 +186,7 @@ s32 main(void) {
         nya_assert(nya_system_is_enabled("b") && nya_system_is_enabled("c"), "and both are still reachable by name");
     }
 
-    // TEST: a name the registry cannot hold is a registration site's mistake, and is
-    // refused loudly rather than truncated into a system nothing can name.
+    // TEST: a name the registry cannot hold is a registration site's mistake, and is refused loudly rather than truncated into a system nothing can name.
     {
         _nya_system_registry_reset_for_test();
 

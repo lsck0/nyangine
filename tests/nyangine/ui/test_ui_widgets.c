@@ -257,15 +257,13 @@ s32 main(void) {
         // ── The list floats: it takes no room, so nothing under it moved, and it hangs over the button instead.
         nya_check(opened.under.y == shut.y, "an open list does not push the button down, got %f against %f", (f64)opened.under.y, (f64)shut.y);
 
-        // the list hangs from the bottom of the row, which is one gap above the marker, and is a framed column: its
-        // own padding, then one option per item height. The button starts one gap under the marker.
+        // the list hangs from the bottom of the row, which is one gap above the marker, and is a framed column: its own padding, then one option per item height. The button starts one gap under the marker.
         f32 first_option = shut.y - GAP + FRAME + (ITEM * 0.5F);
 
         f32x2 second_option = { closed.x + (width * 0.5F), first_option + ITEM + GAP };
         f32x2 over_button   = { closed.x + (width * 0.5F), shut.y + GAP + (ITEM * 0.5F) };
 
-        // ── A click where the list covers the button goes to the list, and the button never sees it. The same point
-        //    activates the button once the list is gone, which is what makes this a covering test and not a miss.
+        // ── A click where the list covers the button goes to the list, and the button never sees it. The same point activates the button once the list is gone, which is what makes this a covering test and not a miss.
         click_at(over_button);
         Taken covered = menu(NYA_UI_PASS_INPUT);
         nya_check(!covered.under_hit, "a click on the list does not fall through to the button under it");
@@ -312,11 +310,7 @@ s32 main(void) {
         nya_check(laid.second.width == content - 120.0F - GAP, "and a zero column grows into the rest, got %f", (f64)laid.second.width);
         nya_check(laid.row.y > laid.second.y, "what follows the table is under it, got %f", (f64)laid.row.y);
 
-        /*
-         * The header row and the rule under it are the table's own children, not cells, so a column width must not
-         * become either one's height. It did: the widths were read for every child of the table, which made the
-         * rule as tall as the second column and drew a bar over gnyame's counters.
-         */
+        /* The header row and the rule under it are the table's own children, not cells, so a column width must not become either one's height. It did: the widths were read for every child of the table, which made the rule as tall as the second column and drew a bar over gnyame's counters. */
         f32 above = laid.first.y - laid.chart.y;
 
         for (u32 pass = 0; pass < 2; pass++) (void)table(300.0F);

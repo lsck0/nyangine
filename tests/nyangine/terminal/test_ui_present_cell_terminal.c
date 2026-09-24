@@ -49,11 +49,7 @@ s32 main(void) {
     nya_system_callback_init();
     defer nya_system_callback_deinit();
 
-    /*
-     * Opened without a tty: nothing here is presented to a screen, and the backend writes into its own grid whether
-     * or not anything is watching. A terminal that refuses to open leaves nothing to test, so that is a skip rather
-     * than a failure.
-     */
+    /* Opened without a tty: nothing here is presented to a screen, and the backend writes into its own grid whether or not anything is watching. A terminal that refuses to open leaves nothing to test, so that is a skip rather than a failure. */
     if (!nya_terminal_open((NYA_TerminalOptions){ .detached = true }).ok) {
         nya_log_warn("No terminal here, skipping the cell presenter tests.");
 

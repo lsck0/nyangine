@@ -14,10 +14,7 @@ s32 main(void) {
 
   // TEST: sprites, atlases and image lists
   {
-    /*
-     * Arithmetic only, since no texture loads headless. That is worth asserting too: an atlas over a
-     * missing texture reports no frames, and a sprite over one has no size.
-     */
+    /* Arithmetic only, since no texture loads headless. That is worth asserting too: an atlas over a missing texture reports no frames, and a sprite over one has no size. */
     NYA_SpriteAtlas atlas = nya_sprite_atlas_grid("does/not/exist.png", 32, 32);
     nya_assert(nya_sprite_atlas_frame_count(&atlas) == 0, "an atlas over an unloaded texture has no frames");
 

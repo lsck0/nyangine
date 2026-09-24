@@ -73,8 +73,7 @@ static b8 law_compress_round_trips(NYA_Property* property) {
 
     u64 written = nya_compress(bytes, count, compressed, bound);
 
-    // documented: an empty input does not compress, and the caller stores it as it is. The round trip
-    // is a law about blocks that exist.
+    // documented: an empty input does not compress, and the caller stores it as it is. The round trip is a law about blocks that exist.
     if (count == 0) {
         nya_property_note(property, "an empty input compressed to %llu bytes", (unsigned long long)written);
         return written == 0;
@@ -138,9 +137,7 @@ static NYA_Object* draw_object(NYA_Property* property) {
             case 2: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = nya_property_draw_bool(property, 50) }); break;
             case 3: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_property_draw_text(property, 24) }); break;
 
-            // the finite range only: a NaN is not equal to itself, so a round trip that preserved it
-            // perfectly would still fail the comparison. What a NaN does to a parser is a fuzz
-            // question, and tests/fuzz asks it.
+            // the finite range only: a NaN is not equal to itself, so a round trip that preserved it perfectly would still fail the comparison. What a NaN does to a parser is a fuzz question, and tests/fuzz asks it.
             default: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) }); break;
         }
     }
@@ -209,8 +206,7 @@ static b8 values_match(NYA_Value a, NYA_Value b) {
     b8 a_is_integer = value_as_integer(a, &left_integer);
     b8 b_is_integer = value_as_integer(b, &right_integer);
 
-    // two integers compare exactly: there is no rounding to allow for, and a tolerance wide enough
-    // for a u64 would swallow sixteen digits of difference.
+    // two integers compare exactly: there is no rounding to allow for, and a tolerance wide enough for a u64 would swallow sixteen digits of difference.
     if (a_is_integer && b_is_integer) {
         return left_integer.magnitude == right_integer.magnitude && (left_integer.negative == right_integer.negative || left_integer.magnitude == 0);
     }
@@ -227,8 +223,7 @@ static b8 values_match(NYA_Value a, NYA_Value b) {
         if (a_is_integer) left_real = left_integer.negative ? -(f64)left_integer.magnitude : (f64)left_integer.magnitude;
         if (b_is_integer) right_real = right_integer.negative ? -(f64)right_integer.magnitude : (f64)right_integer.magnitude;
 
-        // a real survives the decimal text formats only within the digits they print, so this is the
-        // one comparison with a tolerance and it is relative.
+        // a real survives the decimal text formats only within the digits they print, so this is the one comparison with a tolerance and it is relative.
         f64 scale = nya_max(1.0, fabs(left_real));
         return fabs(left_real - right_real) <= (f64)TOLERANCE * scale;
     }
@@ -283,9 +278,7 @@ static b8 serde_round_trips(NYA_Property* property, NYA_SerdeFormat format) {
         }
 
         if (!values_match(*before, *after)) {
-            // the two type names, because "changed" without them is a counterexample nobody can act
-            // on: a number that came back narrower is a different finding from one that came back
-            // as a string.
+            // the two type names, because "changed" without them is a counterexample nobody can act on: a number that came back narrower is a different finding from one that came back as a string.
             nya_property_note(property, "%s changed the field '%s': %s in, %s out", NYA_SERDE_FORMAT_NAME_MAP[format],
                               key, NYA_TYPE_NAME_MAP[before->type], NYA_TYPE_NAME_MAP[after->type]);
             return false;
@@ -311,11 +304,7 @@ static b8 law_serde_nya_binary_round_trips(NYA_Property* property) {
     return serde_round_trips(property, NYA_SERDE_FORMAT_NYA_BINARY);
 }
 
-/*
- * The binary .nya against the text one, over documents with every type and nesting, compared as
- * bytes. The binary form has one encoding per object, so two objects that encode alike hold the same
- * values bit for bit, where the flat laws above have to allow for a decimal format's rounding.
- */
+/* The binary .nya against the text one, over documents with every type and nesting, compared as bytes. The binary form has one encoding per object, so two objects that encode alike hold the same values bit for bit, where the flat laws above have to allow for a decimal format's rounding. */
 
 /** How deep the generated documents nest: an array of objects holding arrays. The bound itself is a table case in test_serde_nya_binary.c. */
 #define NESTING_MAX 3
@@ -357,15 +346,13 @@ static NYA_Value draw_scalar(NYA_Property* property, NYA_Type type) {
         case NYA_TYPE_S64:    value.as_s64 = (s64)bits; break;
         case NYA_TYPE_S128:   value.as_s128 = (s128)(((u128)nya_property_draw_u64(property) << 64) | bits); break;
 
-        // finite only, for the reason draw_object gives. The divisions fill the significand, so the
-        // text form's hexadecimal has every bit to carry.
+        // finite only, for the reason draw_object gives. The divisions fill the significand, so the text form's hexadecimal has every bit to carry.
         case NYA_TYPE_F16:    value.as_f16 = (f16)nya_property_draw_f32(property, -1000.0F, 1000.0F); break;
         case NYA_TYPE_F32:    value.as_f32 = nya_property_draw_f32(property, -1.0e6F, 1.0e6F); break;
         case NYA_TYPE_F64:    value.as_f64 = (f64)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) / 3.0; break;
         case NYA_TYPE_F128:   value.as_f128 = (f128)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) / 3.0L; break;
 
-        // a letter: the text form writes a char as a one character string and reads its first byte,
-        // so an escaped quote would come back as the backslash.
+        // a letter: the text form writes a char as a one character string and reads its first byte, so an escaped quote would come back as the backslash.
         case NYA_TYPE_CHAR:   value.as_char = (char)('a' + bits % 26); break;
         case NYA_TYPE_STRING: value.as_string = nya_property_draw_text(property, 16); break;
 
@@ -481,8 +468,7 @@ static b8 law_net_command_round_trips(NYA_Property* property) {
     u64 tick  = nya_property_draw_below(property, 1u << 20);
 
     for (u32 i = 0; i < count; i++) {
-        // strictly increasing, which is what a run is; the decoder rejects anything else, and the
-        // fuzz target is what checks that it does.
+        // strictly increasing, which is what a run is; the decoder rejects anything else, and the fuzz target is what checks that it does.
         tick += 1 + nya_property_draw_below(property, 4);
 
         sent[i] = (NYA_NetCommand){
@@ -533,8 +519,7 @@ static b8 law_net_snapshot_round_trips(NYA_Property* property) {
     u32 index = 0;
 
     for (u32 i = 0; i < count; i++) {
-        // ascending and non-zero: that is what the encoder is given and what the decoder promises
-        // back, and a decoder handed anything else is a fuzz question rather than a law.
+        // ascending and non-zero: that is what the encoder is given and what the decoder promises back, and a decoder handed anything else is a fuzz question rather than a law.
         index += 1 + (u32)nya_property_draw_below(property, 8);
 
         states[i] = (NYA_NetEntityState){
@@ -945,8 +930,7 @@ static b8 law_hset_holds_members_once(NYA_Property* property) {
             return false;
         }
 
-        // a set grows only when it learns something new. A length that grew on a repeat is a
-        // duplicate, which is the one thing a set must not have.
+        // a set grows only when it learns something new. A length that grew on a repeat is a duplicate, which is the one thing a set must not have.
         u64 expected = known ? before : before + 1;
 
         if (set->length != expected) {

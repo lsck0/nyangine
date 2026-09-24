@@ -46,11 +46,7 @@ s32 main(void) {
     defer nya_system_events_deinit();
     defer nya_system_callback_deinit();
 
-    /*
-     * ── Asking before the face exists is accepted, and lands once it does.
-     *
-     * The whole bug, in the order a game actually writes it: register, ask, draw later.
-     */
+    /* ── Asking before the face exists is accepted, and lands once it does. The whole bug, in the order a game actually writes it: register, ask, draw later. */
     {
         nya_font_clear();
 
@@ -69,19 +65,12 @@ s32 main(void) {
         TTF_Font* face = pump_until_loaded(title);
         nya_check(face != nullptr, "the face should have loaded within a few frames");
 
-        // The face is the authority once it exists, and this is the assertion the bug failed: the
-        // request has to have been pushed onto it without the caller asking a second time.
+        // The face is the authority once it exists, and this is the assertion the bug failed: the request has to have been pushed onto it without the caller asking a second time.
         nya_check(TTF_GetFontSDF(face), "the distance field must be on the face by the time it is usable");
         nya_check(nya_font_sdf(title), "and reported through the font API");
     }
 
-    /*
-     * ── The mode is on the face before anything can measure or draw through it.
-     *
-     * Ordering, not just eventual arrival. render2d bakes an atlas sized from the face's metrics the
-     * first time a glyph is drawn, so a mode applied after the first measurement is a mode applied
-     * after the metrics it changes have already been read.
-     */
+    /* ── The mode is on the face before anything can measure or draw through it. Ordering, not just eventual arrival. render2d bakes an atlas sized from the face's metrics the first time a glyph is drawn, so a mode applied after the first measurement is a mode applied after the metrics it changes have already been read. */
     {
         nya_font_clear();
 
@@ -94,8 +83,7 @@ s32 main(void) {
         // Frames pass with nobody touching the font, exactly as they do while a game sits on a menu.
         for (u32 i = 0; i < 8; i++) end_frame();
 
-        // The first thing to reach the face is a measurement, which is what layer_ui.c does before it
-        // draws. It has to find the mode already applied.
+        // The first thing to reach the face is a measurement, which is what layer_ui.c does before it draws. It has to find the mode already applied.
         f32x2 measured = nya_font_measure(title, "AVATAR");
 
         TTF_Font* face = nya_text_font_for(FACE, POINT_SIZE);
@@ -124,8 +112,7 @@ s32 main(void) {
         nya_check(!nya_font_sdf(body), "and reported off");
     }
 
-    // ── A distance field measures as wide as the same face in coverage, so centred text lands where it would. SDL_ttf
-    //    alone widens it by up to the field's spread.
+    // ── A distance field measures as wide as the same face in coverage, so centred text lands where it would. SDL_ttf alone widens it by up to the field's spread.
     {
         nya_font_clear();
 
@@ -164,17 +151,11 @@ s32 main(void) {
         TTF_Font* face = pump_until_loaded(plain);
         nya_check(face != nullptr, "the face should have loaded");
 
-        // Coverage, not a field. The request table is opt-in, so a font with no request must not pick
-        // one up from a font that shares nothing but a registry.
+        // Coverage, not a field. The request table is opt-in, so a font with no request must not pick one up from a font that shares nothing but a registry.
         nya_check(!nya_font_sdf(plain), "a font nobody asked about must not be rasterising as a distance field");
     }
 
-    /*
-     * Clearing the registry clears the requests with it.
-     *
-     * Requests are keyed by path and size, not name, so nothing else drops them, and a stale request would
-     * reapply to the next font sharing path and size, which in a small game is every font.
-     */
+    /* Clearing the registry clears the requests with it. Requests are keyed by path and size, not name, so nothing else drops them, and a stale request would reapply to the next font sharing path and size, which in a small game is every font. */
     {
         nya_font_clear();
 
@@ -187,13 +168,11 @@ s32 main(void) {
 
         NYA_Font body = nya_font_named("body");
 
-        // the face may still be loaded from the block above, so read the face itself rather than a pending
-        // answer, the stricter check.
+        // the face may still be loaded from the block above, so read the face itself rather than a pending answer, the stricter check.
         TTF_Font* face = nya_text_font_for(FACE, POINT_SIZE);
 
         if (face != nullptr) {
-            // Whatever the previous request left on the face is not this font's business, but nothing
-            // should be re-pushing it either. Asked for explicitly so the state is unambiguous.
+            // Whatever the previous request left on the face is not this font's business, but nothing should be re-pushing it either. Asked for explicitly so the state is unambiguous.
             nya_check(nya_font_sdf_set(body, false), "setting it off should be accepted");
             nya_check(!TTF_GetFontSDF(face), "and take effect");
         }

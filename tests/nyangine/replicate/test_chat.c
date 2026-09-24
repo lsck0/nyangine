@@ -244,8 +244,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
 
     nya_assert(line != nullptr, "[%s] alice's line never arrived, or arrived unsanitised", name);
 
-    // Exact, not a prefix: a trailing space or a surviving control character would still match a
-    // prefix test, and both are the bug.
+    // Exact, not a prefix: a trailing space or a surviving control character would still match a prefix test, and both are the bug.
     nya_assert(nya_string_equals(line->text, MESSY_EXPECT), "[%s] alice's line is \"%s\"", name, line->text);
     nya_assert(nya_string_equals(line->name, "alice"), "[%s] alice's line is attributed to \"%s\"", name, line->name);
     nya_assert(!line->is_system, "[%s] a player line was flagged as a system line", name);
@@ -274,16 +273,12 @@ static s32 child_main(u32 index, s32 port_pipe) {
       char line[64] = { 0 };
       (void)snprintf(line, sizeof(line), "flood %u", i);
 
-      // Not NYA_EXPECT: the send itself succeeds every time. The limit is the *server's* and refusing
-      // a line is not an error the sender is told about, which is the point of checking the receipts.
+      // Not NYA_EXPECT: the send itself succeeds every time. The limit is the *server's* and refusing a line is not an error the sender is told about, which is the point of checking the receipts.
       (void)nya_net_chat_send(line);
     }
   }
 
-  /*
-   * Long enough for twenty reliable messages to cross loopback several times, and short enough that the
-   * bucket refills at most one token (NYA_NET_CHAT_REFILL_MS is 1500).
-   */
+  /* Long enough for twenty reliable messages to cross loopback several times, and short enough that the bucket refills at most one token (NYA_NET_CHAT_REFILL_MS is 1500). */
   client_pump_for(1200);
 
   u32 arrived = count_lines("flood ");
@@ -331,12 +326,7 @@ s32 main(void) {
     // Null in, empty out, rather than a crash: callers pass whatever a text field gave them.
     nya_assert(nya_net_chat_sanitize(nullptr, out, sizeof(out)) == 0);
 
-    /*
-     * truncation lands on a codepoint boundary
-     *
-     * Three bytes each into eight bytes of capacity: two fit with the terminator, so the answer is six. A
-     * byte counting truncation would leave a third of a character.
-     */
+    /* truncation lands on a codepoint boundary Three bytes each into eight bytes of capacity: two fit with the terminator, so the answer is six. A byte counting truncation would leave a third of a character. */
     char small[8] = { 0 };
 
     nya_assert(nya_net_chat_sanitize("あああああ", small, sizeof(small)) == 6, "truncated mid-sequence");
@@ -347,8 +337,7 @@ s32 main(void) {
     nya_assert(nya_net_chat_sanitize("あ", tiny, sizeof(tiny)) == 0);
     nya_assert(tiny[0] == '\0');
 
-    // ── malformed input becomes replacement characters, never itself ─────────
-    // An overlong '/', the classic filter bypass: a check for a literal '/' never sees this spelling.
+    // ── malformed input becomes replacement characters, never itself ───────── An overlong '/', the classic filter bypass: a check for a literal '/' never sees this spelling.
     nya_assert(all_replacement("\xC0\xAF"), "an overlong encoding survived");
 
     // A surrogate half, which is not encodable in UTF-8 at all.
@@ -376,8 +365,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_net_chat_at(NYA_NET_CHAT_HISTORY - 1)->text, "line 73"), "the newest line is wrong");
     nya_assert(nya_net_chat_at(NYA_NET_CHAT_HISTORY) == nullptr);
 
-    // Cleared before the fork: a child inherits this history, and lines from here would show up in
-    // the assertions below as if they had come off the wire.
+    // Cleared before the fork: a child inherits this history, and lines from here would show up in the assertions below as if they had come off the wire.
     nya_net_chat_clear();
 
     nya_assert(nya_net_chat_count() == 0);
@@ -400,8 +388,7 @@ s32 main(void) {
     nya_assert(pid >= 0, "could not fork child %u", i);
 
     if (pid == 0) {
-      // The child needs its own read end and nothing else. The other child's pipe and every write end
-      // are closed so a parent that dies cannot leave a child blocked on a read forever.
+      // The child needs its own read end and nothing else. The other child's pipe and every write end are closed so a parent that dies cannot leave a child blocked on a read forever.
       (void)close(pipes[i][1]);
       (void)close(pipes[1 - i][0]);
       (void)close(pipes[1 - i][1]);

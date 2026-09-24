@@ -230,8 +230,7 @@ s32 main(void) {
     // half a character is not a character yet, and says so rather than guessing.
     nya_assert(nya_terminal_utf8_decode((const u8*)"\xE2\x82", 2, &codepoint) == 0);
 
-    // a continuation byte with no lead is one byte of the replacement character, so a stream of them
-    // cannot make a caller's loop scan forward.
+    // a continuation byte with no lead is one byte of the replacement character, so a stream of them cannot make a caller's loop scan forward.
     nya_assert(nya_terminal_utf8_decode((const u8*)"\x80", 1, &codepoint) == 1 && codepoint == 0xFFFD);
     nya_assert(nya_terminal_utf8_decode((const u8*)"\xC3\x28", 2, &codepoint) == 1 && codepoint == 0xFFFD);
   }
@@ -262,8 +261,7 @@ s32 main(void) {
 
   // TEST: the device answers without a terminal instead of crashing
   {
-    // a test harness has no tty, so nothing below is open and every call must still be safe. This is
-    // the path a program piped into a file takes.
+    // a test harness has no tty, so nothing below is open and every call must still be safe. This is the path a program piped into a file takes.
     nya_assert(!nya_terminal_is_open());
     nya_assert(nya_terminal_columns() == 0 && nya_terminal_rows() == 0);
     nya_assert(nya_terminal_capabilities().color_depth == NYA_TERMINAL_COLOR_NONE);

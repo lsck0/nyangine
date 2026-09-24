@@ -87,8 +87,7 @@ s32 main(void) {
 
     NYA_WindField wind = nya_wind_field((NYA_WindOptions){ .direction = { 1, 0, 0 }, .strength = strength, .gustiness = gustiness });
 
-    // the along-wind swing is bounded by strength * gustiness (the octave amplitudes sum to one), and the
-    // swirl is perpendicular so it does not touch the along-wind component. a small slack for float error.
+    // the along-wind swing is bounded by strength * gustiness (the octave amplitudes sum to one), and the swirl is perpendicular so it does not touch the along-wind component. a small slack for float error.
     f32 along_min = strength * (1.0F - gustiness) - 0.001F;
     f32 along_max = strength * (1.0F + gustiness) + 0.001F;
 
@@ -122,8 +121,7 @@ s32 main(void) {
 
     nya_wind_advance(&wind, 3.0F);
 
-    // repoint it: a new direction, strength and gust. the accumulated time is not touched, so a running
-    // scene can change the wind without the sway jumping.
+    // repoint it: a new direction, strength and gust. the accumulated time is not touched, so a running scene can change the wind without the sway jumping.
     nya_wind_set(&wind, (f32x3){ 0, 0, -4 }, 5.0F, 0.9F);
 
     nya_assert(wind.time == 3.0F, "set leaves the clock alone");

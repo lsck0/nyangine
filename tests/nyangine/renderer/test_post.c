@@ -12,8 +12,7 @@ s32 main(void) {
     b8 sdl_ok         = SDL_Init(0);
     nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-    // The asset registry has to be up: nya_post_end asks nya_asset_status whether each pass's
-    // pipeline finished loading, and that reads the registry's dict.
+    // The asset registry has to be up: nya_post_end asks nya_asset_status whether each pass's pipeline finished loading, and that reads the registry's dict.
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
     nya_system_asset_init();
@@ -68,8 +67,7 @@ s32 main(void) {
         window.screen_height = 200;
     }
 
-    // ── A zero-sized window is refused rather than asserted on. This is the branch the caller relies
-    //    on to draw straight to the window while minimised or mid-resize.
+    // ── A zero-sized window is refused rather than asserted on. This is the branch the caller relies on to draw straight to the window while minimised or mid-resize.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -90,8 +88,7 @@ s32 main(void) {
         nya_post_chain_destroy(&chain);
     }
 
-    // ── Passes naming a pipeline that is not loaded are skipped, and the scene is still put back.
-    //    This is the case that once cost the entire 3D scene on Windows.
+    // ── Passes naming a pipeline that is not loaded are skipped, and the scene is still put back. This is the case that once cost the entire 3D scene on Windows.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);

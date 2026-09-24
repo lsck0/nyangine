@@ -33,14 +33,11 @@ s32 main(void) {
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_window_init();
-  // The world: entities, physics and the simulation barrier, brought up in the order they depend on
-  // each other. See core_world.h.
+  // The world: entities, physics and the simulation barrier, brought up in the order they depend on each other. See core_world.h.
   NYA_World* world = nya_world_create();
   (void)nya_world_set(world);
 
-  // The frame loop runs its phases through the system registry, which refuses to run before it has
-  // been ordered. Empty and finalized is the right shape here: this test is about the clock, the
-  // accumulator and the arenas, so a tick that runs no systems is exactly what it wants to measure.
+  // The frame loop runs its phases through the system registry, which refuses to run before it has been ordered. Empty and finalized is the right shape here: this test is about the clock, the accumulator and the arenas, so a tick that runs no systems is exactly what it wants to measure.
   NYA_EXPECT(nya_system_registry_finalize());
 
   defer nya_world_destroy(world);
@@ -58,8 +55,7 @@ s32 main(void) {
 
     nya_assert(second >= first, "uptime is monotonic");
 
-    // Sampled against the same origin the frame stats use, so a caller mixing nya_app_uptime_ns
-    // with frame_stats.uptime_ns is comparing two points on one timeline.
+    // Sampled against the same origin the frame stats use, so a caller mixing nya_app_uptime_ns with frame_stats.uptime_ns is comparing two points on one timeline.
     u64 now = nya_clock_get_monotonic_ns();
     nya_assert(now >= app->frame_stats.started_ns, "started_ns is in the past");
     nya_assert(second <= now - app->frame_stats.started_ns + 1'000'000, "uptime tracks the wall clock");
@@ -77,17 +73,14 @@ s32 main(void) {
     nya_assert(app->frame_stats.time_behind_ns == (s64)app->frame_stats.elapsed_ns, "the whole gap is booked as debt");
     nya_assert(app->frame_stats.frame_start_time_ns > 0);
 
-    // uptime_s is the same number as uptime_ns, just lossy. Half a millisecond of tolerance covers
-    // the f32 rounding without letting a wrong value through.
+    // uptime_s is the same number as uptime_ns, just lossy. Half a millisecond of tolerance covers the f32 rounding without letting a wrong value through.
     f64 expected_s = (f64)app->frame_stats.uptime_ns / 1'000'000'000.0;
     nya_assert(fabs((f64)app->frame_stats.uptime_s - expected_s) < 0.0005, "uptime_s mirrors uptime_ns");
   }
 
   // TEST: the fixed step consumes whole ticks and keeps the remainder
   {
-    // The invariant the whole simulation rests on: a frame runs floor(debt / step) updates and
-    // carries what is left into the next frame, so the tick rate stays independent of the frame
-    // rate. Fed a number rather than a stopwatch, so the assertion is exact.
+    // The invariant the whole simulation rests on: a frame runs floor(debt / step) updates and carries what is left into the next frame, so the tick rate stays independent of the frame rate. Fed a number rather than a stopwatch, so the assertion is exact.
     u64 step      = app->options.time_step_ns;
     u64 remainder = step / 3;
 
@@ -113,8 +106,7 @@ s32 main(void) {
 
   // TEST: delta_time_s is the fixed step, not however long the frame took
   {
-    // The point of a fixed timestep: an update is told the step it represents, so simulation
-    // results do not change when the machine gets slower.
+    // The point of a fixed timestep: an update is told the step it represents, so simulation results do not change when the machine gets slower.
     app->frame_stats.delta_time_s   = 0.0F;
     app->frame_stats.time_behind_ns = (s64)((u64)2 * app->options.time_step_ns);
 
@@ -126,8 +118,7 @@ s32 main(void) {
 
   // TEST: a nested frame step swaps the allocator and puts it back
   {
-    // Frames produced during a window drag are nested inside an outer frame that is parked in the
-    // event pump, so they must not touch the arena that outer frame is using.
+    // Frames produced during a window drag are nested inside an outer frame that is parked in the event pump, so they must not touch the arena that outer frame is using.
     NYA_Arena* outer = app->frame_allocator;
 
     // Something the outer frame is holding, which a nested step must leave alone.
@@ -144,9 +135,7 @@ s32 main(void) {
 
   // TEST: a long drag does not grow memory
   {
-    // The reason live_resize_allocator exists at all. Each nested step empties it first, so thirty
-    // seconds of dragging costs one frame's worth of scratch rather than thirty seconds of it.
-    // Standing in for what a layer's update would allocate during the drag.
+    // The reason live_resize_allocator exists at all. Each nested step empties it first, so thirty seconds of dragging costs one frame's worth of scratch rather than thirty seconds of it. Standing in for what a layer's update would allocate during the drag.
     (void)nya_arena_alloc(app->live_resize_allocator, 64 * 1024);
     u64 before = arena_used(app->live_resize_allocator);
     nya_assert(before >= 64 * 1024, "the drag arena is holding a nested frame's scratch");
@@ -178,9 +167,7 @@ s32 main(void) {
 
   // TEST: a nested step keeps the fixed timestep honest
   {
-    // The bookkeeping a nested step does exists so the drag's whole duration does not arrive as one
-    // delta when the mouse comes up, which the accumulator would then pay off as a burst of catch
-    // up ticks. Advancing prev_frame_time_ns per nested frame is what prevents that.
+    // The bookkeeping a nested step does exists so the drag's whole duration does not arrive as one delta when the mouse comes up, which the accumulator would then pay off as a burst of catch up ticks. Advancing prev_frame_time_ns per nested frame is what prevents that.
     u64 tick_before = nya_world()->sim_system.tick;
 
     app->frame_stats.time_behind_ns     = 0;
@@ -190,8 +177,7 @@ s32 main(void) {
 
     u64 ticks = nya_world()->sim_system.tick - tick_before;
 
-    // Eight steps in well under one 16ms step of wall clock, so the debt never reaches a tick. The
-    // ceiling is what matters: without the bookkeeping this grows without bound.
+    // Eight steps in well under one 16ms step of wall clock, so the debt never reaches a tick. The ceiling is what matters: without the bookkeeping this grows without bound.
     nya_assert(ticks <= 8, "a burst of nested frames does not become a burst of ticks, got " FMTu64, ticks);
     nya_assert(app->frame_stats.prev_frame_time_ns > 0, "each nested step advances the frame clock");
   }
@@ -217,10 +203,7 @@ s32 main(void) {
 
   // TEST: the game state seam
   {
-    /*
-     * The pointer a game parks so its state survives a hot reload. Only the contract is testable in
-     * process; the reload needs two dlopens and a running game.
-     */
+    /* The pointer a game parks so its state survives a hot reload. Only the contract is testable in process; the reload needs two dlopens and a running game. */
     nya_world_user_data_set(nullptr);
     nya_assert(nya_world_user_data() == nullptr, "an unset seam must read as null, not as anything else");
 

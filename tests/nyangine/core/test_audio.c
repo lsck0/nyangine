@@ -16,8 +16,7 @@ static void end_frame(void) {
  * Checks one of the variation helpers: in range, actually varying, and unbiased.
  * */
 static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 range, f32 units_per_doubling, NYA_ConstCString unit) {
-  // nothing requested, nothing changed, bit exact. A sound the game did not ask to vary must play as
-  // authored.
+  // nothing requested, nothing changed, bit exact. A sound the game did not ask to vary must play as authored.
   nya_assert(vary(1.0F, 0.0F) == 1.0F, "%s: no variation must leave the value untouched", name);
   nya_assert(vary(2.0F, 0.0F) == 2.0F, "%s: no variation must not disturb an explicit value either", name);
 
@@ -40,8 +39,7 @@ static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 ra
 
     nya_assert(ratio >= low && ratio <= high, "%s: draw %u left the range: %f not in [%f, %f]", name, i, (f64)ratio, (f64)low, (f64)high);
 
-    // Summed in the exponent, which is where the distribution is uniform. Averaging the ratios
-    // instead would find a mean above 1.0 by construction and prove nothing.
+    // Summed in the exponent, which is where the distribution is uniform. Averaging the ratios instead would find a mean above 1.0 by construction and prove nothing.
     sum += (f64)log2f(ratio) * (f64)units_per_doubling;
 
     if (ratio != first) moved = true;
@@ -88,8 +86,7 @@ static f64 filter_response(f32 cutoff_hz, f32 hz) {
   NYA_AudioFilterState filter;
   _nya_audio_filter_reset(&filter);
 
-  // Straight to the state, not through nya_audio_voice_filter_set: the mixer's thread is running under
-  // the dummy driver and owns the buses, so a test that reached into one would be racing it.
+  // Straight to the state, not through nya_audio_voice_filter_set: the mixer's thread is running under the dummy driver and owns the buses, so a test that reached into one would be racing it.
   atomic_store_explicit(&filter.target_hz, cutoff_hz, memory_order_relaxed);
   atomic_store_explicit(&filter.glide_ms, 0.0F, memory_order_relaxed);
 
@@ -142,8 +139,7 @@ static void write_test_wav(void) {
 #undef PUT32
 #undef PUT16
 
-  // Straight to stdio, the way test_asset.c writes its fixtures: the engine's file API is string
-  // oriented and this is binary.
+  // Straight to stdio, the way test_asset.c writes its fixtures: the engine's file API is string oriented and this is binary.
   FILE* file = fopen(TEST_WAV_PATH, "wb");
   nya_assert(file != nullptr, "could not create the fixture at %s", TEST_WAV_PATH);
   (void)fwrite(header, 1, sizeof(header), file);
@@ -156,8 +152,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // the systems audio needs rather than nya_app_init, which opens a window and a renderer a headless
-  // test cannot.
+  // the systems audio needs rather than nya_app_init, which opens a window and a renderer a headless test cannot.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();
@@ -173,27 +168,23 @@ s32 main(void) {
 
   // TEST: a null handle is inert, whether or not there is a device
   {
-    // The property that matters: NYA_SOUND_VOICE_NONE must not resolve to slot zero, which is a real
-    // voice. Getting this wrong would make every failed play silently steer the first sound playing.
+    // The property that matters: NYA_SOUND_VOICE_NONE must not resolve to slot zero, which is a real voice. Getting this wrong would make every failed play silently steer the first sound playing.
     nya_assert(!nya_audio_voice_valid(NYA_SOUND_VOICE_NONE), "the null voice must never be valid");
 
-    // All of these take the null handle and must do nothing rather than crash, because that is what a
-    // caller gets from a play that found no free voice and will pass along without checking.
+    // All of these take the null handle and must do nothing rather than crash, because that is what a caller gets from a play that found no free voice and will pass along without checking.
     nya_audio_voice_set_gain(NYA_SOUND_VOICE_NONE, 0.5F);
     nya_audio_voice_set_pitch(NYA_SOUND_VOICE_NONE, 2.0F);
     nya_audio_voice_set_pan(NYA_SOUND_VOICE_NONE, -1.0F);
     nya_audio_voice_set_position(NYA_SOUND_VOICE_NONE, (f32x3){ 1.0F, 0.0F, 0.0F });
     nya_audio_voice_stop(NYA_SOUND_VOICE_NONE, 0);
 
-    // An out of range index is refused the same way, since a handle is a plain struct a caller can
-    // build by hand or leave uninitialised.
+    // An out of range index is refused the same way, since a handle is a plain struct a caller can build by hand or leave uninitialised.
     nya_assert(!nya_audio_voice_valid((NYA_SoundVoice){ .index = 9999, .generation = 1 }));
   }
 
   // TEST: gains are clamped and readable back
   {
-    // Independent of any device: these are plain state, and an options menu reads them back to
-    // populate its sliders.
+    // Independent of any device: these are plain state, and an options menu reads them back to populate its sliders.
     nya_audio_set_master_gain(0.5F);
     nya_audio_set_sound_gain(0.25F);
     nya_audio_set_music_gain(0.75F);
@@ -202,8 +193,7 @@ s32 main(void) {
     nya_assert(fabsf(nya_audio_sound_gain() - 0.25F) < 0.0001F);
     nya_assert(fabsf(nya_audio_music_gain() - 0.75F) < 0.0001F);
 
-    // Negative gain inverts a waveform rather than silencing it, so it is clamped rather than passed
-    // through to the mixer.
+    // Negative gain inverts a waveform rather than silencing it, so it is clamped rather than passed through to the mixer.
     nya_audio_set_master_gain(-1.0F);
     nya_assert(fabsf(nya_audio_master_gain()) < 0.0001F, "a negative gain must clamp to zero");
 
@@ -212,16 +202,14 @@ s32 main(void) {
 
   // TEST: pitch and gain variation stay in range, actually vary, and are unbiased
   {
-    // the arithmetic rather than the audible result, since output cannot be captured. Never touches a
-    // track. Twelve semitones double the rate, and 20·log10(2) decibels double the amplitude.
+    // the arithmetic rather than the audible result, since output cannot be captured. Never touches a track. Twelve semitones double the rate, and 20·log10(2) decibels double the amplitude.
     check_variation("pitch", _nya_audio_vary_pitch, 2.0F, 12.0F, "semitones");
     check_variation("gain", _nya_audio_vary_gain, 2.0F, 20.0F * log10f(2.0F), "dB");
   }
 
   // TEST: the listener, and how a world point lands in the mixer's space
   {
-    // Pure arithmetic, so device independent. Every value below is exact in binary, which is why
-    // these compare with == rather than an epsilon.
+    // Pure arithmetic, so device independent. Every value below is exact in binary, which is why these compare with == rather than an epsilon.
 
     // unspecified means one, not zero; a zero reference distance would divide by zero.
     nya_audio_listener_set((NYA_AudioListener){ .position = { 1.0F, 2.0F } });
@@ -230,23 +218,17 @@ s32 main(void) {
     nya_audio_listener_set((NYA_AudioListener){ .position = { 10.0F, 20.0F }, .reference_distance = 4.0F, .plane = NYA_AUDIO_PLANE_SIDE });
     nya_assert(nya_audio_listener_get().reference_distance == 4.0F, "the listener must read back as it was set");
 
-    // Wherever the listener stands is the origin, because the mixer's listener cannot be moved off
-    // it. Getting this wrong puts every sound at a constant offset that no test of a single sound
-    // would notice.
+    // Wherever the listener stands is the origin, because the mixer's listener cannot be moved off it. Getting this wrong puts every sound at a constant offset that no test of a single sound would notice.
     f32x3 here = _nya_audio_world_to_audio((f32x2){ 10.0F, 20.0F });
     nya_assert(here[0] == 0.0F && here[1] == 0.0F && here[2] == 0.0F, "a sound on the listener must land at the origin");
 
-    /*
-     * Side on: the screen is a wall, so world y becomes height and is negated, since the renderer's y
-     * points down and the mixer's up. Nothing reaches z.
-     */
+    /* Side on: the screen is a wall, so world y becomes height and is negated, since the renderer's y points down and the mixer's up. Nothing reaches z. */
     f32x3 side = _nya_audio_world_to_audio((f32x2){ 14.0F, 28.0F });
     nya_assert(side[0] == 1.0F, "side on: x is unchanged, got %f", (f64)side[0]);
     nya_assert(side[1] == -2.0F, "side on: world y must be negated into height, got %f", (f64)side[1]);
     nya_assert(side[2] == 0.0F, "side on: nothing may reach z, got %f", (f64)side[2]);
 
-    // Top down: the same point, but now the screen is the ground, so that 2 is depth behind the
-    // listener rather than height below them, and nothing is ever overhead.
+    // Top down: the same point, but now the screen is the ground, so that 2 is depth behind the listener rather than height below them, and nothing is ever overhead.
     nya_audio_listener_set((NYA_AudioListener){ .position = { 10.0F, 20.0F }, .reference_distance = 4.0F, .plane = NYA_AUDIO_PLANE_TOP_DOWN });
 
     f32x3 top = _nya_audio_world_to_audio((f32x2){ 14.0F, 28.0F });
@@ -280,8 +262,7 @@ s32 main(void) {
 
       _nya_audio_filter_apply(&filter, &spec, pcm, FILTER_FRAMES);
 
-      // A wide open one pole would come back nearly the same, which is not the same thing: an
-      // unfiltered voice has to be untouched, or every game pays for a filter it never asked for.
+      // A wide open one pole would come back nearly the same, which is not the same thing: an unfiltered voice has to be untouched, or every game pays for a filter it never asked for.
       for (s32 i = 0; i < FILTER_FRAMES; i++) {
         nya_assert(pcm[i] == original[i], "an unfiltered bus must pass samples through untouched: sample %d became %f from %f", i, (f64)pcm[i], (f64)original[i]);
       }
@@ -289,10 +270,7 @@ s32 main(void) {
 
     // ── A low cutoff must crush treble and let bass through ──
     {
-      /*
-       * A one pole at 500Hz passes about 98% of a 100Hz tone and about 6.5% of an 8kHz one. The thresholds
-       * are loose, but a filter that did nothing would fail the treble check by a factor of ten.
-       */
+      /* A one pole at 500Hz passes about 98% of a 100Hz tone and about 6.5% of an 8kHz one. The thresholds are loose, but a filter that did nothing would fail the treble check by a factor of ten. */
       f64 bass   = filter_response(500.0F, 100.0F);
       f64 treble = filter_response(500.0F, 8000.0F);
 
@@ -314,11 +292,7 @@ s32 main(void) {
       f32 snapped = filter.coefficient;
       nya_assert(snapped < 0.1F, "an unglided filter must reach its target in one buffer, coefficient %f", (f64)snapped);
 
-      /*
-       * A one second glide against a 100ms buffer: the coefficient may cross at most a tenth of its
-       * range, so it starts at 1.0 and lands near 0.9 rather than at the target. This is what stops
-       * the response jumping between buffers, which is audible as a click.
-       */
+      /* A one second glide against a 100ms buffer: the coefficient may cross at most a tenth of its range, so it starts at 1.0 and lands near 0.9 rather than at the target. This is what stops the response jumping between buffers, which is audible as a click. */
       _nya_audio_filter_reset(&filter);
       atomic_store_explicit(&filter.target_hz, 500.0F, memory_order_relaxed);
       atomic_store_explicit(&filter.glide_ms, 1000.0F, memory_order_relaxed);
@@ -375,8 +349,7 @@ s32 main(void) {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type     = NYA_ASSET_TYPE_SOUND,
       .handle   = TEST_WAV_PATH,
-      // External: the file was written just now and is not in the build's asset index, so there is
-      // nothing in the blob to resolve it against.
+      // External: the file was written just now and is not in the build's asset index, so there is nothing in the blob to resolve it against.
       .external = true,
       .as_sound = { .predecode = true },
     }), "while queueing the test tone");
@@ -396,8 +369,7 @@ s32 main(void) {
     } else {
       nya_assert(nya_audio_voice_valid(voice), "a voice that just started must be valid");
 
-      // Effects on a live voice. None of these can be observed without capturing the output, so what
-      // is asserted is that they neither crash nor invalidate the voice.
+      // Effects on a live voice. None of these can be observed without capturing the output, so what is asserted is that they neither crash nor invalidate the voice.
       nya_audio_voice_set_gain(voice, 0.5F);
       nya_audio_voice_set_pitch(voice, 1.5F);
       nya_audio_voice_set_pan(voice, -0.5F);
@@ -422,15 +394,13 @@ s32 main(void) {
             "a reused slot must not hand back the handle it had before"
         );
 
-        // The decisive case: if the new sound took the old slot, the old handle must have stopped
-        // resolving. That is what stops a stale handle retuning somebody else's sound.
+        // The decisive case: if the new sound took the old slot, the old handle must have stopped resolving. That is what stops a stale handle retuning somebody else's sound.
         if (second.index == voice.index) nya_assert(!nya_audio_voice_valid(voice), "a stale handle must not resolve after its slot was reused");
 
         nya_audio_voice_stop(second, 0);
       }
 
-      // The varied form is the plain one with a detune, so it has to acquire a voice the same way.
-      // What the detune actually was is not observable here; that is what the block above covers.
+      // The varied form is the plain one with a detune, so it has to acquire a voice the same way. What the detune actually was is not observable here; that is what the block above covers.
       NYA_SoundVoice varied = nya_audio_play_sound_varied(TEST_WAV_PATH, 1.0F);
       if (varied.generation != 0) {
         nya_assert(nya_audio_voice_valid(varied), "a varied sound must yield a live voice like any other");
@@ -445,12 +415,7 @@ s32 main(void) {
         MIX_Point3D point = { 0 };
         nya_assert(MIX_GetTrack3DPosition(_nya_audio_system.slots[placed.index].track, &point), "MIX_GetTrack3DPosition failed: %s", SDL_GetError());
 
-        /*
-         * The decisive assertion, and the one that catches placing the sound *after* MIX_PlayTrack
-         * rather than before: a voice's generation is only bumped once it is running, so a handle
-         * built inside the play path names the previous sound and every setter given it silently
-         * does nothing. Four units up, because the renderer's y counts down.
-         */
+        /* The decisive assertion, and the one that catches placing the sound *after* MIX_PlayTrack rather than before: a voice's generation is only bumped once it is running, so a handle built inside the play path names the previous sound and every setter given it silently does nothing. Four units up, because the renderer's y counts down. */
         nya_assert(
             point.x == 3.0F && point.y == 4.0F && point.z == 0.0F,
             "a sound played at (3, -4) must be placed at (3, 4, 0), got (%f, %f, %f)",
@@ -477,8 +442,7 @@ s32 main(void) {
         NYA_AudioFilterState* filter = &_nya_audio_system.slots[muffled.index].filter;
         NYA_AudioFilterState* other  = &_nya_audio_system.slots[untouched.index].filter;
 
-        // read back through the atomics the mixer reads, which is as far as a setter's effect can be
-        // seen without capturing output.
+        // read back through the atomics the mixer reads, which is as far as a setter's effect can be seen without capturing output.
         nya_audio_voice_filter_set(muffled, (NYA_AudioFilter){ .lowpass_hz = 800.0F, .glide_ms = 40.0F });
 
         nya_assert(atomic_load_explicit(&filter->target_hz, memory_order_relaxed) == 800.0F, "the cutoff must reach the voice");
@@ -530,14 +494,9 @@ s32 main(void) {
 
   // TEST: the four audio calls nothing in the tree had ever made
   {
-    /*
-     * nya_audio_listener_3d_get, nya_audio_stop_sounds, nya_audio_crossfade_music and
-     * nya_audio_voice_path_get had no caller anywhere. The 2D listener round trip is tested above;
-     * the 3D one, which is what a 3D scene actually sets, was not.
-     */
+    /* nya_audio_listener_3d_get, nya_audio_stop_sounds, nya_audio_crossfade_music and nya_audio_voice_path_get had no caller anywhere. The 2D listener round trip is tested above; the 3D one, which is what a 3D scene actually sets, was not. */
 
-    // Unspecified forward is -z and unspecified up is +y, which is the graphics convention the
-    // header promises. A getter that hands back the raw zeroes would put every sound behind the ear.
+    // Unspecified forward is -z and unspecified up is +y, which is the graphics convention the header promises. A getter that hands back the raw zeroes would put every sound behind the ear.
     nya_audio_listener_3d_set((NYA_AudioListener3D){ .position = { 3.0F, 4.0F, 5.0F } });
 
     const NYA_AudioListener3D defaulted = nya_audio_listener_3d_get();
@@ -568,8 +527,7 @@ s32 main(void) {
     // A crossfade to a handle behind nothing must not start a track or fall over.
     nya_audio_crossfade_music("./assets/sounds/there_is_no_such_track.ogg", (NYA_MusicParams){ 0 }, 250);
 
-    // Zeroed for a dead handle, which is the contract, and the case a caller reaches by keeping a
-    // voice past the end of its sound.
+    // Zeroed for a dead handle, which is the contract, and the case a caller reaches by keeping a voice past the end of its sound.
     const NYA_AudioPath nothing = nya_audio_voice_path_get((NYA_SoundVoice){ 0 });
 
     nya_check(nothing.occlusion == 0.0F && nothing.gain == 0.0F && !nothing.traced, "a dead voice has no propagation path");
@@ -587,8 +545,7 @@ s32 main(void) {
 
     nya_audio_listener_set((NYA_AudioListener){ .position = { 0.0F, 0.0F }, .reference_distance = 1.0F, .plane = NYA_AUDIO_PLANE_SIDE });
 
-    // A positioned sound now takes the panner path. As with the rest of playback this only runs where there
-    // is a device; the panner math itself is covered device-free in test_audio_panner.
+    // A positioned sound now takes the panner path. As with the rest of playback this only runs where there is a device; the panner math itself is covered device-free in test_audio_panner.
     NYA_SoundVoice panned = nya_audio_play_sound_at(TEST_WAV_PATH, (f32x2){ 4.0F, 0.0F }, (NYA_SoundParams){ .gain = 1.0F });
     if (panned.generation != 0) {
       nya_assert(nya_audio_voice_valid(panned), "a panned sound must be a live voice");

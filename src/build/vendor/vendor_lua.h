@@ -33,11 +33,7 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
     .linker_flags = { LUAJIT_A_LIN, },
 
     .parts = {
-        /*
-         * Cleaned first, as in the Windows rule. Both targets build in ./vendor/lua/src and the
-         * Makefile only checks object timestamps, so objects left by the other target would be
-         * relinked into the wrong format. CC is passed because the Makefile probes it even to clean.
-         */
+        /* Cleaned first, as in the Windows rule. Both targets build in ./vendor/lua/src and the Makefile only checks object timestamps, so objects left by the other target would be relinked into the wrong format. CC is passed because the Makefile probes it even to clean. */
         &(NYA_BuildRule){
             .name        = "vendor_lua_linux_x86_64_clean",
             .policy      = NYA_BUILD_ONCE,
@@ -65,8 +61,7 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
             .input_file  = LUAJIT_A,
             .output_file = LUAJIT_A_LIN,
 
-            // Parked one directory up, outside what `make clean` sweeps: this project builds in
-            // tree and its clean target globs *.a, so a sibling archive would be deleted too.
+            // Parked one directory up, outside what `make clean` sweeps: this project builds in tree and its clean target globs *.a, so a sibling archive would be deleted too.
             .post_build_hooks = { &hook_move_file, },
         },
     },
@@ -102,8 +97,7 @@ NYA_VendorRule vendor_lua_windows_x86_64 = {
                 .arguments = {
                     "-C", LUAJIT_SRC, "libluajit.a", "-j", NPROCS,
                     "TARGET_SYS=Windows",
-                    // The code generator runs on the host, so it must not be built with the
-                    // cross compiler. Expands to nothing on a Windows host.
+                    // The code generator runs on the host, so it must not be built with the cross compiler. Expands to nothing on a Windows host.
                     NYA_LUAJIT_CROSS
                 },
             },

@@ -119,8 +119,7 @@ s32 main(void) {
     NYA_OsSocket       client    = NYA_OS_SOCKET_NONE;
     NYA_OsSocketStatus connected = nya_os_socket_connect(to, &client);
 
-    // Either answer is right: loopback often connects inside the call, and under way is what a real
-    // network does. What must not happen is a failure.
+    // Either answer is right: loopback often connects inside the call, and under way is what a real network does. What must not happen is a failure.
     nya_check(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK, "a connect is made or under way, got %u", (u32)connected);
 
     nya_check(wait_readable(listener, WAIT_MS), "the listener becomes readable, which is what a waiting connection looks like");
@@ -148,10 +147,7 @@ s32 main(void) {
     nya_check(wait_readable(client, WAIT_MS), "the client sees the answer");
     nya_check(nya_os_socket_receive(client, buffer, sizeof(buffer), &read) == NYA_OS_SOCKET_OK && read == strlen(back), "and reads it");
 
-    /*
-     * The end of a stream. A peer that closes leaves its socket readable forever, so a zero byte read
-     * has to be its own answer or a caller would ask again for the rest of time.
-     */
+    /* The end of a stream. A peer that closes leaves its socket readable forever, so a zero byte read has to be its own answer or a caller would ask again for the rest of time. */
     nya_os_socket_close(client);
 
     nya_check(wait_readable(accepted, WAIT_MS), "a closed peer makes the other side readable");
@@ -182,8 +178,7 @@ s32 main(void) {
     nya_check(wait_readable(listener, WAIT_MS), "a connection arrives");
     nya_check(nya_os_socket_accept(listener, &accepted, &peer) == NYA_OS_SOCKET_OK, "and is taken");
 
-    // Four megabytes into a socket nobody is reading: the host takes what fits in its buffer and says
-    // how much that was. A blocking socket would sit here instead, which is what this layer refuses.
+    // Four megabytes into a socket nobody is reading: the host takes what fits in its buffer and says how much that was. A blocking socket would sit here instead, which is what this layer refuses.
     u8* big = nya_arena_alloc(nya_arena_global, BIG_SIZE);
     nya_memset(big, 'x', BIG_SIZE);
 
@@ -274,8 +269,7 @@ s32 main(void) {
 
     nya_os_socket_close(first);
 
-    // The zeroed struct is no socket, and every call takes it without reaching for a descriptor that
-    // is not there. Closing it twice is the case a connection table hits on every shutdown.
+    // The zeroed struct is no socket, and every call takes it without reaching for a descriptor that is not there. Closing it twice is the case a connection table hits on every shutdown.
     NYA_OsSocket none = NYA_OS_SOCKET_NONE;
 
     u8  buffer[8] = { 0 };

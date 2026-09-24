@@ -196,10 +196,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: detection agrees with what each serializer actually produces
-  //
-  // The point of the guesser is that a caller can hand it bytes off disk without being told which
-  // format they are, so it has to recognise this build's own output.
+  // TEST: detection agrees with what each serializer actually produces The point of the guesser is that a caller can hand it bytes off disk without being told which format they are, so it has to recognise this build's own output.
   printf("TEST: detection agrees with serialization\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -347,8 +344,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: dispatch rejects a format it does not know
-  // ─────────────────────────────────────────────────────────────────────────────""
+  // TEST: dispatch rejects a format it does not know ─────────────────────────────────────────────────────────────────────────────""
   printf("TEST: unknown format panics\n");
   {
     NYA_Object* obj = nya_object_create(arena);

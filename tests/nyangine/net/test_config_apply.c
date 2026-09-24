@@ -60,8 +60,7 @@ s32 main(void) {
 
     nya_net_config_finish(&config);
 
-    // a dedicated server exists for other people to reach, so one that listened nowhere would be a
-    // process nobody can connect to.
+    // a dedicated server exists for other people to reach, so one that listened nowhere would be a process nobody can connect to.
     nya_check(config.listen_port == 27100, "and then it listens on its port, got %u", config.listen_port);
 
     // the contradiction: both were given, and the server wins.

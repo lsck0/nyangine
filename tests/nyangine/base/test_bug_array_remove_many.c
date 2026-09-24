@@ -13,8 +13,7 @@ s32 main(void) {
   nya_assert(numbers->length == 1000);
   nya_assert(numbers->capacity == 1000);
 
-  // 1000 * 8 - 1 - 2 = 7997 bytes read from items + 3, ending 21 bytes past the 8000 byte
-  // allocation, and written to items + 1, ending 5 bytes past it.
+  // 1000 * 8 - 1 - 2 = 7997 bytes read from items + 3, ending 21 bytes past the 8000 byte allocation, and written to items + 1, ending 5 bytes past it.
   nya_array_remove_many(numbers, 1, 2);
 
   nya_assert(numbers->length == 998);

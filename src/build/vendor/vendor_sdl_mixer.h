@@ -52,8 +52,7 @@ NYA_VendorRule vendor_sdl_mixer_linux_x86_64 = {
     .name = "sdl-mixer (linux-x86_64)",
 
     .includes     = { "-I./vendor/sdl-mixer/include/", },
-    // The codecs each library vendors are separate archives, and a static link needs every one of
-    // them. Order matters: a dependency must follow whatever refers to it.
+    // The codecs each library vendors are separate archives, and a static link needs every one of them. Order matters: a dependency must follow whatever refers to it.
     .linker_flags = {
         SDL_MIXER_A_LINUX_X86_64,
         SDL_MIXER_BUILD_LINUX_X86_64 "/external/opusfile-build/libopusfile.a",

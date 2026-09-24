@@ -39,8 +39,7 @@ NYA_VendorRule vendor_sdl_ttf_linux_x86_64 = {
     .name = "sdl-ttf (linux-x86_64)",
 
     .includes     = { "-I./vendor/sdl-ttf/include/", },
-    // The codecs each library vendors are separate archives, and a static link needs every one of
-    // them. Order matters: a dependency must follow whatever refers to it.
+    // The codecs each library vendors are separate archives, and a static link needs every one of them. Order matters: a dependency must follow whatever refers to it.
     .linker_flags = {
         // harfbuzz is C++, so the C++ runtime has to come along.
         "-lstdc++",

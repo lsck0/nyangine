@@ -97,11 +97,7 @@ s32 main(void) {
             NYA_ERROR_PERMISSION_DENIED
         );
 
-        /*
-         * And the last character, which is the malleability case: its low bits encode nothing, so an
-         * encoder that left them set would give one signature two spellings. Refused rather than
-         * ignored, so a token has exactly one form.
-         */
+        /* And the last character, which is the malleability case: its low bits encode nothing, so an encoder that left them set would give one signature two spellings. Refused rather than ignored, so a token has exactly one form. */
         NYA_String* spare               = nya_string_from(arena, token);
         spare->items[spare->length - 1] = spare->items[spare->length - 1] == 'A' ? 'B' : 'A';
 
@@ -136,20 +132,13 @@ s32 main(void) {
     {
         NYA_HttpIdentity verified = { 0 };
 
-        /*
-         * The classic: a header claiming no algorithm and an empty signature. It is refused by the
-         * signature check, before `alg` is even looked at, because an empty signature is not thirty
-         * two bytes.
-         */
+        /* The classic: a header claiming no algorithm and an empty signature. It is refused by the signature check, before `alg` is even looked at, because an empty signature is not thirty two bytes. */
         NYA_ConstCString none = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJsdWNhIiwic2NwIjo3LCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.";
 
         nya_assert(!nya_http_jwt_decode(arena, none, strlen(none), SECRET, SECRET_SIZE, NOW_S, &verified).ok);
         nya_assert(verified.subject[0] == '\0');
 
-        /*
-         * And the subtler one: a header that is not ours, signed correctly with our secret. It still
-         * fails, because the header is compared whole rather than parsed and asked what it wants.
-         */
+        /* And the subtler one: a header that is not ours, signed correctly with our secret. It still fails, because the header is compared whole rather than parsed and asked what it wants. */
         NYA_ConstCString header  = "{\"alg\":\"HS512\",\"typ\":\"JWT\"}";
         NYA_ConstCString payload = "{\"sub\":\"luca\",\"scp\":7,\"iat\":0,\"exp\":9999999999}";
 
@@ -243,8 +232,7 @@ s32 main(void) {
 
         nya_assert(nya_http_challenge_verify("luca", SECRET, SECRET_SIZE, NOW_S, challenge));
 
-        // one window later it is still accepted, which is what lets a challenge issued just before a
-        // boundary be answered just after one.
+        // one window later it is still accepted, which is what lets a challenge issued just before a boundary be answered just after one.
         nya_assert(nya_http_challenge_verify("luca", SECRET, SECRET_SIZE, NOW_S + NYA_HTTP_CHALLENGE_WINDOW_S, challenge));
 
         // two windows later it is not.

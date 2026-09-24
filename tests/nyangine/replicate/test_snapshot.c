@@ -192,8 +192,7 @@ NYA_INTERNAL void test_reused_slot_is_not_a_baseline(NYA_Arena* arena) {
 
   nya_entity_despawn(first);
 
-  // the table reuses slots LIFO, so this very likely takes the index just freed: the collision under
-  // test.
+  // the table reuses slots LIFO, so this very likely takes the index just freed: the collision under test.
   NYA_EntityHandle second = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { -1.0F, -2.0F, -3.0F });
 
   nya_assert(second.index == first.index, "the test needs the slot to be reused to mean anything");
@@ -222,8 +221,7 @@ NYA_INTERNAL void test_reused_slot_is_not_a_baseline(NYA_Arena* arena) {
 // TEST: applying a snapshot spawns, moves and despawns
 NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* arena) {
   printf("TEST: apply reconciles the world with the snapshot\n");
-  // Build a snapshot describing two entities, by hand rather than by capture, so the "spawn what is
-  // new" path is exercised against a world that does not contain them.
+  // Build a snapshot describing two entities, by hand rather than by capture, so the "spawn what is new" path is exercised against a world that does not contain them.
   NYA_NetEntityState described[2] = {
     {
       .handle   = { .index = 900, .generation = 1 },
@@ -253,10 +251,7 @@ NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* ar
   // And an unreplicated one, which must be left entirely alone.
   NYA_EntityHandle untouched = nya_entity_spawn(.position = { 7.0F, 7.0F, 7.0F });
 
-  /*
-   * On the arena, not the stack: NYA_NetReplicaMap is 624 KB, and Windows gives a thread 1 MB by
-   * default against Linux's 8. See the same note in test_replica.c.
-   */
+  /* On the arena, not the stack: NYA_NetReplicaMap is 624 KB, and Windows gives a thread 1 MB by default against Linux's 8. See the same note in test_replica.c. */
   NYA_NetReplicaMap* map = nya_arena_alloc(arena, sizeof(NYA_NetReplicaMap));
   nya_assert(map != nullptr);
 
@@ -270,8 +265,7 @@ NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* ar
   nya_assert(nya_entity_is_valid(local_only), "an entity the map never knew about is not swept by a snapshot");
   nya_assert(nya_entity_is_valid(untouched), "an unreplicated entity is not touched by a snapshot");
 
-  // The two described entities were spawned. Their local handles are the local table's, not the
-  // server's, so they are found by looking for what has the right position.
+  // The two described entities were spawned. Their local handles are the local table's, not the server's, so they are found by looking for what has the right position.
   u32 found = 0;
   nya_entity_foreach (entity) {
     if ((entity->flags & FLAG_REPLICATED) == 0) continue;

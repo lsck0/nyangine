@@ -24,8 +24,7 @@ s32 main(void) {
   const f32x3 rest_min = { -0.5F, 0.0F, -0.5F };
   const f32x3 rest_max = { 0.5F, 2.0F, 0.5F };
 
-  // TEST: nothing to bound is refused rather than answered with a sphere at the
-  //       origin, which would be culled against and would be wrong
+  // TEST: nothing to bound is refused rather than answered with a sphere at the origin, which would be culled against and would be wrong
   {
     f32x3 center = { 9.0F, 9.0F, 9.0F };
     f32   radius = 9.0F;
@@ -60,8 +59,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: the model transform moves the bones, since the palette is posed
-  //       through it
+  // TEST: the model transform moves the bones, since the palette is posed through it
   {
     const f32_4x4 palette[1] = { bone_at(f32x3_zero) };
     const f32_4x4 model      = nya_matrix_transform((f32x3){ 100.0F, 0.0F, 0.0F }, f32_3x3_id, (f32x3){ 1.0F, 1.0F, 1.0F });
@@ -75,8 +73,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a scaled model grows the padding, or the skin on a scaled up mesh
-  //       would hang outside its own bounds and lose a limb to a cascade
+  // TEST: a scaled model grows the padding, or the skin on a scaled up mesh would hang outside its own bounds and lose a limb to a cascade
   {
     const f32_4x4 palette[1] = { bone_at(f32x3_zero) };
 
@@ -106,8 +103,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a pose that walks away from the rest bounds is still covered, which is
-  //       the whole reason the bones are read instead of the rest box
+  // TEST: a pose that walks away from the rest bounds is still covered, which is the whole reason the bones are read instead of the rest box
   {
     // An arm thrown ten metres out, as a long animation can.
     const f32_4x4 palette[2] = { bone_at(f32x3_zero), bone_at((f32x3){ 10.0F, 0.0F, 0.0F }) };

@@ -12,11 +12,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_Arena* arena = nya_arena_create(.name = "fuzz_compress");
     defer      nya_arena_destroy(arena);
 
-    /*
-     * The size the caller believes it is getting, which in real code comes from a header the same
-     * hostile input wrote. Every plausible claim is tried, including ones far off the truth: a
-     * decompressor is only safe if it writes no more than the caller's buffer whatever the block says.
-     */
+    /* The size the caller believes it is getting, which in real code comes from a header the same hostile input wrote. Every plausible claim is tried, including ones far off the truth: a decompressor is only safe if it writes no more than the caller's buffer whatever the block says. */
     static const u64 CLAIMS[] = { 0, 1, 16, 1024, 1024 * 256 };
 
     for (u32 i = 0; i < nya_carray_length(CLAIMS); i++) {

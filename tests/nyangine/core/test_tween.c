@@ -223,13 +223,7 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "leaving nothing running");
     }
 
-    /*
-     * A delay expiring must not shorten the frame for later tweens in the pool.
-     *
-     * The update hands the rest of the frame to a tween whose delay just ran out. That remainder must not
-     * replace the loop's delta_time_s, or later slots would advance by the leftover and speed would depend
-     * on slot index.
-     */
+    /* A delay expiring must not shorten the frame for later tweens in the pool. The update hands the rest of the frame to a tween whose delay just ran out. That remainder must not replace the loop's delta_time_s, or later slots would advance by the leftover and speed would depend on slot index. */
     {
         f32 delayed = 0.0F;
         f32 plain   = 0.0F;

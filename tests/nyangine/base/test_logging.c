@@ -68,11 +68,7 @@ s32 main(void) {
   nya_log_warn("Should appear: %d", 456);
   nya_log_error("Should appear: %f", 7.89);
 
-  // TEST: nya_expect_crash catches a panic, and reports where it came from
-  //
-  // This replaced a panic *hook* plus nya_panic_prevent_set/_happened. The hook let an observer
-  // both see and swallow a panic; the crash API separates those, so a test arms a frame and then
-  // inspects NYA_CrashInfo rather than setting a global flag from a callback.
+  // TEST: nya_expect_crash catches a panic, and reports where it came from This replaced a panic *hook* plus nya_panic_prevent_set/_happened. The hook let an observer both see and swallow a panic; the crash API separates those, so a test arms a frame and then inspects NYA_CrashInfo rather than setting a global flag from a callback.
   nya_expect_crash(nya_log_panic("This panic should be caught"));
   nya_assert(nya_crash_caught() != nullptr);
   nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
@@ -157,8 +153,7 @@ s32 main(void) {
 
   // TEST: crash observers are held to their bound, removed by pair, and cleared
   {
-    // a prevented crash reaches no observer, so what can be checked here is the bookkeeping; a real
-    // crash reaching one is test_crash_report's child process.
+    // a prevented crash reaches no observer, so what can be checked here is the bookkeeping; a real crash reaching one is test_crash_report's child process.
     nya_crash_observer_clear();
 
     u32 added = 0;

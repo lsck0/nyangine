@@ -57,15 +57,13 @@ s32 main(void) {
         nya_check(terrain->chunk_count == expected * expected, "and " FMTu32 " in total, got " FMTu32, expected * expected,
                   terrain->chunk_count);
 
-        // every chunk starts unbuilt, so the first update rebuilds all without a special case: no level can
-        // equal the out-of-range marker.
+        // every chunk starts unbuilt, so the first update rebuilds all without a special case: no level can equal the out-of-range marker.
         for (u32 i = 0; i < terrain->chunk_count; i++) {
             nya_check(terrain->chunks[i].lod == NYA_TERRAIN3D_LOD_LEVELS, "chunk " FMTu32 " should start unbuilt", i);
             nya_check(terrain->chunks[i].handle[0] != '\0', "and carry its own mesh handle");
         }
 
-        // The handles have to be distinct, or every chunk would overwrite one registered mesh and the
-        // surface would be a single square that follows the last chunk built.
+        // The handles have to be distinct, or every chunk would overwrite one registered mesh and the surface would be a single square that follows the last chunk built.
         for (u32 i = 1; i < terrain->chunk_count; i++) {
             nya_check(!nya_string_equals(terrain->chunks[i].handle, terrain->chunks[0].handle),
                       "chunk " FMTu32 " must not share chunk 0's handle ('%s')", i, terrain->chunks[i].handle);
@@ -93,13 +91,7 @@ s32 main(void) {
         nya_check(covered == awkward, "the chunks should cover every cell: " FMTu32 " against " FMTu32, covered, awkward);
     }
 
-    /*
-     * ── The LOD bands: nearer is finer, the levels double, and it saturates.
-     *
-     * Asserted as ordering and saturation rather than as specific distances. The band boundaries are a
-     * policy that should be tunable without this file objecting; what must not change is that they go
-     * the right way and stop.
-     */
+    /* ── The LOD bands: nearer is finer, the levels double, and it saturates. Asserted as ordering and saturation rather than as specific distances. The band boundaries are a policy that should be tunable without this file objecting; what must not change is that they go the right way and stop. */
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,
@@ -130,12 +122,7 @@ s32 main(void) {
         nya_check(nya_terrain3d_lod_for_distance(nullptr, 100.0F) == 0, "and nothing at all is level zero rather than a crash");
     }
 
-    /*
-     * ── An update rebuilds only what changed, which is the whole reason the levels are banded.
-     *
-     * A rebuild uploads geometry, so an update that touched every chunk whenever the camera moved
-     * would make walking around a landscape stutter continuously rather than never.
-     */
+    /* ── An update rebuilds only what changed, which is the whole reason the levels are banded. A rebuild uploads geometry, so an update that touched every chunk whenever the camera moved would make walking around a landscape stutter continuously rather than never. */
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,
@@ -174,10 +161,7 @@ s32 main(void) {
             nya_check(chunk->radius > 0.0F, "chunk " FMTu32 " should have a bounding radius, got %f", i, (f64)chunk->radius);
         }
 
-        /*
-         * The chunk nearest the viewer must be finer than the one furthest away, which is the
-         * end-to-end statement of what all of this is for.
-         */
+        /* The chunk nearest the viewer must be finer than the one furthest away, which is the end-to-end statement of what all of this is for. */
         u32 nearest = 0, furthest = 0;
         f32 nearest_distance = FLT_MAX, furthest_distance = 0.0F;
 
@@ -197,8 +181,7 @@ s32 main(void) {
                   "the nearest chunk must be at least as detailed as the furthest: " FMTu32 " against " FMTu32,
                   terrain->chunks[nearest].lod, terrain->chunks[furthest].lod);
 
-        // Releasing marks them unbuilt again, so a regenerated terrain rebuilds rather than drawing
-        // handles that name nothing.
+        // Releasing marks them unbuilt again, so a regenerated terrain rebuilds rather than drawing handles that name nothing.
         nya_terrain3d_release(terrain, &window);
 
         for (u32 i = 0; i < terrain->chunk_count; i++) {
@@ -206,13 +189,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * ── Hysteresis: drifting across a band boundary must not rebuild on every crossing.
-     *
-     * A chunk sitting on a boundary otherwise changes level every few frames as the viewer moves back
-     * and forth over it, and every change uploads geometry. Seen in the demo as one chunk flipping
-     * between 72 and 192 vertices while the camera orbited past it, which is what this pins.
-     */
+    /* ── Hysteresis: drifting across a band boundary must not rebuild on every crossing. A chunk sitting on a boundary otherwise changes level every few frames as the viewer moves back and forth over it, and every change uploads geometry. Seen in the demo as one chunk flipping between 72 and 192 vertices while the camera orbited past it, which is what this pins. */
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,
@@ -245,13 +222,11 @@ s32 main(void) {
             rebuilds += terrain->chunks_rebuilt;
         }
 
-        // A few, from chunks whose distance happens to fall outside the band. Not forty, which is what
-        // one rebuild per crossing would give.
+        // A few, from chunks whose distance happens to fall outside the band. Not forty, which is what one rebuild per crossing would give.
         nya_check(rebuilds < 10, "drifting across a boundary should not rebuild every time, got " FMTu32 " rebuilds over 40 moves",
                   rebuilds);
 
-        // And a move that clears the band entirely still re-levels, or the hysteresis has simply
-        // frozen the terrain at whatever it first chose.
+        // And a move that clears the band entirely still re-levels, or the hysteresis has simply frozen the terrain at whatever it first chose.
         nya_terrain3d_update(terrain, &window, (f32x3){ boundary * 8.0F, 0.0F, 0.0F });
         nya_check(terrain->chunks_rebuilt > 0, "a move well past the band must still re-level");
 

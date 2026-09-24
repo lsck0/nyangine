@@ -49,8 +49,7 @@ s32 main(void) {
   b8 sdl_ok = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // the asset system registers an end-of-frame hook, so events come up first, by hand like the other
-  // core tests, since nya_app_init wants a window.
+  // the asset system registers an end-of-frame hook, so events come up first, by hand like the other core tests, since nya_app_init wants a window.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();
@@ -256,10 +255,7 @@ s32 main(void) {
     nya_assert(animator.playing, "a looping clip stopped");
     nya_assert(animator.time_s < skeleton->clips[0].duration_s, "the looping clock did not wrap");
 
-    /*
-     * The claim that ragdoll and procedural animation need no new feature: a pose is a plain array,
-     * so writing a bone directly is the same thing the sampler does, and the palette does not care.
-     */
+    /* The claim that ragdoll and procedural animation need no new feature: a pose is a plain array, so writing a bone directly is the same thing the sampler does, and the palette does not care. */
     NYA_SkeletonPose hand_written = { 0 };
     nya_skeleton_pose_rest(skeleton, &hand_written);
 

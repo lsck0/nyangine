@@ -116,12 +116,7 @@ void coverage_runner(NYA_ArgCommand* command) {
     nya_assert(fail_under != nullptr && nya_string_equals(fail_under->name, "fail-under"));
     nya_assert(html_flag != nullptr && nya_string_equals(html_flag->name, "html"));
 
-    /*
-     * llvm-profdata merges the profiles and llvm-cov maps the counters back to source. They ship with
-     * the clang the build already uses, but a stripped toolchain can lack them; missing, this skips with
-     * a notice rather than failing, the way the CVE hook does. Coverage is a gate CI runs, not something
-     * a developer's checkout without the matching llvm tools should trip over.
-     */
+    /* llvm-profdata merges the profiles and llvm-cov maps the counters back to source. They ship with the clang the build already uses, but a stripped toolchain can lack them; missing, this skips with a notice rather than failing, the way the CVE hook does. Coverage is a gate CI runs, not something a developer's checkout without the matching llvm tools should trip over. */
     if (!_coverage_program_exists(COVERAGE_PROFDATA_PROGRAM) || !_coverage_program_exists(COVERAGE_COV_PROGRAM)) {
         nya_log_info("Coverage skipped: '%s' and '%s' are not both on PATH. They ship with clang;", COVERAGE_PROFDATA_PROGRAM, COVERAGE_COV_PROGRAM);
         nya_log_info("install the matching llvm tools to measure coverage. CI has them and runs ./build coverage.");
@@ -138,23 +133,17 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
     nya_assert(test_files != nullptr);
     nya_assert(nya_string_equals(test_files->name, "tests"));
 
-    // Walked rather than shelled out to `find`, which on Windows off msys2 resolves to the unrelated
-    // find.exe in System32 and would take these arguments as a text search rather than fail.
+    // Walked rather than shelled out to `find`, which on Windows off msys2 resolves to the unrelated find.exe in System32 and would take these arguments as a text search rather than fail.
     NYA_ArrayᐸNYA_Stringᐳ* tests = nya_array_create(nya_arena_global, NYA_String);
     NYA_EXPECT(nya_filesystem_walk(nya_arena_global, "./tests", _test_collect_sources, tests));
     nya_array_sort(tests, _test_compare_paths);
 
-    /*
-     * Three phases: compile everything at once, link everything at once, then run the binaries one at a
-     * time. The engine is compiled once and linked into every test that takes it as it is.
-     */
+    /* Three phases: compile everything at once, link everything at once, then run the binaries one at a time. The engine is compiled once and linked into every test that takes it as it is. */
     NYA_ArrayᐸNYA_BuildRulePointerᐳ* compile_rules = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
     NYA_ArrayᐸNYA_BuildRulePointerᐳ* link_rules    = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
     NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules     = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
 
-    // The raw profiles land here, one per test, and the binaries have to survive the run for
-    // llvm-cov to map counters back to source. Recreated each time so a deleted test cannot leave a
-    // stale profile behind to be merged into the next report.
+    // The raw profiles land here, one per test, and the binaries have to survive the run for llvm-cov to map counters back to source. Recreated each time so a deleted test cannot leave a stale profile behind to be merged into the next report.
     if (coverage) {
         (void)nya_filesystem_delete_recursive(COVERAGE_DIRECTORY);
         NYA_EXPECT(nya_filesystem_create_directory(COVERAGE_DIRECTORY), "while creating the coverage directory");
@@ -217,22 +206,13 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
         nya_string_extend(test, HOST_EXECUTABLE_SUFFIX);
         NYA_CString test_binary = nya_string_to_cstring(nya_arena_global, test);
 
-        /*
-         * A test under tests/nyangine/terminal/ is compiled against the terminal backend instead of the
-         * GPU one, and therefore against its own engine: the shared engine object is built once without
-         * NYA_TERMINAL, and linking a test that was compiled with it against that object would mix two
-         * different render2d implementations in one binary.
-         *
-         * Everything under src/nyangine/renderer/render2d_terminal.c had no test at all before this,
-         * because there was no way to ask for that flavour.
-         */
+        /* A test under tests/nyangine/terminal/ is compiled against the terminal backend instead of the GPU one, and therefore against its own engine: the shared engine object is built once without NYA_TERMINAL, and linking a test that was compiled with it against that object would mix two different render2d implementations in one binary. Everything under src/nyangine/renderer/render2d_terminal.c had no test at all before this, because there was no way to ask for that flavour. */
         const b8 terminal_flavour = strstr(test_cstr, "/terminal/") != nullptr;
 
         b8 shares_engine      = !terminal_flavour && _test_shares_engine(test_cstr, header_identifiers);
         tests_sharing_engine += shares_engine ? 1 : 0;
 
-        // the baked blob is generated for release builds only, so a test that compiles the engine the way a
-        // release does asks for it here. Found when test_asset_blob passed locally and CI had no assets.c.
+        // the baked blob is generated for release builds only, so a test that compiles the engine the way a release does asks for it here. Found when test_asset_blob passed locally and CI had no assets.c.
         NYA_String* source = nya_string_create(nya_arena_global);
         NYA_EXPECT(nya_file_read(test_cstr, source), "while reading '%s'", test_cstr);
         const b8 wants_blob = nya_string_contains(source, "#define NYA_ASSET_PREFER_BLOB");
@@ -254,12 +234,9 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
                     CFLAGS,
                     WARNINGS,
                     INCLUDE_PATHS,
-                    // The same plugins the project compiles, so a test can exercise them. Without this
-                    // a plugin test compiles to an empty file and reports a pass.
+                    // The same plugins the project compiles, so a test can exercise them. Without this a plugin test compiles to an empty file and reports a pass.
                     FLAGS_PLUGINS,
-                    // FLAGS_TEST, not FLAGS_DEBUG: it sets NYA_EXECUTION_MODE=4, compiles in
-                    // nya_expect_crash so a test can survive a deliberate panic, and runs headless so
-                    // no GPU device is created.
+                    // FLAGS_TEST, not FLAGS_DEBUG: it sets NYA_EXECUTION_MODE=4, compiles in nya_expect_crash so a test can survive a deliberate panic, and runs headless so no GPU device is created.
                     FLAGS_TEST,
                     // Built to run here, so the same host flags the build tool uses. See build.h.
                     FLAGS_HOST_NATIVE_COMPILE
@@ -272,9 +249,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
             .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
         };
 
-        // Searched before the -I paths, so the test's own include of the engine source finds the headers
-        // only and the definitions come from the engine object at link time. Also included up front, since
-        // a test that includes nyangine.h first would otherwise see the headers outside the shim.
+        // Searched before the -I paths, so the test's own include of the engine source finds the headers only and the definitions come from the engine object at link time. Also included up front, since a test that includes nyangine.h first would otherwise see the headers outside the shim.
         if (shares_engine) {
             _test_append_arguments(compile_test_rule, (NYA_ConstCString[]){ "-iquote", TEST_ENGINE_SHIM_DIRECTORY, "-include", TEST_ENGINE_SHIM, nullptr });
         }
@@ -299,25 +274,20 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
                     FLAGS_HOST_NATIVE_LINK,
                     LINKER_FLAGS,
 #if !OS_WINDOWS
-                    // Where the Steam redistributable sits relative to a test binary. An rpath is an
-                    // ELF concept; a Windows host would resolve the DLL by search path instead.
+                    // Where the Steam redistributable sits relative to a test binary. An rpath is an ELF concept; a Windows host would resolve the DLL by search path instead.
                     "-Wl,-rpath,$ORIGIN/../../../vendor/steam/redistributable_bin/linux64",
 #endif
                 },
             },
 
-            // Exactly what the project links, by naming the same macro. A hand copied list is what
-            // previously drifted and made a plugin test compile and then fail to link.
+            // Exactly what the project links, by naming the same macro. A hand copied list is what previously drifted and made a plugin test compile and then fail to link.
             .vendors          = { TEST_VENDORS, },
             .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
-            // A test that compiles the engine itself leaves an object as large as the engine's, one per
-            // test. The compiler cache keeps its own copy, so nothing is lost by dropping it.
+            // A test that compiles the engine itself leaves an object as large as the engine's, one per test. The compiler cache keeps its own copy, so nothing is lost by dropping it.
             .post_build_hooks = { &hook_remove_input_file, },
         };
 
-        // the vendor archives are spliced in after every argument, so they still follow the engine object.
-        // base_perf.h defines an extern inline function, which C emits once in every object including the
-        // header, so the test and the engine each carry an identical copy.
+        // the vendor archives are spliced in after every argument, so they still follow the engine object. base_perf.h defines an extern inline function, which C emits once in every object including the header, so the test and the engine each carry an identical copy.
         if (shares_engine) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ TEST_ENGINE_OBJECT, nullptr });
         if (coverage) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
 
@@ -334,11 +304,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
                 .environment = { SANITIZER_ENVIRONMENT, },
             },
 
-            // No dependency on the link rule: the whole batch is linked below, before any of it runs,
-            // so a per-rule dependency would just rebuild what is already there.
-            //
-            // A coverage run keeps its binaries instead: llvm-cov reads the coverage mapping out of the
-            // executable, so deleting it leaves counts that cannot be attributed to any line.
+            // No dependency on the link rule: the whole batch is linked below, before any of it runs, so a per-rule dependency would just rebuild what is already there. A coverage run keeps its binaries instead: llvm-cov reads the coverage mapping out of the executable, so deleting it leaves counts that cannot be attributed to any line.
             .post_build_hooks = { coverage ? nullptr : &hook_remove_output_file, },
         };
 
@@ -381,12 +347,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
 void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules, s64 fail_under, b8 want_html) {
     nya_assert(run_rules != nullptr);
 
-    /*
-     * Merge the raw profiles into one, print the human report, read the total off a captured summary,
-     * then gate on it. Merge and the report are ordinary build rules, so a failure in either is reported
-     * the way any other command's is. The gate reads a second, machine-summary run rather than scraping
-     * the printed table, so the number it acts on is llvm-cov's own and no column has to be guessed at.
-     */
+    /* Merge the raw profiles into one, print the human report, read the total off a captured summary, then gate on it. Merge and the report are ordinary build rules, so a failure in either is reported the way any other command's is. The gate reads a second, machine-summary run rather than scraping the printed table, so the number it acts on is llvm-cov's own and no column has to be guessed at. */
     NYA_ConstCString profiles_response = _coverage_write_profile_response(run_rules);
     NYA_ConstCString objects_response  = _coverage_write_object_response(run_rules);
 
@@ -411,17 +372,13 @@ void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules, s64 f
     };
     NYA_EXPECT(nya_build(&report), "while generating the coverage report");
 
-    /*
-     * The number the gate reads. `export -summary-only` keeps the per-file and total figures and drops
-     * the per-line detail, as JSON, so the total is unambiguous rather than a column counted off a table.
-     */
+    /* The number the gate reads. `export -summary-only` keeps the per-file and total figures and drops the per-line detail, as JSON, so the total is unambiguous rather than a column counted off a table. */
     NYA_String* summary      = build_capture(nya_arena_global, COVERAGE_COV_PROGRAM,
                                              (const NYA_ConstCString[]){ "export", "-summary-only", "-instr-profile=" COVERAGE_PROFILE_DATA, objects_response, nullptr });
     f64         line_percent = _coverage_parse_line_percent(nya_string_to_cstring(nya_arena_global, summary));
     if (line_percent < 0.0) nya_log_panic("Could not read total line coverage from the llvm-cov export summary.");
 
-    // An annotated HTML tree, when asked. Recreated each time so a deleted source cannot leave a stale
-    // page behind, and dropped under the gitignored coverage directory rather than committed.
+    // An annotated HTML tree, when asked. Recreated each time so a deleted source cannot leave a stale page behind, and dropped under the gitignored coverage directory rather than committed.
     if (want_html) {
         (void)nya_filesystem_delete_recursive(COVERAGE_HTML_DIRECTORY);
 
@@ -456,13 +413,10 @@ NYA_INTERNAL b8 _test_collect_sources(NYA_ConstCString path, const NYA_Directory
     NYA_String* file = nya_string_from(nya_arena_global, path);
     if (!nya_string_ends_with(file, ".c")) return true;
 
-    // tests/cbmc holds CBMC harnesses that only build under the `cbmc` model checker (`./build verify`):
-    // they use `__CPROVER_assume`/`__CPROVER_assert` builtins plain clang cannot resolve. Skip them here
-    // so `./build run test` does not try to compile them and fail.
+    // tests/cbmc holds CBMC harnesses that only build under the `cbmc` model checker (`./build verify`): they use `__CPROVER_*` builtins plain clang cannot resolve. Skip them here so `./build run test` does not fail.
     if (nya_string_contains(nya_string_to_cstring(nya_arena_global, file), "/cbmc/")) return true;
 
-    // nya_path_join normalises away the leading "./", which the build rules above expect to be
-    // there since they use these paths verbatim as input and output files.
+    // nya_path_join normalises away the leading "./", which the build rules above expect to be there since they use these paths verbatim as input and output files.
     if (!nya_string_starts_with(file, "./")) nya_string_extend_front(file, "./");
 
     nya_array_push_back(sources, *file);
@@ -608,9 +562,7 @@ NYA_INTERNAL void _test_append_arguments(NYA_BuildRule* rule, NYA_ConstCString c
 NYA_INTERNAL b8 _coverage_program_exists(NYA_ConstCString program) {
     nya_assert(program != nullptr);
 
-    // A program missing from PATH still spawns: the forked child fails execvp and _exit(127)s, so
-    // nya_command_run returns ok with a non-zero exit. Presence is the clean exit, not the spawn. Both
-    // llvm tools answer --version with 0, which is what this checks. Same shape as sbom.c's probe.
+    // A program missing from PATH still spawns: the forked child fails execvp and _exit(127)s, so nya_command_run returns ok with a non-zero exit. Presence is the clean exit, not the spawn. Both llvm tools answer --version with 0, which is what this checks. Same shape as sbom.c's probe.
     NYA_Command probe = {
         .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
         .program   = program,
@@ -623,9 +575,7 @@ NYA_INTERNAL b8 _coverage_program_exists(NYA_ConstCString program) {
 NYA_INTERNAL NYA_ConstCString _coverage_write_object_response(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
     nya_assert(run_rules != nullptr);
 
-    // One token per line, which is how the llvm tools split a response file. The first binary is
-    // positional; every later one is introduced by -object, which is how llvm-cov takes coverage from
-    // more than one binary at once.
+    // One token per line, which is how the llvm tools split a response file. The first binary is positional; every later one is introduced by -object, which is how llvm-cov takes coverage from more than one binary at once.
     NYA_String* body         = nya_string_create(nya_arena_global);
     b8          first_object = true;
     nya_array_foreach (run_rules, run_rule) {
@@ -635,8 +585,7 @@ NYA_INTERNAL NYA_ConstCString _coverage_write_object_response(NYA_ArrayᐸNYA_Bu
         first_object = false;
     }
 
-    // Restricted to the engine: the tests themselves are instrumented too, and counting a test file as
-    // covered by its own execution would drag every number here toward a hundred percent.
+    // Restricted to the engine: the tests themselves are instrumented too, and counting a test file as covered by its own execution would drag every number here toward a hundred percent.
     nya_string_extend(body, "src/nyangine\n");
 
     NYA_EXPECT(nya_file_write(COVERAGE_OBJECTS_RESPONSE, body), "while writing the coverage object list");
@@ -646,8 +595,7 @@ NYA_INTERNAL NYA_ConstCString _coverage_write_object_response(NYA_ArrayᐸNYA_Bu
 NYA_INTERNAL NYA_ConstCString _coverage_write_profile_response(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
     nya_assert(run_rules != nullptr);
 
-    // Every test contributes one raw profile, named after its binary. One path per line, the same
-    // response-file shape llvm-profdata reads its inputs from.
+    // Every test contributes one raw profile, named after its binary. One path per line, the same response-file shape llvm-profdata reads its inputs from.
     NYA_String* body = nya_string_create(nya_arena_global);
     nya_array_foreach (run_rules, run_rule) {
         NYA_String* profile = nya_string_sprintf(
@@ -665,9 +613,7 @@ NYA_INTERNAL NYA_ConstCString _coverage_write_profile_response(NYA_ArrayᐸNYA_B
 NYA_INTERNAL f64 _coverage_parse_line_percent(NYA_ConstCString json) {
     nya_assert(json != nullptr);
 
-    // `export` ends the object with a "totals" summary, and the per-file summaries with the same shape
-    // come before it, so searching forward from "totals" for its "lines" percent lands on the total and
-    // never on one file. A hand walk rather than a full parse: one number out of a known-good shape.
+    // `export` ends the object with a "totals" summary, and the per-file summaries with the same shape come before it, so searching forward from "totals" for its "lines" percent lands on the total and never on one file. A hand walk rather than a full parse: one number out of a known-good shape.
     NYA_ConstCString totals = strstr(json, "\"totals\"");
     if (totals == nullptr) return -1.0;
 

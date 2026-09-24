@@ -1,12 +1,6 @@
 #include "build/build.h"
 
-/*
- * `./build plugin keygen` and `./build plugin sign`, which are code that compiles and runs another
- * program. Signing needs the engine's Ed25519, and this build tool is compiled without the crypto module
- * (see nyangine.c: crypto is on the project's include line, not the tool's). So the signing itself lives
- * in tools/plugin_signer.c — a full-engine program — and these handlers build it the way an example is
- * built and run it with the arguments the parser already checked.
- */
+/* `./build plugin keygen` and `./build plugin sign`, which are code that compiles and runs another program. Signing needs the engine's Ed25519, and this build tool is compiled without the crypto module (see nyangine.c: crypto is on the project's include line, not the tool's). So the signing itself lives in tools/plugin_signer.c — a full-engine program — and these handlers build it the way an example is built and run it with the arguments the parser already checked. */
 
 /* CONSTANTS */
 
@@ -70,8 +64,7 @@ void plugin_sign_runner(NYA_ArgCommand* command) {
 /* PRIVATE API IMPLEMENTATION */
 
 NYA_BuildRule _plugin_signer_build_rule(void) {
-    // The same flags, plugins and vendors the project links, by naming the same macros an example does.
-    // A hand copied list here is the drift that makes a tool fail to compile on a header the game has.
+    // The same flags, plugins and vendors the project links, by naming the same macros an example does. A hand copied list here is the drift that makes a tool fail to compile on a header the game has.
     return (NYA_BuildRule){
         .name        = "build_plugin_signer",
         .policy      = NYA_BUILD_ALWAYS,
@@ -114,8 +107,7 @@ void _plugin_signer_run(NYA_Arena* arena, const NYA_ConstCString* arguments) {
         .output_file = PLUGIN_SIGNER_BINARY,
 
         .command = {
-            // Not bare: a program with no separator is looked up on PATH, and this one is in the
-            // working directory.
+            // Not bare: a program with no separator is looked up on PATH, and this one is in the working directory.
             .program     = "./" PLUGIN_SIGNER_BINARY,
             .environment = { SANITIZER_ENVIRONMENT, },
         },

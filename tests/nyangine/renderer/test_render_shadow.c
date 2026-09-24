@@ -52,12 +52,7 @@ s32 main(void) {
 
     NYA_Render3DShadowFit unsnapped = { .range = RANGE, .strength = 0.45F, .aspect = 16.0F / 9.0F, .no_texel_snap = true };
 
-    /*
-     * The cascades tile the view, each wider than the last.
-     *
-     * Each cascade spends its whole resolution on its own slice of the view. Nested boxes starting at the
-     * camera would cover nothing the far cascades do not.
-     */
+    /* The cascades tile the view, each wider than the last. Each cascade spends its whole resolution on its own slice of the view. Nested boxes starting at the camera would cover nothing the far cascades do not. */
     {
         NYA_Camera3DPerspective camera = camera_at(0.0F);
 
@@ -85,13 +80,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * The fit does not depend on how far the camera is from what it looks at.
-     *
-     * A fit that ignored the frustum left near cascades in empty space for an orbiting camera, and shadows
-     * changed as it moved. Two cameras with the same shape and direction must produce the same cascade
-     * sizes at any distance.
-     */
+    /* The fit does not depend on how far the camera is from what it looks at. A fit that ignored the frustum left near cascades in empty space for an orbiting camera, and shadows changed as it moved. Two cameras with the same shape and direction must produce the same cascade sizes at any distance. */
     {
         for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
             NYA_Render3DShadow close = nya_render3d_shadow_for_camera(&window, camera_looking_at_origin(4.0F), SUN, cascade, unsnapped);
@@ -101,8 +90,7 @@ s32 main(void) {
                       "cascade " FMTu32 " must be the same size from four units away as from forty, got %f against %f", cascade,
                       (f64)close.extent, (f64)distant.extent);
 
-            // And it must sit the same distance down the view, so it covers the same slice of what the
-            // camera can see rather than the same patch of world.
+            // And it must sit the same distance down the view, so it covers the same slice of what the camera can see rather than the same patch of world.
             f32 close_distance = close.center.z - (-4.0F);
             f32 far_distance   = distant.center.z - (-40.0F);
 
@@ -111,13 +99,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * ── The near cascade covers what is near the camera, at any distance from the subject.
-     *
-     * The other half of the same claim, stated as coverage rather than as numbers: a point a few units
-     * in front of the camera is in cascade zero. Under the old fit, a camera forty units from its
-     * target had a cascade zero that contained nothing at all.
-     */
+    /* ── The near cascade covers what is near the camera, at any distance from the subject. The other half of the same claim, stated as coverage rather than as numbers: a point a few units in front of the camera is in cascade zero. Under the old fit, a camera forty units from its target had a cascade zero that contained nothing at all. */
     {
         f32 distances[] = { 4.0F, 20.0F, 40.0F };
 
@@ -134,12 +116,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * Between them the cascades reach the whole range, and stop after it.
-     *
-     * A point at the far end must land in some cascade or it draws unshadowed, and a point well past it in
-     * none.
-     */
+    /* Between them the cascades reach the whole range, and stop after it. A point at the far end must land in some cascade or it draws unshadowed, and a point well past it in none. */
     {
         NYA_Camera3DPerspective camera = camera_looking_at_origin(10.0F);
 
@@ -160,13 +137,7 @@ s32 main(void) {
         nya_check(!outside_covered, "and one eight times past it by none");
     }
 
-    /*
-     * Turning the camera does not resize a cascade.
-     *
-     * Why the fit uses the slice's bounding sphere, not its box: a box fitted to frustum corners changes
-     * size as the camera turns, so texels resize and the snap has no fixed grid, and edges crawl. A
-     * sphere is the same size in every direction.
-     */
+    /* Turning the camera does not resize a cascade. Why the fit uses the slice's bounding sphere, not its box: a box fitted to frustum corners changes size as the camera turns, so texels resize and the snap has no fixed grid, and edges crawl. A sphere is the same size in every direction. */
     {
         f32x3 targets[] = {
             { 0.0F, 0.0F, 1.0F }, { 1.0F, 0.0F, 0.0F }, { 0.0F, 1.0F, 0.3F }, { -0.7F, -0.2F, -0.7F },
@@ -189,11 +160,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * A wider frustum needs a bigger cascade.
-     *
-     * Without this, a fit returning a constant would pass every assertion above.
-     */
+    /* A wider frustum needs a bigger cascade. Without this, a fit returning a constant would pass every assertion above. */
     {
         NYA_Camera3DPerspective narrow = camera_at(0.0F);
         NYA_Camera3DPerspective wide   = camera_at(0.0F);
@@ -231,14 +198,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * ── The basis follows the light exactly, and a turning sun moves the map smoothly.
-     *
-     * The basis used to round elevation and azimuth to half-degree steps. That froze the map for most frames and
-     * then jumped it, which reads as the shadows lagging the sun. Both halves are asserted: the basis is the
-     * direction given, and no frame of a turning sun moves a rim caster's shadow much further than the average
-     * one does.
-     */
+    /* ── The basis follows the light exactly, and a turning sun moves the map smoothly. The basis used to round elevation and azimuth to half-degree steps. That froze the map for most frames and then jumped it, which reads as the shadows lagging the sun. Both halves are asserted: the basis is the direction given, and no frame of a turning sun moves a rim caster's shadow much further than the average one does. */
     {
         f32x3 forward, right, up;
 
@@ -290,19 +250,12 @@ s32 main(void) {
 
         f32 mean = total / (f32)(frames - 1);
 
-        // three, not one: the cascade centre still snaps to whole texels, which lands on one frame rather than
-        // spreading over several. Snapped in angle the same run was 7.6 times its mean.
+        // three, not one: the cascade centre still snaps to whole texels, which lands on one frame rather than spreading over several. Snapped in angle the same run was 7.6 times its mean.
         nya_check(worst < mean * 3.0F, "a turning sun should move the map evenly, worst %f texels against a mean of %f", (f64)worst,
                   (f64)mean);
     }
 
-    /*
-     * ── The eye the pass shades from is back along the light, never inside the volume.
-     *
-     * A directional light has no position, so one is invented. It has to be far enough back that the
-     * whole volume is in front of it, or geometry near the light-ward face is behind the near plane and
-     * casts nothing.
-     */
+    /* ── The eye the pass shades from is back along the light, never inside the volume. A directional light has no position, so one is invented. It has to be far enough back that the whole volume is in front of it, or geometry near the light-ward face is behind the near plane and casts nothing. */
     {
         f32 extent = 8.0F;
         f32 depth  = extent * 4.0F;
@@ -330,15 +283,7 @@ s32 main(void) {
                   "a light with no direction must not produce a NaN eye");
     }
 
-    /*
-     * The snap quantises the volume: many camera positions, few volume positions.
-     *
-     * Stated as quantisation because a small move can cross a grid boundary. A hundred camera positions
-     * spanning one texel produce a handful of volume positions, against a hundred unsnapped.
-     *
-     * At most three: the snap rounds along two lateral axes, and a camera moving along world x has a
-     * component on both, so it can cross one boundary on each.
-     */
+    /* The snap quantises the volume: many camera positions, few volume positions. Stated as quantisation because a small move can cross a grid boundary. A hundred camera positions spanning one texel produce a handful of volume positions, against a hundred unsnapped. At most three: the snap rounds along two lateral axes, and a camera moving along world x has a component on both, so it can cross one boundary on each. */
     {
         // One texel of the cascade being measured, whose size the fit is what decides.
         f32 extent = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0, unsnapped).extent;
@@ -371,18 +316,12 @@ s32 main(void) {
         nya_check(snapped_positions <= 3, "one texel of camera travel should give at most three volume positions, got " FMTu32,
                   snapped_positions);
 
-        // meaningful only if the unsnapped fit follows the camera continuously; otherwise a fit ignoring the
-        // camera would pass too.
+        // meaningful only if the unsnapped fit follows the camera continuously; otherwise a fit ignoring the camera would pass too.
         nya_check(raw_positions > SAMPLES / 2, "unsnapped, the volume should follow the camera continuously, got " FMTu32 " positions",
                   raw_positions);
     }
 
-    /*
-     * ── Every position the volume takes lies on the texel grid.
-     *
-     * Quantisation alone would be satisfied by a volume that never moves. Walking the camera across
-     * several texels checks the other half: it moves, and every place it stops is on the grid.
-     */
+    /* ── Every position the volume takes lies on the texel grid. Quantisation alone would be satisfied by a volume that never moves. Walking the camera across several texels checks the other half: it moves, and every place it stops is on the grid. */
     {
         f32 extent = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0, unsnapped).extent;
         f32 texel  = (extent * 2.0F) / (f32)NYA_RENDER3D_SHADOW_MAP_SIZE;
@@ -396,8 +335,7 @@ s32 main(void) {
         for (u32 step = 0; step < 64; step++) {
             NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, camera_at((f32)step * texel * 0.5F), SUN, 0, fit);
 
-            // On the grid means: the centre's coordinate along each of the light's lateral axes is a
-            // whole number of texels.
+            // On the grid means: the centre's coordinate along each of the light's lateral axes is a whole number of texels.
             f32 along_right = nya_vector_dot(shadow.center, right) / texel;
             f32 along_up    = nya_vector_dot(shadow.center, up) / texel;
 
@@ -486,8 +424,7 @@ s32 main(void) {
         nya_check(clamped.cascade == NYA_RENDER3D_SHADOW_CASCADES - 1, "a cascade past the last is clamped, got " FMTu32,
                   clamped.cascade);
 
-        // a range inside the near plane names no slice and is clamped: ramping shadow distance to nothing gives
-        // no shadows, not a crash.
+        // a range inside the near plane names no slice and is clamped: ramping shadow distance to nothing gives no shadows, not a crash.
         NYA_Render3DShadow tiny = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0,
                                                                  (NYA_Render3DShadowFit){ .range = 0.001F, .strength = 0.4F });
 

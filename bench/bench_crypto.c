@@ -34,10 +34,7 @@ s32 main(void) {
 
     // ── Argon2id: the login cost, reported per call ──
     {
-        /*
-         * A scratch arena the KDF allocates its 64 MiB work area from and frees back to; reused across
-         * rounds, since the free returns the block for the next call rather than growing the arena.
-         */
+        /* A scratch arena the KDF allocates its 64 MiB work area from and frees back to; reused across rounds, since the free returns the block for the next call rather than growing the arena. */
         NYA_Arena* kdf = nya_arena_create(.name = "bench_crypto_kdf");
         defer      nya_arena_destroy(kdf);
 

@@ -191,12 +191,10 @@ void gpu_scene_layer_on_create(NYA_Window* window) {
 
     GpuScene* state = gpu_scene();
 
-    // a bright dusk-blue behind everything, so the plaza reads against it before the sky pass paints over it, and
-    // so nothing renders as a black frame — the readability the other demos learned the hard way.
+    // a bright dusk-blue behind everything, so the plaza reads against it before the sky pass paints over it, and so nothing renders as a black frame — the readability the other demos learned the hard way.
     nya_render_clear_color_set(window, (NYA_Color){ 0.12F, 0.16F, 0.24F, 1.0F });
 
-    // the CPU column, from the world's arena so it shares the world's lifetime. Its on_update reads the force set,
-    // which is why every mote is carried by the composed vortex/drag/lift rather than by its own code.
+    // the CPU column, from the world's arena so it shares the world's lifetime. Its on_update reads the force set, which is why every mote is carried by the composed vortex/drag/lift rather than by its own code.
     state->forces = column_forces();
 
     state->column = nya_particles_create(nya_world()->allocator, COLUMN_POOL);
@@ -207,17 +205,14 @@ void gpu_scene_layer_on_create(NYA_Window* window) {
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = COLUMN_TEXTURE });
 
 #if !OS_WASM
-    // the GPU-compute field, built once (and again after a code reload, which destroyed it). Create checks the
-    // device for a compute stage itself and returns null when there is none, logging why; the scene carries on.
+    // the GPU-compute field, built once (and again after a code reload, which destroyed it). Create checks the device for a compute stage itself and returns null when there is none, logging why; the scene carries on.
     state->compute_field = nya_gpu_particle_field_create(window, COMPUTE_PARTICLES, COMPUTE_RESOLUTION);
 
     nya_log_info("gpu_scene: GPU compute particle field %s.",
                  state->compute_field != nullptr ? "created (device has a compute stage)"
                                                   : "unavailable (no compute on this device) — drawing without it");
 
-    // the raymarched volumetric, its parameters set through the window the way SSR's are, and on so the demo shows
-    // it; nya_settings_graphics_apply would gate it against the player's fog switch. Create degrades to null the
-    // same way the field does when the device has no compute.
+    // the raymarched volumetric, its parameters set through the window the way SSR's are, and on so the demo shows it; nya_settings_graphics_apply would gate it against the player's fog switch. Create degrades to null the same way the field does when the device has no compute.
     nya_volumetric_params_set(window, (NYA_VolumetricParams){
                                           .enabled         = true,
                                           .density         = 1.6F,
@@ -257,8 +252,7 @@ void gpu_scene_layer_on_destroy(NYA_Window* window) {
     nya_volumetric_params_set(window, (NYA_VolumetricParams){ 0 });
 #endif
 
-    // leave the frame count in the log so a headless run reports it verified something. The column lives on the
-    // world arena and goes with it.
+    // leave the frame count in the log so a headless run reports it verified something. The column lives on the world arena and goes with it.
     nya_log_info("gpu_scene: shutting down after %u frames, last %.1f fps.", state->frame_count, (f64)state->last_fps);
 }
 
@@ -279,23 +273,19 @@ void gpu_scene_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
     state->elapsed_s += delta_time_s;
 
-    // the force set's shared clock, once a frame, so its drag and turbulence read a consistent time; then the
-    // column, whose on_update samples the set per mote.
+    // the force set's shared clock, once a frame, so its drag and turbulence read a consistent time; then the column, whose on_update samples the set per mote.
     nya_forces_advance(&state->forces, delta_time_s);
     nya_particles_update(state->column, delta_time_s);
 
 #if !OS_WASM
-    // the GPU-compute field, once a tick, on its own command buffer (it opens no render pass). Ignored when null.
-    // The frame draws the texture it leaves behind; see gpu_scene_layer_on_render.
+    // the GPU-compute field, once a tick, on its own command buffer (it opens no render pass). Ignored when null. The frame draws the texture it leaves behind; see gpu_scene_layer_on_render.
     nya_gpu_particle_field_step(window, state->compute_field, delta_time_s);
 
-    // the volumetric's march, likewise on its own command buffer; on_render composites the volume it leaves behind.
-    // Ignored when null or switched off.
+    // the volumetric's march, likewise on its own command buffer; on_render composites the volume it leaves behind. Ignored when null or switched off.
     nya_gpu_volumetric_begin(window, state->volume, delta_time_s);
 #endif
 
-    // release motes near the base of the monolith on a timer, so the column's rate does not ride the frame rate.
-    // They are given a small outward-and-up kick; the force set does the rest, curling them into the spiral.
+    // release motes near the base of the monolith on a timer, so the column's rate does not ride the frame rate. They are given a small outward-and-up kick; the force set does the rest, curling them into the spiral.
     state->emit_timer_s += delta_time_s;
 
     while (state->emit_timer_s >= 0.03F) {
@@ -341,8 +331,7 @@ NYA_INTERNAL f32x3 pillar_position(u32 index) {
 NYA_INTERNAL void draw_scene(NYA_Window* window) {
     GpuScene* state = gpu_scene();
 
-    // a slow orbit at a modest height, so the polished floor is seen at a grazing angle where reflections read,
-    // and the ring, the column and the sun all pass through frame.
+    // a slow orbit at a modest height, so the polished floor is seen at a grazing angle where reflections read, and the ring, the column and the sun all pass through frame.
     f32   t      = state->elapsed_s * 0.12F;
     f32   radius = 24.0F;
     f32x3 eye    = { cosf(t) * radius, 9.0F + (sinf(t * 0.7F) * 2.0F), sinf(t) * radius };
@@ -355,8 +344,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
 
     f32x3 sun = sun_travel();
 
-    // a warm sun with a generous hemispheric ambient (sky on tops, bounce on undersides), so a surface turned
-    // from the sun is still lit rather than black — the flat look wants readable shade, not darkness.
+    // a warm sun with a generous hemispheric ambient (sky on tops, bounce on undersides), so a surface turned from the sun is still lit rather than black — the flat look wants readable shade, not darkness.
     nya_render3d_light_set(window, (NYA_Render3DLight){
                                        .direction = sun,
                                        .color     = { 1.0F, 0.94F, 0.82F, 1.0F },
@@ -376,14 +364,12 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
                                       .sun_intensity = 1.4F,
                                   });
 
-    // the polished floor: low roughness and a metallic highlight, so the SSR pass has a near-mirror to reflect the
-    // ring into. A cool mid grey-blue, bright enough to read as stone, not a black slab.
+    // the polished floor: low roughness and a metallic highlight, so the SSR pass has a near-mirror to reflect the ring into. A cool mid grey-blue, bright enough to read as stone, not a black slab.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.6F, .roughness = 0.12F, .reflectance = 0.2F });
     nya_render3d_plane(window, (f32x3){ 0.0F, 0.0F, 0.0F }, (f32x2){ FLOOR_HALF * 2.0F, FLOOR_HALF * 2.0F },
                        (NYA_Color){ 0.34F, 0.40F, 0.50F, 1.0F });
 
-    // the ring of reflective pillars: a metallic material with a rim so they catch the light and each other in the
-    // SSR pass, and cast into the shadow atlas onto the floor for the SSAO seam to deepen.
+    // the ring of reflective pillars: a metallic material with a rim so they catch the light and each other in the SSR pass, and cast into the shadow atlas onto the floor for the SSAO seam to deepen.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.8F, .roughness = 0.2F, .reflectance = 0.35F, .edge = 0.2F });
 
     static const NYA_Color pillar_palette[] = {
@@ -413,17 +399,14 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
 void gpu_scene_layer_on_render(NYA_Window* window) {
     GpuScene* state = gpu_scene();
 
-    // the two scene passes this example is about: a fresnel-weighted screen-space reflection over the whole scene,
-    // and the textbook hemisphere SSAO. Both read the chain's scene normal buffer, so the scene is drawn through
-    // the post chain below rather than straight to the window.
+    // the two scene passes this example is about: a fresnel-weighted screen-space reflection over the whole scene, and the textbook hemisphere SSAO. Both read the chain's scene normal buffer, so the scene is drawn through the post chain below rather than straight to the window.
     nya_post_ssr_set(window, (NYA_PostSsr){ .enabled = true, .strength = 0.7F, .max_distance = 24.0F });
     nya_post_ssao_set(window, (NYA_PostSsao){ .enabled = true, .strength = 0.6F, .radius = 0.8F });
 
     // the scene target keeps its depth, both for the 3D pass and for the reflections' march.
     state->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
 
-    // through the chain when a scene pass wants it (it does — SSR and SSAO are on); otherwise straight to the
-    // window. nya_post_begin can fail to build its targets, so the fallback still has to draw the scene.
+    // through the chain when a scene pass wants it (it does — SSR and SSAO are on); otherwise straight to the window. nya_post_begin can fail to build its targets, so the fallback still has to draw the scene.
     if (nya_post_enabled(window) && nya_post_begin(window, &state->post)) {
         draw_scene(window);
         nya_post_end(window, &state->post, nullptr, 0);
@@ -450,8 +433,7 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
     }
 
 #if !OS_WASM
-    // the volumetric fog, composited full-frame over the flushed scene before the HUD, so the text stays readable
-    // above it. The march that filled this image ran in on_update; here it is only sampled. Ignored when null or off.
+    // the volumetric fog, composited full-frame over the flushed scene before the HUD, so the text stays readable above it. The march that filled this image ran in on_update; here it is only sampled. Ignored when null or off.
     {
         u32 fog_width = 0, fog_height = 0;
         nya_render2d_target_size(window, &fog_width, &fog_height);
@@ -470,9 +452,7 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
                                  "CPU column %u motes (vortex + drag + lift)", nya_particles_count(state->column));
 
 #if !OS_WASM
-    // the GPU-compute field, drawn in the bottom-right corner over the flushed scene. The compute passes that
-    // filled this texture ran in on_update on a command buffer of their own; here it is only sampled. Ignored
-    // when the device had no compute.
+    // the GPU-compute field, drawn in the bottom-right corner over the flushed scene. The compute passes that filled this texture ran in on_update on a command buffer of their own; here it is only sampled. Ignored when the device had no compute.
     if (state->compute_field != nullptr) {
         u32 target_width = 0, target_height = 0;
         nya_render2d_target_size(window, &target_width, &target_height);

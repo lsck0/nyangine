@@ -180,15 +180,7 @@ NYA_INTERNAL void graph_reset(Graph* graph) {
     graph->edge_count = 5;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE MODEL EDITS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * The two operations the editor's gestures drive. An input port takes one wire, so connecting to one that
- * is already wired replaces its edge rather than doubling it — the same rule the node widget assumes when
- * it lets a wired input be grabbed loose.
- */
+/* THE MODEL EDITS The two operations the editor's gestures drive. An input port takes one wire, so connecting to one that is already wired replaces its edge rather than doubling it — the same rule the node widget assumes when it lets a wired input be grabbed loose. */
 
 /** Drops any edge landing on `to_node`'s input `to_port`. Returns whether one was removed. */
 NYA_INTERNAL b8 graph_detach(Graph* graph, u64 to_node, u32 to_port) {
@@ -210,8 +202,7 @@ NYA_INTERNAL b8 graph_detach(Graph* graph, u64 to_node, u32 to_port) {
 NYA_INTERNAL void graph_connect(Graph* graph, NYA_UINodeLink link) {
     nya_assert(graph != nullptr);
 
-    // a self link is the one gesture the editor cannot rule out, since a node's own output and input are
-    // both on it; the model does, so a stray drag onto the same node changes nothing.
+    // a self link is the one gesture the editor cannot rule out, since a node's own output and input are both on it; the model does, so a stray drag onto the same node changes nothing.
     if (link.from_node == link.to_node) return;
 
     (void)graph_detach(graph, link.to_node, link.to_port);
@@ -273,8 +264,7 @@ NYA_INTERNAL void canvas_panel(NYA_UI* ui, NodeGraph* state) {
         nya_ui_node_editor_end(ui, &state->editor);
     }
 
-    // the gestures the pass reported, read right after the end. On the draw pass both are false — no input is
-    // read there — so the model is edited once, on the input pass, exactly as a button is.
+    // the gestures the pass reported, read right after the end. On the draw pass both are false — no input is read there — so the model is edited once, on the input pass, exactly as a button is.
     if (state->editor.connected)    graph_connect(graph, state->editor.link);
     if (state->editor.disconnected) (void)graph_detach(graph, state->editor.detach_node, state->editor.detach_port);
 
@@ -306,8 +296,7 @@ NYA_INTERNAL void side_panel(NYA_UI* ui, NodeGraph* state) {
             nya_ui_panel_end(ui);
         }
 
-        // how much of the graph is wired: filled input ports over all of them. Climbs and falls as ports are
-        // wired and cut, so the bar is a live read of the model the canvas edits.
+        // how much of the graph is wired: filled input ports over all of them. Climbs and falls as ports are wired and cut, so the bar is a live read of the model the canvas edits.
         u32 inputs = graph_input_ports(graph);
         f32 wired  = inputs > 0 ? (f32)graph->edge_count / (f32)inputs : 0.0F;
 

@@ -145,12 +145,7 @@ s32 main(void) {
         nya_fluid_destroy(fluid);
     }
 
-    /*
-     * What the pressure iteration count buys. The residual is the divergence the projection failed to
-     * remove, as a share of the fastest thing in the field, which is what decides whether the smoke
-     * swirls or piles up against nothing. This is the measurement NYA_FLUID_PRESSURE_ITERATIONS is
-     * chosen from, so it lives beside the step cost rather than in a comment nobody can re-run.
-     */
+    /* What the pressure iteration count buys. The residual is the divergence the projection failed to remove, as a share of the fastest thing in the field, which is what decides whether the smoke swirls or piles up against nothing. This is the measurement NYA_FLUID_PRESSURE_ITERATIONS is chosen from, so it lives beside the step cost rather than in a comment nobody can re-run. */
     {
         const u32 sweeps[] = { 4, 8, 20, 40, 80 };
 
@@ -160,8 +155,7 @@ s32 main(void) {
         nya_bench_begin("fluid step, 3D 32x48x32, by pressure sweep count");
 
         for (u32 s = 0; s < nya_carray_length(sweeps); s++) {
-            // confinement off here on purpose: its force is a cell-scale field whose divergence the
-            // projection cannot see (see render_fluid.h), and leaving it on hides what the sweeps do.
+            // confinement off here on purpose: its force is a cell-scale field whose divergence the projection cannot see (see render_fluid.h), and leaving it on hides what the sweeps do.
             NYA_Fluid* fluid = nya_fluid_create(arena, (NYA_FluidOptions){
                                                            .space               = NYA_FLUID_SPACE_3D,
                                                            .width               = 32,

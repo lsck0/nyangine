@@ -179,8 +179,7 @@ b8 _nya_cheatsheet_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entr
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
     if (!nya_string_ends_with(entry->name, ".h")) return true;
 
-    // The module aggregate headers (base.h, core.h, ...) are include lists and declare nothing, and
-    // render_internal.h is the renderer's private surface despite living beside the public ones.
+    // The module aggregate headers (base.h, core.h, ...) are include lists and declare nothing, and render_internal.h is the renderer's private surface despite living beside the public ones.
     if (nya_string_ends_with(entry->name, "render_internal.h")) return true;
 
     NYA_String* full = nya_string_from(headers->arena, path);
@@ -377,8 +376,7 @@ void _nya_cheatsheet_set_summary(_NYA_CheatFile* file, NYA_ConstCString prose) {
 
     file->summary[0] = '\0';
 
-    // A sentence ends at ". ", or at the end of the comment. Anything with a fence, a tag or a
-    // newline in it is a paragraph, not a one-liner, and is left to the header.
+    // A sentence ends at ". ", or at the end of the comment. Anything with a fence, a tag or a newline in it is a paragraph, not a one-liner, and is left to the header.
     u64 length = 0;
     while (prose[length] != '\0') {
         if (prose[length] == '.' && (prose[length + 1] == '\0' || prose[length + 1] == ' ')) {
@@ -394,15 +392,13 @@ void _nya_cheatsheet_set_summary(_NYA_CheatFile* file, NYA_ConstCString prose) {
     nya_memcpy(file->summary, prose, length);
     file->summary[length] = '\0';
 
-    // A one word comment is the declaration's own name written twice; several headers open a struct
-    // with its own name as the doc comment. Restating the name beside the name teaches nobody.
+    // A one word comment is the declaration's own name written twice; several headers open a struct with its own name as the doc comment. Restating the name beside the name teaches nobody.
     if (strchr(file->summary, ' ') == nullptr) {
         file->summary[0] = '\0';
         return;
     }
 
-    // markdown lives inside a code fence here, so a stray backtick pair is harmless, but a line
-    // break would end the entry. There are none after the collapse; assert rather than assume.
+    // markdown lives inside a code fence here, so a stray backtick pair is harmless, but a line break would end the entry. There are none after the collapse; assert rather than assume.
     nya_assert(strchr(file->summary, '\n') == nullptr, "a summary must be one line");
 }
 
@@ -416,10 +412,7 @@ void _nya_cheatsheet_read_comment(_NYA_CheatReader* reader, _NYA_CheatFile* file
     char prose[NYA_CHEATSHEET_MAX_ENTRY];
     prose[0] = '\0';
 
-    // The terminator is looked for two characters in, not three. A comment written as slash star
-    // star slash is closed and empty, but its terminator overlaps the three characters the doc test
-    // just matched: searching past them finds none and swallows the rest of the file. nyangine.h
-    // has one, used as a separator between include groups.
+    // The terminator is looked for two characters in, not three. A comment written as slash star star slash is closed and empty, but its terminator overlaps the three characters the doc test just matched: searching past them finds none and swallows the rest of the file. nyangine.h has one, used as a separator between include groups.
     const char* opening     = line + (is_doc ? 3 : 2);
     const char* terminating = strstr(line + 2, "*/");
 
@@ -470,9 +463,7 @@ void _nya_cheatsheet_read_declaration(_NYA_CheatReader* reader, NYA_ConstCString
     char buffer[NYA_CHEATSHEET_MAX_LINE];
     b8   in_comment = false;
 
-    // Comments come out line by line rather than off the finished entry: a struct's fields carry doc
-    // comments between them, and cutting the joined text at the first one would take the rest of the
-    // struct with it.
+    // Comments come out line by line rather than off the finished entry: a struct's fields carry doc comments between them, and cutting the joined text at the first one would take the rest of the struct with it.
     (void)snprintf(buffer, sizeof(buffer), "%s", line);
     _nya_cheatsheet_uncomment(buffer, &in_comment);
 
@@ -530,8 +521,7 @@ void _nya_cheatsheet_file_blurb(NYA_ConstCString text, u64 length, OUT char* out
         u64 prose_length = strlen(prose);
         if (prose_length + 1 >= capacity) return;
 
-        // A line introducing something rather than saying anything: most headers open their block
-        // with "Example:" and then a fence. The fence is caught above, the label would not be.
+        // A line introducing something rather than saying anything: most headers open their block with "Example:" and then a fence. The fence is caught above, the label would not be.
         if (prose[prose_length - 1] == ':') return;
 
         (void)snprintf(out, capacity, "%s", prose);
@@ -602,8 +592,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
                 }
                 (void)snprintf(entry, sizeof(entry), "%s%.*s", name, (s32)span, at);
             } else {
-                // an object macro carries its value only when the value is a short literal on this
-                // line. A multi-line body is a code block, and pasting it here would be noise.
+                // an object macro carries its value only when the value is a short literal on this line. A multi-line body is a code block, and pasting it here would be noise.
                 char value[NYA_CHEATSHEET_MAX_LINE];
                 (void)snprintf(value, sizeof(value), "%s", at);
 
@@ -624,8 +613,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
             if (emit) _nya_cheatsheet_emit(file.macros, entry, file.summary);
             file.summary[0] = '\0';
 
-            // a macro body continues while the line ends in a backslash, and none of it is a
-            // declaration. Without this the scanner reads a macro's guts as code.
+            // a macro body continues while the line ends in a backslash, and none of it is a declaration. Without this the scanner reads a macro's guts as code.
             char continuation[NYA_CHEATSHEET_MAX_LINE];
             (void)snprintf(continuation, sizeof(continuation), "%s", line);
             while (strlen(continuation) > 0 && continuation[strlen(continuation) - 1] == '\\') {
@@ -651,8 +639,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
         if (is_aggregate || strncmp(line, "typedef ", 8) == 0) {
             _nya_cheatsheet_read_declaration(&reader, line, entry, sizeof(entry));
 
-            // `typedef struct NYA_Arena NYA_Arena;` names a type the header defines further down.
-            // Listing both would say the same thing twice, so the forward declaration is dropped.
+            // `typedef struct NYA_Arena NYA_Arena;` names a type the header defines further down. Listing both would say the same thing twice, so the forward declaration is dropped.
             b8 is_forward = strchr(entry, '{') == nullptr && strncmp(entry, "typedef ", 8) == 0 &&
                             (strncmp(entry + 8, "struct ", 7) == 0 || strncmp(entry + 8, "enum ", 5) == 0 || strncmp(entry + 8, "union ", 6) == 0);
 
@@ -661,8 +648,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
             continue;
         }
 
-        // anything else is a private declaration, an include or a banner, and carries no summary
-        // forward into whatever comes next.
+        // anything else is a private declaration, an include or a banner, and carries no summary forward into whatever comes next.
         file.summary[0] = '\0';
     }
 

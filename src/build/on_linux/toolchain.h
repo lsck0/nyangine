@@ -15,10 +15,7 @@
 
 #define FLAGS_TARGET_WINDOWS_X86_64 "--target=x86_64-w64-mingw32", NYA_MINGW_INTRINSICS,
 
-/*
- * There is no FLAGS_TARGET_LINUX_X86_64: Linux is only built natively, and the Windows host does not
- * target it (see build.h).
- */
+/* There is no FLAGS_TARGET_LINUX_X86_64: Linux is only built natively, and the Windows host does not target it (see build.h). */
 
 /** The only resource compiler that exists on a Linux host. */
 #define WINDRES "x86_64-w64-mingw32-windres"

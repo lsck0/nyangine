@@ -56,15 +56,11 @@ s32 main(void) {
       NYA_EXPECT(nya_sql_exec_bound(source, "INSERT INTO runs (score) VALUES (?)", row, 1));
     }
 
-    // The source connection is open and has just written; the backup runs against it as it stands,
-    // never closing or copying the file out from under it.
+    // The source connection is open and has just written; the backup runs against it as it stands, never closing or copying the file out from under it.
     NYA_EXPECT(nya_sql_backup(source, dest_path));
     nya_assert(nya_filesystem_exists(dest_path), "the backup file was written");
 
-    // And the source is fully writable immediately after: the backup did not leave it locked. These
-    // rows land after the snapshot, so they must not appear in it — that is what "point in time"
-    // means. (One thread, so the write is after rather than during; the API's guarantee that a write
-    // mid-copy is recopied is what makes the same true under a live server, which Phase 3 threads.)
+    // And the source is fully writable immediately after: the backup did not leave it locked. These rows land after the snapshot, so they must not appear in it — that is what "point in time" means. (One thread, so the write is after rather than during; the API's guarantee that a write mid-copy is recopied is what makes the same true under a live server, which Phase 3 threads.)
     for (s64 i = 101; i <= 200; i++) {
       NYA_SqlValue row[] = { nya_sql_s64(i * 10) };
       NYA_EXPECT(nya_sql_exec_bound(source, "INSERT INTO runs (score) VALUES (?)", row, 1));
@@ -155,13 +151,11 @@ s32 main(void) {
       NYA_EXPECT(nya_sql_exec_bound(source, "INSERT INTO t (v) VALUES (?)", row, 1));
     }
 
-    // Backed up with no manual checkpoint first: the online backup reads through the WAL, so the
-    // frames sitting in it are captured all the same.
+    // Backed up with no manual checkpoint first: the online backup reads through the WAL, so the frames sitting in it are captured all the same.
     NYA_EXPECT(nya_sql_backup(source, dest_path));
     nya_assert(count_rows(arena, dest_path, "t") == 50, "a WAL-mode backup captures frames still in the log");
 
-    // The checkpoint runs and the data survives it. TRUNCATE folds every committed frame into the
-    // database file and empties the WAL.
+    // The checkpoint runs and the data survives it. TRUNCATE folds every committed frame into the database file and empties the WAL.
     NYA_EXPECT(nya_sql_checkpoint(source, NYA_SQL_CHECKPOINT_TRUNCATE));
     NYA_SqlResult after = { 0 };
     NYA_EXPECT(nya_sql_query(source, arena, "SELECT COUNT(*) AS n FROM t", nullptr, 0, &after));
@@ -203,12 +197,7 @@ s32 main(void) {
 
   // TEST: the encrypted-source path is handled, not silently defeated
   {
-    // This build vendors plain SQLite, so nya_sql_encryption_available() is false and no source can
-    // be opened under a key (nya_sql_open refuses it). The keyed backup round-trip is therefore not
-    // exercisable here; what is asserted is the seam that keeps it honest when SQLCipher lands:
-    //   - a backup key this build cannot honour is refused, not taken and ignored;
-    //   - and no destination file is left behind by the refusal.
-    // See db.h's encryption note and nya_sql_backup_with_options.
+    // This build vendors plain SQLite, so nya_sql_encryption_available() is false and no source can be opened under a key (nya_sql_open refuses it). The keyed backup round-trip is therefore not exercisable here; what is asserted is the seam that keeps it honest when SQLCipher lands: - a backup key this build cannot honour is refused, not taken and ignored; - and no destination file is left behind by the refusal. See db.h's encryption note and nya_sql_backup_with_options.
     NYA_ConstCString source_path = "./_test_backup_key_src.db";
     NYA_ConstCString dest_path   = "./_test_backup_key_dst.db";
     remove_database(source_path);

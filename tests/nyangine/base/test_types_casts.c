@@ -36,12 +36,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: negatives are rejected by the unsigned casts
-  //
-  // The check is `val >= MIN && val <= MAX`. When MIN and MAX are unsigned and val is signed, the
-  // usual arithmetic conversions turn a negative val into a very large unsigned one before either
-  // comparison happens. For the narrow types the upper bound still catches it. For u64 there is no
-  // value large enough to exceed U64_MAX, so both halves are satisfied and -1 casts silently.
+  // TEST: negatives are rejected by the unsigned casts The check is `val >= MIN && val <= MAX`. When MIN and MAX are unsigned and val is signed, the usual arithmetic conversions turn a negative val into a very large unsigned one before either comparison happens. For the narrow types the upper bound still catches it. For u64 there is no value large enough to exceed U64_MAX, so both halves are satisfied and -1 casts silently.
   printf("TEST: negative is caught\n");
   {
     s32 negative = -1;
@@ -53,11 +48,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: the argument is evaluated exactly once
-  //
-  // These are statement-expression macros that name `val` more than once. If it is not bound to a
-  // temporary first, an argument with a side effect happens as many times as it is written, which
-  // is the classic macro trap and silently corrupts a counter at the call site.
+  // TEST: the argument is evaluated exactly once These are statement-expression macros that name `val` more than once. If it is not bound to a temporary first, an argument with a side effect happens as many times as it is written, which is the classic macro trap and silently corrupts a counter at the call site.
   printf("TEST: single evaluation\n");
   {
     s32 counter = 0;

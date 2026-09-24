@@ -17,16 +17,14 @@ static void fuzz_once(const u8* data, u64 size) {
     if (size > 0) nya_memcpy(text, data, size);
     text[size] = '\0';
 
-    // the real length, which stops at the first embedded zero. Every span below is checked against
-    // this rather than against the input size, or a NUL in the middle reads as a short token.
+    // the real length, which stops at the first embedded zero. Every span below is checked against this rather than against the input size, or a NUL in the middle reads as a short token.
     u64 length = strlen(text);
 
     NYA_Lexer lexer = nya_lexer_create(text, NYA_LEXER_UTF8_IDENTS);
     nya_lexer_run(&lexer);
     defer nya_lexer_destroy(&lexer);
 
-    // every token has to name a span inside the source it came from. A token reaching past it is how
-    // a scan starts reading somebody else's memory.
+    // every token has to name a span inside the source it came from. A token reaching past it is how a scan starts reading somebody else's memory.
     nya_array_foreach (lexer.tokens, token) {
         nya_assert(token->source_location <= length, "a token starts past the end of its source");
         nya_assert(token->source_location + token->length <= length + 1, "a token reaches past the end of its source");

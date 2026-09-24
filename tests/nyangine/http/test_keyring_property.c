@@ -31,8 +31,7 @@ static void draw_ring(NYA_Property* property, OUT NYA_HttpKeyring* ring, u32 cou
     for (u32 index = 0; index < count; index++) {
         nya_property_draw_bytes(property, ring->keys[index].material, NYA_HTTP_KEYRING_KEY_BYTES);
 
-        // Newest first: index 0 is the youngest. The exact dates only have to keep every key valid; the
-        // laws that care about expiry set the dates they need themselves.
+        // Newest first: index 0 is the youngest. The exact dates only have to keep every key valid; the laws that care about expiry set the dates they need themselves.
         ring->keys[index].created_at_s = now_s - (u64)index * NYA_HTTP_KEYRING_ROTATE_S;
         ring->keys[index].expires_at_s = now_s + NYA_HTTP_KEYRING_VERIFY_TAIL_S;
     }
@@ -55,8 +54,7 @@ static b8 law_opens_until_its_key_is_gone(NYA_Property* property) {
     NYA_HttpKeyring ring = { 0 };
     draw_ring(property, &ring, count, now_s);
 
-    // Seal under the key at a drawn index, using that key's own material directly. The token's ttl is far
-    // in the future, so it never expires on its own during the test.
+    // Seal under the key at a drawn index, using that key's own material directly. The token's ttl is far in the future, so it never expires on its own during the test.
     u32 sealer = (u32)nya_property_draw_below(property, count);
 
     u64  who                            = 0xC0FFEEULL + sealer;
@@ -105,8 +103,7 @@ static b8 law_prune_keeps_exactly_the_live(NYA_Property* property) {
     NYA_HttpKeyring ring = { 0 };
     draw_ring(property, &ring, count, now_s);
 
-    // Decide per key whether it has expired, and remember the material of the ones that should survive,
-    // in order, so the order can be checked after.
+    // Decide per key whether it has expired, and remember the material of the ones that should survive, in order, so the order can be checked after.
     u8  expected[NYA_HTTP_KEYRING_MAX_KEYS][NYA_HTTP_KEYRING_KEY_BYTES] = { 0 };
     u32 expected_count                                                 = 0;
 
@@ -153,8 +150,7 @@ static b8 law_prune_keeps_exactly_the_live(NYA_Property* property) {
  * never growing the ring past its bound.
  * */
 static b8 law_rotate_is_idempotent_then_due(NYA_Property* property) {
-    // A ring the law owns; rotate reads the real clock and real randomness, which changes the key bytes
-    // but never whether these counts hold.
+    // A ring the law owns; rotate reads the real clock and real randomness, which changes the key bytes but never whether these counts hold.
     NYA_HttpKeyring ring = { 0 };
 
     if (!nya_http_keyring_rotate(&ring)) {
@@ -168,8 +164,7 @@ static b8 law_rotate_is_idempotent_then_due(NYA_Property* property) {
         return false;
     }
 
-    // Idempotent inside the window: nothing is due, so a second call changes nothing. Drawn repeats, so
-    // the property is that it holds however many times it is asked.
+    // Idempotent inside the window: nothing is due, so a second call changes nothing. Drawn repeats, so the property is that it holds however many times it is asked.
     u32 repeats = 1 + (u32)nya_property_draw_below(property, 5);
     for (u32 index = 0; index < repeats; index++) {
         if (nya_http_keyring_rotate(&ring)) {
@@ -182,8 +177,7 @@ static b8 law_rotate_is_idempotent_then_due(NYA_Property* property) {
         return false;
     }
 
-    // Now force a run of due rotations by aging the newest key before each, and check the ring fills to
-    // its bound and never past it.
+    // Now force a run of due rotations by aging the newest key before each, and check the ring fills to its bound and never past it.
     u32 rolls = 1 + (u32)nya_property_draw_below(property, NYA_HTTP_KEYRING_MAX_KEYS + 4);
     for (u32 index = 0; index < rolls; index++) {
         u32 before = nya_http_keyring_count(&ring);

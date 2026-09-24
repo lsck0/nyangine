@@ -107,8 +107,7 @@ void sbom_runner(NYA_ArgCommand* command) {
     NYA_String* cdx = _sbom_render_cyclonedx(arena, deps, count);
     NYA_EXPECT(nya_file_write(SBOM_CDX_FILE, cdx), "while writing " SBOM_CDX_FILE);
 
-    // The human-readable summary: the same rows as a table, written beside the JSON and printed here so a
-    // reviewer sees the licence set without opening a file.
+    // The human-readable summary: the same rows as a table, written beside the JSON and printed here so a reviewer sees the licence set without opening a file.
     NYA_String* summary = nya_string_create(arena);
     nya_string_extend(summary, "Software bill of materials for the vendored dependencies.\n\n");
     nya_string_extend_sprintf(summary, "%-18s %-14s %-34s %s\n", "DEPENDENCY", "COMMIT", "LICENCE", "SOURCE");
@@ -150,8 +149,7 @@ u32 _sbom_read_submodules(NYA_Arena* arena, SbomDependency* deps) {
     NYA_String* contents = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(SBOM_GITMODULES_FILE, contents), "while reading " SBOM_GITMODULES_FILE);
 
-    // One record per `[submodule "..."]` stanza. The first split element is whatever precedes the first
-    // header, which no stanza, so it is skipped by the missing path/url check below.
+    // One record per `[submodule "..."]` stanza. The first split element is whatever precedes the first header, which no stanza, so it is skipped by the missing path/url check below.
     NYA_ArrayᐸNYA_Stringᐳ* blocks = nya_string_split(arena, contents, "[submodule ");
 
     u32 count = 0;
@@ -191,8 +189,7 @@ u32 _sbom_read_submodules(NYA_Arena* arena, SbomDependency* deps) {
 NYA_ConstCString _sbom_pinned_commit(NYA_Arena* arena, NYA_ConstCString path) {
     nya_assert(path != nullptr);
 
-    // The committed tree, not the working copy: `git ls-tree HEAD <path>` prints "<mode> commit <sha>\t<path>"
-    // for a submodule gitlink, so the pinned commit is read even when the submodule is not checked out.
+    // The committed tree, not the working copy: `git ls-tree HEAD <path>` prints "<mode> commit <sha>\t<path>" for a submodule gitlink, so the pinned commit is read even when the submodule is not checked out.
     NYA_String* line = build_capture(arena, "git", (const NYA_ConstCString[]){ "ls-tree", "HEAD", path, nullptr });
 
     NYA_ArrayᐸNYA_Stringᐳ* words = nya_string_split_words(arena, line);
@@ -232,8 +229,7 @@ NYA_ConstCString _sbom_detect_licence(NYA_Arena* arena, NYA_ConstCString path, N
     nya_assert(path != nullptr);
     nya_assert(out_file != nullptr);
 
-    // Dual Apache/MIT as two files side by side (sqlite-vec): recognised before reading, since neither
-    // file alone spells the choice. This is the Rust-crate convention.
+    // Dual Apache/MIT as two files side by side (sqlite-vec): recognised before reading, since neither file alone spells the choice. This is the Rust-crate convention.
     NYA_String* scratch = nya_string_create(arena);
     if (_sbom_read_licence_file(arena, path, "LICENSE-APACHE", scratch)
         && _sbom_read_licence_file(arena, path, "LICENSE-MIT", nya_string_create(arena))) {
@@ -241,8 +237,7 @@ NYA_ConstCString _sbom_detect_licence(NYA_Arena* arena, NYA_ConstCString path, N
         return "Apache-2.0 OR MIT";
     }
 
-    // The file the licence text lives in, by the names upstreams actually use. Readme.txt last, for the
-    // Steamworks SDK, which ships no LICENSE file at all.
+    // The file the licence text lives in, by the names upstreams actually use. Readme.txt last, for the Steamworks SDK, which ships no LICENSE file at all.
     static const NYA_ConstCString candidates[] = {
         "LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "LICENCE.md",
         "COPYING", "COPYING.txt", "COPYRIGHT", "Readme.txt", nullptr,
@@ -263,9 +258,7 @@ NYA_ConstCString _sbom_detect_licence(NYA_Arena* arena, NYA_ConstCString path, N
     }
     *out_file = file;
 
-    // Matched most-specific first: the dual-licence pointer files and the named licences that a generic
-    // family test would otherwise swallow, then the families themselves. lz4's file names GPL-2.0 as one
-    // side of a dual licence; catching its dual marker here keeps the generic GPL test from flagging it.
+    // Matched most-specific first: the dual-licence pointer files and the named licences that a generic family test would otherwise swallow, then the families themselves. lz4's file names GPL-2.0 as one side of a dual licence; catching its dual marker here keeps the generic GPL test from flagging it.
     if (nya_string_contains(text, "BSD 2-Clause") && nya_string_contains(text, "GPL-2.0")) return "BSD-2-Clause OR GPL-2.0-or-later";
     if (nya_string_contains(text, "2-clause BSD") && (nya_string_contains(text, "CC-0") || nya_string_contains(text, "CC0"))) {
         return "BSD-2-Clause OR CC0-1.0";
@@ -278,8 +271,7 @@ NYA_ConstCString _sbom_detect_licence(NYA_Arena* arena, NYA_ConstCString path, N
 
     if (nya_string_contains(text, "Apache License") && nya_string_contains(text, "Version 2.0")) return "Apache-2.0";
 
-    // The zlib licence: SDL and its satellites. Its two unmistakable sentences, so plain BSD or MIT text
-    // is not mistaken for it.
+    // The zlib licence: SDL and its satellites. Its two unmistakable sentences, so plain BSD or MIT text is not mistaken for it.
     if (nya_string_contains(text, "This software is provided 'as-is'")
         && nya_string_contains(text, "Permission is granted to anyone to use this software for any purpose")) {
         return "Zlib";
@@ -292,8 +284,7 @@ NYA_ConstCString _sbom_detect_licence(NYA_Arena* arena, NYA_ConstCString path, N
 
     if (nya_string_contains(text, "Permission is hereby granted, free of charge")) return "MIT";
 
-    // Copyleft, deliberately after the dual-licence pointers above: a bare GPL file is not on the
-    // allowlist and fails the gate, which is the case this whole command exists to catch.
+    // Copyleft, deliberately after the dual-licence pointers above: a bare GPL file is not on the allowlist and fails the gate, which is the case this whole command exists to catch.
     if (nya_string_contains(text, "GNU GENERAL PUBLIC LICENSE")) return "GPL-2.0-or-later";
     if (nya_string_contains(text, "This is free and unencumbered software released into the public domain")) return "Unlicense";
 
@@ -354,8 +345,7 @@ NYA_INTERNAL void _sbom_render_licences(NYA_String* out, NYA_ConstCString licenc
 NYA_String* _sbom_render_cyclonedx(NYA_Arena* arena, const SbomDependency* deps, u32 count) {
     nya_assert(deps != nullptr);
 
-    // A real timestamp, from date rather than an engine time API, since this is a build tool and date is
-    // already how the packaging scripts stamp things.
+    // A real timestamp, from date rather than an engine time API, since this is a build tool and date is already how the packaging scripts stamp things.
     NYA_String* timestamp = build_capture(arena, "date", (const NYA_ConstCString[]){ "-u", "+%Y-%m-%dT%H:%M:%SZ", nullptr });
     nya_string_trim_whitespace(timestamp);
 
@@ -417,8 +407,7 @@ void _sbom_cve_scan(NYA_Arena* arena) {
         return;
     }
 
-    // Present but off by default: the scan reaches the OSV database over the network, so a developer's
-    // build does not phone home unasked. CI sets NYA_SBOM_CVE_SCAN=1 to turn it on.
+    // Present but off by default: the scan reaches the OSV database over the network, so a developer's build does not phone home unasked. CI sets NYA_SBOM_CVE_SCAN=1 to turn it on.
     NYA_ConstCString opt_in = getenv(SBOM_CVE_SCAN_ENV);
     if (opt_in == nullptr || opt_in[0] == '\0') {
         nya_log_info("'%s' is installed but the CVE scan is off (it reaches the network). Enable it with", SBOM_OSV_SCANNER_PROGRAM);
@@ -436,8 +425,7 @@ void _sbom_cve_scan(NYA_Arena* arena) {
 
     NYA_Error ran = nya_command_run(&scan);
     if (!ran.ok) {
-        // Could not reach the database (offline, rate limited): a skip with a notice, not a spurious
-        // build failure. A real finding is a non-zero exit from a scanner that did run, handled below.
+        // Could not reach the database (offline, rate limited): a skip with a notice, not a spurious build failure. A real finding is a non-zero exit from a scanner that did run, handled below.
         nya_log_warn("CVE scan could not run to completion (%s); skipping rather than failing the build.", ran.message);
         return;
     }

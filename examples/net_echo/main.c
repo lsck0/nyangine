@@ -35,8 +35,7 @@
  * replicating a world uses `nya_net_server_start` and `nya_net_client_connect` instead — see
  * `examples/pong_multiplayer`, which is that layer.
  * */
-// nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls
-// in libc, and a system header included ahead of it has already fixed them at another value.
+// nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls in libc, and a system header included ahead of it has already fixed them at another value.
 #include "nyangine/nyangine.h"
 
 #include "SDL3/SDL_init.h"
@@ -77,8 +76,7 @@ NYA_INTERNAL void message_copy(const NYA_NetTransportEvent* event, OUT char* out
     nya_assert(out != nullptr);
     nya_assert(capacity > 1);
 
-    // A peer's message is untrusted input: its length is whatever the wire said, so it is clamped
-    // rather than trusted, and terminated here because nothing on the wire has to be.
+    // A peer's message is untrusted input: its length is whatever the wire said, so it is clamped rather than trusted, and terminated here because nothing on the wire has to be.
     u64 length = nya_min(event->size, capacity - 1);
 
     nya_memcpy(out, event->data, length);
@@ -127,9 +125,7 @@ NYA_INTERNAL void endpoint_pump(NYA_NetTransport* transport, Endpoint* endpoint,
                 if (is_server) {
                     (void)snprintf(reply, sizeof(reply), "pong %u", endpoint->received);
                 } else {
-                    // ROUNDS replies is the whole conversation. Leaving is main's job: dropping the
-                    // peer here would release the slot the stats below are read from, and the
-                    // report would be all zeroes.
+                    // ROUNDS replies is the whole conversation. Leaving is main's job: dropping the peer here would release the slot the stats below are read from, and the report would be all zeroes.
                     if (endpoint->received >= ROUNDS) {
                         endpoint->finished = true;
                         break;
@@ -159,8 +155,7 @@ NYA_INTERNAL void endpoint_report(NYA_NetTransport* transport, const Endpoint* e
     nya_assert(transport != nullptr);
     nya_assert(endpoint != nullptr);
 
-    // A peer that has already left takes its counters with it: the slot is recycled, and the stats
-    // for a stale id come back zeroed rather than remembered. Say so instead of printing zeroes.
+    // A peer that has already left takes its counters with it: the slot is recycled, and the stats for a stale id come back zeroed rather than remembered. Say so instead of printing zeroes.
     if (!endpoint->connected) {
         nya_log_info("%s: %u messages; the peer left, so its counters are gone.", endpoint->label, endpoint->received);
         return;
@@ -177,8 +172,7 @@ NYA_INTERNAL void endpoint_report(NYA_NetTransport* transport, const Endpoint* e
 s32 main(s32 argc, NYA_CString* argv) {
     nya_backtrace_init();
 
-    // SDL_net sits on SDL, and nya_net_transport_udp_create calls NET_Init itself. Zero subsystems:
-    // this program wants no video, no audio and no gamepads.
+    // SDL_net sits on SDL, and nya_net_transport_udp_create calls NET_Init itself. Zero subsystems: this program wants no video, no audio and no gamepads.
     if (!SDL_Init(0)) {
         nya_log_error("SDL could not start: %s", SDL_GetError());
         return EXIT_FAILURE;
@@ -191,11 +185,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     // ── which halves to run ─────────────────────────────────────────────────────────────────────
     b8               listen_only  = false;
     b8               connect_only = false;
-    /*
-     * Zero means the system picks, which is what the in-process run wants: two copies of this example, or
-     * a test suite beside it, must not have to agree on a number to stay out of each other's way. --listen
-     * overrides it, because a client in another terminal has to be told where to go.
-     */
+    /* Zero means the system picks, which is what the in-process run wants: two copies of this example, or a test suite beside it, must not have to agree on a number to stay out of each other's way. --listen overrides it, because a client in another terminal has to be told where to go. */
     u16              port         = 0;
     NYA_ConstCString address      = "127.0.0.1";
 
@@ -225,8 +215,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     Endpoint          server_endpoint = { .label = "server" };
 
     if (run_server) {
-        // Zeroed options mean a throwaway identity, generated here. A server players are meant to
-        // come back to keeps one instead; see nya_net_key_pair_load.
+        // Zeroed options mean a throwaway identity, generated here. A server players are meant to come back to keeps one instead; see nya_net_key_pair_load.
         NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server), "while creating the server transport");
 
         NYA_Error listening = nya_net_transport_listen(server, port);
@@ -235,8 +224,7 @@ s32 main(s32 argc, NYA_CString* argv) {
             return EXIT_FAILURE;
         }
 
-        // Read back rather than echoed: with port zero the number is the system's, and the client below
-        // is about to connect to it.
+        // Read back rather than echoed: with port zero the number is the system's, and the client below is about to connect to it.
         port = nya_net_transport_port(server);
         nya_log_info("server: listening on %u.", port);
     }
@@ -246,8 +234,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     Endpoint          client_endpoint = { .label = "client" };
 
     if (run_client) {
-        // `server_key` left zero trusts whatever key the server presents, which is fine on
-        // loopback and is exactly what --server-key pins against in the game.
+        // `server_key` left zero trusts whatever key the server presents, which is fine on loopback and is exactly what --server-key pins against in the game.
         NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client), "while creating the client transport");
 
         NYA_EXPECT(nya_net_transport_connect(client, address, port), "while connecting");
@@ -261,8 +248,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         if (server != nullptr) endpoint_pump(server, &server_endpoint, true);
         if (client != nullptr) endpoint_pump(client, &client_endpoint, false);
 
-        // The client decides when the conversation is over. A server alone runs until the timeout,
-        // which is what a server does.
+        // The client decides when the conversation is over. A server alone runs until the timeout, which is what a server does.
         if (run_client && client_endpoint.finished) break;
 
         SDL_Delay(POLL_INTERVAL_MS);
@@ -276,8 +262,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         nya_net_transport_disconnect(client, client_endpoint.peer, NYA_NET_DISCONNECT_REQUESTED);
     }
 
-    // Paired with the creates above rather than deferred beside them: a defer inside the `if` that
-    // created each one would fire at the end of that block, before a single packet moved.
+    // Paired with the creates above rather than deferred beside them: a defer inside the `if` that created each one would fire at the end of that block, before a single packet moved.
     if (client != nullptr) nya_net_transport_destroy(client);
     if (server != nullptr) nya_net_transport_destroy(server);
 

@@ -93,8 +93,7 @@ static void draw_fields(NYA_Property* property, OUT Row* row) {
     row->score = (u32)nya_property_draw_u64(property);
     row->flag  = nya_property_draw_bool(property, 50);
 
-    // A finite double, assembled from drawn integers rather than raw bits, so it is never a NaN that
-    // would refuse to equal itself and turn a faithful round trip into a spurious failure.
+    // A finite double, assembled from drawn integers rather than raw bits, so it is never a NaN that would refuse to equal itself and turn a faithful round trip into a spurious failure.
     u64 whole    = nya_property_draw_below(property, 1000000);
     u64 fraction = nya_property_draw_below(property, 1000);
     row->ratio   = (f64)whole + (f64)fraction / 1000.0;
@@ -158,8 +157,7 @@ static b8 law_table_tracks_the_model(NYA_Property* property) {
         u32 choice = (u32)nya_property_draw_below(property, 100);
 
         if (choice < 40 && model.count < ROWS_MAX) {
-            // Insert. Half the time with a zero key the database assigns, half with an explicit key that
-            // may collide with one already stored, which the table must refuse rather than overwrite.
+            // Insert. Half the time with a zero key the database assigns, half with an explicit key that may collide with one already stored, which the table must refuse rather than overwrite.
             Row row = { 0 };
             draw_fields(property, &row);
 
@@ -244,8 +242,7 @@ static b8 law_table_tracks_the_model(NYA_Property* property) {
             }
         }
 
-        // After every operation the whole table is the model: the same count, and every model row present
-        // and unchanged. select over no clause is every row, which is the set the model claims to be.
+        // After every operation the whole table is the model: the same count, and every model row present and unchanged. select over no clause is every row, which is the set the model claims to be.
         void* rows  = nullptr;
         u32   count = 0;
         if (!nya_orm_select(table, arena, nullptr, nullptr, 0, &rows, &count).ok) {

@@ -22,16 +22,12 @@ s32 main(void) {
     nya_assert(!_nya_net_udp_sequence_newer(0, 1));
     nya_assert(_nya_net_udp_sequence_newer(1000, 999));
 
-    // Equal is not newer, which matters because _nya_net_udp_record_ack relies on it: a shift of zero would
-    // set the wrong bit.
+    // Equal is not newer, which matters because _nya_net_udp_record_ack relies on it: a shift of zero would set the wrong bit.
     nya_assert(!_nya_net_udp_sequence_newer(500, 500), "a sequence is not newer than itself");
     nya_assert(!_nya_net_udp_sequence_newer(0, 0));
     nya_assert(!_nya_net_udp_sequence_newer(65535, 65535));
 
-    /*
-     * The wrap, and why this is not a `>`: after 65535 comes 0, and a plain comparison would call every
-     * later packet older.
-     */
+    /* The wrap, and why this is not a `>`: after 65535 comes 0, and a plain comparison would call every later packet older. */
     nya_assert(_nya_net_udp_sequence_newer(0, 65535), "0 must be newer than 65535");
     nya_assert(!_nya_net_udp_sequence_newer(65535, 0));
 
@@ -42,8 +38,7 @@ s32 main(void) {
     nya_assert(_nya_net_udp_sequence_newer(32768, 0), "half the space ahead is still newer");
     nya_assert(!_nya_net_udp_sequence_newer(32769, 0), "just past half is read as older");
 
-    // Antisymmetry: for any two distinct sequences exactly one is newer. A scheme that answered "both" or
-    // "neither" would make the ack window either double-count or stall.
+    // Antisymmetry: for any two distinct sequences exactly one is newer. A scheme that answered "both" or "neither" would make the ack window either double-count or stall.
     const u16 samples[] = { 0, 1, 2, 31, 32, 33, 1000, 32767, 32768, 32769, 65533, 65534, 65535 };
 
     for (u32 i = 0; i < sizeof(samples) / sizeof(samples[0]); i++) {
@@ -70,11 +65,7 @@ s32 main(void) {
   // TEST: the acknowledgement bitfield
   printf("TEST: the ack bitfield records what arrived\n");
   {
-    /*
-     * `remote_sequence` is the newest packet seen and `ack_bits` names which of the 32 before it also
-     * arrived. Thirty-three packets in six bytes, which is why an acknowledgement rides free on every packet
-     * rather than being a message of its own.
-     */
+    /* `remote_sequence` is the newest packet seen and `ack_bits` names which of the 32 before it also arrived. Thirty-three packets in six bytes, which is why an acknowledgement rides free on every packet rather than being a message of its own. */
     _NYA_NetUdpPeer peer = { 0 };
 
     // In order, one at a time. Each new packet shifts the field and sets the bit for its predecessor.
@@ -116,8 +107,7 @@ s32 main(void) {
 
     u32 before = peer.ack_bits;
 
-    // Exactly at the edge is inside; one past it is not. Recording it anyway would set a bit belonging to a
-    // different packet, which is worse than not recording it at all.
+    // Exactly at the edge is inside; one past it is not. Recording it anyway would set a bit belonging to a different packet, which is worse than not recording it at all.
     _nya_net_udp_record_ack(&peer, 100 - ACK_WINDOW);
     nya_assert((peer.ack_bits & (1U << (ACK_WINDOW - 1))) != 0, "the oldest packet in the window was not recorded");
 
@@ -162,10 +152,7 @@ s32 main(void) {
 
   printf("TEST: the bitfield survives the sequence wrap\n");
   {
-    /*
-     * Packets either side of 65535, which is the case a session reaches after 65536 packets and no
-     * end-to-end test reaches at all.
-     */
+    /* Packets either side of 65535, which is the case a session reaches after 65536 packets and no end-to-end test reaches at all. */
     _NYA_NetUdpPeer peer = { 0 };
 
     // what the receiver does: the 16 bits on the wire, widened against the newest sequence it has.
@@ -228,10 +215,7 @@ s32 main(void) {
 
   printf("TEST: a full window of packets, in every order\n");
   {
-    /*
-     * Thirty-three consecutive packets delivered forwards, backwards, and interleaved. However they arrive,
-     * the field must end up naming all of the ones inside the window.
-     */
+    /* Thirty-three consecutive packets delivered forwards, backwards, and interleaved. However they arrive, the field must end up naming all of the ones inside the window. */
     for (u32 pattern = 0; pattern < 3; pattern++) {
       _NYA_NetUdpPeer peer = { 0 };
 
@@ -248,8 +232,7 @@ s32 main(void) {
 
       nya_assert(peer.remote_sequence == base + ACK_WINDOW, "pattern %u moved the newest sequence", pattern);
 
-      // Every one of the 32 before the newest is named. Anything missing means an ordering the scheme
-      // mishandled.
+      // Every one of the 32 before the newest is named. Anything missing means an ordering the scheme mishandled.
       nya_assert(peer.ack_bits == 0xFFFFFFFFU, "pattern %u left the field at %u instead of full", pattern, peer.ack_bits);
     }
   }
@@ -257,10 +240,7 @@ s32 main(void) {
   // TEST: duplicate suppression
   printf("TEST: the seen window suppresses duplicates without eating fresh ids\n");
   {
-    /*
-     * The transport never delivers a message twice, and duplicates are ordinary: a reliable message resent
-     * after a lost acknowledgement arrives intact a second time.
-     */
+    /* The transport never delivers a message twice, and duplicates are ordinary: a reliable message resent after a lost acknowledgement arrives intact a second time. */
     _NYA_NetUdpPeer peer = { 0 };
 
     nya_assert(!_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5), "nothing is seen in a fresh peer");
@@ -268,8 +248,7 @@ s32 main(void) {
     _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5);
     nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5), "a marked id is seen");
 
-    // testing is pure. Reassembly asks twice, once per fragment and again when the last lands, so marking
-    // as a side effect would make the second ask drop every fragmented message.
+    // testing is pure. Reassembly asks twice, once per fragment and again when the last lands, so marking as a side effect would make the second ask drop every fragmented message.
     nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5), "asking twice changed the answer");
 
     // The channels are separate, so a reliable id does not shadow an unreliable one.
@@ -296,10 +275,7 @@ s32 main(void) {
 
   printf("TEST: an id arriving out of order does not unmark the ones after it\n");
   {
-    /*
-     * Receiving 5 after 10 must not erase 10's mark, or a retransmit of 10 would be accepted again, queued
-     * behind a delivery id already past it, and fill the reliable queue.
-     */
+    /* Receiving 5 after 10 must not erase 10's mark, or a retransmit of 10 would be accepted again, queued behind a delivery id already past it, and fill the reliable queue. */
     _NYA_NetUdpPeer peer = { 0 };
 
     _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 10);
@@ -338,10 +314,7 @@ s32 main(void) {
   // TEST: reliable retirement
   printf("TEST: a cumulative reliable ack retires the right messages\n");
   {
-    /*
-     * `reliable_ack` is the next expected id, so everything older is done. Cumulative, so losing one costs
-     * nothing.
-     */
+    /* `reliable_ack` is the next expected id, so everything older is done. Cumulative, so losing one costs nothing. */
     NYA_Arena* arena = nya_arena_create(.name = "test_sequence");
     defer      nya_arena_destroy(arena);
 

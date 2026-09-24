@@ -207,8 +207,7 @@ s32 main(void) {
 
     nya_net_client_tick(1, TICK_SECONDS);
 
-    // Garbage where the document should be. A server that sends this is broken, and the client must still
-    // end up disconnected rather than waiting forever in HANDSHAKING.
+    // Garbage where the document should be. A server that sends this is broken, and the client must still end up disconnected rather than waiting forever in HANDSHAKING.
     NYA_String* payload = nya_string_create(arena);
     nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
     for (u32 i = 0; i < 16; i++) nya_string_push_back(payload, 0xAB);
@@ -241,8 +240,7 @@ s32 main(void) {
       NYA_Object* body = nya_object_create(arena);
       nya_object_add(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 5 });
       nya_object_add(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
-      // The same name both times, deliberately: the assertion below is that whichever message arrived last
-      // reached the hook, and two different names would not distinguish that from only one arriving.
+      // The same name both times, deliberately: the assertion below is that whichever message arrived last reached the hook, and two different names would not distinguish that from only one arriving.
       nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "Grace" });
 
       NYA_EXPECT(nya_net_message_write_object(arena, payload, body));
@@ -302,8 +300,7 @@ s32 main(void) {
 
     nya_assert(GAME_EVENTS == 1, "the game event hook fired %u times", GAME_EVENTS);
 
-    // An unreadable event is dropped rather than handed over. A newer server may send a document this
-    // build's serde cannot parse, and calling the hook with nothing would be worse than not calling it.
+    // An unreadable event is dropped rather than handed over. A newer server may send a document this build's serde cannot parse, and calling the hook with nothing would be worse than not calling it.
     {
       NYA_String* garbage = nya_string_create(arena);
       nya_net_message_begin(garbage, NYA_NET_MSG_GAME_EVENT);
@@ -344,8 +341,7 @@ s32 main(void) {
         _payload;                                                                                                                                    \
       })
 
-    // Before the handshake. There is no predicted entity to reconcile against and no replica map yet, so
-    // this must be discarded rather than applied to a world the client has not been admitted to.
+    // Before the handshake. There is no predicted entity to reconcile against and no replica map yet, so this must be discarded rather than applied to a world the client has not been admitted to.
     send_as_server(server_end, SNAPSHOT(50, 10.0F));
     nya_net_client_tick(1, TICK_SECONDS);
 
@@ -361,8 +357,7 @@ s32 main(void) {
 
     nya_assert(nya_net_client_server_tick() == 60, "the applied tick was not tracked");
 
-    // Older than what has been applied. Discarded: applying it would move the world backwards, and its
-    // delta was computed against a baseline this client may already have replaced.
+    // Older than what has been applied. Discarded: applying it would move the world backwards, and its delta was computed against a baseline this client may already have replaced.
     send_as_server(server_end, SNAPSHOT(55, 99.0F));
     nya_net_client_tick(4, TICK_SECONDS);
 
@@ -374,8 +369,7 @@ s32 main(void) {
 
     nya_assert(nya_net_client_server_tick() == 61, "a newer snapshot was not applied");
 
-    // a malformed snapshot is dropped without disturbing applied state. The channel is unreliable and the
-    // next one is a tick away.
+    // a malformed snapshot is dropped without disturbing applied state. The channel is unreliable and the next one is a tick away.
     {
       NYA_String* garbage = nya_string_create(arena);
       nya_net_message_begin(garbage, NYA_NET_MSG_SNAPSHOT);
@@ -398,8 +392,7 @@ s32 main(void) {
   {
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_DISCONNECTED);
 
-    // A game calls these from its render path without asking whether it is connected, so none of them may
-    // require a connection to be safe.
+    // A game calls these from its render path without asking whether it is connected, so none of them may require a connection to be safe.
     nya_net_client_interpolate(TICK_SECONDS);
     nya_net_client_tick(1, TICK_SECONDS);
 
@@ -427,8 +420,7 @@ s32 main(void) {
     NYA_NetTransport* b = nullptr;
     NYA_EXPECT(nya_net_transport_loopback_create(arena, &a, &b));
 
-    // Both callbacks are required: without them a client predicts nothing and never learns what the player
-    // wants, which is a silently broken game rather than an error.
+    // Both callbacks are required: without them a client predicts nothing and never learns what the player wants, which is a silently broken game rather than an error.
     nya_assert(!nya_net_client_attach(b, "x", (NYA_NetClientConfig){ 0 }).ok, "attach accepted no callbacks");
 
     nya_assert(!nya_net_client_attach(b, "x", (NYA_NetClientConfig){ .on_apply_command = nya_callback(apply_movement) }).ok,

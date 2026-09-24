@@ -86,8 +86,7 @@ static b8 pump_until(NYA_NetTransport* a, NYA_NetTransport* b, Collected* ca, Co
 
     if (predicate(ca, cb)) return true;
 
-    // A real sleep, not a spin: the UDP transport's retransmit and keepalive timers are in
-    // milliseconds, and a busy loop would burn the whole timeout without letting any of them fire.
+    // A real sleep, not a spin: the UDP transport's retransmit and keepalive timers are in milliseconds, and a busy loop would burn the whole timeout without letting any of them fire.
     sleep_ms(2);
   }
 
@@ -147,8 +146,7 @@ s32 main(void) {
     Collected ca = { 0 };
     Collected cb = { 0 };
 
-    // Both ends learn about the connection from an event, even though the pair was already joined.
-    // The layers above are written against events and must not have to special case this.
+    // Both ends learn about the connection from an event, even though the pair was already joined. The layers above are written against events and must not have to special case this.
     drain(a, &ca);
     drain(b, &cb);
 
@@ -181,8 +179,7 @@ s32 main(void) {
     nya_assert(ca.messages == 5);
     for (u8 i = 0; i < 5; i++) nya_assert(ca.first_byte[i] == (u8)(0x10 + i), "loopback preserves order");
 
-    // A loopback pair has exactly one peer and cannot listen or connect out. Errors rather than
-    // assertions, so a menu offering "open to LAN" can grey the option out.
+    // A loopback pair has exactly one peer and cannot listen or connect out. Errors rather than assertions, so a menu offering "open to LAN" can grey the option out.
     nya_assert(nya_net_transport_listen(a, 1234).kind == NYA_ERROR_NOT_SUPPORTED);
     nya_assert(nya_net_transport_connect(a, "127.0.0.1", 1234).kind == NYA_ERROR_NOT_SUPPORTED);
 
@@ -301,8 +298,7 @@ s32 main(void) {
         nya_assert(cc.first_byte[before + i] == (u8)i, "reliable message %u arrived out of order", i);
       }
 
-      // Pump well past a retransmit interval. A message whose acknowledgement was lost is resent,
-      // and the receiver must not hand it up a second time.
+      // Pump well past a retransmit interval. A message whose acknowledgement was lost is resent, and the receiver must not hand it up a second time.
       u64 quiet_until = nya_clock_get_monotonic_ms() + 600;
       while (nya_clock_get_monotonic_ms() < quiet_until) {
         drain(client, &cc);
@@ -335,8 +331,7 @@ s32 main(void) {
       nya_assert(stats.packets_sent > 0 && stats.packets_received > 0);
       nya_assert(stats.bytes_sent > 0 && stats.bytes_received > 0);
 
-      // On loopback this is a fraction of a millisecond, so the assertion is that it is *sane*
-      // rather than that it is any particular number.
+      // On loopback this is a fraction of a millisecond, so the assertion is that it is *sane* rather than that it is any particular number.
       nya_assert(stats.rtt_ms >= 0.0F && stats.rtt_ms < 1000.0F, "a loopback round trip of %f ms is not credible", (f64)stats.rtt_ms);
 
       NYA_ConstCString address = nya_net_transport_peer_address(server, server_to_client);
@@ -464,11 +459,7 @@ s32 main(void) {
 
     // ── a keepalive goes out when there is nothing else to say ────────────────
     {
-      /*
-       * A connection with no traffic is indistinguishable from a dead one, so a player standing still in a
-       * menu would be dropped at the timeout. The keepalive is an empty data packet whose only content is
-       * the acknowledgement in its header.
-       */
+      /* A connection with no traffic is indistinguishable from a dead one, so a player standing still in a menu would be dropped at the timeout. The keepalive is an empty data packet whose only content is the acknowledgement in its header. */
       u64 before = server_state->peers[to_client.index].stats.packets_sent;
 
       server_state->peers[to_client.index].last_sent_ms = 0;
@@ -477,8 +468,7 @@ s32 main(void) {
 
       nya_assert(server_state->peers[to_client.index].stats.packets_sent > before, "no keepalive was sent for a quiet peer");
 
-      // And the client accepts it: a keepalive is kind DATA with zero fragments, so a receiver that read a
-      // kind byte off the end would fault on it. That was a real bug.
+      // And the client accepts it: a keepalive is kind DATA with zero fragments, so a receiver that read a kind byte off the end would fault on it. That was a real bug.
       pump(client, 3);
       nya_assert(cc.disconnects == 0, "a keepalive disconnected the client");
     }
@@ -495,8 +485,7 @@ s32 main(void) {
       // Further in the past than the timeout, which is what a pulled cable looks like.
       server_state->peers[to_client.index].last_received_ms = 1;
 
-      // the clock must be past the timeout for the subtraction to exceed it, and the monotonic clock is well
-      // past ten seconds by now.
+      // the clock must be past the timeout for the subtraction to exceed it, and the monotonic clock is well past ten seconds by now.
       nya_assert(nya_clock_get_monotonic_ms() > 10000, "the monotonic clock is too young for this case to mean anything");
 
       pump(server, 5);
@@ -653,15 +642,7 @@ s32 main(void) {
            (f64)sent.jitter_ms, (f64)(sent.packet_loss * 100.0F), (unsigned long long)sent.retransmits, (unsigned long long)received.packets_rejected);
 
     nya_assert(received.packets_rejected > 0, "10%% duplication produced no rejected replays");
-    /*
-     * The estimate is not asserted in milliseconds, and the 250 ms bound that used to be here was a
-     * measurement of the runner: it is an average over acknowledged datagrams, and under this link most
-     * are lost, the survivors are queued behind sixty sends, and the average is still climbing towards
-     * whatever it would settle at. That latency is applied at all is the case above, which times one
-     * datagram against the wall clock and needs no upper bound to do it. What holds here whatever the
-     * host does is that an estimate cannot exceed the exchange it was measured in, which is what an
-     * estimator counting queueing or a resend as one round trip would break.
-     */
+    /* The estimate is not asserted in milliseconds, and the 250 ms bound that used to be here was a measurement of the runner: it is an average over acknowledged datagrams, and under this link most are lost, the survivors are queued behind sixty sends, and the average is still climbing towards whatever it would settle at. That latency is applied at all is the case above, which times one datagram against the wall clock and needs no upper bound to do it. What holds here whatever the host does is that an estimate cannot exceed the exchange it was measured in, which is what an estimator counting queueing or a resend as one round trip would break. */
     nya_assert(sent.rtt_ms <= (f32)phase_ms, "a %.1f ms round trip out of an exchange that took %llu ms", (f64)sent.rtt_ms,
                (unsigned long long)phase_ms);
 
@@ -796,10 +777,7 @@ s32 main(void) {
 
   printf("TEST: a loopback peer that has gone\n");
   {
-    /*
-     * The far end being destroyed, which on a listen server is what shutting down looks like from the half
-     * that is still running.
-     */
+    /* The far end being destroyed, which on a listen server is what shutting down looks like from the half that is still running. */
     NYA_NetTransport* a = nullptr;
     NYA_NetTransport* b = nullptr;
 
@@ -813,8 +791,7 @@ s32 main(void) {
     u8 payload[16];
     fill(payload, sizeof(payload), 0x77);
 
-    // A disconnect from one side is seen by both, and sending afterwards reports a dead peer rather than
-    // writing into an arena that is about to go.
+    // A disconnect from one side is seen by both, and sending afterwards reports a dead peer rather than writing into an arena that is about to go.
     nya_net_transport_disconnect(a, ca.last_peer, NYA_NET_DISCONNECT_REQUESTED);
 
     nya_assert(!nya_net_transport_send(a, ca.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)).ok,
@@ -825,8 +802,7 @@ s32 main(void) {
     nya_assert(!nya_net_transport_send(a, ca.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)).ok,
                "sending to a destroyed loopback peer succeeded");
 
-    // Stats and the address are still answerable on a dead pair, because a debug overlay reads them without
-    // asking whether the connection is alive.
+    // Stats and the address are still answerable on a dead pair, because a debug overlay reads them without asking whether the connection is alive.
     NYA_NetPeerStats stats = nya_net_transport_stats(a, ca.last_peer);
     nya_assert(stats.rtt_ms == 0.0F, "a loopback reports no round trip, which is a fact rather than a placeholder");
 
@@ -868,10 +844,7 @@ s32 main(void) {
 
   printf("TEST: the Steam transport reports itself unavailable\n");
   {
-    /*
-     * A stub, still covered: games grey out menu items based on "unsupported", so it must not assert or
-     * return a broken transport.
-     */
+    /* A stub, still covered: games grey out menu items based on "unsupported", so it must not assert or return a broken transport. */
     NYA_NetTransport* steam = nullptr;
 
     NYA_Error created = nya_net_transport_steam_create(arena, &steam);
@@ -885,8 +858,7 @@ s32 main(void) {
     NYA_NetTransport* transport = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &transport));
 
-    // a transport holds one socket. Listening twice or connecting after listening would discard the first,
-    // so both are refused.
+    // a transport holds one socket. Listening twice or connecting after listening would discard the first, so both are refused.
     NYA_EXPECT(nya_net_transport_listen(transport, 0), "the system had no free UDP port");
 
     const u16 port = nya_net_transport_port(transport);
@@ -894,23 +866,14 @@ s32 main(void) {
     nya_assert(!nya_net_transport_listen(transport, (u16)(port + 1)).ok, "listening twice was accepted");
     nya_assert(!nya_net_transport_connect(transport, "127.0.0.1", port).ok, "connecting on a listening socket was accepted");
 
-    /*
-     * A hostname that cannot resolve is still an error a player can act on, but it arrives as a
-     * DISCONNECTED event rather than from connect itself.
-     *
-     * That moved on purpose. Connect used to answer by waiting for the resolver, up to the whole five
-     * second connect timeout, inside the caller's call — an error a player can act on is worth less
-     * than five seconds of a stopped game, and a game cannot avoid it by being careful. The name is
-     * polled from the update now, so connect reports that the attempt started and the failure follows.
-     */
+    /* A hostname that cannot resolve is still an error a player can act on, but it arrives as a DISCONNECTED event rather than from connect itself. That moved on purpose. Connect used to answer by waiting for the resolver, up to the whole five second connect timeout, inside the caller's call — an error a player can act on is worth less than five seconds of a stopped game, and a game cannot avoid it by being careful. The name is polled from the update now, so connect reports that the attempt started and the failure follows. */
     NYA_NetTransport* client = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     NYA_Error unresolvable = nya_net_transport_connect(client, "this-host-does-not-exist.invalid", 1234);
     nya_assert(unresolvable.ok, "starting a connection to an unresolvable hostname is not itself a failure");
 
-    // Stats and the address for a peer that never existed answer rather than faulting, because a debug
-    // overlay reads them without checking.
+    // Stats and the address for a peer that never existed answer rather than faulting, because a debug overlay reads them without checking.
     NYA_NetPeerId nobody = { .index = 11, .generation = 5 };
 
     NYA_NetPeerStats stats = nya_net_transport_stats(transport, nobody);
@@ -922,8 +885,7 @@ s32 main(void) {
     // Disconnecting one that was never there is harmless.
     nya_net_transport_disconnect(transport, nobody, NYA_NET_DISCONNECT_REQUESTED);
 
-    // A zero length send is a caller bug rather than a wire condition, since every receiver switches on a
-    // message id in the first byte.
+    // A zero length send is a caller bug rather than a wire condition, since every receiver switches on a message id in the first byte.
     u8 byte = 1;
     nya_assert(!nya_net_transport_send(transport, nobody, NYA_NET_CHANNEL_UNRELIABLE, nullptr, 4).ok,
                "a null payload was accepted");
@@ -936,15 +898,7 @@ s32 main(void) {
 
   // TEST: connecting to a name that will not resolve returns at once
   {
-    /*
-     * This used to sit inside the resolver for up to the whole connect timeout, five
-     * seconds, before returning to the caller. For a game that is five seconds of a stopped frame
-     * because somebody typed the hostname wrong, and no amount of care in the caller could avoid it.
-     *
-     * The bound here is deliberately loose. What is being held to account is "does not wait for the
-     * resolver", not "is fast": a quarter of a second is far below the five that would mean it
-     * waited, and far above anything a non-blocking call needs.
-     */
+    /* This used to sit inside the resolver for up to the whole connect timeout, five seconds, before returning to the caller. For a game that is five seconds of a stopped frame because somebody typed the hostname wrong, and no amount of care in the caller could avoid it. The bound here is deliberately loose. What is being held to account is "does not wait for the resolver", not "is fast": a quarter of a second is far below the five that would mean it waited, and far above anything a non-blocking call needs. */
     NYA_NetTransport* slow = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &slow));
 
@@ -958,11 +912,7 @@ s32 main(void) {
     nya_check(waited < 250, "connect returns without waiting for the resolver, took " FMTu64 " ms", waited);
     nya_check(connecting.ok, "and reports the attempt as started rather than failed");
 
-    /*
-     * The failure arrives as an event instead, which is what asking rather than waiting costs. Not
-     * waited for here either: whether a resolver answers within any particular time is the machine's
-     * business, and a test that insists on it fails on a network it does not control.
-     */
+    /* The failure arrives as an event instead, which is what asking rather than waiting costs. Not waited for here either: whether a resolver answers within any particular time is the machine's business, and a test that insists on it fails on a network it does not control. */
     pump(slow, 4);
 
     nya_net_transport_destroy(slow);

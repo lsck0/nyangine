@@ -24,9 +24,7 @@ static void check_genome(NYA_NeatNetwork* network) {
   for (u32 i = 0; i < connection_count; i++) {
     const NYA_NeatConnection* connection = &network->connections->items[i];
 
-    // The merge in distance and crossover depends on this and nothing enforces it at the point of
-    // use, so a mutation that reuses an innovation number minted earlier in the same generation
-    // would break both silently.
+    // The merge in distance and crossover depends on this and nothing enforces it at the point of use, so a mutation that reuses an innovation number minted earlier in the same generation would break both silently.
     if (i > 0) {
       const NYA_NeatConnection* previous = &network->connections->items[i - 1];
       nya_check(
@@ -57,8 +55,7 @@ static void check_genome(NYA_NeatNetwork* network) {
     nya_check(to != NYA_NEAT_NODE_SENSOR, "connection %u feeds a sensor", i);
     nya_check(to != NYA_NEAT_NODE_BIAS, "connection %u feeds the bias", i);
 
-    // A duplicate edge means one genome holds the same structural gene twice, which makes its
-    // distance to anything else wrong and double counts the weight in the forward pass.
+    // A duplicate edge means one genome holds the same structural gene twice, which makes its distance to anything else wrong and double counts the weight in the forward pass.
     for (u32 j = i + 1; j < connection_count; j++) {
       const NYA_NeatConnection* other = &network->connections->items[j];
       nya_check(
@@ -133,8 +130,7 @@ s32 main(void) {
       nya_nn_neat_species_count(neat)
     );
 
-    // The run has to actually grow topology, or the invariants above were checked against a
-    // population that never changed and prove nothing.
+    // The run has to actually grow topology, or the invariants above were checked against a population that never changed and prove nothing.
     nya_check(max_nodes_seen > seed->nodes->length, "no genome ever grew a hidden node; the run is not exercising mutation");
     nya_check(max_connections_seen > 0, "no genome ever grew a connection");
 

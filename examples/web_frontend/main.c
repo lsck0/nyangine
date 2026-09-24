@@ -234,8 +234,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, Ctx* ctx) {
         static const NYA_ConstCString FILTERS[] = { "all", "active", "done" };
         (void)nya_ui_tabs(ui, "filter", FILTERS, nya_carray_length(FILTERS), &app->filter);
 
-        // The composer: a field bound to the session's draft, and an add button beside it. Typing posts a
-        // "text" write-back that the server types into this same buffer; pressing add records ACTION_ADD.
+        // The composer: a field bound to the session's draft, and an add button beside it. Typing posts a "text" write-back that the server types into this same buffer; pressing add records ACTION_ADD.
         if (nya_ui_panel_begin(ui, "compose", (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
             (void)nya_ui_text_input(ui, "new todo", app->draft, sizeof(app->draft));
             nya_ui_size(ui, nya_ui_grow(1));
@@ -247,9 +246,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, Ctx* ctx) {
         u32 shown = 0;
         u32 done  = 0;
 
-        // One row per todo that passes the filter. Each row is its own panel, so the toggle and the delete
-        // button inside it are scoped to that row: the constant labels "done" and "delete" never collide
-        // across rows, whatever the todo text is. A click the server injected lands on exactly one of them.
+        // One row per todo that passes the filter. Each row is its own panel, so the toggle and the delete button inside it are scoped to that row: the constant labels "done" and "delete" never collide across rows, whatever the todo text is. A click the server injected lands on exactly one of them.
         for (u32 i = 0; i < ctx->todo_count; i++) {
             const Todo* todo = &ctx->todos[i];
 
@@ -264,9 +261,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, Ctx* ctx) {
             if (nya_ui_panel_begin(ui, row_id, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
                 b8 checked = todo->done != 0;
 
-                // The toggle owns the done state. On an input pass a click flips `checked` and the toggle
-                // returns true; the component records which todo and the value it settled on, and the
-                // handler writes exactly that to the row — no read-modify-write guessing later.
+                // The toggle owns the done state. On an input pass a click flips `checked` and the toggle returns true; the component records which todo and the value it settled on, and the handler writes exactly that to the row — no read-modify-write guessing later.
                 if (nya_ui_toggle(ui, "done", &checked)) {
                     ctx->action      = ACTION_TOGGLE;
                     ctx->action_id   = todo->id;
@@ -312,8 +307,7 @@ NYA_INTERNAL void load_todos(Ctx* ctx, NYA_Arena* arena) {
         return;
     }
 
-    // The rows come back contiguous, `type->size` apart; nya_orm_at is that arithmetic, so the array is a
-    // plain Todo* the component can index.
+    // The rows come back contiguous, `type->size` apart; nya_orm_at is that arithmetic, so the array is a plain Todo* the component can index.
     ctx->todos      = (const Todo*)rows;
     ctx->todo_count = count;
 }
@@ -324,15 +318,13 @@ NYA_INTERNAL void apply_action(Ctx* ctx, NYA_Arena* arena) {
 
     switch (ctx->action) {
         case ACTION_ADD: {
-            // Nothing to add, a full store, and a draft that is only whitespace are all the caller's
-            // business, not a fault: the draft simply stays put and no row is written.
+            // Nothing to add, a full store, and a draft that is only whitespace are all the caller's business, not a fault: the draft simply stays put and no row is written.
             if (app->draft[0] == '\0' || ctx->todo_count >= TODOS_MAX) break;
 
             Todo todo = { .done = 0, .created_at_s = nya_app_uptime_s() };
             (void)snprintf(todo.text, sizeof(todo.text), "%s", app->draft);
 
-            // The id is left zero, so the database assigns it and nya_orm_insert writes it back. The text
-            // is bound as a parameter, whatever quotes and semicolons the draft held.
+            // The id is left zero, so the database assigns it and nya_orm_insert writes it back. The text is bound as a parameter, whatever quotes and semicolons the draft held.
             if (nya_orm_insert(TODOS_TABLE, &todo).ok) app->draft[0] = '\0';
             break;
         }
@@ -473,8 +465,7 @@ NYA_INTERNAL AppState app_from_cookie(NYA_HttpExchange* exchange) {
     if (cookie.size >= sizeof(token)) return app;
     nya_memcpy(token, cookie.text, cookie.size);
 
-    // A tampered, expired or forged cookie opens to nothing and the session starts fresh; the seal is what
-    // makes trusting a client-held blob safe.
+    // A tampered, expired or forged cookie opens to nothing and the session starts fresh; the seal is what makes trusting a client-held blob safe.
     u8  bytes[sizeof(AppState)] = { 0 };
     u64 size                    = 0;
 
@@ -517,9 +508,7 @@ NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
 
     if (!app_to_cookie(exchange, &app)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // A per-response nonce for the one inline script, so the page's CSP can allow that script by nonce and
-    // nothing else. style-src 'unsafe-inline' is the one loosening, safe because the presenter escapes
-    // every label; the rest is the tight default. This is ui_ssr's policy, verbatim.
+    // A per-response nonce for the one inline script, so the page's CSP can allow that script by nonce and nothing else. style-src 'unsafe-inline' is the one loosening, safe because the presenter escapes every label; the rest is the tight default. This is ui_ssr's policy, verbatim.
     u8 nonce_bytes[16] = { 0 };
     if (!nya_os_random_bytes(nonce_bytes, sizeof(nonce_bytes))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -556,16 +545,14 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
 
     NYA_ConstCString event = event_value != nullptr && event_value->type == NYA_TYPE_STRING ? event_value->as_string : "click";
 
-    // The id is "wN"; the number indexes the last render's rectangles and nothing else, so a bad one aims
-    // at no widget rather than at anything it should not reach.
+    // The id is "wN"; the number indexes the last render's rectangles and nothing else, so a bad one aims at no widget rather than at anything it should not reach.
     NYA_ConstCString text = id_value->as_string;
     if (text[0] != 'w') return NYA_HTTP_STATUS_BAD_REQUEST;
 
     u64 id = 0;
     if (!nya_type_parse(NYA_TYPE_U64, (const u8*)(text + 1), strlen(text + 1), &id)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    // This session's UI state and the current rows, then a render so the id-to-rectangle table matches the
-    // page the click was made against — the previous render may have been another browser's.
+    // This session's UI state and the current rows, then a render so the id-to-rectangle table matches the page the click was made against — the previous render may have been another browser's.
     AppState app = app_from_cookie(exchange);
     Ctx      ctx = { .app = &app };
 
@@ -577,9 +564,7 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     NYA_Rectf        rect       = { 0 };
 
     if (nya_string_equals(event, "text") && nya_ui_html_widget(&HTML, (u32)id, &kind, &value_rect) && kind == NYA_UI_WIDGET_FIELD) {
-        // The field's value is the whole string the browser now shows; typing it into the field over its
-        // own contents is what makes the draft match the browser, and it goes in through the input system
-        // rather than by touching the buffer directly. No row changes — typing is not adding.
+        // The field's value is the whole string the browser now shows; typing it into the field over its own contents is what makes the draft match the browser, and it goes in through the input system rather than by touching the buffer directly. No row changes — typing is not adding.
         NYA_ConstCString value = "";
         NYA_Value*       v     = nya_object_get(body, "value");
         if (v != nullptr && v->type == NYA_TYPE_STRING) value = v->as_string;
@@ -587,8 +572,7 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
         inject_field_text(&ctx, value_rect, value);
         render_settled(&ctx);
     } else if (nya_ui_html_rect(&HTML, (u32)id, &rect)) {
-        // A plain click: aim the pointer at the widget's centre and run the input pass, which records the
-        // intent into ctx. Reset the intent first so only this frame's click counts.
+        // A plain click: aim the pointer at the widget's centre and run the input pass, which records the intent into ctx. Reset the intent first so only this frame's click counts.
         ctx.action = ACTION_NONE;
         inject_click(rect.x + rect.width * 0.5F, rect.y + rect.height * 0.5F);
         render(&ctx);
@@ -690,9 +674,7 @@ s32 main(s32 argc, char** argv) {
     }
     defer SDL_Quit();
 
-    // The systems the UI reads through, and the save root the database lives under. No window, renderer,
-    // world or audio: the HTML presenter measures in a monospace cell and needs none of them. This is the
-    // ui_ssr bring-up plus web_server's save root.
+    // The systems the UI reads through, and the save root the database lives under. No window, renderer, world or audio: the HTML presenter measures in a monospace cell and needs none of them. This is the ui_ssr bring-up plus web_server's save root.
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
     nya_system_settings_init();
     nya_system_callback_init();
@@ -701,15 +683,13 @@ s32 main(s32 argc, char** argv) {
     defer nya_system_events_deinit();
     nya_system_input_init();
     defer nya_system_input_deinit();
-    // No window opens, but a field taking focus starts text input, which looks the window handle up; the
-    // system has to be up for that lookup to resolve to "no such window" rather than read an unallocated table.
+    // No window opens, but a field taking focus starts text input, which looks the window handle up; the system has to be up for that lookup to resolve to "no such window" rather than read an unallocated table.
     nya_system_window_init();
     defer nya_system_window_deinit();
     nya_system_asset_init();
     defer nya_system_asset_deinit();
 
-    // The save root, where the database lands. Fatal if there is none: a server whose whole job is to keep
-    // what it is sent cannot run without somewhere to keep it.
+    // The save root, where the database lands. Fatal if there is none: a server whose whole job is to keep what it is sent cannot run without somewhere to keep it.
     NYA_Error saves = nya_system_save_init();
     if (!saves.ok) {
         nya_log_error("No save root, so there is nowhere to keep the todos: %s", (NYA_ConstCString)saves.message);
@@ -741,8 +721,7 @@ s32 main(s32 argc, char** argv) {
     nya_ui_html_init(&HTML, NYA_UI_HTML_CELL);
     nya_ui_presenter_set(&WINDOW, nya_ui_html_presenter(&HTML));
 
-    // Single-threaded: the UI, the input system and the one database connection are the ticking thread's,
-    // so every route is MAIN and the server is drained from the loop below rather than by workers.
+    // Single-threaded: the UI, the input system and the one database connection are the ticking thread's, so every route is MAIN and the server is drained from the loop below rather than by workers.
     NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){ .port = port, .workers = 0 }), "while starting the server");
     defer nya_system_http_deinit();
 

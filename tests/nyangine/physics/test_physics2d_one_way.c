@@ -83,9 +83,7 @@ s32 main(void) {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_NONE);
         NYA_EntityHandle mover = spawn_mover(UNDERSIDE_Y + 60.0F, -APPROACH_SPEED);
 
-        // The *highest* point reached, not the final one: a body that bounces off the underside ends
-        // up somewhere below, and so does one that tunnelled clean through and fell back past its
-        // start. Only the peak tells the two apart.
+        // The *highest* point reached, not the final one: a body that bounces off the underside ends up somewhere below, and so does one that tunnelled clean through and fell back past its start. Only the peak tells the two apart.
         f32 highest = step_tracking_highest(mover, 90);
 
         nya_check(highest > LEDGE_Y, "a solid ledge must stop a body from below; it reached y=%f, past the ledge at %f",
@@ -130,12 +128,7 @@ s32 main(void) {
         nya_entity_despawn(ledge);
     }
 
-    /*
-     * ── nya_physics2d_drop_through lets a resting body fall off.
-     *
-     * This is the case that needed the contact-recycling suspension: a body sitting still is exactly
-     * what Box2D skips re-examining, so before that fix the request was stored and never read.
-     */
+    /* ── nya_physics2d_drop_through lets a resting body fall off. This is the case that needed the contact-recycling suspension: a body sitting still is exactly what Box2D skips re-examining, so before that fix the request was stored and never read. */
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_UP);
         NYA_EntityHandle mover = spawn_mover(RESTING_Y - 60.0F, 0.0F);
@@ -152,8 +145,7 @@ s32 main(void) {
         f32 dropped = nya_entity_get(mover)->position.y;
         nya_check(dropped > LEDGE_Y + LEDGE_HALF_H, "dropping through should put it clear below the ledge, got y=%f", (f64)dropped);
 
-        // And the window closes on its own, so the next ledge down still catches it. Read off the
-        // entity directly: NYA_Physics2DBody is a public struct, like every other module's state.
+        // And the window closes on its own, so the next ledge down still catches it. Read off the entity directly: NYA_Physics2DBody is a public struct, like every other module's state.
         nya_check(nya_entity_get(mover)->physics2d.drop_through_s == 0.0F, "the window should have run out within sixty steps");
 
         nya_entity_despawn(mover);

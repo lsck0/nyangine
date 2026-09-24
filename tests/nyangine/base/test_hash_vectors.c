@@ -34,8 +34,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // TEST: wyhash against the copy vendored with box3d (verstable.h, default seed and secret). The inputs
-  // cover each length branch: empty, under four, four to sixteen, under 48, and the 48 byte rounds.
+  // TEST: wyhash against the copy vendored with box3d (verstable.h, default seed and secret). The inputs cover each length branch: empty, under four, four to sixteen, under 48, and the 48 byte rounds.
   printf("TEST: wyhash known answers\n");
   {
     struct {
@@ -104,8 +103,7 @@ s32 main(void) {
     nya_check(base != nya_siphash(data, sizeof(data), SIPHASH_KEY_LOW ^ 1ULL, SIPHASH_KEY_HIGH), "the low key half does not affect the digest");
     nya_check(base != nya_siphash(data, sizeof(data), SIPHASH_KEY_LOW, SIPHASH_KEY_HIGH ^ 1ULL), "the high key half does not affect the digest");
 
-    // flipping any single input bit must change the digest, which makes it a tamper check rather than a
-    // checksum.
+    // flipping any single input bit must change the digest, which makes it a tamper check rather than a checksum.
     for (u32 byte = 0; byte < sizeof(data); byte++) {
       for (u32 bit = 0; bit < 8; bit++) {
         data[byte] ^= (u8)(1U << bit);
@@ -116,8 +114,7 @@ s32 main(void) {
       }
     }
 
-    // Trailing zero bytes must not collide with a shorter input: that is what the length in the
-    // tail block is for.
+    // Trailing zero bytes must not collide with a shorter input: that is what the length in the tail block is for.
     u8 short_input[4] = { 1, 2, 3, 4 };
     u8 long_input[8]  = { 1, 2, 3, 4, 0, 0, 0, 0 };
     nya_check(

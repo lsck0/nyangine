@@ -44,8 +44,7 @@ s32 main(void) {
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
   nya_system_callback_init();
-  // The world: entities, physics and the simulation barrier, brought up in the order they depend on
-  // each other. See core_world.h.
+  // The world: entities, physics and the simulation barrier, brought up in the order they depend on each other. See core_world.h.
   NYA_World* world = nya_world_create();
   (void)nya_world_set(world);
 
@@ -79,8 +78,7 @@ s32 main(void) {
     nya_assert(nya_physics2d_body_attached(entity), "the entity now carries a body");
     nya_assert(nya_physics2d_body_count() == 1);
 
-    // The dimensions are kept on the entity because that is what a renderer needs, and Box2D does
-    // not hand them back in the form they went in as.
+    // The dimensions are kept on the entity because that is what a renderer needs, and Box2D does not hand them back in the form they went in as.
     nya_assert(entity->physics2d.size.x == 32.0F && entity->physics2d.size.y == 32.0F);
     nya_assert(entity->physics2d.shape == NYA_PHYSICS2D_SHAPE_BOX);
     nya_assert(entity->physics2d.type == NYA_PHYSICS_BODY_DYNAMIC);
@@ -103,8 +101,7 @@ s32 main(void) {
 
     NYA_Entity* entity = nya_entity_get(crate);
 
-    // Half a second of earth gravity is about 1.2 metres, which at the default scale is roughly 39
-    // world units. Bounded rather than exact, because the solver's integration is its own business.
+    // Half a second of earth gravity is about 1.2 metres, which at the default scale is roughly 39 world units. Bounded rather than exact, because the solver's integration is its own business.
     nya_assert(entity->position.y > 20.0F, "half a second of falling moves it well down the screen");
     nya_assert(entity->position.y < 80.0F, "and not absurdly far, which would mean a unit conversion is wrong");
 
@@ -118,9 +115,7 @@ s32 main(void) {
 
   // TEST: the entity's own integration steps aside for a body
   {
-    // Two entities given the same upward velocity. One is simulated and one is not, so the plain
-    // one keeps rising forever and the simulated one is pulled back. Without the skip in
-    // nya_system_entity_update the simulated one would be moved by both and end up above the other.
+    // Two entities given the same upward velocity. One is simulated and one is not, so the plain one keeps rising forever and the simulated one is pulled back. Without the skip in nya_system_entity_update the simulated one would be moved by both and end up above the other.
     NYA_EntityHandle simulated = nya_entity_spawn(.name = "simulated", .velocity = { 0.0F, -400.0F, 0.0F });
     NYA_EntityHandle scripted  = nya_entity_spawn(.name = "scripted", .velocity = { 0.0F, -400.0F, 0.0F });
 
@@ -162,8 +157,7 @@ s32 main(void) {
     );
     nya_assert(floor_ok, "a four point chain on a static body is accepted");
 
-    // A chain on anything that moves has no area to take a mass from, and is refused rather than
-    // failing inside the solver.
+    // A chain on anything that moves has no area to take a mass from, and is refused rather than failing inside the solver.
     NYA_EntityHandle bad = nya_entity_spawn(.name = "bad");
     b8               bad_ok =
       nya_physics2d_body_attach(bad, .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS2D_SHAPE_CHAIN, .points = floor_points, .point_count = 4);
@@ -178,8 +172,7 @@ s32 main(void) {
 
     NYA_Entity* entity = nya_entity_get(crate);
 
-    // Its centre rests half a box above the surface. A couple of units of tolerance for the
-    // solver's contact softening, which lets shapes overlap slightly rather than jittering apart.
+    // Its centre rests half a box above the surface. A couple of units of tolerance for the solver's contact softening, which lets shapes overlap slightly rather than jittering apart.
     nya_assert(entity->position.y > 178.0F && entity->position.y < 186.0F, "the crate is resting on the floor, not through it");
 
     nya_assert(!nya_physics2d_awake(entity), "and the solver has put it to sleep");
@@ -206,12 +199,10 @@ s32 main(void) {
 
     nya_physics2d_teleport(entity, (f32x2){ 500.0F, -300.0F }, 0.0F);
 
-    // Written through immediately rather than at the next step, so a teleport and a read in the
-    // same tick agree.
+    // Written through immediately rather than at the next step, so a teleport and a read in the same tick agree.
     nya_assert(entity->position.x == 500.0F && entity->position.y == -300.0F);
 
-    // The point query is against the shape, not its bounding box: its centre is a hit and a point
-    // well outside it is not.
+    // The point query is against the shape, not its bounding box: its centre is a hit and a point well outside it is not.
     NYA_EntityHandle hit = nya_physics2d_entity_at((f32x2){ 500.0F, -300.0F });
     nya_assert(hit.index == crate.index && hit.generation == crate.generation, "the query finds the crate at its own centre");
 
@@ -273,8 +264,7 @@ s32 main(void) {
     nya_assert(!nya_physics2d_body_attach(crate, .shape = NYA_PHYSICS2D_SHAPE_CIRCLE, .radius = 0.0F), "a circle needs a radius");
     nya_assert(!nya_physics2d_body_attach(crate, .shape = NYA_PHYSICS2D_SHAPE_CHAIN, .points = nullptr, .point_count = 0), "a chain needs points");
 
-    // Every one of those failed after b2CreateBody and had to destroy it again. A leak here shows up
-    // as a body count that never went back to zero.
+    // Every one of those failed after b2CreateBody and had to destroy it again. A leak here shows up as a body count that never went back to zero.
     nya_assert(nya_physics2d_body_count() == 0, "a refused attach leaves no body behind");
     nya_assert(!nya_physics2d_body_attached(nya_entity_get(crate)));
 
@@ -299,8 +289,7 @@ s32 main(void) {
     nya_assert(nya_physics2d_body_attach(floor, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS2D_SHAPE_CHAIN, .points = floor_points,
                                        .point_count = 4));
 
-    // Dropped from far enough up to be well past the threshold on arrival, so this does not become
-    // a test of exactly where the cutoff sits.
+    // Dropped from far enough up to be well past the threshold on arrival, so this does not become a test of exactly where the cutoff sits.
     NYA_EntityHandle crate = nya_entity_spawn(.name = "dropped", .position = { 0.0F, -600.0F, 0.0F });
     nya_assert(nya_physics2d_body_attach(crate, .size = { 32.0F, 32.0F }));
 
@@ -319,20 +308,17 @@ s32 main(void) {
 
     nya_assert(landed, "the crate landed on the floor and the impact was reported");
 
-    // Both sides resolve, and to the two entities actually involved rather than to whatever else is
-    // in the table. Which is A and which is B is Box2D's ordering, so this accepts either.
+    // Both sides resolve, and to the two entities actually involved rather than to whatever else is in the table. Which is A and which is B is Box2D's ordering, so this accepts either.
     b8 crate_first = landing.a.index == crate.index && landing.b.index == floor.index;
     b8 floor_first = landing.a.index == floor.index && landing.b.index == crate.index;
     nya_assert(crate_first || floor_first, "the hit names the crate and the floor");
 
     nya_assert(landing.approach_speed >= nya_physics2d_hit_threshold(), "a reported hit is at least as fast as the threshold");
 
-    // Converted out of metres. Falling 600 world units under earth gravity arrives at roughly 620
-    // world units per second; a hit still carrying Box2D's metric value would read about 19.
+    // Converted out of metres. Falling 600 world units under earth gravity arrives at roughly 620 world units per second; a hit still carrying Box2D's metric value would read about 19.
     nya_assert(landing.approach_speed > 100.0F, "the approach speed is in world units, not metres");
 
-    // Near the top of the crate, which is where the floor met it. Loose bounds: the exact contact
-    // point is the solver's.
+    // Near the top of the crate, which is where the floor met it. Loose bounds: the exact contact point is the solver's.
     nya_assert(landing.point.y > 150.0F && landing.point.y < 250.0F, "the contact point is at the floor, in world units");
 
     // Long enough for the bounce to die out and the crate to sleep.
@@ -341,8 +327,7 @@ s32 main(void) {
     hits = nya_physics2d_hits(&count);
     nya_assert(count == 0, "a settled crate resting on the floor reports nothing");
 
-    // A hit lasts exactly the tick that produced it. Without the clear at the top of the step, a
-    // paused world would keep replaying the last impact for as long as it stayed paused.
+    // A hit lasts exactly the tick that produced it. Without the clear at the top of the step, a paused world would keep replaying the last impact for as long as it stayed paused.
     nya_physics2d_enabled_set(false);
     step(1);
     (void)nya_physics2d_hits(&count);
@@ -361,8 +346,7 @@ s32 main(void) {
     nya_physics2d_hit_threshold_set(1000.0F);
     nya_assert(nya_physics2d_hit_threshold() == 1000.0F);
 
-    // Negative would mean every contact qualifies, which is the one setting that cannot be what
-    // anyone meant, so it clamps rather than being passed through.
+    // Negative would mean every contact qualifies, which is the one setting that cannot be what anyone meant, so it clamps rather than being passed through.
     nya_physics2d_hit_threshold_set(-5.0F);
     nya_assert(nya_physics2d_hit_threshold() == 0.0F, "a negative threshold clamps to zero");
 
@@ -410,8 +394,7 @@ s32 main(void) {
     step(240);
     nya_assert(nya_physics2d_grounded(entity), "a crate resting on the floor is grounded");
 
-    // An entity with no body at all answers false rather than faulting, which is what lets a caller
-    // iterate mixed entities without filtering first.
+    // An entity with no body at all answers false rather than faulting, which is what lets a caller iterate mixed entities without filtering first.
     NYA_EntityHandle bodiless = nya_entity_spawn(.name = "bodiless");
     nya_assert(!nya_physics2d_grounded(nya_entity_get(bodiless)), "an entity with no body is not grounded");
     nya_assert(!nya_physics2d_grounded(nullptr), "a null entity is not grounded");
@@ -435,13 +418,11 @@ s32 main(void) {
     );
     nya_assert(nya_physics2d_body_attach(coin, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 64.0F, 64.0F }, .is_sensor = true));
 
-    // The player: an ordinary dynamic body with nothing sensor-shaped about it. This is the half
-    // Box2D wants enableSensorEvents on too, and the half a caller has no reason to think about.
+    // The player: an ordinary dynamic body with nothing sensor-shaped about it. This is the half Box2D wants enableSensorEvents on too, and the half a caller has no reason to think about.
     NYA_EntityHandle player = nya_entity_spawn(.name = "player", .position = { 0.0F, 0.0F, 0.0F });
     nya_assert(nya_physics2d_body_attach(player, .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 32.0F, 32.0F }));
 
-    // Falls through the coin under gravity. One step is not enough to reach it and a hundred is more
-    // than enough to be well past it, which is what makes this test both entries and exits.
+    // Falls through the coin under gravity. One step is not enough to reach it and a hundred is more than enough to be well past it, which is what makes this test both entries and exits.
     step(100);
 
     nya_assert(pickup_enters == 1, "falling through a sensor is exactly one enter, got " FMTu32, pickup_enters);

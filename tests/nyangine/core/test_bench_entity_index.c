@@ -42,8 +42,7 @@ s32 main(void) {
 
   enum { KIND_CRATE = 1, KIND_CAMERA = 2 };
 
-  // The shape the demo actually has: a great many of one thing, a couple of another. Finding the
-  // rare one is what every system does every tick.
+  // The shape the demo actually has: a great many of one thing, a couple of another. Finding the rare one is what every system does every tick.
   nya_log_info("entities  ns/query(rare)  ns/query(common)");
 
   const u32 populations[] = { 8, 64, 512, 4096 };

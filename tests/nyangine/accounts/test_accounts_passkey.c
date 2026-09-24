@@ -492,8 +492,7 @@ s32 main(void) {
     nya_check(!has, "and nothing was stored for it");
   }
 
-  // TEST: malformed CBOR and short buffers are refused without reading out of bounds
-  // (the sanitizer build is what proves the "without reading out of bounds" half)
+  // TEST: malformed CBOR and short buffers are refused without reading out of bounds (the sanitizer build is what proves the "without reading out of bounds" half)
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_register_begin(arena, user.id, &challenge));
@@ -584,8 +583,7 @@ s32 main(void) {
     NYA_EXPECT(nya_account_passkey_assert_begin(arena, user.id, &challenge));
 
     u32 removed = 0;
-    // keep_for far in the future keeps everything; keep_for of zero drops everything already expired,
-    // and a fresh challenge is not yet expired, so nothing goes.
+    // keep_for far in the future keeps everything; keep_for of zero drops everything already expired, and a fresh challenge is not yet expired, so nothing goes.
     NYA_EXPECT(nya_account_passkey_challenge_prune(arena, 0, &removed));
     nya_check(removed == 0, "a live challenge is not pruned");
   }

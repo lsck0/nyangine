@@ -86,8 +86,7 @@ static b8 law_well_formed_header_round_trips(NYA_Property* property) {
         char name[TEXT_MAX];
         u64  name_size = draw_name(property, name, TEXT_MAX);
 
-        // A name already used is skipped: the parser refuses a repeated name, so the round trip is stated
-        // over the unique pairs a well formed header actually carries.
+        // A name already used is skipped: the parser refuses a repeated name, so the round trip is stated over the unique pairs a well formed header actually carries.
         b8 duplicate = false;
         for (u32 seen = 0; seen < kept; seen++) {
             if (name_sizes[seen] == name_size && memcmp(names[seen], name, name_size) == 0) {
@@ -148,8 +147,7 @@ static b8 law_any_header_is_total(NYA_Property* property) {
     u64 size = nya_property_draw_below(property, RAW_MAX + 1);
     u8* raw  = nya_arena_alloc(property->allocator, size == 0 ? 1 : size);
 
-    // Bytes from the whole range, NULs included: an embedded NUL just ends a name or a value early, which
-    // the length-driven parser must take in stride rather than walk off the buffer on.
+    // Bytes from the whole range, NULs included: an embedded NUL just ends a name or a value early, which the length-driven parser must take in stride rather than walk off the buffer on.
     for (u64 index = 0; index < size; index++) raw[index] = nya_property_draw_u8(property);
 
     NYA_HttpCookieValue out_names[NYA_HTTP_MAX_COOKIES]  = { 0 };
@@ -167,8 +165,7 @@ static b8 law_any_header_is_total(NYA_Property* property) {
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);
 
-    // The alphabets are the round trip's premise: every byte in them must be one the parser accepts, or
-    // the "well formed" header the law builds would not be, and a failure would be the test's, not the code's.
+    // The alphabets are the round trip's premise: every byte in them must be one the parser accepts, or the "well formed" header the law builds would not be, and a failure would be the test's, not the code's.
     for (u64 index = 0; index < sizeof(NAME_ALPHABET) - 1; index++) nya_assert(_nya_http_cookie_name_char(NAME_ALPHABET[index]), "a name alphabet byte is not a name character");
     for (u64 index = 0; index < sizeof(VALUE_ALPHABET) - 1; index++) nya_assert(_nya_http_cookie_value_char(VALUE_ALPHABET[index]), "a value alphabet byte is not a value character");
 

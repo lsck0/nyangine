@@ -30,8 +30,7 @@ s32 main(void) {
 
   // TEST: the success classifier is exactly 2xx
   {
-    // Exposed so a caller that tolerates a 404 asks the question the same way the module does,
-    // rather than open coding a range that drifts from it.
+    // Exposed so a caller that tolerates a 404 asks the question the same way the module does, rather than open coding a range that drifts from it.
     nya_assert(nya_request_status_is_success(200));
     nya_assert(nya_request_status_is_success(201));
     nya_assert(nya_request_status_is_success(204));
@@ -59,8 +58,7 @@ s32 main(void) {
     );
     nya_assert(bad_method.kind == NYA_ERROR_INVALID_ARGUMENT, "an unknown method too");
 
-    // Left untouched on these paths on purpose: there was never a response to describe, and zeroing
-    // it would be indistinguishable from a real transfer that returned nothing.
+    // Left untouched on these paths on purpose: there was never a response to describe, and zeroing it would be indistinguishable from a real transfer that returned nothing.
     nya_assert(response.status == 0);
     nya_assert(response.raw_body == nullptr, "nothing was allocated for a request that never ran");
   }
@@ -69,9 +67,7 @@ s32 main(void) {
   {
     NYA_Response response = { 0 };
 
-    // The protocol allowlist is a security control, not a tidiness one: without it a url from a
-    // config file or a redirect can reach file:// and turn "fetch the leaderboard" into a local
-    // file read. Both of these must fail rather than succeed at reading something.
+    // The protocol allowlist is a security control, not a tidiness one: without it a url from a config file or a redirect can reach file:// and turn "fetch the leaderboard" into a local file read. Both of these must fail rather than succeed at reading something.
     NYA_Error file_scheme = nya_request_perform(
       arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_GET, .url = "file:///etc/passwd", .timeout_ms = 2000 }, &response
     );
@@ -94,12 +90,10 @@ s32 main(void) {
 
     nya_assert(!result.ok, "nothing is listening, so this cannot have succeeded");
 
-    // Mapped rather than passed through as a generic failure: a caller deciding whether to retry
-    // wants to know the difference between "no route" and "the server said no".
+    // Mapped rather than passed through as a generic failure: a caller deciding whether to retry wants to know the difference between "no route" and "the server said no".
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND, "a refused connection maps to NOT_FOUND, got %d", (int)result.kind);
 
-    // Past the argument checks, so the response *is* set up even though the transfer failed. Status
-    // stays zero because no response was ever received.
+    // Past the argument checks, so the response *is* set up even though the transfer failed. Status stays zero because no response was ever received.
     nya_assert(response.status == 0, "no HTTP response means no status, got %u", response.status);
     nya_assert(response.raw_body != nullptr, "the body buffer exists even when nothing arrived");
     nya_assert(response.raw_body->length == 0, "and it is empty");
@@ -115,8 +109,7 @@ s32 main(void) {
 
   // TEST: every method reaches the transport, not just GET
   {
-    // a write method with no body must not hang with curl waiting for a body. Against a closed port each
-    // must fail as fast as GET, proving the request was fully formed.
+    // a write method with no body must not hang with curl waiting for a body. Against a closed port each must fail as fast as GET, proving the request was fully formed.
     NYA_RequestMethod methods[] = {
       NYA_REQUEST_METHOD_GET, NYA_REQUEST_METHOD_POST, NYA_REQUEST_METHOD_PUT, NYA_REQUEST_METHOD_PATCH, NYA_REQUEST_METHOD_DELETE,
     };
@@ -149,15 +142,13 @@ s32 main(void) {
       &response
     );
 
-    // Serializing the body, building the header list and setting auth all happen before the
-    // transfer; if any of them faulted this would not reach the transport at all.
+    // Serializing the body, building the header list and setting auth all happen before the transfer; if any of them faulted this would not reach the transport at all.
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND, "reached the transport with a body attached, got %d", (int)result.kind);
   }
 
   // TEST: a GET ignores a body rather than refusing it
   {
-    // Not an error, deliberately: a shared request struct filled in by a helper should not become a
-    // special case at every call site just because this one is a GET.
+    // Not an error, deliberately: a shared request struct filled in by a helper should not become a special case at every call site just because this one is a GET.
     NYA_Object* body = nya_object_create(arena);
     nya_object_add(body, "ignored", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
 
@@ -171,8 +162,7 @@ s32 main(void) {
 
   // TEST: a response header is found by name, whatever case the server sent it in
   {
-    // Built by hand rather than fetched: what is in question is the reading, and a real server would
-    // decide the casing and the spacing for us.
+    // Built by hand rather than fetched: what is in question is the reading, and a real server would decide the casing and the spacing for us.
     NYA_Response response = {
       .status      = 200,
       .raw_body    = nya_string_create(arena),
@@ -193,8 +183,7 @@ s32 main(void) {
     nya_assert(!nya_response_header(&response, "x-absent", value, sizeof(value)));
     nya_assert(nya_string_equals(value, ""), "and the buffer is cleared rather than left holding the last answer");
 
-    // Refused rather than truncated: callers turn these into numbers, and half of a number is a wrong
-    // answer where a missing one is a known unknown.
+    // Refused rather than truncated: callers turn these into numbers, and half of a number is a wrong answer where a missing one is a known unknown.
     char tiny[4] = { 0 };
     nya_assert(!nya_response_header(&response, "content-type", tiny, sizeof(tiny)));
 
@@ -220,8 +209,7 @@ s32 main(void) {
 
   // TEST: a timeout that cannot be met is reported as a timeout
   {
-    // 1ms against TEST-NET-1 (192.0.2.0/24), reserved by RFC 5737 to never reach a real host. Timing out
-    // and failing to route are both acceptable.
+    // 1ms against TEST-NET-1 (192.0.2.0/24), reserved by RFC 5737 to never reach a real host. Timing out and failing to route are both acceptable.
     NYA_Response response = { 0 };
     NYA_Error    result   = nya_request_perform(
       arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_GET, .url = "http://192.0.2.1/", .timeout_ms = 1 }, &response
@@ -241,8 +229,7 @@ s32 main(void) {
 
     nya_object_add(body, "grant_type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"authorization_code" });
 
-    // the characters that make this worth encoding at all: a code_verifier is base64url and a redirect
-    // uri is a url, and `: / = + &` in an unencoded body would read as structure.
+    // the characters that make this worth encoding at all: a code_verifier is base64url and a redirect uri is a url, and `: / = + &` in an unencoded body would read as structure.
     nya_object_add(body, "redirect_uri", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"https://app.test/callback?x=1" });
     nya_object_add(body, "code", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"a+b/c=d&e" });
     nya_object_add(body, "expires_in", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 3600 });

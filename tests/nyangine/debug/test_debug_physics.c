@@ -58,8 +58,7 @@ s32 main(void) {
 
   NYA_Window* window = make_window();
 
-  // TEST: an empty world draws nothing, and so does a world of entities that
-  //       carry no body
+  // TEST: an empty world draws nothing, and so does a world of entities that carry no body
   {
     nya_check(drawn_3d(window) == 0, "an empty world draws no hitboxes");
 
@@ -103,8 +102,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a heightfield is skipped rather than drawn. A terrain's outline is the
-  //       terrain, which would hide the scene it is there to explain.
+  // TEST: a heightfield is skipped rather than drawn. A terrain's outline is the terrain, which would hide the scene it is there to explain.
   {
     // Flat and tiny. The overlay never reads the heights; what matters is that the body exists.
     static const f32 heights[16] = { 0 };
@@ -125,8 +123,7 @@ s32 main(void) {
     NYA_EntityHandle box = nya_entity_spawn(.name = "box", .position = { 0.0F, 0.0F, 0.0F });
     nya_assert(nya_physics3d_body_attach(box, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 1.0F, 1.0F, 1.0F }));
 
-    // the mode outlives nya_render3d_end, so an overlay left switched on would float the next frame's
-    // world over itself.
+    // the mode outlives nya_render3d_end, so an overlay left switched on would float the next frame's world over itself.
     nya_render3d_depth_set(window, NYA_RENDER3D_DEPTH_DEFAULT);
     nya_check(drawn_3d(window) == 1, "the box is drawn");
     nya_check(nya_render3d_depth(window) == NYA_RENDER3D_DEPTH_DEFAULT, "and the world after it is depth tested again");

@@ -33,8 +33,7 @@ s32 main(void) {
     nya_assert(nya_discord_status() == NYA_DISCORD_STATUS_OFF);
     nya_assert(!nya_discord_connected());
 
-    // Setting presence before init is a caller mistake, not a silent no-op: the activity would be
-    // dropped with nothing to say so.
+    // Setting presence before init is a caller mistake, not a silent no-op: the activity would be dropped with nothing to say so.
     nya_assert(!nya_discord_activity_set((NYA_DiscordActivity){ .state = "menu" }).ok);
 
     nya_assert(!nya_discord_init(0).ok, "a zero application id is refused");
@@ -91,8 +90,7 @@ s32 main(void) {
     NYA_Value* args = nya_object_get(root, "args");
     nya_assert(args != nullptr && args->type == NYA_TYPE_OBJECT);
 
-    // The pid is not decoration: Discord watches it and takes the card down when the process exits,
-    // which is what stops a crashed game showing as still playing.
+    // The pid is not decoration: Discord watches it and takes the card down when the process exits, which is what stops a crashed game showing as still playing.
     nya_assert(nya_object_get(&args->as_object, "pid") != nullptr, "SET_ACTIVITY carries the process id");
 
     nya_assert(contains(text, "\"details\":\"Competitive | In a Match\""));
@@ -120,8 +118,7 @@ s32 main(void) {
     nya_assert(!contains(text, "\"assets\""));
     nya_assert(!contains(text, "\"party\""));
 
-    // An empty string is treated the same as absent, so a caller clearing a line by writing "" gets
-    // the line removed rather than blanked.
+    // An empty string is treated the same as absent, so a caller clearing a line by writing "" gets the line removed rather than blanked.
     NYA_DiscordActivity empty_state = { .details = "Just this", .state = "" };
 
     NYA_String* second = _nya_discord_activity_payload(arena, &empty_state);
@@ -130,8 +127,7 @@ s32 main(void) {
 
   // TEST: everything a player can type is escaped
   {
-    // A quote and a backslash end the string early; a newline and a tab are control characters JSON
-    // has no literal form for. Any one of them produces a frame the client answers by hanging up.
+    // A quote and a backslash end the string early; a newline and a tab are control characters JSON has no literal form for. Any one of them produces a frame the client answers by hanging up.
     NYA_DiscordActivity hostile = {
       .details = "say \"hi\" \\ now",
       .state   = "line\nbreak\ttab",
@@ -175,8 +171,7 @@ s32 main(void) {
 
     (void)parse(arena, text);
 
-    // An empty object would be an activity with no fields, which leaves the card up showing the
-    // game's name. Null is what takes it down.
+    // An empty object would be an activity with no fields, which leaves the card up showing the game's name. Null is what takes it down.
     nya_assert(contains(text, "\"activity\":null"));
   }
 
@@ -190,8 +185,7 @@ s32 main(void) {
     nya_assert(contains(text, "\"id\":\"p\""));
     nya_assert(!contains(text, "\"size\""), "one number is no count; Discord shows nothing for it anyway");
 
-    // Discord rejects the whole activity when the maximum is below the current size, so it is
-    // dropped here rather than sent and silently ignored.
+    // Discord rejects the whole activity when the maximum is below the current size, so it is dropped here rather than sent and silently ignored.
     NYA_DiscordActivity backwards = { .party_id = "p", .party_size = 9, .party_max = 2 };
 
     NYA_CString backwards_text = nya_string_to_cstring(arena, _nya_discord_activity_payload(arena, &backwards));
@@ -213,18 +207,14 @@ s32 main(void) {
     nya_assert(contains(text, "\"label\":\"Website\""));
     nya_assert(contains(text, "\"url\":\"https://discord.gg/x\""));
 
-    // A half filled button is dropped: sending one with a label and no url is refused along with the
-    // whole activity.
+    // A half filled button is dropped: sending one with a label and no url is refused along with the whole activity.
     NYA_DiscordActivity half_button = { .state = "playing", .buttons = { { .label = "Website" } } };
 
     NYA_CString half_text = nya_string_to_cstring(arena, _nya_discord_activity_payload(arena, &half_button));
     (void)parse(arena, half_text);
     nya_assert(!contains(half_text, "\"buttons\""));
 
-    /*
-     * Discord silently refuses an activity with both buttons and secrets, and the card stops updating.
-     * The buttons go, since a join secret is functional and a button decorative.
-     */
+    /* Discord silently refuses an activity with both buttons and secrets, and the card stops updating. The buttons go, since a join secret is functional and a button decorative. */
     NYA_DiscordActivity both = {
       .party_id    = "p",
       .join_secret = "s3cret",
@@ -240,8 +230,7 @@ s32 main(void) {
 
   // TEST: change detection compares text, not pointers
   {
-    // The case that matters: a caller formatting into a stack buffer produces a different pointer
-    // every frame with identical bytes behind it.
+    // The case that matters: a caller formatting into a stack buffer produces a different pointer every frame with identical bytes behind it.
     char first[64];
     char second[64];
 
@@ -258,8 +247,7 @@ s32 main(void) {
     (void)snprintf(second, sizeof(second), "Score: %d", 43);
     nya_assert(!_nya_discord_activity_equals(&a, &b), "and a real change is seen");
 
-    // null and empty are equivalent because the builder omits both, so the frames are identical and must
-    // not be re-sent.
+    // null and empty are equivalent because the builder omits both, so the frames are identical and must not be re-sent.
     NYA_DiscordActivity absent = { .state = nullptr };
     NYA_DiscordActivity blank  = { .state = "" };
 
@@ -281,8 +269,7 @@ s32 main(void) {
 
   // TEST: overlong text is truncated rather than sent whole
   {
-    // Discord cuts at 128 bytes anyway. Cutting here keeps the frame valid instead of letting a peer
-    // reject the entire activity.
+    // Discord cuts at 128 bytes anyway. Cutting here keeps the frame valid instead of letting a peer reject the entire activity.
     char long_text[NYA_DISCORD_MAX_TEXT * 4];
     nya_memset(long_text, 'x', sizeof(long_text) - 1);
     long_text[sizeof(long_text) - 1] = '\0';

@@ -123,9 +123,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
                 nya_ui_panel_end(ui);
             }
 
-            // a text field, driven live from the browser: what a person types there is sent as a "text"
-            // event, and the server writes it into this buffer through the field's own editing — the same
-            // path a keyboard drives. See handle_event.
+            // a text field, driven live from the browser: what a person types there is sent as a "text" event, and the server writes it into this buffer through the field's own editing — the same path a keyboard drives. See handle_event.
             (void)nya_ui_text_input(ui, "name", app->name, sizeof(app->name));
 
             char hello[96] = { 0 };
@@ -135,8 +133,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
             (void)nya_ui_toggle(ui, "dark mode", &app->dark);
             nya_ui_label(ui, app->dark ? "the theme is dark" : "the theme is light");
 
-            // a slider, driven live from the browser: its input event carries a value the server turns
-            // into a pointer along the track, which is what a real drag is. See handle_event.
+            // a slider, driven live from the browser: its input event carries a value the server turns into a pointer along the track, which is what a real drag is. See handle_event.
             (void)nya_ui_slider(ui, "volume", &app->volume, 0.0F, 1.0F, 0.0F);
 
             char vol[32] = { 0 };
@@ -175,8 +172,7 @@ NYA_INTERNAL AppState app_from_cookie(NYA_HttpExchange* exchange) {
     if (cookie.size >= sizeof(token)) return app;
     nya_memcpy(token, cookie.text, cookie.size);
 
-    // A tampered, expired or forged cookie simply opens to nothing and the session starts fresh; the
-    // seal is what makes trusting a client-held blob safe. See http_seal.h.
+    // A tampered, expired or forged cookie simply opens to nothing and the session starts fresh; the seal is what makes trusting a client-held blob safe. See http_seal.h.
     u8  bytes[sizeof(AppState)] = { 0 };
     u64 size                    = 0;
 
@@ -282,8 +278,7 @@ NYA_INTERNAL void inject_field_text(AppState* app, NYA_Rectf box, NYA_ConstCStri
     inject_key(NYA_KEY_A, true, NYA_KEYMOD_CTRL);
     input_pass(app);
 
-    // release ctrl (so the next text is typed, not read as a shortcut), then type the value over the
-    // selection — or, when it is empty, delete the selection to clear the field.
+    // release ctrl (so the next text is typed, not read as a shortcut), then type the value over the selection — or, when it is empty, delete the selection to clear the field.
     inject_key(NYA_KEY_A, false, NYA_KEYMOD_NONE);
 
     if (value != nullptr && value[0] != '\0') {
@@ -334,13 +329,7 @@ NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
     render(&app);
     if (!app_to_cookie(exchange, &app)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    /*
-     * A per-response nonce for the one inline script, so the page's own Content-Security-Policy can allow
-     * that script by nonce and nothing else. The server default is `default-src 'none'`, which would block
-     * the presenter's inline style and script outright; this route sets its own, tighter where it can be:
-     * the script is pinned to this nonce, and `style-src 'unsafe-inline'` is the one loosening — safe here
-     * because the presenter escapes every label, so no attribute a person set can carry style of its own.
-     */
+    /* A per-response nonce for the one inline script, so the page's own Content-Security-Policy can allow that script by nonce and nothing else. The server default is `default-src 'none'`, which would block the presenter's inline style and script outright; this route sets its own, tighter where it can be: the script is pinned to this nonce, and `style-src 'unsafe-inline'` is the one loosening — safe here because the presenter escapes every label, so no attribute a person set can carry style of its own. */
     u8 nonce_bytes[16] = { 0 };
     if (!nya_os_random_bytes(nonce_bytes, sizeof(nonce_bytes))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -355,8 +344,7 @@ NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
 
     if (!nya_http_response_header(exchange->response, "Content-Security-Policy", policy).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // The embedding metadata, so a link to this page unfurls with a title, blurb and image on social media
-    // and in chat apps, and carries the oEmbed discovery link. Every field is escaped into the head.
+    // The embedding metadata, so a link to this page unfurls with a title, blurb and image on social media and in chat apps, and carries the oEmbed discovery link. Every field is escaped into the head.
     char canonical[64] = { 0 };
     char oembed[160]   = { 0 };
     NYA_PageMeta meta  = page_meta(canonical, sizeof(canonical), oembed, sizeof(oembed));
@@ -382,16 +370,14 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
 
     NYA_ConstCString event = event_value != nullptr && event_value->type == NYA_TYPE_STRING ? event_value->as_string : "click";
 
-    // The id is "wN"; the number is an index into the last render's rectangles and nothing else, so a
-    // bad one aims at no widget rather than at anything it should not reach.
+    // The id is "wN"; the number is an index into the last render's rectangles and nothing else, so a bad one aims at no widget rather than at anything it should not reach.
     NYA_ConstCString text = id_value->as_string;
     if (text[0] != 'w') return NYA_HTTP_STATUS_BAD_REQUEST;
 
     u64 id = 0;
     if (!nya_type_parse(NYA_TYPE_U64, (const u8*)(text + 1), strlen(text + 1), &id)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    // This session's state, and a render so the id-to-rectangle table matches the cookie the click was
-    // made against — the previous render may have been another browser's.
+    // This session's state, and a render so the id-to-rectangle table matches the cookie the click was made against — the previous render may have been another browser's.
     AppState app = app_from_cookie(exchange);
     render(&app);
 
@@ -400,8 +386,7 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     NYA_Rectf        rect       = { 0 };
 
     if (nya_string_equals(event, "input") && nya_ui_html_widget(&HTML, (u32)id, &kind, &value_rect) && kind == NYA_UI_WIDGET_SLIDER) {
-        // The slider's value arrives 0..1000 (the range input's span); aim a drag at that fraction of
-        // the track, and the component's own slider logic writes the bound value from where the pointer is.
+        // The slider's value arrives 0..1000 (the range input's span); aim a drag at that fraction of the track, and the component's own slider logic writes the bound value from where the pointer is.
         f64 value = 0.0;
         NYA_Value* v = nya_object_get(body, "value");
         if (v != nullptr && v->type == NYA_TYPE_STRING) value = strtod(v->as_string, nullptr);
@@ -411,10 +396,7 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
 
         render(&app);
     } else if (nya_string_equals(event, "text") && nya_ui_html_widget(&HTML, (u32)id, &kind, &value_rect) && kind == NYA_UI_WIDGET_FIELD) {
-        // The field's value is the whole string the browser now shows; the value_rect is its box. Typing it
-        // into the field over its own contents is what makes the server's buffer match the browser's, and it
-        // goes in through the input system rather than by touching the buffer directly. This runs its own
-        // input passes, so the render below is only the draw the client gets back.
+        // The field's value is the whole string the browser now shows; the value_rect is its box. Typing it into the field over its own contents is what makes the server's buffer match the browser's, and it goes in through the input system rather than by touching the buffer directly. This runs its own input passes, so the render below is only the draw the client gets back.
         NYA_ConstCString value = "";
         NYA_Value* v = nya_object_get(body, "value");
         if (v != nullptr && v->type == NYA_TYPE_STRING) value = v->as_string;
@@ -449,8 +431,7 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
  * document itself is built by the engine from the page's NYA_PageMeta and rendered as JSON through serde.
  * */
 NYA_INTERNAL NYA_HttpStatus handle_oembed(NYA_HttpExchange* exchange) {
-    // The URL the consumer wants metadata for. A real provider matches it against the pages it serves; here
-    // one page is served, so a well-formed http(s) `url` is accepted and anything else is refused.
+    // The URL the consumer wants metadata for. A real provider matches it against the pages it serves; here one page is served, so a well-formed http(s) `url` is accepted and anything else is refused.
     char url[512] = { 0 };
     if (!nya_http_request_query_param(exchange->request, "url", url, sizeof(url))) return NYA_HTTP_STATUS_BAD_REQUEST;
     if (!nya_ui_page_meta_url_ok(url)) return NYA_HTTP_STATUS_BAD_REQUEST;
@@ -509,9 +490,7 @@ s32 main(s32 argc, char** argv) {
     }
     defer SDL_Quit();
 
-    // The systems the UI reads through, and nothing to do with a window: an app instance, the callback
-    // and event registries, the input system the injected clicks go into, and the asset system a style
-    // may reach for. The same set the UI tests bring up.
+    // The systems the UI reads through, and nothing to do with a window: an app instance, the callback and event registries, the input system the injected clicks go into, and the asset system a style may reach for. The same set the UI tests bring up.
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
     nya_system_settings_init();
     nya_system_callback_init();
@@ -520,9 +499,7 @@ s32 main(s32 argc, char** argv) {
     defer nya_system_events_deinit();
     nya_system_input_init();
     defer nya_system_input_deinit();
-    // No window opens, but a field taking focus starts text input, which looks the window handle up; the
-    // system has to be up for that lookup to resolve to "no such window" rather than read an unallocated
-    // table. The UI text tests bring it up for the same reason.
+    // No window opens, but a field taking focus starts text input, which looks the window handle up; the system has to be up for that lookup to resolve to "no such window" rather than read an unallocated table. The UI text tests bring it up for the same reason.
     nya_system_window_init();
     defer nya_system_window_deinit();
     nya_system_asset_init();
@@ -536,8 +513,7 @@ s32 main(s32 argc, char** argv) {
     nya_ui_html_init(&HTML, NYA_UI_HTML_CELL);
     nya_ui_presenter_set(&WINDOW, nya_ui_html_presenter(&HTML));
 
-    // Single-threaded: the UI and the input system are the ticking thread's, so every route is MAIN and
-    // the server is drained from the loop below rather than by workers.
+    // Single-threaded: the UI and the input system are the ticking thread's, so every route is MAIN and the server is drained from the loop below rather than by workers.
     NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){ .port = port, .workers = 0 }), "while starting the server");
     defer nya_system_http_deinit();
 

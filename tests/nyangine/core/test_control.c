@@ -338,11 +338,7 @@ s32 main(void) {
     nya_assert(knobs.enabled);
     nya_assert(knobs.amount == 0.5F);
 
-    /*
-     * A `char*` field is the one thing a write may not touch. nya_reflect_from_object would store the
-     * request's own pointer, and that pointer belongs to the scratch the next tick reuses, so the live
-     * struct would be left holding memory that is about to be something else.
-     */
+    /* A `char*` field is the one thing a write may not touch. nya_reflect_from_object would store the request's own pointer, and that pointer belongs to the scratch the next tick reuses, so the live struct would be left holding memory that is about to be something else. */
     NYA_Object* borrowed = call(client, buffer, "{\"op\":\"object.set\",\"name\":\"knobs\",\"value\":{\"borrowed\":\"gone next frame\"}}");
     nya_assert(!reply_is_ok(borrowed), "a string field was written over the control socket");
     nya_assert(knobs.borrowed == nullptr, "a string field was written over the control socket");

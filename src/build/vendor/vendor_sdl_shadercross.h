@@ -14,10 +14,7 @@
 
 #define SHADERCROSS_SOURCE "./vendor/sdl-shadercross"
 
-/*
- * Keyed by host, not target: shadercross is a build-time tool and its .dxil/.msl/.spv output does not
- * depend on the target, so one binary per machine.
- */
+/* Keyed by host, not target: shadercross is a build-time tool and its .dxil/.msl/.spv output does not depend on the target, so one binary per machine. */
 #if OS_WINDOWS
 #define SHADERCROSS_BUILD    "./vendor/sdl-shadercross/build-windows-x86_64"
 #define SHADERCROSS_BINARY   SHADERCROSS_BUILD "/shadercross.exe"
@@ -28,16 +25,7 @@
 #define SHADERCROSS_HOST_SDL SDL_BUILD_LINUX_X86_64
 #endif
 
-/*
- * Where shadercross finds libSDL3_shadercross, SPIRV-Cross and DXC. They are not on the loader path
- * and the binary has no RPATH, so without this it exits 127 with no diagnostic.
- *
- * Carries its own trailing comma since the Windows expansion is empty (as FLAGS_TARGET_WINDOWS_X86_64).
- *
- * Empty on Windows: NYA_Command _putenv's environment entries into this process (command_windows.c),
- * so PATH= would replace the build tool's PATH for every later command. The Windows loader searches
- * the .exe's directory first, so the configure below puts the DLLs there.
- */
+/* Where shadercross finds libSDL3_shadercross, SPIRV-Cross and DXC. They are not on the loader path and the binary has no RPATH, so without this it exits 127 with no diagnostic. Carries its own trailing comma since the Windows expansion is empty (as FLAGS_TARGET_WINDOWS_X86_64). Empty on Windows: NYA_Command _putenv's environment entries into this process (command_windows.c), so PATH= would replace the build tool's PATH for every later command. The Windows loader searches the .exe's directory first, so the configure below puts the DLLs there. */
 #if OS_WINDOWS
 #define SHADERCROSS_LIBRARY_PATH
 #else
@@ -46,20 +34,7 @@
     "/external/DirectXShaderCompiler/lib:" SHADERCROSS_HOST_SDL,
 #endif
 
-/*
- * SPIRV-Cross, vendored inside sdl-shadercross. Where shadercross runs the binary, the build tool links
- * the C library straight in and calls it in-process: nya_asset_compile_shaders cross compiles every
- * .spv to GLSL ES 300 beside it, so a later GLES3/WebGL2 backend has shaders it can load.
- *
- * Three parts, wired exactly like libbacktrace (base_backtrace.h keys the code off __has_include, build.c
- * appends the flags only when the artifact exists): SHADERCROSS_SPIRV_CROSS_INCLUDE so <spirv_cross_c.h>
- * resolves and __has_include finds it, SHADERCROSS_SPIRV_CROSS_LINK for the linker, and
- * SHADERCROSS_SPIRV_CROSS_SO the path main() tests first — the .so is a shadercross build output, so on a
- * fresh checkout it does not exist until the vendors are built, and the tool is what builds them.
- *
- * Host only. A Windows host does not build shadercross (DXC will not compile under MinGW) and takes the
- * compiled shaders, GLSL included, from a Linux machine, so there is nothing to link there.
- */
+/* SPIRV-Cross, vendored inside sdl-shadercross. Where shadercross runs the binary, the build tool links the C library straight in and calls it in-process: nya_asset_compile_shaders cross compiles every .spv to GLSL ES 300 beside it, so a later GLES3/WebGL2 backend has shaders it can load. Three parts, wired exactly like libbacktrace (base_backtrace.h keys the code off __has_include, build.c appends the flags only when the artifact exists): SHADERCROSS_SPIRV_CROSS_INCLUDE so <spirv_cross_c.h> resolves and __has_include finds it, SHADERCROSS_SPIRV_CROSS_LINK for the linker, and SHADERCROSS_SPIRV_CROSS_SO the path main() tests first — the .so is a shadercross build output, so on a fresh checkout it does not exist until the vendors are built, and the tool is what builds them. Host only. A Windows host does not build shadercross (DXC will not compile under MinGW) and takes the compiled shaders, GLSL included, from a Linux machine, so there is nothing to link there. */
 #if OS_WINDOWS
 #define SHADERCROSS_SPIRV_CROSS_INCLUDE
 #define SHADERCROSS_SPIRV_CROSS_LINK
@@ -75,11 +50,7 @@
     "-Wl,-rpath,$ORIGIN/vendor/sdl-shadercross/build-linux-x86_64/external/SPIRV-Cross"
 #endif
 
-/*
- * Windows only: puts every DLL in the tree, subprojects included, next to shadercross.exe, replacing
- * LD_LIBRARY_PATH. Absolute via %CWD%/hook_expand_cwd, since a relative output directory resolves per
- * target.
- */
+/* Windows only: puts every DLL in the tree, subprojects included, next to shadercross.exe, replacing LD_LIBRARY_PATH. Absolute via %CWD%/hook_expand_cwd, since a relative output directory resolves per target. */
 #if OS_WINDOWS
 #define SHADERCROSS_CMAKE_RUNTIME_OUTPUT "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=%CWD%/vendor/sdl-shadercross/build-windows-x86_64",
 #else
@@ -108,8 +79,7 @@ NYA_VendorRule vendor_sdl_shadercross_host = {
                 },
             },
 
-            // cmake resolves a relative CMAKE_PREFIX_PATH against the build directory, so it must be
-            // made absolute first; hook_expand_cwd does the same for the runtime output dir above.
+            // cmake resolves a relative CMAKE_PREFIX_PATH against the build directory, so it must be made absolute first; hook_expand_cwd does the same for the runtime output dir above.
             .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_expand_cwd, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
@@ -129,10 +99,7 @@ NYA_VendorRule vendor_sdl_shadercross_host = {
     },
 };
 
-/*
- * DXC does not compile under MinGW, so a Windows host does not build shadercross and uses shaders
- * compiled on a Linux host instead. See nya_asset_compile_shaders.
- */
+/* DXC does not compile under MinGW, so a Windows host does not build shadercross and uses shaders compiled on a Linux host instead. See nya_asset_compile_shaders. */
 #if OS_WINDOWS
 #define SHADERCROSS_HOST_VENDOR
 #else

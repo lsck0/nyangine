@@ -181,11 +181,7 @@ NYA_INTERNAL NYA_BuildRule show_stats = {
     .command = {
         .program = "tokei",
 
-        /*
-         * Vendor, tests, the examples and the generated tree are all excluded, so the number means "how
-         * much engine is there": nobody wrote src/genyarated, and an example is a caller rather than the
-         * thing being measured.
-         */
+        /* Vendor, tests, the examples and the generated tree are all excluded, so the number means "how much engine is there": nobody wrote src/genyarated, and an example is a caller rather than the thing being measured. */
         .arguments = { ".",           "--exclude", "vendor",         "--exclude", "assets", "--exclude", "tests",
                        "--exclude",   "examples",  "--exclude",      "src/genyarated", },
     },
@@ -197,9 +193,7 @@ NYA_INTERNAL NYA_BuildRule update_submodules = {
 
     .command = {
         .program   = "git",
-        // --init --recursive, not just a pull: several vendors are themselves submodule trees.
-        // SDL_mixer and SDL_ttf build their codecs from external/, and with those directories
-        // empty cmake fails at configure time complaining about a missing CMakeLists.txt.
+        // --init --recursive, not just a pull: several vendors are themselves submodule trees. SDL_mixer and SDL_ttf build their codecs from external/, and with those directories empty cmake fails at configure time complaining about a missing CMakeLists.txt.
         .arguments = { "submodule", "update", "--init", "--recursive", },
     },
 };

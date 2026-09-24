@@ -167,8 +167,7 @@ s32 main(void) {
 
   // TEST: what it refuses to derive, and which refusals stop a migration
   {
-    // A column the struct no longer describes. Left alone, reported, and not a reason to stop: the
-    // ORM names its columns in every statement, so a column it does not know is never touched.
+    // A column the struct no longer describes. Left alone, reported, and not a reason to stop: the ORM names its columns in every statement, so a column it does not know is never touched.
     NYA_MigrationPlan* dropped = nullptr;
     NYA_EXPECT(nya_migration_plan_from_types(arena, &NOTE_V2, &NOTE_DROPPED, "notes", &dropped));
 
@@ -195,8 +194,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(moved->refusals[0].column, "text"));
     nya_assert(moved->blocked);
 
-    // A rename is a drop and an add seen from here, and it is refused as exactly that rather than
-    // guessed at: one column added, one left alone, and nothing that moves the data between them.
+    // A rename is a drop and an add seen from here, and it is refused as exactly that rather than guessed at: one column added, one left alone, and nothing that moves the data between them.
     NYA_MigrationPlan* renamed = nullptr;
     NYA_EXPECT(nya_migration_plan_from_types(arena, &NOTE_V1, &NOTE_DROPPED, "notes", &renamed));
 
@@ -237,8 +235,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_orm_schema_migrate(v2));
 
-    // The row written before the column existed is still a row, and the new column reads as zero:
-    // the added column is NULL in it, and nya_orm_find zeroes the struct before it fills it.
+    // The row written before the column existed is still a row, and the new column reads as zero: the added column is NULL in it, and nya_orm_find zeroes the struct before it fills it.
     NoteV2 read = { 0 };
     NYA_EXPECT(nya_orm_find(v2, arena, nya_sql_s64(written.id), &read));
 
@@ -268,8 +265,7 @@ s32 main(void) {
     NYA_EXPECT(nya_orm_insert(v2, &written));
     nya_orm_close(v2);
 
-    // NoteRetyped wants `text` as an integer and has no `written_at_s`: one refusal that stops the
-    // migration and one that does not. The derivable half must not run on its own.
+    // NoteRetyped wants `text` as an integer and has no `written_at_s`: one refusal that stops the migration and one that does not. The derivable half must not run on its own.
     NYA_OrmTable* retyped = nullptr;
     NYA_EXPECT(nya_orm_open(arena, db, &NOTE_RETYPED, "notes", &retyped));
 
@@ -318,17 +314,11 @@ s32 main(void) {
 
     NYA_EXPECT(nya_migration_apply(db, plan));
 
-    /*
-     * The same plan a second time, which is the shape of every way a migration fails halfway: the
-     * statement is fine and the database says no. sqlite refuses the duplicate column, and what
-     * matters is that the transaction is rolled back rather than left open — an open transaction
-     * would hold the schema until the connection closed and make every later statement part of it.
-     */
+    /* The same plan a second time, which is the shape of every way a migration fails halfway: the statement is fine and the database says no. sqlite refuses the duplicate column, and what matters is that the transaction is rolled back rather than left open — an open transaction would hold the schema until the connection closed and make every later statement part of it. */
     NYA_Error twice = nya_migration_apply(db, plan);
     nya_assert(!twice.ok, "adding a column that is already there is an error, not a no-op");
 
-    // Proven by starting another transaction: sqlite refuses a nested one, so this only succeeds if
-    // the failed migration rolled its own back.
+    // Proven by starting another transaction: sqlite refuses a nested one, so this only succeeds if the failed migration rolled its own back.
     NYA_EXPECT(nya_sql_transaction_begin(db));
     NYA_EXPECT(nya_sql_transaction_rollback(db));
 
@@ -337,21 +327,14 @@ s32 main(void) {
 
   // TEST: a database written by an earlier run of this test
   {
-    /*
-     * Deliberately not deleted at the end. Every other test here builds its database and throws it
-     * away, which proves nothing about the case that actually happens: a server restarting onto the
-     * file the last version of it wrote. So this one keeps the file, and the run after it — the next
-     * `./build run test`, on a machine that has run the suite before — opens a schema it did not
-     * create. It is in .gitignore for that reason.
-     */
+    /* Deliberately not deleted at the end. Every other test here builds its database and throws it away, which proves nothing about the case that actually happens: a server restarting onto the file the last version of it wrote. So this one keeps the file, and the run after it — the next `./build run test`, on a machine that has run the suite before — opens a schema it did not create. It is in .gitignore for that reason. */
     NYA_ConstCString path = "./_test_db_reopen.db";
 
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, path, &db));
     defer nya_sql_close(db);
 
-    // The file the last run left is opened as V1 first, exactly as an older build would: a table a
-    // newer build has grown still has every column V1 describes.
+    // The file the last run left is opened as V1 first, exactly as an older build would: a table a newer build has grown still has every column V1 describes.
     NYA_OrmTable* v1 = nullptr;
     NYA_EXPECT(nya_orm_open(arena, db, &NOTE_V1, "notes", &v1));
     NYA_EXPECT(nya_orm_schema_migrate(v1));
@@ -384,8 +367,7 @@ s32 main(void) {
 
     nya_assert(count == older_count + 1, "the rows of every earlier run are still there");
 
-    // Bounded, because a file that is never deleted is a file that grows forever. The oldest go
-    // first, so what is kept is the most recent handful of runs.
+    // Bounded, because a file that is never deleted is a file that grows forever. The oldest go first, so what is kept is the most recent handful of runs.
     for (u32 i = 0; i + 8 < count; i++) {
       NoteV2* note = nya_orm_at(v2, rows, i);
       NYA_EXPECT(nya_orm_delete(v2, nya_sql_s64(note->id)));

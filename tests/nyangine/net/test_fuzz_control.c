@@ -144,8 +144,7 @@ static void upgrader_pump(Upgrader* server, NYA_Arena* arena) {
   }
 
   if (server->upgraded) {
-    // Everything after the upgrade is read and thrown away: this server never answers a frame, it
-    // only sends the ones the fuzzer hands it.
+    // Everything after the upgrade is read and thrown away: this server never answers a frame, it only sends the ones the fuzzer hands it.
     u8 ignored[1024];
     {
       u64 ignored_size = 0;
@@ -219,8 +218,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_fuzz_control");
   defer      nya_arena_destroy(arena);
 
-  // Dropping a misbehaving peer is a warning, and this file makes tens of thousands of them do it on
-  // purpose. The warnings are the normal outcome here, so they are silenced rather than scrolled past.
+  // Dropping a misbehaving peer is a warning, and this file makes tens of thousands of them do it on purpose. The warnings are the normal outcome here, so they are silenced rather than scrolled past.
   nya_log_level_set(NYA_LOG_LEVEL_ERROR);
 
   u8 input[FUZZ_INPUT_MAX];
@@ -275,15 +273,13 @@ s32 main(void) {
         continue;
       }
 
-      // The header is four bytes, so the length it can name is bounded by construction. That is the
-      // property the control layer leans on when it decides whether to keep reading.
+      // The header is four bytes, so the length it can name is bounded by construction. That is the property the control layer leans on when it decides whether to keep reading.
       nya_assert(length <= 0xFFFFFFFFULL);
 
       u8  written[NYA_CONTROL_HEADER_BYTES] = { 0 };
       u64 again                             = 0;
 
-      // Anything inside the limit round trips; anything past it is refused by the encoder, which is
-      // where that limit is enforced for outgoing messages.
+      // Anything inside the limit round trips; anything past it is refused by the encoder, which is where that limit is enforced for outgoing messages.
       if (length >= 1 && length <= NYA_CONTROL_MAX_MESSAGE_BYTES) {
         NYA_EXPECT(nya_control_frame_encode(length, written));
         nya_assert(nya_control_frame_decode(written, sizeof(written), &again) && again == length);
@@ -343,8 +339,7 @@ s32 main(void) {
       nya_assert(size < FUZZ_INPUT_MAX);
       nya_memcpy(input, seed, size);
 
-      // One in sixteen is pure noise rather than a mutation, so the parser sees bytes no document
-      // ever had as well as documents that are nearly right.
+      // One in sixteen is pure noise rather than a mutation, so the parser sees bytes no document ever had as well as documents that are nearly right.
       if (iteration % 16 == 0) {
         size = below(256);
         for (u64 i = 0; i < size; i++) input[i] = (u8)roll();
@@ -356,8 +351,7 @@ s32 main(void) {
 
       u8 header[NYA_CONTROL_HEADER_BYTES] = { 0 };
 
-      // Half the time the length is honest and half the time it is whatever the mutator produced, so
-      // the assembly path sees both a truncated message and one that claims more than it sends.
+      // Half the time the length is honest and half the time it is whatever the mutator produced, so the assembly path sees both a truncated message and one that claims more than it sends.
       u64 announced = (iteration & 1) ? size : (u64)below(0xFFFFU) + 1;
 
       if (!nya_control_frame_encode(announced, header).ok) continue;
@@ -367,8 +361,7 @@ s32 main(void) {
 
       sent++;
 
-      // Drained, and whatever comes back is read and thrown away: what matters is that the process is
-      // still here and the surface is still listening.
+      // Drained, and whatever comes back is read and thrown away: what matters is that the process is still here and the surface is still listening.
       for (u32 step = 0; step < 4; step++) nya_system_control_tick();
 
       u8  ignored[2048] = { 0 };
@@ -401,11 +394,7 @@ s32 main(void) {
 
     NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/", (unsigned)port);
 
-    /*
-     * A run is one socket fed a stream of frames the mutator produced, until the client closes it. A
-     * closed socket never reopens, so a new one is created for the next run; the count is what makes
-     * this a fuzz rather than one unlucky frame.
-     */
+    /* A run is one socket fed a stream of frames the mutator produced, until the client closes it. A closed socket never reopens, so a new one is created for the next run; the count is what makes this a fuzz rather than one unlucky frame. */
     u32 runs     = 0;
     u32 frames   = 0;
     u32 messages = 0;
@@ -437,8 +426,7 @@ s32 main(void) {
         sleep_ms(1);
       }
 
-      // A run whose upgrade did not complete is not a useful run; the socket is dropped and the server
-      // is rebuilt so the next one starts clean.
+      // A run whose upgrade did not complete is not a useful run; the socket is dropped and the server is rebuilt so the next one starts clean.
       if (!open) {
         nya_websocket_destroy(socket);
         upgrader_destroy(&server);
@@ -449,11 +437,7 @@ s32 main(void) {
       }
 
       for (u32 burst = 0; burst < 24 && nya_websocket_state(socket) != NYA_WEBSOCKET_STATE_CLOSED; burst++) {
-        /*
-         * A frame built the way a server would build one, then broken. The header is written by hand
-         * rather than by nya_websocket_frame_encode, because the encoder refuses exactly the frames
-         * this test wants on the wire.
-         */
+        /* A frame built the way a server would build one, then broken. The header is written by hand rather than by nya_websocket_frame_encode, because the encoder refuses exactly the frames this test wants on the wire. */
         u64 size      = 0;
         u8  opcodes[] = { 0x0, 0x1, 0x2, 0x8, 0x9, 0xA, 0x3, 0xB };
         u8  opcode    = opcodes[below(sizeof(opcodes))];
@@ -490,8 +474,7 @@ s32 main(void) {
             if (event.kind == NYA_WEBSOCKET_EVENT_TEXT || event.kind == NYA_WEBSOCKET_EVENT_BINARY) {
               messages++;
 
-              // Whatever came out is inside the ceiling this socket was given, and a text message is
-              // terminated so it can be used as a C string.
+              // Whatever came out is inside the ceiling this socket was given, and a text message is terminated so it can be used as a C string.
               nya_assert(event.size <= 8192, "a message past the ceiling was handed out");
               if (event.kind == NYA_WEBSOCKET_EVENT_TEXT) nya_assert(event.data[event.size] == '\0');
             }

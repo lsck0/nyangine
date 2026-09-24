@@ -174,8 +174,7 @@ s32 main(void) {
 
     nya_ui_style_set(&window, (NYA_UIStyle){ .padding = 8.0F, .spacing = 6.0F, .item_height = 32.0F });
 
-    // the whole set is driven through the recorder: no GPU, no face, and every rectangle is exact cell arithmetic,
-    // so a click reads the same geometry an input pass computes.
+    // the whole set is driven through the recorder: no GPU, no face, and every rectangle is exact cell arithmetic, so a click reads the same geometry an input pass computes.
     static NYA_UIRecorder recorder;
     nya_ui_recorder_init(&recorder, (f32x2){ 8.0F, 16.0F });
     defer nya_ui_recorder_deinit(&recorder);

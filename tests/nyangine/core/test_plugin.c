@@ -124,8 +124,7 @@ static void plugins_write_all(void) {
 s32 main(void) {
     plugins_write_all();
 
-    // TEST: the compile time grant is what the build says and nothing reads it from
-    // anywhere else.
+    // TEST: the compile time grant is what the build says and nothing reads it from anywhere else.
     {
         NYA_PluginPermission granted = nya_plugin_permissions_granted();
 
@@ -149,9 +148,7 @@ s32 main(void) {
         nya_assert(manifest.permissions == NYA_PLUGIN_PERMISSION_NONE, "a manifest that asks for nothing gets nothing");
     }
 
-    // TEST: a misspelled permission refuses the manifest. Skipping it in silence
-    // would read as a permission the plugin never asked for, which is the one
-    // mistake this boundary exists to catch.
+    // TEST: a misspelled permission refuses the manifest. Skipping it in silence would read as a permission the plugin never asked for, which is the one mistake this boundary exists to catch.
     {
         NYA_PluginManifest manifest = { 0 };
         NYA_Error          read     = nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/typo", &manifest);
@@ -160,8 +157,7 @@ s32 main(void) {
         nya_assert(read.kind == NYA_ERROR_PARSE);
     }
 
-    // TEST: a plugin loads, runs its src/ before its main.lua, and becomes one entry
-    // in the system registry owned by its own name.
+    // TEST: a plugin loads, runs its src/ before its main.lua, and becomes one entry in the system registry owned by its own name.
     {
         _nya_plugin_reset_for_test();
 
@@ -216,8 +212,7 @@ s32 main(void) {
         nya_assert(nya_plugin_find("good")->error_count == 0, "and is not held against the plugin");
     }
 
-    // TEST: a plugin that wants more than the build grants is refused, and nothing
-    // of it is left behind.
+    // TEST: a plugin that wants more than the build grants is refused, and nothing of it is left behind.
     {
         NYA_Error refused = nya_plugin_load(TEST_PLUGIN_ROOT "/greedy");
 
@@ -227,8 +222,7 @@ s32 main(void) {
         nya_assert(nya_plugin_count() == 1, "and takes no slot");
     }
 
-    // TEST: a binding a plugin was not granted is not a refusal, it is a name that
-    // is not there. `nosy` reaches for nya.entity and its chunk dies.
+    // TEST: a binding a plugin was not granted is not a refusal, it is a name that is not there. `nosy` reaches for nya.entity and its chunk dies.
     {
         NYA_Error refused = nya_plugin_load(TEST_PLUGIN_ROOT "/nosy");
 
@@ -280,8 +274,7 @@ s32 main(void) {
                    "the engine's own registrations are in nobody's namespace");
     }
 
-    // TEST: a plugin that keeps throwing is switched off rather than left to fill
-    // the log, and the error is the plugin's, never the engine's.
+    // TEST: a plugin that keeps throwing is switched off rather than left to fill the log, and the error is the plugin's, never the engine's.
     {
         nya_assert(nya_plugin_load(TEST_PLUGIN_ROOT "/thrower").ok);
         nya_assert(nya_plugin_is_enabled("thrower"));
@@ -315,8 +308,7 @@ s32 main(void) {
         nya_plugin_unload("never_existed");
     }
 
-    // TEST: discovery. Every directory with a manifest is tried, the ones that are
-    // refused are reported and stepped over, and the rest still load.
+    // TEST: discovery. Every directory with a manifest is tried, the ones that are refused are reported and stepped over, and the rest still load.
     {
         _nya_plugin_reset_for_test();
 

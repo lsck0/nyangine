@@ -69,8 +69,7 @@ NYA_INTERNAL void show_runner(NYA_ArgCommand* command) {
     for (u32 i = 0; i < NYA_SERDE_FORMAT_COUNT; i++) {
         NYA_String* text = nya_serialize(arena, document, (NYA_SerdeFormat)i, NYA_SERDE_PRETTY);
 
-        // The nya format is binary framed, so its bytes are not printable. Report its size instead
-        // of spraying control characters over the terminal.
+        // The nya format is binary framed, so its bytes are not printable. Report its size instead of spraying control characters over the terminal.
         if ((NYA_SerdeFormat)i == NYA_SERDE_FORMAT_NYA) {
             nya_log_info("%s: %llu bytes", NYA_SERDE_FORMAT_NAME_MAP[i], (unsigned long long)text->length);
             continue;
@@ -93,8 +92,7 @@ NYA_INTERNAL void convert_runner(NYA_ArgCommand* command) {
         exit(EXIT_FAILURE);
     }
 
-    // The parser fills `value` from `default_value` when the argument is absent, so there is no
-    // second place here that has to know what the default is.
+    // The parser fills `value` from `default_value` when the argument is absent, so there is no second place here that has to know what the default is.
     NYA_ConstCString path = output_path.value.as_string;
 
     NYA_Arena* arena = nya_arena_create(.name = "cli_convert");
@@ -204,8 +202,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         return EXIT_SUCCESS;
     }
 
-    // `./build run example` passes no arguments, so with none this shows what the tool can do
-    // rather than exiting silently.
+    // `./build run example` passes no arguments, so with none this shows what the tool can do rather than exiting silently.
     if (command == parser.root_command) {
         show_runner(command);
         nya_log_info("Pass --help to see the rest.");

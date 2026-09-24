@@ -41,8 +41,7 @@ static NYA_NNTensor* build_huber_linear(NYA_NNGraph* g, NYA_NNTensor* a, NYA_NNT
   return nya_nn_huber(g, a, b, 0.05F);
 }
 static NYA_NNTensor* build_chain(NYA_NNGraph* g, NYA_NNTensor* a, NYA_NNTensor* b) {
-  // tanh(a*b) + a, summed: exercises a value feeding two consumers, which is where an accumulate
-  // written as an assignment would show.
+  // tanh(a*b) + a, summed: exercises a value feeding two consumers, which is where an accumulate written as an assignment would show.
   NYA_NNTensor* product = nya_nn_mul(g, a, b);
   NYA_NNTensor* squashed = nya_nn_tanh(g, product);
   return nya_nn_sum(g, nya_nn_add(g, squashed, a));
@@ -81,8 +80,7 @@ static void gradcheck(
   NYA_NNTensor* a = nya_nn_tensor_create(arena, shape_a, true);
   NYA_NNTensor* b = nya_nn_tensor_create(arena, shape_b, true);
 
-  // Away from zero, so ReLU and Huber are not evaluated exactly on their kinks where the analytic
-  // and numeric derivatives legitimately disagree.
+  // Away from zero, so ReLU and Huber are not evaluated exactly on their kinks where the analytic and numeric derivatives legitimately disagree.
   nya_nn_tensor_fill_uniform(a, &rng, 0.3F, 1.2F);
   nya_nn_tensor_fill_uniform(b, &rng, 0.3F, 1.2F);
 

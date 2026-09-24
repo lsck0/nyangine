@@ -31,8 +31,7 @@ u64 nya_pp_newest(NYA_ConstCString* paths, NYA_ConstCString extension) {
             continue;
         }
 
-        // The root's own mtime, which the walk never reports: it only ever sees a directory as
-        // somebody's child, and the top of the tree is nobody's child.
+        // The root's own mtime, which the walk never reports: it only ever sees a directory as somebody's child, and the top of the tree is nobody's child.
         if (info.modified_at > state.newest) state.newest = info.modified_at;
 
         NYA_EXPECT(nya_filesystem_walk(arena, paths[i], _nya_pp_collect_newest, &state), "while timestamping '%s'", paths[i]);
@@ -70,8 +69,7 @@ b8 nya_pp_is_current(NYA_ConstCString pass, NYA_ConstCString* inputs, NYA_ConstC
 NYA_INTERNAL b8 _nya_pp_collect_newest(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     _NYA_PPNewest* state = (_NYA_PPNewest*)user_data;
 
-    // a directory always counts, whatever the filter. Its mtime is the only record that a matching file
-    // was removed.
+    // a directory always counts, whatever the filter. Its mtime is the only record that a matching file was removed.
     if (entry->type != NYA_FILE_TYPE_DIRECTORY && !_nya_pp_has_extension(path, state->extension)) return true;
 
     if (entry->modified_at > state->newest) state->newest = entry->modified_at;

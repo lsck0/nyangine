@@ -17,10 +17,7 @@ static NYA_Window* make_window(void) {
   NYA_Window* window = nya_window_get(handle);
   nya_assert(window != nullptr);
 
-  /*
-   * Set by hand: a headless build has no window to learn a size from. Every screen coordinate here is
-   * relative to these, and a zero sized target has no centre for screen_ray.
-   */
+  /* Set by hand: a headless build has no window to learn a size from. Every screen coordinate here is relative to these, and a zero sized target has no centre for screen_ray. */
   window->screen_width  = 800;
   window->screen_height = 600;
 
@@ -50,8 +47,7 @@ s32 main(void) {
   NYA_Window* window = make_window();
 
 
-  // Four units back along +z, looking at the origin. The camera's own -z therefore points along the
-  // world's -z, which makes every expectation below signable by hand.
+  // Four units back along +z, looking at the origin. The camera's own -z therefore points along the world's -z, which makes every expectation below signable by hand.
   NYA_Camera3DPerspective camera = {
     .position = { 0.0F, 0.0F, 4.0F },
     .target   = { 0.0F, 0.0F, 0.0F },
@@ -74,10 +70,7 @@ s32 main(void) {
     nya_render3d_begin(window, camera);
     nya_render3d_end(window);
 
-    /*
-     * The regression. `active` is false, as when the next frame's on_event runs after the scene closed,
-     * and the ray must still be the one the player looked along.
-     */
+    /* The regression. `active` is false, as when the next frame's on_event runs after the scene closed, and the ray must still be the one the player looked along. */
     nya_assert(!nya_render3d_active(window), "the scene is closed, which is the state a click arrives in");
 
     NYA_Render3DRay ray = nya_render3d_screen_ray(window, center);
@@ -94,18 +87,14 @@ s32 main(void) {
     nya_render3d_begin(window, camera);
     nya_render3d_end(window);
 
-    // screen y points down and clip y up, so a pixel below centre must aim down. A missing flip is the
-    // classic inverted picker.
+    // screen y points down and clip y up, so a pixel below centre must aim down. A missing flip is the classic inverted picker.
     NYA_Render3DRay lower = nya_render3d_screen_ray(window, (f32x2){ 400.0F, 500.0F });
     nya_assert(lower.direction.y < 0.0F, "a pixel below centre aims downward, got %f", (f64)lower.direction.y);
 
     NYA_Render3DRay upper = nya_render3d_screen_ray(window, (f32x2){ 400.0F, 100.0F });
     nya_assert(upper.direction.y > 0.0F, "and one above aims upward, got %f", (f64)upper.direction.y);
 
-    /*
-     * At +z looking at the origin with +y up, world +x is to the right: `right = forward x up`, and
-     * (0, 0, -1) x (0, 1, 0) = (1, 0, 0).
-     */
+    /* At +z looking at the origin with +y up, world +x is to the right: `right = forward x up`, and (0, 0, -1) x (0, 1, 0) = (1, 0, 0). */
     NYA_Render3DRay right = nya_render3d_screen_ray(window, (f32x2){ 700.0F, 300.0F });
     nya_assert(right.direction.x > 0.0F, "right of centre aims along +x from this camera, got %f", (f64)right.direction.x);
 
@@ -135,8 +124,7 @@ s32 main(void) {
     nya_assert(nya_entity_is_valid(hit), "the ray found something");
     nya_assert(hit.index == cube.index, "and it is the cube");
 
-    // the near face of a unit cube at the origin, seen from +z, is at z = 0.5 with its normal toward the
-    // camera.
+    // the near face of a unit cube at the origin, seen from +z, is at z = 0.5 with its normal toward the camera.
     nya_assert(fabsf(point.z - 0.5F) < 0.01F, "it struck the near face, got %f", (f64)point.z);
     nya_assert(normal.z > 0.9F, "whose normal faces the camera, got %f", (f64)normal.z);
 
@@ -144,8 +132,7 @@ s32 main(void) {
     NYA_Render3DRay miss = nya_render3d_screen_ray(window, (f32x2){ 10.0F, 10.0F });
     nya_assert(!nya_entity_is_valid(nya_physics3d_raycast(miss.origin, miss.direction * 100.0F, nullptr, nullptr)), "a corner pixel misses");
 
-    // And a ray that stops short of the cube misses it too, which is what the length of the
-    // direction vector is for.
+    // And a ray that stops short of the cube misses it too, which is what the length of the direction vector is for.
     nya_assert(!nya_entity_is_valid(nya_physics3d_raycast(ray.origin, ray.direction * 1.0F, nullptr, nullptr)), "a short ray falls short");
 
     nya_entity_despawn(cube);
@@ -165,8 +152,7 @@ s32 main(void) {
     NYA_Render3DRay middle = nya_render3d_screen_ray(window, center);
     NYA_Render3DRay offset = nya_render3d_screen_ray(window, (f32x2){ 700.0F, 300.0F });
 
-    // Parallel rays: every pixel points the same way and the pixel chooses *where* the ray starts.
-    // Getting this backwards gives a picker that works in the middle of the screen and nowhere else.
+    // Parallel rays: every pixel points the same way and the pixel chooses *where* the ray starts. Getting this backwards gives a picker that works in the middle of the screen and nowhere else.
     nya_assert(fabsf(middle.direction.z - offset.direction.z) < 0.001F, "orthographic rays are parallel");
     nya_assert(fabsf(offset.origin.x - middle.origin.x) > 0.1F, "and the pixel moves the origin instead");
 

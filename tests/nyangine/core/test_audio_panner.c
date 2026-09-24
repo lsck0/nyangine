@@ -70,8 +70,7 @@ s32 main(void) {
     // the near ear is louder.
     nya_assert(left.left_gain > left.right_gain, "hard left must be louder in the left ear, got %f / %f", (f64)left.left_gain, (f64)left.right_gain);
 
-    // the far ear is the delayed one: the sound reaches the right ear after the left. Sign matters, so the
-    // near ear must be exactly zero and the far ear positive.
+    // the far ear is the delayed one: the sound reaches the right ear after the left. Sign matters, so the near ear must be exactly zero and the far ear positive.
     nya_assert(left.left_delay_s == 0.0F, "the near (left) ear must lead, delay zero, got %f", (f64)left.left_delay_s);
     nya_assert(left.right_delay_s > 0.0F, "the far (right) ear must lag, delay positive, got %f", (f64)left.right_delay_s);
 
@@ -151,8 +150,7 @@ s32 main(void) {
 
     nya_audio_pan_render(&render, PAN_RATE, 2, pan, pcm, frames * 2);
 
-    // the near ear's impulse stays at frame 0; the far ear's has moved eight frames on. Open shadow and unit
-    // gain make this exact.
+    // the near ear's impulse stays at frame 0; the far ear's has moved eight frames on. Open shadow and unit gain make this exact.
     nya_assert(pcm[0] == 1.0F, "the near (left) ear must be undelayed, got %f", (f64)pcm[0]);
     nya_assert(pcm[1] == 0.0F, "the far (right) ear must be silent before its delayed impulse, got %f", (f64)pcm[1]);
     nya_assert(pcm[(8 * 2) + 1] == 1.0F, "the far (right) ear's impulse must land eight frames late, got %f", (f64)pcm[(8 * 2) + 1]);

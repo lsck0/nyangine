@@ -210,8 +210,7 @@ static void check_finite(NYA_SimulationRun* run) {
 }
 
 static void check_bounded(NYA_SimulationRun* run) {
-  // over the live table rather than over the scenario's two, so a volume the run forgot about is
-  // still checked.
+  // over the live table rather than over the scenario's two, so a volume the run forgot about is still checked.
   for (u32 volume = 0; volume < nya_fluid_count(); volume++) {
     const NYA_Fluid* fluid = nya_fluid_at(volume);
 
@@ -382,9 +381,7 @@ s32 main(void) {
 
   // TEST: a step keeps the field divergence free and never creates density
   {
-    // no confinement: its force is a cell-scale field whose divergence a collocated projection
-    // cannot see, so leaving it on would measure that instead of the pressure solve. See
-    // render_fluid.h, "what the projection removes and what it leaves".
+    // no confinement: its force is a cell-scale field whose divergence a collocated projection cannot see, so leaving it on would measure that instead of the pressure solve. See render_fluid.h, "what the projection removes and what it leaves".
     NYA_FluidOptions options = { .width = 24, .height = 24, .cell_size = 1.0F };
 
     NYA_FluidOptions barely_solved     = options;
@@ -419,8 +416,7 @@ s32 main(void) {
     nya_assert(nya_fluid_step_time_s(solved) < 1.0F, "in seconds, got " FMTf32, (f64)nya_fluid_step_time_s(solved));
     nya_assert(fields_are_finite(solved), "a minute of stepping produced no infinity");
 
-    // the projection is what makes it look like a fluid rather than like a blur, so this is the
-    // assertion that fails if the pressure solve is ever broken rather than merely slow.
+    // the projection is what makes it look like a fluid rather than like a blur, so this is the assertion that fails if the pressure solve is ever broken rather than merely slow.
     f32 divergence = worst_divergence(solved);
     f32 speed      = worst_speed(solved);
 
@@ -430,8 +426,7 @@ s32 main(void) {
     nya_assert(divergence < worst_divergence(barely), "twenty sweeps beat one, " FMTf32 " against " FMTf32, (f64)divergence,
                (f64)worst_divergence(barely));
 
-    // semi-Lagrangian advection loses mass at the walls and never invents any. That is the whole
-    // trade for unconditional stability, so the assertion is one-sided on purpose.
+    // semi-Lagrangian advection loses mass at the walls and never invents any. That is the whole trade for unconditional stability, so the assertion is one-sided on purpose.
     f32 remaining = interior_density(solved);
     nya_assert(remaining <= emitted + NYA_EPSILON, "advection created density: " FMTf32 " from " FMTf32, (f64)remaining, (f64)emitted);
     nya_assert(remaining > 0.0F, "and did not lose all of it");
@@ -590,9 +585,7 @@ s32 main(void) {
 
   // TEST: a 3D volume one cell deep is the 2D solver
   {
-    // the claim the whole "one solver" design rests on: with depth one and no z motion, the three
-    // dimensional code reduces term for term to the two dimensional one. If this ever fails, the
-    // boundary planes stopped mirroring and the 2D look changed with it.
+    // the claim the whole "one solver" design rests on: with depth one and no z motion, the three dimensional code reduces term for term to the two dimensional one. If this ever fails, the boundary planes stopped mirroring and the 2D look changed with it.
     NYA_FluidOptions shared = { .width = 12, .height = 12, .depth = 1, .cell_size = 1.0F, .vorticity = 3.0F, .up = { 0.0F, 1.0F, 0.0F } };
 
     NYA_FluidOptions flat_options = shared;
@@ -639,8 +632,7 @@ s32 main(void) {
     NYA_FluidRenderOptions asked = { .enabled = true, .opacity = 0.4F, .stride = 2, .hot_temperature = 3.0F };
     nya_fluid_render_options_set(&window, asked);
 
-    // stored as given, zeroes included: the defaults are resolved at draw time, so a later change to
-    // one reaches every window that left it zero.
+    // stored as given, zeroes included: the defaults are resolved at draw time, so a later change to one reaches every window that left it zero.
     NYA_FluidRenderOptions stored = nya_fluid_render_options(&window);
     nya_assert(stored.enabled && stored.opacity == 0.4F && stored.stride == 2 && stored.hot_temperature == 3.0F, "the options read back");
     nya_assert(stored.threshold == 0.0F && stored.density_full == 0.0F, "and a zero is stored as a zero, not as its default");

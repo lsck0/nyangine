@@ -185,8 +185,7 @@ s32 main(void) {
         // A terminated copy to walk with strstr; the raw string's bytes past its length are not ours.
         char* text = nya_string_to_cstring(arena, on_disk);
 
-        // Flip one character well inside the password's sealed string, to a character still in the
-        // base64url alphabet, so the value decodes but no longer authenticates.
+        // Flip one character well inside the password's sealed string, to a character still in the base64url alphabet, so the value decodes but no longer authenticates.
         char* marker = strstr(text, "password");
         nya_check(marker != nullptr, "the file names the field");
 

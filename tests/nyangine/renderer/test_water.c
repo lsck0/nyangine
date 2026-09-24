@@ -22,8 +22,7 @@ s32 main(void) {
   {
     f32 cycle = 6.0F;
 
-    // at the start of a cycle the first layer is at zero and fully weighted out to the second, which sits
-    // half a cycle along.
+    // at the start of a cycle the first layer is at zero and fully weighted out to the second, which sits half a cycle along.
     NYA_WaterFlow start = nya_water_flow(0.0F, cycle);
     nya_assert(start.phase_a == 0.0F, "the first layer starts at phase zero, got %f", (double)start.phase_a);
     nya_assert(start.phase_b == 0.5F, "the second layer starts half a cycle along, got %f", (double)start.phase_b);
@@ -34,8 +33,7 @@ s32 main(void) {
     nya_assert(middle.phase_a == 0.5F, "the first layer is mid-cycle, got %f", (double)middle.phase_a);
     nya_assert(middle.blend <= 1e-6F, "the blend is zero mid-cycle, got %f", (double)middle.blend);
 
-    // over a spread of times the phases stay in [0, 1) and the blend in [0, 1], and the two layers stay
-    // exactly half a cycle apart.
+    // over a spread of times the phases stay in [0, 1) and the blend in [0, 1], and the two layers stay exactly half a cycle apart.
     for (u32 i = 0; i < 4096; i++) {
       f32           t    = (f32)i * 0.031F;
       NYA_WaterFlow flow = nya_water_flow(t, cycle);
@@ -62,8 +60,7 @@ s32 main(void) {
     NYA_WaterFlow second = nya_water_flow(t, cycle);
     nya_assert(same_flow(first, second), "the same time and cycle give the same flow");
 
-    // periodic: a whole cycle later the phases and blend are identical, which is what lets the two scrolled
-    // layers hand off without a visible jump.
+    // periodic: a whole cycle later the phases and blend are identical, which is what lets the two scrolled layers hand off without a visible jump.
     NYA_WaterFlow later = nya_water_flow(t + cycle, cycle);
     nya_assert(fabsf(later.phase_a - first.phase_a) < 1e-4F, "phase_a repeats every cycle, got %f vs %f", (double)later.phase_a, (double)first.phase_a);
     nya_assert(fabsf(later.blend - first.blend) < 1e-4F, "the blend repeats every cycle");
@@ -92,8 +89,7 @@ s32 main(void) {
     f32 later = nya_water_wave_height(at, 9.0F, flow, amplitude, frequency, speed);
     nya_assert(first != later, "the waves move over time");
 
-    // the summed octave and chop weights are NYA_WATER_WAVE_PEAK, so the height never leaves that band —
-    // which is what the vertex shader's crest normalise and the renderer's cull padding rest on.
+    // the summed octave and chop weights are NYA_WATER_WAVE_PEAK, so the height never leaves that band — which is what the vertex shader's crest normalise and the renderer's cull padding rest on.
     f32 bound = amplitude * NYA_WATER_WAVE_PEAK + 1e-4F;
 
     for (u32 i = 0; i < 4096; i++) {

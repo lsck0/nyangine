@@ -36,8 +36,7 @@ s32 main(void) {
 
     nya_bench_begin("accounts (the two paths a login-guarded request pays)");
 
-    // The per-request check: turn a cookie's token into "who, if anyone". A hash and a lookup, so it
-    // has to clear many per second.
+    // The per-request check: turn a cookie's token into "who, if anyone". A hash and a lookup, so it has to clear many per second.
     nya_bench("session validate (per request)", 1, {
         nya_arena_free_all(scratch);
         NYA_AccountSession found = { 0 };
@@ -45,8 +44,7 @@ s32 main(void) {
         nya_bench_keep(valid.ok ? found.user_id : 0);
     });
 
-    // The login check: Argon2id verify. Slow by design — this measures ms/login, and a fast number
-    // here would be the bug. Items 1, so the report is per verify.
+    // The login check: Argon2id verify. Slow by design — this measures ms/login, and a fast number here would be the bug. Items 1, so the report is per verify.
     nya_bench("password verify (Argon2id, per login)", 1, {
         nya_arena_free_all(scratch);
         NYA_AccountUser found = { 0 };

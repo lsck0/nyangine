@@ -12,8 +12,7 @@ s32 main(void) {
   {
     const u8 data[] = "hello";
     u8       crc    = nya_crc8(data, 5);
-    // CRC8 of "hello" using polynomial x^8 + x^2 + x + 1
-    // This value is computed from the lookup table
+    // CRC8 of "hello" using polynomial x^8 + x^2 + x + 1 This value is computed from the lookup table
     nya_assert(crc != 0); // Just verify it produces a non-zero value
   }
 
@@ -120,8 +119,7 @@ s32 main(void) {
   {
     const u8 data[] = "A";
     u32      crc    = nya_crc32(data, 1);
-    // CRC32 of "A" = 0xD3D99E8B (calculated with standard CRC32)
-    // But let's just verify it's deterministic
+    // CRC32 of "A" = 0xD3D99E8B (calculated with standard CRC32) But let's just verify it's deterministic
     u32      crc2 = nya_crc32(data, 1);
     nya_assert(crc == crc2);
   }
@@ -278,8 +276,7 @@ s32 main(void) {
       for (s32 j = i + 1; j < 4; j++) { nya_assert(crcs[i] != crcs[j]); }
     }
 
-    // crc32_00 should not be 0 (it's 8 zero bytes, not empty data)
-    // The CRC32 of zero bytes depends on the polynomial and length
+    // crc32_00 should not be 0 (it's 8 zero bytes, not empty data) The CRC32 of zero bytes depends on the polynomial and length
     nya_assert(crc32_00 != 0xFFFFFFFF); // Should not be initial value
   }
 

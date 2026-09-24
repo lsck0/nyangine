@@ -39,8 +39,7 @@ s32 main(void) {
 
     nya_bench_begin("CBOR reader (per COSE key)");
 
-    // The registration walk: a map header, then a label and a skipped value per entry — how the parser
-    // reads a COSE key without a general decoder.
+    // The registration walk: a map header, then a label and a skipped value per entry — how the parser reads a COSE key without a general decoder.
     nya_bench("walk a COSE key map", 1, {
         NYA_CborReader reader  = nya_cbor_reader(buffer, size);
         u64            entries = 0;

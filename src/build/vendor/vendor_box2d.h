@@ -67,8 +67,7 @@ NYA_VendorRule vendor_box2d_linux_x86_64 = {
     },
 };
 
-// box2d's timer.c includes <Windows.h> with a capital W, which a case-sensitive mingw sysroot does not
-// have. On a Windows host the filesystem is case-insensitive, and the shim would shadow the real header.
+// box2d's timer.c includes <Windows.h> with a capital W, which a case-sensitive mingw sysroot does not have. On a Windows host the filesystem is case-insensitive, and the shim would shadow the real header.
 #if OS_WINDOWS
 #define BOX2D_WINDOWS_C_FLAGS "-DCMAKE_C_FLAGS=-DB2_MAX_WORLDS=" BOX2D_MAX_WORLDS,
 #else

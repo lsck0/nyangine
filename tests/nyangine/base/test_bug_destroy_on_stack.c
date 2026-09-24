@@ -31,8 +31,7 @@ s32 main(void) {
         // Destroying twice must not hand the arena a pointer with a stale size.
         nya_array_destroy_on_stack(&array);
 
-        // And the array must be reusable, taking the first-allocation path rather than reallocating
-        // a block the arena has already reclaimed.
+        // And the array must be reusable, taking the first-allocation path rather than reallocating a block the arena has already reclaimed.
         nya_array_add(&array, 22U);
         nya_check(array.length == 1, "length is " FMTu64 " after reuse, expected 1", array.length);
         nya_check(*nya_array_get(&array, 0) == 22U, "reused array holds the wrong value");

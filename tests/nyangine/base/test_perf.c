@@ -113,8 +113,7 @@ s32 main(void) {
   nya_assert(conc_a != nullptr && conc_b != nullptr);
   nya_assert(conc_a->last_elapsed_ms >= 9); // ran for ~10ms
   nya_assert(conc_b->last_elapsed_ms >= 9); // ran for ~10ms
-  // overlapping, not nested: a started first and ended first. Compared by timestamp, since sleep lengths vary
-  // by platform timer granularity.
+  // overlapping, not nested: a started first and ended first. Compared by timestamp, since sleep lengths vary by platform timer granularity.
   nya_assert(conc_a->started_ns[conc_a->current] < conc_b->started_ns[conc_b->current]);
   nya_assert(conc_a->ended_ns[conc_a->current] < conc_b->ended_ns[conc_b->current]);
 
@@ -144,24 +143,17 @@ s32 main(void) {
   nya_assert(many != nullptr);
   nya_assert(many->current == (100 - 1) % NYA_PERF_MEASUREMENT_SAMPLES);
 
-  // TEST: Lookup finds a timer by contents, not only by pointer identity
-  //
-  // _nya_perf_timer_get compares the name pointer before falling back to a contents comparison,
-  // because nearly every name reaching it is a pooled literal or __FUNCTION__. That fast path is
-  // only correct while the fallback still runs, so this looks a known timer up through a name the
-  // compiler cannot have pooled with the literal above.
+  // TEST: Lookup finds a timer by contents, not only by pointer identity _nya_perf_timer_get compares the name pointer before falling back to a contents comparison, because nearly every name reaching it is a pooled literal or __FUNCTION__. That fast path is only correct while the fallback still runs, so this looks a known timer up through a name the compiler cannot have pooled with the literal above.
   NYA_Arena*  runtime_arena = nya_arena_create();
   NYA_String* built_name    = nya_string_create(runtime_arena);
   nya_string_extend(built_name, "many_");
   nya_string_extend(built_name, "samples");
 
-  // Arena memory, so it cannot be the pooled literal the timer was registered under, which is the
-  // whole point of looking it up this way.
+  // Arena memory, so it cannot be the pooled literal the timer was registered under, which is the whole point of looking it up this way.
   NYA_CString built_cstring = nya_string_to_cstring(runtime_arena, built_name);
   nya_assert(nya_perf_timer_get(built_cstring) == many);
 
-  // And a name that matches nothing still misses, rather than the pointer scan falling through into
-  // the wrong entry.
+  // And a name that matches nothing still misses, rather than the pointer scan falling through into the wrong entry.
   nya_assert(nya_perf_timer_get("many_samples_") == nullptr);
 
   nya_arena_destroy(runtime_arena);

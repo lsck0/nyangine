@@ -37,8 +37,7 @@ s32 main(void) {
 
     nya_check(nya_log_ring_at(3) == nullptr, "reading one past the count should give null");
 
-    // TEST: a line below the level never reaches the ring, so filtering is not
-    //       something a crash report can work around
+    // TEST: a line below the level never reaches the ring, so filtering is not something a crash report can work around
     nya_log_level_set(NYA_LOG_LEVEL_ERROR);
     nya_log_info("ring line filtered out");
     nya_check(nya_log_ring_count() == 3, "a filtered line should not be kept, count is %u", nya_log_ring_count());
@@ -82,8 +81,7 @@ s32 main(void) {
                   (u64)strlen(kept));
     }
 
-    // TEST: the ring keeps working after a wrap that clear reset mid-cycle, which
-    //       is the case the oldest-slot arithmetic gets wrong when it is wrong
+    // TEST: the ring keeps working after a wrap that clear reset mid-cycle, which is the case the oldest-slot arithmetic gets wrong when it is wrong
     for (u32 i = 0; i < NYA_LOG_RING_MAX + (NYA_LOG_RING_MAX / 2); i++) nya_log_info("wrap %u", i);
     nya_log_ring_clear();
     nya_log_info("after the clear");

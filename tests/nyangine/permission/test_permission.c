@@ -242,8 +242,7 @@ s32 main(void) {
                   "except for her");
         nya_check(!nya_permission_has(guild, ALICE, VAULT, TEST_SPEAK), "and she is quiet again");
 
-        // one role denying what another allows: taken together the allow wins, so adding a role never
-        // takes a permission away.
+        // one role denying what another allows: taken together the allow wins, so adding a role never takes a permission away.
         nya_check(nya_permission_overwrite_set(guild, NYA_PERMISSION_SYSTEM, VAULT, NYA_PERMISSION_TARGET_ROLE, member, 0, TEST_KICK, 100).ok,
                   "members may not kick in the vault");
         nya_check(nya_permission_overwrite_set(guild, NYA_PERMISSION_SYSTEM, VAULT, NYA_PERMISSION_TARGET_ROLE, guard, TEST_SPEAK | TEST_KICK, 0, 100)
@@ -283,8 +282,7 @@ s32 main(void) {
         u32 member  = 0;
         u32 elder   = 0;
 
-        // she holds speak and kick, and not build: what she may hand out is exactly that, which is what
-        // the refusals below are about.
+        // she holds speak and kick, and not build: what she may hand out is exactly that, which is what the refusals below are about.
         nya_check(nya_permission_role_add(guild, NYA_PERMISSION_SYSTEM, "officer", 20, NYA_PERMISSION_MANAGE_ROLES | TEST_KICK | TEST_SPEAK, 100,
                                           &officer)
                       .ok,
@@ -298,8 +296,7 @@ s32 main(void) {
         // below her rank and within what she holds: allowed.
         nya_check(nya_permission_role_grant(guild, ALICE, BOB, member, 100).ok, "she may make bob a member");
 
-        // a role that allows what she does not hold is refused even below her rank, which is the same
-        // rule Discord has: managing roles is not a way to hand out a permission you were never given.
+        // a role that allows what she does not hold is refused even below her rank, which is the same rule Discord has: managing roles is not a way to hand out a permission you were never given.
         u32 mason = 0;
         nya_check(nya_permission_role_add(guild, NYA_PERMISSION_SYSTEM, "mason", 10, TEST_BUILD, 100, &mason).ok, "a building role exists");
         nya_check(nya_permission_role_grant(guild, ALICE, BOB, mason, 100).kind == NYA_ERROR_PERMISSION_DENIED, "and she cannot hand it out");
@@ -430,8 +427,7 @@ s32 main(void) {
 
             NYA_Permissions* table = nya_permissions_create(scratch);
 
-            // one actor who manages roles and holds exactly one of the program's permissions, which is
-            // the interesting shape: everything they can reach has to stay inside that one bit.
+            // one actor who manages roles and holds exactly one of the program's permissions, which is the interesting shape: everything they can reach has to stay inside that one bit.
             u32 officer = 0;
             (void)nya_permission_role_add(table, NYA_PERMISSION_SYSTEM, "officer", 20, NYA_PERMISSION_MANAGE_ROLES | TEST_KICK, 0, &officer);
             (void)nya_permission_role_grant(table, NYA_PERMISSION_SYSTEM, ALICE, officer, 0);

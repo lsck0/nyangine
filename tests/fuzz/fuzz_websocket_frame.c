@@ -72,8 +72,7 @@ static b8 fuzz_protocol(NYA_Arena* arena, NYA_WebSocketRole role, const u8* data
             nya_assert(event.reason != nullptr, "an event with no reason string");
             nya_assert(event.size <= FUZZ_MESSAGE_BYTES, "a message grew past the buffer it was assembled in");
 
-            // what a handler does with a text message: read it as a C string, which the NUL past the
-            // end is the whole promise of.
+            // what a handler does with a text message: read it as a C string, which the NUL past the end is the whole promise of.
             if (event.kind == NYA_WEBSOCKET_EVENT_TEXT) nya_assert(event.data[event.size] == '\0', "a text message is not terminated");
         }
 
@@ -93,8 +92,7 @@ static b8 fuzz_protocol(NYA_Arena* arena, NYA_WebSocketRole role, const u8* data
         nya_assert(pending <= FUZZ_MESSAGE_BYTES, "the send queue grew past what it was opened over");
         nya_assert(pending == 0 || queued != nullptr, "bytes queued and nothing to send them from");
 
-        // as a caller does: what was queued has gone to the socket, so the queue cannot grow forever
-        // while a peer keeps sending pings.
+        // as a caller does: what was queued has gone to the socket, so the queue cannot grow forever while a peer keeps sending pings.
         nya_websocket_protocol_flushed(out_protocol, pending);
     }
 
@@ -105,10 +103,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_Arena* arena = nya_arena_create(.name = "fuzz_websocket_frame");
     defer      nya_arena_destroy(arena);
 
-    /*
-     * The decoder on its own. Everything downstream reads the payload at `header_size` for
-     * `payload_size` bytes on the strength of these.
-     */
+    /* The decoder on its own. Everything downstream reads the payload at `header_size` for `payload_size` bytes on the strength of these. */
     NYA_WebSocketFrame       frame  = { 0 };
     NYA_WebSocketFrameResult result = nya_websocket_frame_decode(data, size, &frame);
 
@@ -123,11 +118,7 @@ static void fuzz_once(const u8* data, u64 size) {
         nya_assert(!control || frame.fin, "a fragmented control frame parsed");
         nya_assert(!control || frame.payload_size <= NYA_WEBSOCKET_MAX_CONTROL_BYTES, "an oversized control frame parsed");
 
-        /*
-         * The shortest form is the only legal spelling of a length, so a header that decoded has to be
-         * the header the encoder writes for what it decoded to. A second spelling of one frame is how a
-         * peer says one thing to this parser and another to whatever is in front of it.
-         */
+        /* The shortest form is the only legal spelling of a length, so a header that decoded has to be the header the encoder writes for what it decoded to. A second spelling of one frame is how a peer says one thing to this parser and another to whatever is in front of it. */
         u8  header[NYA_WEBSOCKET_MAX_HEADER_BYTES] = { 0 };
         u64 header_size                            = 0;
 
@@ -139,10 +130,7 @@ static void fuzz_once(const u8* data, u64 size) {
         nya_assert(nya_memcmp(header, data, header_size) == 0, "a header that is not the shortest spelling of itself parsed");
     }
 
-    /*
-     * And the protocol over it, from both ends. A server refuses what a client must mask and a client
-     * refuses what a server must not, so the same bytes are legal to at most one of them.
-     */
+    /* And the protocol over it, from both ends. A server refuses what a client must mask and a client refuses what a server must not, so the same bytes are legal to at most one of them. */
     NYA_WebSocketProtocol server = { 0 };
     NYA_WebSocketProtocol client = { 0 };
 
@@ -150,17 +138,12 @@ static void fuzz_once(const u8* data, u64 size) {
 
     (void)fuzz_protocol(arena, NYA_WEBSOCKET_ROLE_CLIENT, data, size, 0, &client);
 
-    /*
-     * The same bytes again, a byte at a time. A stream is whatever the kernel hands over, so a frame
-     * arriving in pieces has to end where it ended when it arrived whole; a decoder that reads the
-     * header differently across a split is one a peer can steer by choosing its packet sizes.
-     */
+    /* The same bytes again, a byte at a time. A stream is whatever the kernel hands over, so a frame arriving in pieces has to end where it ended when it arrived whole; a decoder that reads the header differently across a split is one a peer can steer by choosing its packet sizes. */
     NYA_WebSocketProtocol dribbled = { 0 };
 
     b8 split = fuzz_protocol(arena, NYA_WEBSOCKET_ROLE_SERVER, data, size, 1, &dribbled);
 
-    // only where both walks reached the end of the input: one that stopped at the step bound stopped
-    // somewhere the other did not, and nothing about that is a finding.
+    // only where both walks reached the end of the input: one that stopped at the step bound stopped somewhere the other did not, and nothing about that is a finding.
     if (!whole || !split) return;
 
     nya_assert(
@@ -175,11 +158,7 @@ static void fuzz_once(const u8* data, u64 size) {
         nya_websocket_close_name(nya_websocket_protocol_close_code(&dribbled))
     );
 
-    /*
-     * The handshake's own hash, which is the other thing a stranger's bytes reach: a key is whatever
-     * arrived in the header, and the only thing standing between it and a fixed stack buffer is the
-     * length check.
-     */
+    /* The handshake's own hash, which is the other thing a stranger's bytes reach: a key is whatever arrived in the header, and the only thing standing between it and a fixed stack buffer is the length check. */
     char key[64] = { 0 };
 
     u64 length = nya_min(size, sizeof(key) - 1);

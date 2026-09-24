@@ -44,8 +44,7 @@ s32 main(void) {
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
 
-  // The first one is the one that grows the array from inside the walk; the rest are there so the
-  // walk still has somewhere to go afterwards.
+  // The first one is the one that grows the array from inside the walk; the rest are there so the walk still has somewhere to go afterwards.
   nya_event_hook_register((NYA_EventHook){
       .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
       .event_type = NYA_EVENT_QUIT,
@@ -67,8 +66,7 @@ s32 main(void) {
 
   nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_QUIT });
 
-  // Every hook that was registered before the dispatch has to have run. The one added during it may
-  // or may not, which is why the bound is a floor rather than an equality.
+  // Every hook that was registered before the dispatch has to have run. The one added during it may or may not, which is why the bound is a floor rather than an equality.
   nya_assert(hooks_run >= HOOK_COUNT, "only %d of %d hooks ran; the walk lost its place", hooks_run, HOOK_COUNT);
 
   nya_system_events_deinit();

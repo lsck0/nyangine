@@ -36,8 +36,7 @@ s32 main(void) {
 
     nya_bench_begin("JWT (the two paths a token-guarded request pays)");
 
-    // The per-request check: verify the signature and parse the claims. The hot path, so it must clear
-    // many per second; a slow number here is felt on every guarded route.
+    // The per-request check: verify the signature and parse the claims. The hot path, so it must clear many per second; a slow number here is felt on every guarded route.
     nya_bench("verify and parse (per request)", 1, {
         nya_arena_free_all(scratch);
         NYA_HttpIdentity found = { 0 };

@@ -417,8 +417,7 @@ NYA_INTERNAL void test_command_path_joining(void) {
   nya_args_command_path_join(&visit, "_build", "_", buffer, sizeof(buffer));
   nya_assert(nya_string_equals(buffer, "_build_run_debug"), "got '%s'", buffer);
 
-  // A different separator is what a shell that names things by command line rather than by
-  // function would ask for.
+  // A different separator is what a shell that names things by command line rather than by function would ask for.
   nya_args_command_path_join(&visit, "build", " ", buffer, sizeof(buffer));
   nya_assert(nya_string_equals(buffer, "build run debug"), "got '%s'", buffer);
 
@@ -563,12 +562,10 @@ NYA_INTERNAL void test_zsh_escaping_of_descriptions(void) {
   char script[8192];
   capture_completions(&parser, "mytool", "zsh", script, sizeof(script));
 
-  // In an _arguments spec: quote closed and reopened, brackets and colons escaped so the
-  // description does not terminate early.
+  // In an _arguments spec: quote closed and reopened, brackets and colons escaped so the description does not terminate early.
   assert_contains(script, "'--tricky[Don'\\''t \\[do\\] this\\: really]'");
 
-  // in a _describe entry text is literal past the first colon, so only the colon and quote need
-  // escaping. Escaped brackets would show as backslashes.
+  // in a _describe entry text is literal past the first colon, so only the colon and quote need escaping. Escaped brackets would show as backslashes.
   assert_contains(script, "'sub:Colons\\: and '\\''quotes'\\'''");
 }
 
@@ -596,8 +593,7 @@ NYA_INTERNAL void test_completion_descriptor_to_zsh_action(void) {
   assert_contains(spec, "':name:'");
   assert_not_contains(spec, "_files");
 
-  // A relative directory is resolved by the shell at completion time, because _files given a
-  // relative -W silently completes from the filesystem root instead.
+  // A relative directory is resolved by the shell at completion time, because _files given a relative -W silently completes from the filesystem root instead.
   NYA_ArgParameter relative = {
     .kind       = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .variadic   = true,
@@ -661,8 +657,7 @@ NYA_INTERNAL void test_completion_descriptor_to_zsh_action(void) {
 
 // TEST: the generated zsh script parses in a real zsh
 NYA_INTERNAL void test_generated_zsh_script_parses_in_zsh(NYA_Arena* arena) {
-  // Asserting on substrings cannot catch an unbalanced quote three lines away, and a completion
-  // script that does not parse fails silently at use. Skipped where there is no zsh to ask.
+  // Asserting on substrings cannot catch an unbalanced quote three lines away, and a completion script that does not parse fails silently at use. Skipped where there is no zsh to ask.
   NYA_Command probe = {
     .arena     = arena,
     .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
@@ -751,12 +746,7 @@ s32 main(void) {
 
   // TEST: a command that both does something and has more under it.
   {
-    /*
-     * `./build` alone is not a thing to do, so a command with only subcommands is incomplete when it
-     * is named alone. A command with a handler of its own is different: `gnyame` plays and
-     * `gnyame serve` starts the same engine headless, and refusing the first would make the game
-     * something you have to name twice.
-     */
+    /* `./build` alone is not a thing to do, so a command with only subcommands is incomplete when it is named alone. A command with a handler of its own is different: `gnyame` plays and `gnyame serve` starts the same engine headless, and refusing the first would make the game something you have to name twice. */
     NYA_ArgCommand under = { .name = "under", .handler = (void*)1 };
 
     NYA_ArgCommand root = {

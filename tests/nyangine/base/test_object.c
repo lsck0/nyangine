@@ -56,8 +56,7 @@ s32 main(void) {
   // TEST: Basic primitive types serialization/deserialization
   printf("TEST: an object gives its memory back when destroyed\n");
   {
-    // the arena's free list hands a freed block to the next request of its size, so a second object
-    // built the same way lands where the first one's table was only if destroy really freed it.
+    // the arena's free list hands a freed block to the next request of its size, so a second object built the same way lands where the first one's table was only if destroy really freed it.
     NYA_Object* first = nya_object_create(arena);
     nya_object_add(first, "key", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 1 });
     void* table = first->values;
@@ -666,8 +665,7 @@ s32 main(void) {
   // TEST: Deserialize malformed input returns nullptr
   printf("TEST: Malformed input\n");
   {
-    // Empty input is now a reported error rather than a success that yields nothing, so these
-    // assert the error instead of NYA_EXPECTing their way past it.
+    // Empty input is now a reported error rather than a success that yields nothing, so these assert the error instead of NYA_EXPECTing their way past it.
     {
       NYA_Object* _obj = (NYA_Object*)1;
       nya_assert(!nya_deserialize(arena, nullptr, 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).ok);

@@ -35,12 +35,10 @@ static void assert_unit_sized(NYA_ConstCString name, const NYA_Asset* asset) {
 
   f32 extent = nya_max(hi.x - lo.x, nya_max(hi.y - lo.y, hi.z - lo.z));
 
-  // Wide bounds deliberately: this is catching "a hundred times too big" and "a hundred times too
-  // small", not a re-export that moved a vertex.
+  // Wide bounds deliberately: this is catching "a hundred times too big" and "a hundred times too small", not a re-export that moved a vertex.
   nya_assert(extent > 0.5F && extent < 8.0F, "%s spans %f units, which the scene's scale of one does not suit", name, (f64)extent);
 
-  // Centred on its own origin, which is what makes GNY_CUBE3D_MODEL_LIFT a single number rather than
-  // something derived per model.
+  // Centred on its own origin, which is what makes GNY_CUBE3D_MODEL_LIFT a single number rather than something derived per model.
   nya_assert(fabsf(lo.y + hi.y) < extent * 0.5F, "%s is not centred on y: %f to %f", name, (f64)lo.y, (f64)hi.y);
 }
 
@@ -62,8 +60,7 @@ s32 main(void) {
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = NYA_ASSET_MODELS_CUBIE_FBX }));
 
-    // Queued, not loaded. The read happens at the end of the frame, which is why
-    // nya_render3d_mesh draws nothing rather than asserting when it is asked too early.
+    // Queued, not loaded. The read happens at the end of the frame, which is why nya_render3d_mesh draws nothing rather than asserting when it is asked too early.
     nya_assert(nya_asset_status(NYA_ASSET_MODELS_CUBIE_FBX) != NYA_ASSET_STATUS_LOADED, "the load is queued, not immediate");
 
     end_frame();
@@ -86,8 +83,7 @@ s32 main(void) {
     /* UVs and the material, both of which were dropped on the floor until textures were wanted. */
     nya_assert(asset->as_mesh.uvs != nullptr, "the model's UV set was read");
 
-    // whether the reservation and the write agreed. Not required, since teardown frees the reserved
-    // extent, but worth knowing for these files.
+    // whether the reservation and the write agreed. Not required, since teardown frees the reserved extent, but worth knowing for these files.
     nya_log_info("  Cubie.fbx wrote %u of %u reserved vertices", vertices, asset->as_mesh.allocated);
 
     u32 in_unit_range = 0;
@@ -164,8 +160,7 @@ s32 main(void) {
 
     assert_unit_sized("pill.fbx", pill);
 
-    // Two handles, two meshes. Sharing a buffer between assets would show up here as identical counts
-    // and identical pointers, which is what a loader that wrote into a single static would produce.
+    // Two handles, two meshes. Sharing a buffer between assets would show up here as identical counts and identical pointers, which is what a loader that wrote into a single static would produce.
     nya_assert(pill->as_mesh.positions != cubie->as_mesh.positions, "each model owns its own arrays");
     nya_assert(pill->as_mesh.parts != cubie->as_mesh.parts, "and its own parts");
 
@@ -189,12 +184,7 @@ s32 main(void) {
       nya_check(asset->as_mesh.skinned_vertices != nullptr, "and a skinned copy of its geometry");
 
       if (asset->as_mesh.skinned_vertices != nullptr) {
-        /*
-         * The skinned buffer is uploaded straight from the loader and never passes through the staging
-         * that folds a part's base colour into the static vertices, so every skinned vertex used to be
-         * white whatever material it belonged to. Checked per part rather than in bulk: a single-part
-         * model would pass a bulk check by accident.
-         */
+        /* The skinned buffer is uploaded straight from the loader and never passes through the staging that folds a part's base colour into the static vertices, so every skinned vertex used to be white whatever material it belonged to. Checked per part rather than in bulk: a single-part model would pass a bulk check by accident. */
         u32 matched = 0;
 
         for (u32 p = 0; p < asset->as_mesh.part_count; p++) {
@@ -216,12 +206,7 @@ s32 main(void) {
         nya_check(matched == asset->as_mesh.vertex_count, "every skinned vertex carries its part's colour, %u of %u", matched,
                   asset->as_mesh.vertex_count);
 
-        /*
-         * Worth knowing what this is worth: bender.fbx is one part with a white material, so the check
-         * above passes whether or not the colour is folded in. It guards the rule rather than proving
-         * it, and it will start proving it the day a rigged model with materials is in the tree. The
-         * one thing it does catch today is a vertex left at zero, which would draw the model black.
-         */
+        /* Worth knowing what this is worth: bender.fbx is one part with a white material, so the check above passes whether or not the colour is folded in. It guards the rule rather than proving it, and it will start proving it the day a rigged model with materials is in the tree. The one thing it does catch today is a vertex left at zero, which would draw the model black. */
         nya_check(asset->as_mesh.parts[0].base_color.a > 0.0F, "and the part it came from is not transparent");
       }
 

@@ -32,8 +32,7 @@ static f32 corridor_episode(NYA_NNDQN* agent, NYA_RNG* rng, b8 training, b8 gree
     else if (greedy) action = nya_nn_dqn_act_greedy(agent, state);
     else action = nya_nn_dqn_act(agent, state);
 
-    // 0 is left, 1 is right. The edges are walls rather than wrap-around, so a wrong commitment is
-    // recoverable and the agent has to learn direction rather than parity.
+    // 0 is left, 1 is right. The edges are walls rather than wrap-around, so a wrong commitment is recoverable and the agent has to learn direction rather than parity.
     if (action == 1 && position + 1 < TEST_DQN_CORRIDOR) position++;
     else if (action == 0 && position > 0) position--;
 
@@ -157,8 +156,7 @@ int main(void) {
         .learning_rate    = 2e-3F,
         .discount         = 0.95F,
 
-        // Annealed quickly: the task is small, and an agent still exploring half the time cannot be
-        // judged on the return it collects.
+        // Annealed quickly: the task is small, and an agent still exploring half the time cannot be judged on the return it collects.
         .exploration_steps = 1500,
         .exploration_end   = 0.02F,
 
@@ -175,8 +173,7 @@ int main(void) {
     for (u32 episode = 0; episode < 600; episode++) {
       (void)corridor_episode(agent, &rng, true, false);
 
-      // trained between episodes, so the environment and optimizer stay independent, as a game loop would
-      // use nya_nn_dqn_train_for.
+      // trained between episodes, so the environment and optimizer stay independent, as a game loop would use nya_nn_dqn_train_for.
       for (u32 i = 0; i < 10; i++) (void)nya_nn_dqn_train_step(agent);
     }
 
@@ -196,10 +193,7 @@ int main(void) {
 
   // TEST: acting is allocation free once warm
   {
-    /*
-     * The property that decides whether this can run inside a frame. Acting happens every frame; if
-     * it grew memory each time it would be unusable however fast it was.
-     */
+    /* The property that decides whether this can run inside a frame. Acting happens every frame; if it grew memory each time it would be unusable however fast it was. */
     NYA_NNDQN* agent = nya_nn_dqn_create(
       arena,
       (NYA_NNDQNConfig){
@@ -230,10 +224,7 @@ int main(void) {
 
   // TEST: plain DQN also learns, and overestimates more than double DQN
   {
-    /*
-     * The disable_double_q branch existed and nothing ran it, which for a flag that changes the
-     * learning rule is a whole algorithm going untested.
-     */
+    /* The disable_double_q branch existed and nothing ran it, which for a flag that changes the learning rule is a whole algorithm going untested. */
     NYA_NNDQNConfig config = {
       .state_size   = TEST_DQN_CORRIDOR,
       .action_count = 2,

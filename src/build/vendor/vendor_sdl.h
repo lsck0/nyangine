@@ -120,13 +120,10 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
 
     .includes = { "-I./vendor/sdl/include/", },
 
-    // The win32 system libraries sit here rather than on the target's own flags because SDL is the
-    // only reason the project needs any of them.
+    // The win32 system libraries sit here rather than on the target's own flags because SDL is the only reason the project needs any of them.
     .linker_flags = {
         "-L" SDL_BUILD_WINDOWS_X86_64, "-lSDL3",
-        // -lhid is what SDL's HIDAPI game controller backend needs for HidD_*/HidP_*. Without it the
-        // link fails only at the very end, on symbols from SDL_hidapi_*.c, which reads like an SDL
-        // build problem rather than a missing system library on the link line.
+        // -lhid is what SDL's HIDAPI game controller backend needs for HidD_*/HidP_*. Without it the link fails only at the very end, on symbols from SDL_hidapi_*.c, which reads like an SDL build problem rather than a missing system library on the link line.
         "-lcomdlg32", "-ldxguid", "-lgdi32", "-lhid", "-limm32", "-lkernel32",
         "-lole32", "-loleaut32", "-lsetupapi", "-luser32", "-luuid",
         "-lversion", "-lwinmm",
@@ -144,11 +141,7 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                     "-S", SDL_SOURCE,
                     "-B", SDL_BUILD_WINDOWS_X86_64,
                     SDL_CMAKE_COMMON,
-                    /*
-                     * The shared cmake macro, like every other vendor. It finds mingw-w64 on PATH, keeps
-                     * FIND_ROOT_PATH_MODE_INCLUDE from reaching the host's glibc headers, and expands natively on a
-                     * Windows host.
-                     */
+                    /* The shared cmake macro, like every other vendor. It finds mingw-w64 on PATH, keeps FIND_ROOT_PATH_MODE_INCLUDE from reaching the host's glibc headers, and expands natively on a Windows host. */
                     NYA_CMAKE_WINDOWS_TOOLCHAIN,
                 },
             },

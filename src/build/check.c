@@ -33,21 +33,13 @@ void check_runner(NYA_ArgCommand* command) {
     nya_assert(strict != nullptr);
     nya_assert(nya_string_equals(strict->name, "strict"));
 
-    // the project's own rules first: they read the whole tree in about a second, where clang-tidy takes minutes.
-    // Only for a whole check, since a filter names translation units and these rules have none.
+    // the project's own rules first: they read the whole tree in about a second, where clang-tidy takes minutes. Only for a whole check, since a filter names translation units and these rules have none.
     if (filters->values_count == 0) {
         u32 findings = lint_run();
         if (strict->value.as_b8 && findings > 0) nya_log_panic("The project's own rules found %u problem%s; see above.", findings, findings == 1 ? "" : "s");
     }
 
-    /*
-     * The four roots, each with the flag set its own build rule uses.
-     *
-     * The terminal example is here because it is the only translation unit that compiles
-     * render2d_terminal.c: the other three all pick the GPU renderer, so without it a whole backend
-     * would never be analysed. The device half of that module, platform/terminal/, is in every unit
-     * already and needs no entry of its own.
-     */
+    /* The four roots, each with the flag set its own build rule uses. The terminal example is here because it is the only translation unit that compiles render2d_terminal.c: the other three all pick the GPU renderer, so without it a whole backend would never be analysed. The device half of that module, platform/terminal/, is in every unit already and needs no entry of its own. */
     CheckUnit units[] = {
         {
          .source       = BINARY_SOURCE_PATH,
@@ -60,9 +52,7 @@ void check_runner(NYA_ArgCommand* command) {
          .uses_vendors = true,
          },
         {
-         // SHADERCROSS_SPIRV_CROSS_INCLUDE so the GLSL-ES cross compiler in pp/asset.c is actually
-         // analysed: it is guarded by __has_include("spirv_cross_c.h"), which only resolves with this on
-         // the line, exactly as the rebuild command in build.c adds it (empty on Windows, where it is off).
+         // SHADERCROSS_SPIRV_CROSS_INCLUDE so the GLSL-ES cross compiler in pp/asset.c is actually analysed: it is guarded by __has_include("spirv_cross_c.h"), which only resolves with this on the line, exactly as the rebuild command in build.c adds it (empty on Windows, where it is off).
          .source       = "./build.c",
          .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_BUILD_TOOL, SHADERCROSS_SPIRV_CROSS_INCLUDE },
          .uses_vendors = false,
@@ -73,8 +63,7 @@ void check_runner(NYA_ArgCommand* command) {
          .uses_vendors = true,
          },
         {
-         // The second app's DLL, so a project's other app binaries are analysed too, not just gnyame.
-         // Same flag set as gnyame's DLL root above.
+         // The second app's DLL, so a project's other app binaries are analysed too, not just gnyame. Same flag set as gnyame's DLL root above.
          .source       = APP_GNYAME_CLI_DLL_SOURCE,
          .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_PLUGINS, FLAGS_DEBUG },
          .uses_vendors = true,
@@ -106,8 +95,7 @@ void check_runner(NYA_ArgCommand* command) {
                 .arguments = {
                     unit->source,
 
-                    // Suppresses the "N warnings generated" trailer clang prints per translation
-                    // unit. The findings themselves are unaffected.
+                    // Suppresses the "N warnings generated" trailer clang prints per translation unit. The findings themselves are unaffected.
                     "--quiet",
                 },
             },
@@ -138,11 +126,7 @@ void check_runner(NYA_ArgCommand* command) {
         return;
     }
 
-    /*
-     * Parallel for the same reason the tests are: each of these is a whole-program analysis of a
-     * unity build, which takes appreciably longer than compiling the same file does. Three units is
-     * not many, but they are the three slowest commands in this build system.
-     */
+    /* Parallel for the same reason the tests are: each of these is a whole-program analysis of a unity build, which takes appreciably longer than compiling the same file does. Three units is not many, but they are the three slowest commands in this build system. */
     NYA_EXPECT(nya_build_parallel(rules->items, (u32)rules->length, 0), "while running clang-tidy");
 
     nya_log_info("Checked " FMTu64 " translation units.", rules->length);
@@ -151,9 +135,7 @@ void check_runner(NYA_ArgCommand* command) {
 /* PRIVATE API IMPLEMENTATION */
 
 u32 _check_append_vendor_flags(NYA_ConstCString* arguments, u32 at) {
-    // The host's own target, because that is the one whose vendor archives and generated headers
-    // actually exist on this machine. Cross compiled headers would analyse fine and then send anyone
-    // running this on Linux looking for a mingw sysroot.
+    // The host's own target, because that is the one whose vendor archives and generated headers actually exist on this machine. Cross compiled headers would analyse fine and then send anyone running this on Linux looking for a mingw sysroot.
     NYA_VendorRule* vendors[] = {
 #if OS_WINDOWS
         NYA_PROJECT_VENDORS_WINDOWS_X86_64,

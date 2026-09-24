@@ -142,11 +142,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_scene");
     defer      nya_arena_destroy(arena);
 
-    /*
-     * Both variables, since Linux reads XDG_DATA_HOME and Windows APPDATA. Pointed at a scratch
-     * directory so a save does not land in the developer's real data directory. Same reasoning as
-     * test_settings.c.
-     */
+    /* Both variables, since Linux reads XDG_DATA_HOME and Windows APPDATA. Pointed at a scratch directory so a save does not land in the developer's real data directory. Same reasoning as test_settings.c. */
     NYA_String* temp_root = nullptr;
     NYA_EXPECT(nya_filesystem_temp_directory(arena, &temp_root));
 
@@ -184,8 +180,7 @@ s32 main(void) {
         nya_check(same_text(document_text(arena, first), document_text(arena, second)),
                   "a world read back and written again should be the same document");
 
-        // The checksum is over the tree rather than the text, so this is the same law stated against
-        // the other half of the format.
+        // The checksum is over the tree rather than the text, so this is the same law stated against the other half of the format.
         nya_check(nya_serde_nya_checksum(first) == nya_serde_nya_checksum(second), "and should hash the same");
 
         printf("  PASSED\n");
@@ -233,9 +228,7 @@ s32 main(void) {
     {
         (void)nya_world_set(origin);
 
-        // Despawns leave holes in the slot table, so the entities are no longer in slots 0..n. That
-        // is exactly what the document's own numbering has to be immune to. A childless entity is
-        // picked on purpose: despawning a parent takes its subtree with it.
+        // Despawns leave holes in the slot table, so the entities are no longer in slots 0..n. That is exactly what the document's own numbering has to be immune to. A childless entity is picked on purpose: despawning a parent takes its subtree with it.
         for (u32 i = 1; i < WORLD_ENTITY_COUNT; i += 7) {
             NYA_Entity* victim = find_by_name(entity_names[i]);
             if (victim == nullptr || victim->child_count > 0) continue;
@@ -271,9 +264,7 @@ s32 main(void) {
 
         nya_check(actual == expected, "every entity should have come back, got " FMTu32 " of " FMTu32, actual, expected);
 
-        // A world that has already held entities spawns into slots it freed earlier, so the order of
-        // the list that comes back out follows the table rather than the file. What it holds is the
-        // same either way, which is the part that matters and the part asserted here.
+        // A world that has already held entities spawns into slots it freed earlier, so the order of the list that comes back out follows the table rather than the file. What it holds is the same either way, which is the part that matters and the part asserted here.
         NYA_EXPECT(nya_scene_from_object(replica, first));
 
         u32 reused = 0;
@@ -344,8 +335,7 @@ s32 main(void) {
                             document_text(arena, nya_scene_to_object(arena, loaded))),
                   "a scene through a file should be the same world");
 
-        // A slot that was never written is the ordinary first run, and has to be told apart from a
-        // slot that is there and broken.
+        // A slot that was never written is the ordinary first run, and has to be told apart from a slot that is there and broken.
         NYA_Error missing = nya_scene_load(loaded, "scenes/slot9.nya", NYA_SAVE_FLAGS_DATA);
         nya_check(!missing.ok && missing.kind == NYA_ERROR_NOT_FOUND, "a missing slot should answer NOT_FOUND");
 
@@ -379,8 +369,7 @@ s32 main(void) {
 
         nya_check(!loaded.ok, "an altered save should not load");
 
-        // And the world it was going to be loaded into is untouched, which is the whole reason the
-        // file is read before anything is despawned.
+        // And the world it was going to be loaded into is untouched, which is the whole reason the file is read before anything is despawned.
         nya_check(nya_entity_is_valid(survivor), "a failed load should leave the world alone");
 
         (void)nya_world_set(origin);

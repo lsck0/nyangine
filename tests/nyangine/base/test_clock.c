@@ -46,12 +46,7 @@ s32 main(void) {
   nya_assert(now > year_2020_ms);
   nya_assert(now < year_2050_ms);
 
-  // TEST: the monotonic clock
-  //
-  // Durations from two wall clock readings break when the clock steps backward: the u64 subtraction
-  // wraps near 2^64, which aborts under -fsanitize=unsigned-integer-overflow. A test cannot step the
-  // system clock without CAP_SYS_TIME, so this pins the contract instead: a separate clock that never
-  // decreases, used by frame timing, uptime, the profiler, the NEAT budget and subprocess timing.
+  // TEST: the monotonic clock Durations from two wall clock readings break when the clock steps backward: the u64 subtraction wraps near 2^64, which aborts under -fsanitize=unsigned-integer-overflow. A test cannot step the system clock without CAP_SYS_TIME, so this pins the contract instead: a separate clock that never decreases, used by frame timing, uptime, the profiler, the NEAT budget and subprocess timing.
   printf("TEST: monotonic clock\n");
   {
     u64 m1 = nya_clock_get_monotonic_ns();
@@ -76,8 +71,7 @@ s32 main(void) {
     nya_assert(monotonic_elapsed_ns >= nya_time_ms_to_ns(9), "monotonic reported less than the 10ms that were waited");
     nya_assert(monotonic_elapsed_ns < nya_time_ms_to_ns(2000), "monotonic reported an implausible duration");
 
-    // ms and µs are the same clock at coarser resolution, so they must bracket the ns reading rather
-    // than being an independent counter. Sampled around it, so scheduling cannot invert them.
+    // ms and µs are the same clock at coarser resolution, so they must bracket the ns reading rather than being an independent counter. Sampled around it, so scheduling cannot invert them.
     u64 before_ms = nya_clock_get_monotonic_ms();
     u64 middle_ns = nya_clock_get_monotonic_ns();
     u64 after_µs  = nya_clock_get_monotonic_µs();
@@ -85,9 +79,7 @@ s32 main(void) {
     nya_assert(nya_time_ms_to_ns(before_ms) <= middle_ns + nya_time_ms_to_ns(1), "monotonic ms disagrees with ns");
     nya_assert(middle_ns <= nya_time_µs_to_ns(after_µs) + nya_time_ms_to_ns(1), "monotonic µs disagrees with ns");
 
-    // A different epoch from the wall clock: a monotonic reading is
-    // meaningless on its own and must never be mistaken for a Unix timestamp. The wall clock is past
-    // 2020, i.e. > 1.5e18 ns; a monotonic clock counting since boot is far below that.
+    // A different epoch from the wall clock: a monotonic reading is meaningless on its own and must never be mistaken for a Unix timestamp. The wall clock is past 2020, i.e. > 1.5e18 ns; a monotonic clock counting since boot is far below that.
     u64 monotonic_now = nya_clock_get_monotonic_ns();
     nya_assert(monotonic_now < nya_time_ms_to_ns(year_2020_ms), "the monotonic clock is using the Unix epoch");
 

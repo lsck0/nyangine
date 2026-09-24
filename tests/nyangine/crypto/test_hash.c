@@ -166,8 +166,7 @@ s32 main(void) {
         // TEST1: three bytes, so the terminator and the length fit beside them.
         check_sha256(arena, "abc", 1, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 
-        // TEST2_1: fifty six bytes, exactly where the terminator and the length stop fitting and a second
-        // padding block is needed. The case a hand written padding gets wrong.
+        // TEST2_1: fifty six bytes, exactly where the terminator and the length stop fitting and a second padding block is needed. The case a hand written padding gets wrong.
         check_sha256(
             arena,
             "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
@@ -250,8 +249,7 @@ s32 main(void) {
         nya_memset(key_5, 0x0C, sizeof(key_5));
         check_hmac_sha256(arena, key_5, sizeof(key_5), (const u8*)"Test With Truncation", 20, "a3b6167473100ee06e0c796c2955552b");
 
-        // cases 6 and 7: a key longer than a block, which RFC 2104 says to hash first. The rule a caller
-        // should never have to know, and the one a truncating implementation silently gets wrong.
+        // cases 6 and 7: a key longer than a block, which RFC 2104 says to hash first. The rule a caller should never have to know, and the one a truncating implementation silently gets wrong.
         u8 key_6[131];
         nya_memset(key_6, 0xAA, sizeof(key_6));
         check_hmac_sha256(
@@ -330,11 +328,7 @@ s32 main(void) {
             "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
         );
 
-        /*
-         * Appendix E: every output length in {20, 32, 48, 64} over every input length in {0, 3, 128, 129,
-         * 255, 1024}, unkeyed and keyed, hashed together with BLAKE2b-256. One published answer covers
-         * forty eight hashes, both block boundaries and every key length the loop reaches.
-         */
+        /* Appendix E: every output length in {20, 32, 48, 64} over every input length in {0, 3, 128, 129, 255, 1024}, unkeyed and keyed, hashed together with BLAKE2b-256. One published answer covers forty eight hashes, both block boundaries and every key length the loop reaches. */
         const u64 output_sizes[] = { 20, 32, 48, 64 };
         const u64 input_sizes[]  = { 0, 3, 128, 129, 255, 1024 };
 

@@ -58,10 +58,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a key whose buffer is later overwritten
-  //
-  // The dict stores the pointer it was given and copies no bytes, so mutating the caller's buffer
-  // changes the key. Pins that the dict borrows its keys.
+  // TEST: a key whose buffer is later overwritten The dict stores the pointer it was given and copies no bytes, so mutating the caller's buffer changes the key. Pins that the dict borrows its keys.
   printf("TEST: keys are borrowed, not copied\n");
   {
     NYA_Dictᐸu32ᐳ* dict = nya_dict_create(arena, u32);
@@ -73,19 +70,14 @@ s32 main(void) {
     nya_dict_add(dict, owned_key, 7U);
     nya_assert(*nya_dict_get(dict, "stable") == 7U);
 
-    // Looking up with an independently built copy still finds it, which is the content-hash
-    // property again and the reason borrowing is safe as long as the bytes do not change.
+    // Looking up with an independently built copy still finds it, which is the content-hash property again and the reason borrowing is safe as long as the bytes do not change.
     char rebuilt[16];
     (void)snprintf(rebuilt, sizeof(rebuilt), "stable");
     nya_assert(*nya_dict_get(dict, rebuilt) == 7U);
     printf("  PASSED\n");
   }
 
-  // TEST: many runtime-built keys, forcing growth and rehashing
-  //
-  // A rehash re-inserts every key, so it exercises the hash function far more than a handful of
-  // literals do. If the hash were on the pointer, a rehash would still work but a lookup with a
-  // fresh buffer afterwards would not.
+  // TEST: many runtime-built keys, forcing growth and rehashing A rehash re-inserts every key, so it exercises the hash function far more than a handful of literals do. If the hash were on the pointer, a rehash would still work but a lookup with a fresh buffer afterwards would not.
   printf("TEST: growth and rehash\n");
   {
     NYA_Dictᐸu32ᐳ* dict = nya_dict_create_with_capacity(arena, u32, 4);
@@ -110,10 +102,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: removal, and that it does not disturb its neighbours
-  //
-  // Open addressing is where removal goes wrong: deleting an entry in the middle of a probe chain
-  // can strand everything after it if the slot is simply blanked.
+  // TEST: removal, and that it does not disturb its neighbours Open addressing is where removal goes wrong: deleting an entry in the middle of a probe chain can strand everything after it if the slot is simply blanked.
   printf("TEST: removal keeps probe chains intact\n");
   {
     NYA_Dictᐸu32ᐳ* dict = nya_dict_create_with_capacity(arena, u32, 8);
@@ -152,11 +141,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a copied dict still hashes by content
-  //
-  // nya_dict_copy is nya_dict_copy is nya_hmap_copy, and the hash and equality functions are what
-  // a copy most easily loses: every other field is data, those two are behaviour. A copy that
-  // dropped them would call through a null pointer on its first lookup.
+  // TEST: a copied dict still hashes by content nya_dict_copy is nya_dict_copy is nya_hmap_copy, and the hash and equality functions are what a copy most easily loses: every other field is data, those two are behaviour. A copy that dropped them would call through a null pointer on its first lookup.
   printf("TEST: copy keeps the key semantics\n");
   {
     NYA_Dictᐸu32ᐳ* original = nya_dict_create(arena, u32);

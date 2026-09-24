@@ -22,10 +22,7 @@ s32 main(void) {
     NYA_CString         argv[] = { "gnyame" };
     NYA_NetLaunchConfig config = nya_net_config_from_args(1, argv);
 
-    /*
-     * A server, not a fourth mode. That is the whole architecture: single player is a server with nobody
-     * listening, which is why "open to LAN" is a runtime call rather than a different build.
-     */
+    /* A server, not a fourth mode. That is the whole architecture: single player is a server with nobody listening, which is why "open to LAN" is a runtime call rather than a different build. */
     nya_assert(config.role == NYA_NET_ROLE_SERVER, "single player is a server role");
     nya_assert(!config.dedicated, "and it is not dedicated");
     nya_assert(config.listen_port == 0, "and it is not listening");
@@ -45,10 +42,7 @@ s32 main(void) {
     nya_assert(config.role == NYA_NET_ROLE_SERVER);
     nya_assert(config.dedicated, "--server means no local player");
 
-    /*
-     * A dedicated server with no port to reach it on would be a process nobody can connect to, so the
-     * listen port defaults from `port` rather than staying zero.
-     */
+    /* A dedicated server with no port to reach it on would be a process nobody can connect to, so the listen port defaults from `port` rather than staying zero. */
     nya_assert(config.listen_port == NYA_NET_DEFAULT_PORT, "a dedicated server listens by definition");
 
     nya_net_config_report(&config);
@@ -113,10 +107,7 @@ s32 main(void) {
   // TEST: a flag is not swallowed as another flag's value
   printf("TEST: --port --server\n");
   {
-    /*
-     * The trap base_args.c fell into: consuming the next token unconditionally means `--port --server`
-     * takes `--server` as the port, complains it is not a number, and silently does not change the mode.
-     */
+    /* The trap base_args.c fell into: consuming the next token unconditionally means `--port --server` takes `--server` as the port, complains it is not a number, and silently does not change the mode. */
     NYA_NetLaunchConfig config = PARSE("--port", "--server");
 
     nya_assert(config.dedicated, "--server was swallowed as the port's value");
@@ -148,8 +139,7 @@ s32 main(void) {
     /* Past what a u64 holds. */
     nya_assert(PARSE("--port", "99999999999999999999999").port == NYA_NET_DEFAULT_PORT, "an overflowing number falls back");
 
-    // an empty attached value is a value the user wrote, so it is refused rather than treated as absent.
-    // Falling back to the next token would be greedy.
+    // an empty attached value is a value the user wrote, so it is refused rather than treated as absent. Falling back to the next token would be greedy.
     nya_assert(PARSE("--port=", "27020").port == NYA_NET_DEFAULT_PORT, "an empty attached value does not reach forward");
 
     // A listen port that is nonsense means not listening, rather than listening somewhere arbitrary.
@@ -168,10 +158,7 @@ s32 main(void) {
   // TEST: contradictory arguments resolve, they do not fail
   printf("TEST: --server and --connect together\n");
   {
-    /*
-     * A launch script naming both more likely meant to host, and refusing to start is the worst of the
-     * three outcomes for whoever wrote it. Either order, so the answer does not depend on how it was typed.
-     */
+    /* A launch script naming both more likely meant to host, and refusing to start is the worst of the three outcomes for whoever wrote it. Either order, so the answer does not depend on how it was typed. */
     NYA_NetLaunchConfig first  = PARSE("--server", "--connect", "10.0.0.1");
     NYA_NetLaunchConfig second = PARSE("--connect", "10.0.0.1", "--server");
 
@@ -185,10 +172,7 @@ s32 main(void) {
   // TEST: unknown arguments are ignored, not fatal
   printf("TEST: unrecognised arguments\n");
   {
-    /*
-     * The property that makes this parser different from base_args.h. Steam adds its own arguments, a
-     * launcher adds more, and a player's stale launch option must not cost them their game.
-     */
+    /* The property that makes this parser different from base_args.h. Steam adds its own arguments, a launcher adds more, and a player's stale launch option must not cost them their game. */
     NYA_NetLaunchConfig config = PARSE("--steam-overlay", "-silent", "positional", "--server", "--unknown=7", "--port", "27021");
 
     nya_assert(config.dedicated, "--server still took effect around the noise");
@@ -206,10 +190,7 @@ s32 main(void) {
   // TEST: overlong values are truncated rather than overflowing
   printf("TEST: overlong name and address\n");
   {
-    /*
-     * Both are copied into fixed buffers. A long name is shortened rather than refused, and the copy must
-     * stay inside the buffer.
-     */
+    /* Both are copied into fixed buffers. A long name is shortened rather than refused, and the copy must stay inside the buffer. */
     char long_name[512];
     nya_memset(long_name, 'N', sizeof(long_name) - 1);
     long_name[sizeof(long_name) - 1] = '\0';
@@ -232,8 +213,7 @@ s32 main(void) {
   // TEST: a null entry in argv is skipped
   printf("TEST: a null argv entry\n");
   {
-    // Legal to hand over and produced by some launchers. Dereferencing it would be a crash before the
-    // game drew a frame.
+    // Legal to hand over and produced by some launchers. Dereferencing it would be a crash before the game drew a frame.
     NYA_CString         argv[] = { "gnyame", nullptr, "--server", nullptr };
     NYA_NetLaunchConfig config = nya_net_config_from_args(4, argv);
 
@@ -256,8 +236,7 @@ s32 main(void) {
       for (u32 i = 0; i < count; i++) {
         u32 length = 1 + (iteration + i) % 40;
 
-        // A third of them start with `--`, so the flag-matching path is reached rather than every token
-        // being dismissed as a positional.
+        // A third of them start with `--`, so the flag-matching path is reached rather than every token being dismissed as a positional.
         u32 at = 0;
         if ((iteration + i) % 3 == 0) {
           storage[i][at++] = '-';
@@ -272,8 +251,7 @@ s32 main(void) {
 
       NYA_NetLaunchConfig config = nya_net_config_from_args((s32)(1 + count), argv);
 
-      // Whatever it decided, the result has to be usable: a valid role, a port that is a port, and a
-      // name that is a terminated string inside its buffer.
+      // Whatever it decided, the result has to be usable: a valid role, a port that is a port, and a name that is a terminated string inside its buffer.
       nya_assert(config.role == NYA_NET_ROLE_SERVER || config.role == NYA_NET_ROLE_CLIENT, "iteration %u produced role %d", iteration,
                  (int)config.role);
       nya_assert(config.port > 0, "iteration %u produced port %u", iteration, config.port);

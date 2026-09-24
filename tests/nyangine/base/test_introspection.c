@@ -116,8 +116,7 @@ s32 main(void) {
 
   // TEST: the registry lists live arenas and forgets destroyed ones
   {
-    // This is what answers "memory is climbing, which subsystem". Without it the only way to ask
-    // is to already hold the guilty arena's pointer, which is what you do not have.
+    // This is what answers "memory is climbing, which subsystem". Without it the only way to ask is to already hold the guilty arena's pointer, which is what you do not have.
     u32 before = nya_arena_registry_count();
 
     NYA_Arena* tracked = nya_arena_create(.name = "registry_subject");
@@ -217,8 +216,7 @@ s32 main(void) {
     nya_assert(stats.total_ns >= stats.max_ns, "the total covers every sample");
     nya_assert(stats.max_ns >= stats.min_ns);
 
-    // A null measurement is a zeroed result rather than a fault, so a caller does not have to
-    // null check before every stats call.
+    // A null measurement is a zeroed result rather than a fault, so a caller does not have to null check before every stats call.
     NYA_PerfStats none = nya_perf_stats(nullptr);
     nya_assert(none.sample_count == 0);
     nya_assert(none.total_ns == 0);
@@ -238,8 +236,7 @@ s32 main(void) {
     nya_assert(measurement->sample_count == NYA_PERF_MEASUREMENT_SAMPLES, "the ring saturates rather than overflowing");
     nya_assert(measurement->total_runs == (u64)NYA_PERF_MEASUREMENT_SAMPLES * 2, "but the run count is not windowed");
 
-    // Reading the ring forwards from index 0 would average whatever the wrap left behind; the
-    // stats walk backwards from `current` for exactly this reason.
+    // Reading the ring forwards from index 0 would average whatever the wrap left behind; the stats walk backwards from `current` for exactly this reason.
     NYA_PerfStats stats = nya_perf_stats(measurement);
     nya_assert(stats.sample_count == NYA_PERF_MEASUREMENT_SAMPLES, "every slot in a wrapped ring is valid");
   }
@@ -249,11 +246,7 @@ s32 main(void) {
     nya_perf_frame_begin();
     u64 frame = nya_perf_frame_current();
 
-    // The shape being asserted:
-    //   test_frame            depth 0
-    //     test_update         depth 1
-    //       test_entities     depth 2
-    //     test_render         depth 1
+    // The shape being asserted: test_frame            depth 0 test_update         depth 1 test_entities     depth 2 test_render         depth 1
     {
       nya_perf_time_this_scope("test_frame");
       {
@@ -303,8 +296,7 @@ s32 main(void) {
     nya_assert(depth_of_entities == 2, "entities nests inside update, got " FMTu32, depth_of_entities);
     nya_assert(depth_of_render == 1, "render is a sibling of update, not a child, got " FMTu32, depth_of_render);
 
-    // The outermost span contains the others in wall clock too, which is the cross check that
-    // depth and time agree rather than depth being bookkeeping that drifted.
+    // The outermost span contains the others in wall clock too, which is the cross check that depth and time agree rather than depth being bookkeeping that drifted.
     NYA_PerfSpan outer = spans->items[0];
     nya_array_foreach (spans, span) {
       nya_assert(span->started_ns >= outer.started_ns, "nothing in the frame started before the frame did");

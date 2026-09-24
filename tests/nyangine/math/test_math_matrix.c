@@ -258,8 +258,7 @@ s32 main(void) {
 
     f32x4 origin = nya_matrix_times_vector(view, (f32x4){ 0.0F, 0.0F, 0.0F, 1.0F });
 
-    // Four units in front of the camera means z = -4 in view space, not +4. The sign is the whole
-    // handedness question, and getting it backwards renders the scene from behind itself.
+    // Four units in front of the camera means z = -4 in view space, not +4. The sign is the whole handedness question, and getting it backwards renders the scene from behind itself.
     nya_assert(fabsf(origin.x) < 0.001F && fabsf(origin.y) < 0.001F, "the target sits on the view axis");
     nya_assert(fabsf(origin.z + 4.0F) < 0.001F, "the target is four units down -z, got %f", (f64)origin.z);
 
@@ -287,8 +286,7 @@ s32 main(void) {
     f32x3 unit = nya_vector_normalize((f32x3){ 0.0F, 0.0F, -7.0F });
     nya_assert(unit.z == -1.0F, "normalize keeps the direction");
 
-    // Zero rather than NaN, which is what keeps a camera that has not been aimed yet from blanking
-    // the whole window.
+    // Zero rather than NaN, which is what keeps a camera that has not been aimed yet from blanking the whole window.
     f32x3 zero = nya_vector_normalize(f32x3_zero);
     nya_assert(zero.x == 0.0F && zero.y == 0.0F && zero.z == 0.0F, "a zero vector normalizes to zero");
   }

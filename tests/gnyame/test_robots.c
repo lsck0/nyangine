@@ -82,8 +82,7 @@ s32 main(void) {
         }
     }
 
-    // ── Both brains get better at the trial, which is deterministic: NEAT within a few generations, the DQN within a
-    //    few thousand gradient steps.
+    // ── Both brains get better at the trial, which is deterministic: NEAT within a few generations, the DQN within a few thousand gradient steps.
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_robots_trainers");
         defer      nya_arena_destroy(arena);
@@ -177,16 +176,7 @@ s32 main(void) {
         gny_robots_update(0.0F);
         nya_check(robots->brain != nullptr && robots->brain_fitness > 0.0, "the fittest genome is what the drones fly");
 
-        /*
-         * Over a horizon, not in one tick, and any drone rather than all of them.
-         *
-         * `brain_fitness > 0` above is what makes this sound: a genome only scores above zero by flying
-         * toward the player during its test flights, so something it flies has to move eventually. One
-         * tick does not follow from that — a genome may thrust to nothing on any given tick, and which
-         * genome wins depends on how many generations the training job got through, which under a loaded
-         * parallel test run is not the same number twice. Asserting a single tick failed about one run in
-         * ten for that reason alone.
-         */
+        /* Over a horizon, not in one tick, and any drone rather than all of them. `brain_fitness > 0` above is what makes this sound: a genome only scores above zero by flying toward the player during its test flights, so something it flies has to move eventually. One tick does not follow from that — a genome may thrust to nothing on any given tick, and which genome wins depends on how many generations the training job got through, which under a loaded parallel test run is not the same number twice. Asserting a single tick failed about one run in ten for that reason alone. */
         f32x2 before[GNY_ROBOT_DRONES];
         for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) before[i] = robots->bodies[i].position;
 

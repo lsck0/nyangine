@@ -50,8 +50,7 @@ s32 main(void) {
     ASSERT_PATH(nya_path_basename, "c.txt", "c.txt");
     ASSERT_PATH(nya_path_basename, "/a/b/c", "c");
     ASSERT_PATH(nya_path_basename, "a/b/", "b");   // trailing separator is not part of the name
-    // Root has no name after its separator. Same answer Python gives; the header does not
-    // specify this case, so this pins it rather than asserting a preference.
+    // Root has no name after its separator. Same answer Python gives; the header does not specify this case, so this pins it rather than asserting a preference.
     ASSERT_PATH(nya_path_basename, "/", "");
     printf("  PASSED\n");
   }
@@ -141,10 +140,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: normalize is idempotent
-  //
-  // Worth pinning on its own: these results are baked into generated source by the asset pipeline,
-  // so a path that changes when normalised twice would make a build non-reproducible.
+  // TEST: normalize is idempotent Worth pinning on its own: these results are baked into generated source by the asset pipeline, so a path that changes when normalised twice would make a build non-reproducible.
   printf("TEST: normalize is idempotent\n");
   {
     NYA_ConstCString inputs[] = { "a//b/../c", "/x/./y", "..", "C:\\a\\b", "a/b/", "", "." };
@@ -163,11 +159,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: long paths
-  //
-  // The scratch arena inside nya_path_normalize is sized from the input length. A path longer than
-  // its minimum region has to chain another region rather than overrun the segment table, which is
-  // the failure mode that sizing introduced.
+  // TEST: long paths The scratch arena inside nya_path_normalize is sized from the input length. A path longer than its minimum region has to chain another region rather than overrun the segment table, which is the failure mode that sizing introduced.
   printf("TEST: long paths\n");
   {
     NYA_String* built = nya_string_create(arena);

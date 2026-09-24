@@ -115,8 +115,7 @@ s32 main(void) {
 
     // ── The deadzone rescales rather than clamping, so a control eases in instead of snapping.
     {
-        // _nya_gamepad_normalize is internal, but it is the thing worth pinning: just past the dead
-        // zone must be near zero, not a jump to the dead zone's own value.
+        // _nya_gamepad_normalize is internal, but it is the thing worth pinning: just past the dead zone must be near zero, not a jump to the dead zone's own value.
         f32 just_past = _nya_gamepad_normalize((s16)(0.19F * 32767.0F), NYA_GAMEPAD_STICK_DEADZONE);
         f32 well_past = _nya_gamepad_normalize((s16)(0.60F * 32767.0F), NYA_GAMEPAD_STICK_DEADZONE);
         f32 full      = _nya_gamepad_normalize(32767, NYA_GAMEPAD_STICK_DEADZONE);

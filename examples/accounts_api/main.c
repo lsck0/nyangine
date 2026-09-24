@@ -101,10 +101,7 @@
 
 #include "SDL3/SDL_init.h"
 
-// The notes resource, split into its three shapes and their conversions — the worked example of
-// "Model, SO, DTO". note_so.h pulls note_model.h (the row) and note_dto.h (the wire), and holds the
-// four conversions between them. Only note_dto.h would compile into the web profile; the other two
-// carry the guard that refuses to.
+// The notes resource, split into its three shapes and their conversions — the worked example of "Model, SO, DTO". note_so.h pulls note_model.h (the row) and note_dto.h (the wire), and holds the four conversions between them. Only note_dto.h would compile into the web profile; the other two carry the guard that refuses to.
 #include "notes/note_so.h"
 
 /* CONSTANTS AND STATE */
@@ -197,10 +194,7 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_post(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    // The request body is read as the DTO through its reflection, then parsed into an SO — which is
-    // where the untrusted text is checked and where the *server*, not the client, fills in the owner
-    // and the timestamp. A client cannot claim a note it did not write: note_so_from_dto ignores any
-    // owner a DTO might carry, because the DTO has no such field to carry.
+    // The request body is read as the DTO through its reflection, then parsed into an SO — which is where the untrusted text is checked and where the *server*, not the client, fills in the owner and the timestamp. A client cannot claim a note it did not write: note_so_from_dto ignores any owner a DTO might carry, because the DTO has no such field to carry.
     NoteDtoV1 dto = { 0 };
     if (!nya_http_request_reflect(exchange->request, exchange->arena, &NOTE_DTO_V1_REFLECT, &dto).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
@@ -306,8 +300,7 @@ NYA_INTERNAL NYA_HttpStatus handle_sessions_delete(NYA_HttpExchange* exchange) {
 
     u64 session_id = id->type == NYA_TYPE_U64 ? id->as_u64 : (u64)id->as_s64;
 
-    // The session has to be one of the caller's own: revoking by id alone would let anybody end
-    // anybody's session, which is the same IDOR the notes have.
+    // The session has to be one of the caller's own: revoking by id alone would let anybody end anybody's session, which is the same IDOR the notes have.
     NYA_AccountSession* sessions = nullptr;
     u32                 count    = 0;
 
@@ -322,14 +315,7 @@ NYA_INTERNAL NYA_HttpStatus handle_sessions_delete(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_NOT_FOUND;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Only the two resources that are this example's own. Register, login, logout, the second factor and the
- * session check are the accounts module's router, merged in main; see nya_http_accounts_open.
- */
+/* ROUTES Only the two resources that are this example's own. Register, login, logout, the second factor and the session check are the accounts module's router, merged in main; see nya_http_accounts_open. */
 
 /*
  * Every handler touches the one database on the ticking thread, so the whole table is MAIN: no route
@@ -394,8 +380,7 @@ s32 main(s32 argc, char** argv) {
     }
     defer SDL_Quit();
 
-    // No window, no renderer, no frame loop: an app instance for the systems to hang off, the callback
-    // and event registries the save and http systems hook into, and then the database. See web_server.
+    // No window, no renderer, no frame loop: an app instance for the systems to hang off, the callback and event registries the save and http systems hook into, and then the database. See web_server.
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     nya_system_callback_init();
@@ -448,15 +433,11 @@ s32 main(s32 argc, char** argv) {
                "while starting the server");
     defer nya_system_http_deinit();
 
-    // The origin the passkey routes check against: the scheme, the host, and the port actually chosen.
-    // Built here rather than hardcoded so it matches whatever `--port` picked; a real server would name its
-    // own https domain instead. localhost is the one host a browser runs WebAuthn on without TLS.
+    // The origin the passkey routes check against: the scheme, the host, and the port actually chosen. Built here rather than hardcoded so it matches whatever `--port` picked; a real server would name its own https domain instead. localhost is the one host a browser runs WebAuthn on without TLS.
     char passkey_origin[64] = { 0 };
     (void)snprintf(passkey_origin, sizeof(passkey_origin), "%s://%s:%u", secure ? "https" : "http", PASSKEY_RP_ID, nya_http_server_port());
 
-    // The login flow, mounted from the accounts module: register, login, login/totp, logout, session, the
-    // TOTP enrol/confirm pair, and — because a relying party is named — the passwordless passkey routes.
-    // Everything this example does not have to write itself.
+    // The login flow, mounted from the accounts module: register, login, login/totp, logout, session, the TOTP enrol/confirm pair, and — because a relying party is named — the passwordless passkey routes. Everything this example does not have to write itself.
     const NYA_HttpRouter* accounts = nya_http_accounts_open((NYA_HttpAccountsConfig){
         .arena                  = DB_ARENA,
         .database               = DB,
@@ -481,8 +462,7 @@ s32 main(s32 argc, char** argv) {
     nya_log_info("accounts_api on %s://127.0.0.1:%u — register, log in, and keep notes that are yours. ctrl-c to stop.",
                  secure ? "https" : "http", nya_http_server_port());
 
-    // The housekeeping a real server runs on a timer, run once at start so a long-lived database does
-    // not carry dead rows forever. A production server would call these hourly.
+    // The housekeeping a real server runs on a timer, run once at start so a long-lived database does not carry dead rows forever. A production server would call these hourly.
     u32 ended = 0, removed = 0;
     (void)nya_account_session_sweep(DB_ARENA, &ended, &removed);
 

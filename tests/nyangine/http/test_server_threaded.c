@@ -8,9 +8,7 @@
  * deterministic, step-at-a-time mode is `workers = 0` and it is what test_server.c drives.
  **/
 
-// first, and before any libc or SDL header: base_basic.h is what settles which POSIX this translation
-// unit asks for, and a thread sanitizer build of this file compiles the engine into it rather than
-// linking one that was compiled on its own.
+// first, and before any libc or SDL header: base_basic.h is what settles which POSIX this translation unit asks for, and a thread sanitizer build of this file compiles the engine into it rather than linking one that was compiled on its own.
 #include "nyangine/nyangine.h"
 
 #include <stdlib.h>
@@ -21,12 +19,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * Under ThreadSanitizer the crash prevention below is skipped: it is a setjmp in one frame and a
- * longjmp out of the crash sink, and tsan's interceptor cannot follow that pair across a thread it
- * did not start the stack of ("can't find longjmp buf"). Everything else in this file is exactly what
- * the ordinary build runs, which is the point of running it under tsan at all.
- */
+/* Under ThreadSanitizer the crash prevention below is skipped: it is a setjmp in one frame and a longjmp out of the crash sink, and tsan's interceptor cannot follow that pair across a thread it did not start the stack of ("can't find longjmp buf"). Everything else in this file is exactly what the ordinary build runs, which is the point of running it under tsan at all. */
 #if defined(__has_feature)
 #if __has_feature(thread_sanitizer)
 #define TEST_NO_CRASH_PREVENTION 1
@@ -71,8 +64,7 @@ static NYA_HttpStatus worker_query(NYA_HttpExchange* exchange) {
     if (nya_thread_main_is_current()) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
 #ifndef TEST_NO_CRASH_PREVENTION
-    // the registry is the frame's, and saying so is not a comment. This crashes, and the prevention
-    // frame is this thread's, so the assertion is caught here and reported as an answer.
+    // the registry is the frame's, and saying so is not a comment. This crashes, and the prevention frame is this thread's, so the assertion is caught here and reported as an answer.
     nya_expect_crash(nya_system_accounting_enable());
 
     if (nya_crash_caught() == nullptr) return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -153,8 +145,7 @@ static NYA_OsSocket connect_to(u16 port) {
 
   nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-  // a non-blocking connect is under way rather than done, and writability is how the host says it
-  // finished; loopback usually beats the first wait to it.
+  // a non-blocking connect is under way rather than done, and writability is how the host says it finished; loopback usually beats the first wait to it.
   NYA_OsSocketWait watched = { .socket = socket, .writable = true };
   u32              ready   = 0;
 

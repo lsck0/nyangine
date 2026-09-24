@@ -39,11 +39,7 @@ s32 main(void) {
   nya_system_callback_init();
   defer nya_system_callback_deinit();
 
-  /*
-   * Opened without a tty: the tests never present, and the backend writes into its own grid whether or
-   * not anything is watching. A terminal that refuses to open leaves nothing to test, so that is a skip
-   * rather than a failure.
-   */
+  /* Opened without a tty: the tests never present, and the backend writes into its own grid whether or not anything is watching. A terminal that refuses to open leaves nothing to test, so that is a skip rather than a failure. */
   if (!nya_terminal_open((NYA_TerminalOptions){ .detached = true }).ok) {
     nya_log_warn("No terminal here, skipping the layer tests.");
 
@@ -78,8 +74,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: equal layers still paint over each other, or a panel could not draw
-  //       its own text onto its own fill
+  // TEST: equal layers still paint over each other, or a panel could not draw its own text onto its own fill
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -114,8 +109,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: the layers reset with the clear, so last frame's stack does not defend
-  //       a cell nobody has written this frame
+  // TEST: the layers reset with the clear, so last frame's stack does not defend a cell nobody has written this frame
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
     fill_at(window, 9, GREEN);

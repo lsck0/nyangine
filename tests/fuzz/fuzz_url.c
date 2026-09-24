@@ -90,10 +90,7 @@ static void fuzz_once(const u8* data, u64 size) {
         nya_assert(failure.offset <= size, "a refusal pointing past the input");
     }
 
-    /*
-     * The decoder on the same bytes. Bounded to what the URL bound allows, since the encoded form is up
-     * to three times as long and the buffers below are on the stack.
-     */
+    /* The decoder on the same bytes. Bounded to what the URL bound allows, since the encoded form is up to three times as long and the buffers below are on the stack. */
     if (size > NYA_URL_MAX_BYTES) return;
 
     u8  decoded[NYA_URL_MAX_BYTES];

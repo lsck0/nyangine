@@ -329,8 +329,7 @@ s32 main(void) {
     nya_check(nya_acme_account_key_create(arena, NYA_ACME_ALGORITHM_ES256, &key).ok, "a key generates");
     defer nya_acme_account_key_destroy(key);
 
-    // a newAccount-style JWS (kid null) so the embedded jwk is the verifying key and the flipped bit is
-    // the only thing wrong.
+    // a newAccount-style JWS (kid null) so the embedded jwk is the verifying key and the flipped bit is the only thing wrong.
     NYA_Object* jws = nullptr;
     nya_check(nya_acme_jws_sign(arena, key, "https://ca.test/x", "nonce", nullptr, nullptr, &jws).ok, "a JWS signs");
 

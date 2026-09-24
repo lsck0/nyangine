@@ -23,8 +23,7 @@ s32 main(void) {
     nya_assert(color->size == sizeof(NYA_Color));
     nya_assert(color->field_count == 4, "`f32 r, g, b, a;` produced %u fields", color->field_count);
 
-    // The offsets the generator emitted and the ones the compiler computes must be the same object,
-    // which is the whole claim behind emitting nya_offsetof rather than a number.
+    // The offsets the generator emitted and the ones the compiler computes must be the same object, which is the whole claim behind emitting nya_offsetof rather than a number.
     NYA_Color instance = { 0 };
 
     void* address = nullptr;
@@ -64,8 +63,7 @@ s32 main(void) {
     nya_assert(text != nullptr);
     nya_assert(text->type->kind == NYA_REFLECT_ARRAY);
 
-    // `char text[NYA_NET_CHAT_TEXT_MAX]`: the generator copied the macro's *name* through and the
-    // compiler resolved it, so this is what says that trick works.
+    // `char text[NYA_NET_CHAT_TEXT_MAX]`: the generator copied the macro's *name* through and the compiler resolved it, so this is what says that trick works.
     nya_assert(text->type->element_count == NYA_NET_CHAT_TEXT_MAX, "the array extent came out as %u",
                text->type->element_count);
     nya_assert(text->type->element->primitive == NYA_TYPE_CHAR);
@@ -86,8 +84,7 @@ s32 main(void) {
 
     nya_assert(nya_reflect_field(run, "id")->is_key, "the @key annotation did not reach the table");
 
-    // Negative space: a key identifies a row, so exactly one field may carry it. The generator drops
-    // a second one, and nothing else on the type may pick it up by accident.
+    // Negative space: a key identifies a row, so exactly one field may carry it. The generator drops a second one, and nothing else on the type may pick it up by accident.
     u32 keys = 0;
     for (u32 i = 0; i < run->field_count; i++) {
       if (run->fields[i].is_key) keys++;

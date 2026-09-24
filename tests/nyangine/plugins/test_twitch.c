@@ -444,8 +444,7 @@ s32 main(void) {
     NYA_TwitchHelixLimit limit = nya_twitch_helix_limit(helix);
     nya_check(limit.limit == 800 && limit.remaining == 799, "the bucket was read, %u of %u left", limit.remaining, limit.limit);
 
-    // and the other half: a bot that stops caring about a channel says so, or the subscription keeps
-    // counting against the limit twitch tracks per client id.
+    // and the other half: a bot that stops caring about a channel says so, or the subscription keeps counting against the limit twitch tracks per client id.
     helix_push(&fake, 204, "", "");
 
     nya_check(nya_twitch_helix_unsubscribe(helix, "sub-1", nullptr).ok, "unsubscribing is queued");

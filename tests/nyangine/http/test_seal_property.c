@@ -42,8 +42,7 @@ static void draw_label(NYA_Property* property, OUT char* out, u64 capacity) {
     if (length >= capacity) length = capacity - 1;
 
     for (u64 index = 0; index < length; index++) {
-        // Printable and not a space or a control: a label is authenticated as bytes, but keeping it to
-        // what a cookie name may hold is what makes the draw resemble the real caller.
+        // Printable and not a space or a control: a label is authenticated as bytes, but keeping it to what a cookie name may hold is what makes the draw resemble the real caller.
         u8 character = (u8)(0x21 + nya_property_draw_below(property, 0x7E - 0x21));
         out[index]   = (char)character;
     }
@@ -61,8 +60,7 @@ static void draw_seal(NYA_Property* property, OUT Drawn* drawn) {
     drawn->plaintext_size = nya_property_draw_below(property, NYA_HTTP_SEAL_MAX_PLAINTEXT + 1);
     nya_property_draw_bytes(property, drawn->plaintext, (u32)drawn->plaintext_size);
 
-    // Well in the future, so the token is live when it is opened a microsecond later; expiry is
-    // test_seal.c's, which sleeps a one-second ttl out.
+    // Well in the future, so the token is live when it is opened a microsecond later; expiry is test_seal.c's, which sleeps a one-second ttl out.
     drawn->ttl_s = 60 + nya_property_draw_below(property, 1000000);
 }
 
@@ -110,8 +108,7 @@ static b8 law_any_flipped_byte_is_refused(NYA_Property* property) {
     u8  back[NYA_HTTP_SEAL_MAX_PLAINTEXT] = { 0 };
     u64 size                             = 0;
 
-    // A base64url alphabet is 64 of 256 byte values, so most flips make the token stop decoding and the
-    // rest make the tag stop matching; either way it must not open, and it must report no plaintext.
+    // A base64url alphabet is 64 of 256 byte values, so most flips make the token stop decoding and the rest make the tag stop matching; either way it must not open, and it must report no plaintext.
     b8 opened = nya_http_unseal(drawn.secret, drawn.secret_size, drawn.label, token, length, back, sizeof(back), &size);
 
     nya_property_note(property, "a flip of byte %llu of %llu was accepted", (unsigned long long)position, (unsigned long long)length);
@@ -175,12 +172,10 @@ static b8 law_oversized_is_refused(NYA_Property* property) {
     u64 secret_size = NYA_HTTP_SEAL_MIN_SECRET_BYTES + nya_property_draw_below(property, sizeof(secret) - NYA_HTTP_SEAL_MIN_SECRET_BYTES);
     nya_property_draw_bytes(property, secret, (u32)secret_size);
 
-    // One past the bound, up to a few hundred over: the size is the attacker's to pick, and every value
-    // above the bound must be a refusal.
+    // One past the bound, up to a few hundred over: the size is the attacker's to pick, and every value above the bound must be a refusal.
     u64 oversized = NYA_HTTP_SEAL_MAX_PLAINTEXT + 1 + nya_property_draw_below(property, 512);
 
-    // The plaintext buffer only needs to be a valid pointer of that size; its contents do not matter,
-    // because a refused seal never reads them into a token, so they are left zeroed rather than drawn.
+    // The plaintext buffer only needs to be a valid pointer of that size; its contents do not matter, because a refused seal never reads them into a token, so they are left zeroed rather than drawn.
     u8* plaintext = nya_arena_alloc(property->allocator, oversized);
 
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };

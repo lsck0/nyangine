@@ -162,9 +162,7 @@ NYA_INTERNAL void _dist_write_checksums(NYA_Arena* arena);
  * manifests carry the checksum of a game target's archive and cannot be rendered before it exists.
  * */
 NYA_INTERNAL const DistTarget DIST_TARGETS[] = {
-// Absent on a Windows host rather than present and failing, exactly as the Linux build commands are:
-// the rules they name do not exist there, and neither does the archive the three Linux package
-// targets checksum. See build.h.
+// Absent on a Windows host rather than present and failing, exactly as the Linux build commands are: the rules they name do not exist there, and neither does the archive the three Linux package targets checksum. See build.h.
 #if !OS_WINDOWS
     {
         .name           = "linux",
@@ -202,16 +200,7 @@ NYA_INTERNAL const DistTarget DIST_TARGETS[] = {
         .payload        = STEAM_WINDOWS_X86_64_DIRECTORY,
         .archive_suffix = "steam-windows-x86_64.zip",
     },
-    /*
-     * The wasm build, and nothing in it yet. The slot is here so the layout does not move when it
-     * lands: the same dist/<target>/ shape, the same LICENSE and CHANGELOG.md, the same data/ and
-     * plugins/ trees a player edits.
-     *
-     * What will fill it: the engine compiled to wasm, a canvas/WebGPU rendering backend, and the
-     * nyangine UI compiled to HTML, CSS and JS. That is a build target and two backends, not a
-     * packaging change, so it is deliberately not started here. Until the rule exists this stages an
-     * empty directory rather than failing, because `./build dist` has to keep working meanwhile.
-     */
+    /* The wasm build, and nothing in it yet. The slot is here so the layout does not move when it lands: the same dist/<target>/ shape, the same LICENSE and CHANGELOG.md, the same data/ and plugins/ trees a player edits. What will fill it: the engine compiled to wasm, a canvas/WebGPU rendering backend, and the nyangine UI compiled to HTML, CSS and JS. That is a build target and two backends, not a packaging change, so it is deliberately not started here. Until the rule exists this stages an empty directory rather than failing, because `./build dist` has to keep working meanwhile. */
     {
         .name        = "web",
         .description = "The wasm build. Empty until the target exists; see the note in dist.c.",
@@ -292,10 +281,7 @@ void dist_runner(NYA_ArgCommand* command) {
     NYA_Arena* arena = nya_arena_create(.name = "dist_runner");
     defer nya_arena_destroy(arena);
 
-    /*
-     * The values every rendered manifest shares. The date is HEAD's commit date rather than today's:
-     * a distribution staged twice from the same commit has to come out the same both times.
-     */
+    /* The values every rendered manifest shares. The date is HEAD's commit date rather than today's: a distribution staged twice from the same commit has to come out the same both times. */
     NYA_String* head_date = build_capture(arena, "git", (const NYA_ConstCString[]){ "log", "-1", "--format=%cs", nullptr });
     nya_string_trim_whitespace(head_date);
 
@@ -306,8 +292,7 @@ void dist_runner(NYA_ArgCommand* command) {
 
     for (u32 i = 0; i < nya_carray_length(_dist_staged); i++) _dist_staged[i] = false;
 
-    // Everything ships a current changelog, so it is generated before anything is copied rather than
-    // whenever someone last remembered to run it.
+    // Everything ships a current changelog, so it is generated before anything is copied rather than whenever someone last remembered to run it.
     _changelog_write(arena, false);
 
     if (wanted->values_count == 0) {
@@ -322,12 +307,8 @@ void dist_runner(NYA_ArgCommand* command) {
         return;
     }
 
-    /*
-     * Named targets are resolved before any of them is staged, so a typo in the fourth name fails
-     * before the first has spent five minutes compiling.
-     */
-    // Sized by what the parser can hand over rather than by the number of targets, since naming one
-    // twice is legal: staging is idempotent within a run, so it costs nothing and needs no rule.
+    /* Named targets are resolved before any of them is staged, so a typo in the fourth name fails before the first has spent five minutes compiling. */
+    // Sized by what the parser can hand over rather than by the number of targets, since naming one twice is legal: staging is idempotent within a run, so it costs nothing and needs no rule.
     const DistTarget* selected[NYA_ARG_MAX_PARAMETERS] = { nullptr };
 
     for (u32 given = 0; given < wanted->values_count; given++) {
@@ -384,9 +365,7 @@ void _dist_run(NYA_ConstCString name, NYA_ConstCString program, const NYA_ConstC
 NYA_CString _dist_make_directory(NYA_Arena* arena, NYA_ConstCString name) {
     NYA_CString path = nya_string_to_cstring(arena, nya_string_sprintf(arena, DIST_DIRECTORY "/%s", name));
 
-    // Staging is a replacement, not a merge: a file left behind by a previous version would be shipped
-    // by this one. The existence check is because deleting what is not there answers NOT_FOUND, and a
-    // first run on a clean checkout is the normal case, not a failure.
+    // Staging is a replacement, not a merge: a file left behind by a previous version would be shipped by this one. The existence check is because deleting what is not there answers NOT_FOUND, and a first run on a clean checkout is the normal case, not a failure.
     if (nya_filesystem_exists(path)) NYA_EXPECT(nya_filesystem_delete_recursive(path), "while clearing '%s'", path);
     NYA_EXPECT(nya_filesystem_create_directory(path), "while creating '%s'", path);
 
@@ -458,16 +437,9 @@ void _dist_archive(NYA_Arena* arena, const DistTarget* target) {
     NYA_CString archive = _dist_archive_path(arena, target);
     NYA_CString staged  = nya_string_to_cstring(arena, nya_string_sprintf(arena, DIST_DIRECTORY "/%s", target->name));
 
-    /*
-     * Contents at the root of the archive, no wrapping directory. Every recipe that consumes one then
-     * extracts in place, and the tar and zip halves stay symmetrical, which a --transform would not be:
-     * only GNU tar has one.
-     */
+    /* Contents at the root of the archive, no wrapping directory. Every recipe that consumes one then extracts in place, and the tar and zip halves stay symmetrical, which a --transform would not be: only GNU tar has one. */
     if (nya_string_ends_with(nya_string_from(arena, target->archive_suffix), ".zip")) {
-        /*
-         * zip has no -C, so it runs inside the staged directory and names the archive relative to it:
-         * two levels up from dist/<target>/ is the repository root.
-         */
+        /* zip has no -C, so it runs inside the staged directory and names the archive relative to it: two levels up from dist/<target>/ is the repository root. */
         NYA_CString from_staged = nya_string_to_cstring(
             arena,
             nya_string_sprintf(arena, "../../" DIST_DIRECTORY "/" PROJECT_NAME "." VERSION ".%s", target->archive_suffix)
@@ -487,15 +459,7 @@ void _dist_archive(NYA_Arena* arena, const DistTarget* target) {
 
         NYA_EXPECT(nya_build(&rule), "while archiving '%s'", target->name);
     } else {
-        /*
-         * Deterministic: entries sorted, ownership zeroed and every timestamp pinned, so the same
-         * tree archives to the same bytes and therefore the same checksum on any machine. Without it
-         * two runs of this command produce two digests for identical content, and a release that
-         * cannot be reproduced cannot be verified.
-         *
-         * The zip half above is not there yet: zip has no equivalent flag and stores an mtime per
-         * entry, so the Windows archives still differ run to run.
-         */
+        /* Deterministic: entries sorted, ownership zeroed and every timestamp pinned, so the same tree archives to the same bytes and therefore the same checksum on any machine. Without it two runs of this command produce two digests for identical content, and a release that cannot be reproduced cannot be verified. The zip half above is not there yet: zip has no equivalent flag and stores an mtime per entry, so the Windows archives still differ run to run. */
         _dist_run(
             "dist_archive",
             "tar",
@@ -547,11 +511,7 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
 
     nya_log_info("Staging %s: %s", target->name, target->description);
 
-    /*
-     * A package target's manifests link to and checksum a game target's archive, so that one is staged
-     * and archived first. Naming it rather than ordering around it means `./build dist linux-nixos`
-     * on its own produces a derivation with a real hash in it.
-     */
+    /* A package target's manifests link to and checksum a game target's archive, so that one is staged and archived first. Naming it rather than ordering around it means `./build dist linux-nixos` on its own produces a derivation with a real hash in it. */
     if (target->checksums != nullptr) {
         for (u32 i = 0; i < nya_carray_length(DIST_TARGETS); i++) {
             if (!nya_string_equals(DIST_TARGETS[i].name, target->checksums)) continue;
@@ -588,8 +548,7 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
             _dist_copy_into(arena, DIST_LICENSE_FILE, directory);
             _dist_copy_into(arena, DIST_CHANGELOG_FILE, directory);
 
-            // data/ and plugins/, identical in every distribution, so a player who moves between the
-            // portable build and a packaged one finds the same two directories in the same shape.
+            // data/ and plugins/, identical in every distribution, so a player who moves between the portable build and a packaged one finds the same two directories in the same shape.
             NYA_ArrayᐸNYA_DirectoryEntryᐳ* runtime = nullptr;
             NYA_EXPECT(nya_filesystem_list(arena, DIST_RUNTIME_DIRECTORY, &runtime), "while reading " DIST_RUNTIME_DIRECTORY);
 
@@ -605,8 +564,7 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
         case DIST_KIND_API: {
             _dist_render_tree(arena, target->templates, directory);
 
-            // The example plugin and its manifest are the runtime skeleton's, not a second copy that
-            // could drift from the one every player already has.
+            // The example plugin and its manifest are the runtime skeleton's, not a second copy that could drift from the one every player already has.
             _dist_copy_into(arena, DIST_RUNTIME_DIRECTORY "/plugins/example", directory);
             _dist_copy_into(arena, DIST_RUNTIME_DIRECTORY "/plugins/example/manifest.nya", directory);
             _dist_copy_into(arena, DIST_LICENSE_FILE, directory);
@@ -620,8 +578,7 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
         }
 
         case DIST_KIND_PLACEHOLDER: {
-            // The directory and nothing else. Reported, so an empty slot in dist/ is a decision a
-            // reader can see rather than a target that silently did nothing.
+            // The directory and nothing else. Reported, so an empty slot in dist/ is a decision a reader can see rather than a target that silently did nothing.
             nya_log_warn("%s is a reserved slot and is staged empty. %s", target->name, target->description);
             break;
         }
@@ -633,10 +590,7 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
 
     _dist_archive(arena, target);
 
-    /*
-     * Recorded as soon as the archive exists, so a package target staged later renders the checksum of
-     * the exact file this run produced rather than one left over from a previous one.
-     */
+    /* Recorded as soon as the archive exists, so a package target staged later renders the checksum of the exact file this run produced rather than one left over from a previous one. */
     NYA_CString archive = nya_string_to_cstring(
         arena,
         nya_string_sprintf(arena, DIST_DIRECTORY "/" PROJECT_NAME "." VERSION ".%s", target->archive_suffix)

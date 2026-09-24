@@ -120,8 +120,7 @@ s32 main(void) {
         nya_check(nya_memcmp(a.bytes, d.bytes, NYA_CRYPTO_SHA256_BYTES) != 0, "changing a byte changes the digest");
     }
 
-    // TEST: the served document round-trips — to_json then from_json yields a manifest that still verifies,
-    //       and the parsed public key is the origin's, which is what a verifier compares to its pin.
+    // TEST: the served document round-trips — to_json then from_json yields a manifest that still verifies, and the parsed public key is the origin's, which is what a verifier compares to its pin.
     {
         NYA_HttpAttestationManifest manifest = sample_manifest();
 

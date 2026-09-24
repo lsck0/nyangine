@@ -59,8 +59,7 @@ s32 main(void) {
         NYA_EXPECT(nya_reflect_save_file(nya_reflect_of(NYA_SettingsGraphics), &written, FIXTURE_DIRECTORY "/graphics.nya",
                                          NYA_SERDE_PRETTY));
 
-        // Deliberately not zeroed: a field the file does carry has to overwrite whatever was there,
-        // and a round trip that only works from a blank slate is not a round trip.
+        // Deliberately not zeroed: a field the file does carry has to overwrite whatever was there, and a round trip that only works from a blank slate is not a round trip.
         NYA_SettingsGraphics read = NYA_SETTINGS_GRAPHICS_DEFAULT;
 
         NYA_EXPECT(nya_reflect_load_file(nya_reflect_of(NYA_SettingsGraphics), &read, FIXTURE_DIRECTORY "/graphics.nya", NYA_SERDE_NONE));
@@ -79,8 +78,7 @@ s32 main(void) {
         NYA_Object* document = nya_reflect_to_object(arena, nya_reflect_of(NYA_SettingsGraphics), &written);
         nya_check(document != nullptr, "a struct should produce a document");
 
-        // An enum goes out as its variant's name, so renumbering the enum cannot silently change what
-        // every existing file means.
+        // An enum goes out as its variant's name, so renumbering the enum cannot silently change what every existing file means.
         NYA_Value* shadows = nya_object_get(document, "shadows");
         nya_check(shadows != nullptr && shadows->type == NYA_TYPE_STRING, "an enum should be written as a name");
         nya_check(shadows != nullptr && nya_string_equals(shadows->as_string, "NYA_GRAPHICS_QUALITY_LOW"), "and as the right one");
@@ -164,8 +162,7 @@ s32 main(void) {
         nya_check(contains(findings.last_expected, "NYA_GRAPHICS_QUALITY_HIGH"), "and the report should list what this build has, got '%s'",
                   findings.last_expected);
 
-        // The write leaves the field alone rather than zeroing it, so an option a newer build wrote
-        // reads as "keep what you had" and not as "turn it off".
+        // The write leaves the field alone rather than zeroing it, so an option a newer build wrote reads as "keep what you had" and not as "turn it off".
         NYA_SettingsGraphics graphics = { .shadows = NYA_GRAPHICS_QUALITY_MEDIUM };
         NYA_EXPECT(nya_reflect_from_object(nya_reflect_of(NYA_SettingsGraphics), &graphics, document));
 

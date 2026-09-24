@@ -160,11 +160,7 @@ s32 main(void) {
         nya_assert(nya_crypto_exchange_key_pair_create(&mine).ok);
         defer nya_crypto_exchange_key_pair_destroy(&mine);
 
-        /*
-         * Points of order dividing the cofactor, the list published with Curve25519 (cr.yp.to/ecdh.html)
-         * and used by every library's test suite: 0, 1, the two of order 8, p - 1, p and p + 1. Each
-         * sends the shared secret to zero whatever our secret key is.
-         */
+        /* Points of order dividing the cofactor, the list published with Curve25519 (cr.yp.to/ecdh.html) and used by every library's test suite: 0, 1, the two of order 8, p - 1, p and p + 1. Each sends the shared secret to zero whatever our secret key is. */
         NYA_ConstCString low_order[] = {
             "0000000000000000000000000000000000000000000000000000000000000000", "0100000000000000000000000000000000000000000000000000000000000000",
             "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800", "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",

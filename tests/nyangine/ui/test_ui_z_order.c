@@ -192,8 +192,7 @@ s32 main(void) {
 
     nya_ui_style_set(&window, (NYA_UIStyle){ .padding = 10.0F, .spacing = GAP, .outline = 2.0F, .item_height = ITEM });
 
-    // a container lays out without drawing until it has been measured, occlusion reads the pass before it, and the
-    // title size is an atlas of its own that the frames in between are what load.
+    // a container lays out without drawing until it has been measured, occlusion reads the pass before it, and the title size is an atlas of its own that the frames in between are what load.
     Scene placed = { 0 };
 
     for (u32 pass = 0; pass < 32; pass++) {
@@ -222,8 +221,7 @@ s32 main(void) {
 
     // ── A click on the upper panel's chrome claims the pointer rather than falling through to the button under it.
     {
-        // hover first, from the last block's point: a covered widget must not take focus either, or the next
-        // confirm would activate it with the pointer nowhere near.
+        // hover first, from the last block's point: a covered widget must not take focus either, or the next confirm would activate it with the pointer nowhere near.
         pointer_move(chrome);
         (void)scene(NYA_UI_PASS_INPUT, 0, 0);
         tick();

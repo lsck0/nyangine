@@ -51,8 +51,7 @@ int main(void) {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .max_restarts = 50, .window_s = 100000, .base_ms = 100, .cap_ms = 1000 });
 
-        // The window is read after each grant, over the restart just counted: 100, 200, 400, 800, then
-        // capped at 1000 and staying there.
+        // The window is read after each grant, over the restart just counted: 100, 200, 400, 800, then capped at 1000 and staying there.
         const u64 expected[] = { 100, 200, 400, 800, 1000, 1000, 1000 };
 
         for (u32 i = 0; i < nya_carray_length(expected); i++) {
@@ -91,8 +90,7 @@ int main(void) {
         nya_assert(nya_supervisor_should_restart(&supervisor, 101, false), "restart 2 of 2");
         nya_assert(!nya_supervisor_should_restart(&supervisor, 102, false), "budget spent inside the window");
 
-        // A whole window on from when it opened (100 + 10): the crashes were not a tight loop, so the
-        // count resets and the process is recovered again, its backoff starting over at base_ms.
+        // A whole window on from when it opened (100 + 10): the crashes were not a tight loop, so the count resets and the process is recovered again, its backoff starting over at base_ms.
         nya_assert(nya_supervisor_should_restart(&supervisor, 110, false), "a quiet window resets the budget");
         nya_assert(nya_supervisor_restart_count(&supervisor) == 1, "and the count starts over");
         nya_assert(nya_supervisor_window_ms(&supervisor) == 100, "as does the backoff");

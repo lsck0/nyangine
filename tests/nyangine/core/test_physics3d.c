@@ -22,8 +22,7 @@ static NYA_EntityHandle sensor_other  = NYA_ENTITY_HANDLE_NONE;
 static void record_collision(NYA_Entity* entity, NYA_Entity* other, const NYA_PhysicsHit* hit) {
   nya_unused(entity);
 
-  // Every hit from this solver has to say which one it came out of, or a game running both cannot
-  // tell which world's units it is holding.
+  // Every hit from this solver has to say which one it came out of, or a game running both cannot tell which world's units it is holding.
   nya_assert(hit->dimension == NYA_PHYSICS_3D, "a 3D hit is tagged 3D");
 
   switch (hit->kind) {
@@ -56,12 +55,10 @@ s32 main(void) {
     nya_assert(nya_physics3d_body_count() == 0, "no bodies yet");
     nya_assert(nya_physics3d_enabled(), "the world starts running");
 
-    // One, not thirty-two. A 3D scene has no pixel scale to convert through, so the natural unit is
-    // the metre and the conversion is the identity.
+    // One, not thirty-two. A 3D scene has no pixel scale to convert through, so the natural unit is the metre and the conversion is the identity.
     nya_assert(nya_physics3d_units_per_meter() == 1.0F, "got %f", (f64)nya_physics3d_units_per_meter());
 
-    // Negative y, where the 2D world's gravity is positive. The two disagree about which
-    // way down is, which costs nothing because nothing is simulated in both.
+    // Negative y, where the 2D world's gravity is positive. The two disagree about which way down is, which costs nothing because nothing is simulated in both.
     f32x3 gravity = nya_physics3d_gravity();
     nya_assert(gravity.y < 0.0F, "3D gravity points down negative y, got %f", (f64)gravity.y);
     nya_assert(gravity.x == 0.0F && gravity.z == 0.0F, "and nowhere else");
@@ -80,13 +77,11 @@ s32 main(void) {
     nya_assert(nya_physics3d_body_count() == 2, "two bodies");
     nya_assert(nya_physics3d_body_attached(nya_entity_get(box)), "and the box has one");
 
-    // the entity's own velocity integration steps aside for a simulated body, or two writers would fight
-    // over the position.
+    // the entity's own velocity integration steps aside for a simulated body, or two writers would fight over the position.
     NYA_Entity* entity = nya_entity_get(box);
     f32         start  = entity->position.y;
 
-    // a third of a second, well short of the ~0.96 s a 4.5 m fall takes, so it is still airborne and the
-    // velocity is meaningful.
+    // a third of a second, well short of the ~0.96 s a 4.5 m fall takes, so it is still airborne and the velocity is meaningful.
     step(20);
 
     nya_assert(entity->position.y < start, "it fell, from %f to %f", (f64)start, (f64)entity->position.y);
@@ -121,8 +116,7 @@ s32 main(void) {
 
     NYA_Entity* entity = nya_entity_get(box);
 
-    // about x and z at once, which a 2D body with one angular degree of freedom cannot do. That is why
-    // there is no float returning nya_physics3d_rotation.
+    // about x and z at once, which a 2D body with one angular degree of freedom cannot do. That is why there is no float returning nya_physics3d_rotation.
     nya_physics3d_angular_velocity_set(entity, (f32x3){ 2.0F, 0.0F, 3.0F });
 
     step(30);
@@ -137,8 +131,7 @@ s32 main(void) {
     f32 length_squared = (rotation.x * rotation.x) + (rotation.y * rotation.y) + (rotation.z * rotation.z) + (rotation.w * rotation.w);
     nya_assert(fabsf(length_squared - 1.0F) < 0.01F, "and is still unit, got %f", (f64)length_squared);
 
-    // Teleport writes the entity immediately rather than waiting for the next step, so anything
-    // reading between now and then sees where the entity actually is.
+    // Teleport writes the entity immediately rather than waiting for the next step, so anything reading between now and then sees where the entity actually is.
     nya_physics3d_teleport(entity, (f32x3){ 3.0F, 4.0F, 5.0F }, nya_quaternion_identity);
 
     nya_assert(entity->position.x == 3.0F && entity->position.y == 4.0F && entity->position.z == 5.0F, "the teleport landed");
@@ -225,8 +218,7 @@ s32 main(void) {
 
     nya_assert(impacts > 0, "landing hard enough registers an impact");
 
-    // Frozen rather than unwound: bodies keep their state and the hit list goes quiet, which is what
-    // makes a pause not produce the same impact over and over.
+    // Frozen rather than unwound: bodies keep their state and the hit list goes quiet, which is what makes a pause not produce the same impact over and over.
     nya_physics3d_enabled_set(false);
 
     u32                   count = 0;
@@ -246,17 +238,9 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: a kinematic body throws what it hits when it is given a velocity, and
-  //       does not when it is teleported along the same path
+  // TEST: a kinematic body throws what it hits when it is given a velocity, and does not when it is teleported along the same path
   {
-    /*
-     * A pinball flipper, reduced to the one thing that makes it a flipper. Both paddles travel the
-     * same distance at the same speed; the only difference is which call moves them. A teleport sets
-     * the transform without a sweep, so the solver reads a paddle that never moved and there is no
-     * relative velocity for the contact to work with.
-     *
-     * Gravity off, so what the ball is carrying afterwards came from the paddle and nowhere else.
-     */
+    /* A pinball flipper, reduced to the one thing that makes it a flipper. Both paddles travel the same distance at the same speed; the only difference is which call moves them. A teleport sets the transform without a sweep, so the solver reads a paddle that never moved and there is no relative velocity for the contact to work with. Gravity off, so what the ball is carrying afterwards came from the paddle and nowhere else. */
     const f32x3 original_gravity = nya_physics3d_gravity();
     nya_physics3d_gravity_set(f32x3_zero);
 
@@ -294,12 +278,10 @@ s32 main(void) {
 
     nya_physics3d_gravity_set(original_gravity);
 
-    // The ball leaves at least as fast as the paddle came in, which is the transfer the contact is
-    // there to make. Restitution puts it above that rather than below.
+    // The ball leaves at least as fast as the paddle came in, which is the transfer the contact is there to make. Restitution puts it above that rather than below.
     nya_assert(thrown[1] >= paddle_speed, "a swept paddle throws the ball, got %f against a paddle at %f", (f64)thrown[1], (f64)paddle_speed);
 
-    // And the teleported paddle does not move it at all: it travels the same distance at the same
-    // speed and the ball is left standing exactly where it was.
+    // And the teleported paddle does not move it at all: it travels the same distance at the same speed and the ball is left standing exactly where it was.
     nya_assert(thrown[0] == 0.0F, "a teleported paddle does not throw it, got %f", (f64)thrown[0]);
 
     printf("  PASSED\n");
@@ -351,11 +333,7 @@ s32 main(void) {
     f32 fallen[2] = { 0 };
 
     for (u32 run = 0; run < 2; run++) {
-      /*
-       * Earth's gravity in world units, set before the scale on purpose: the solver was given it through
-       * the old scale, so it reaches 9.81 metres per second squared only if changing the scale converts
-       * it again.
-       */
+      /* Earth's gravity in world units, set before the scale on purpose: the solver was given it through the old scale, so it reaches 9.81 metres per second squared only if changing the scale converts it again. */
       nya_physics3d_gravity_set((f32x3){ 0.0F, -9.81F * scales[run], 0.0F });
       nya_physics3d_units_per_meter_set(scales[run]);
 

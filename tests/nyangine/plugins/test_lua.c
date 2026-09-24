@@ -55,8 +55,7 @@ s32 main(void) {
         nya_check(answer.type == NYA_TYPE_F64, "a Lua number comes back as an f64, got %s", NYA_TYPE_NAME_MAP[answer.type]);
         nya_check(fabs(answer.as_f64 - 42.0) < 0.0001, "and should be 42, got %f", answer.as_f64);
 
-        // A syntax error and a runtime error are different kinds, because they want different
-        // reactions: one is a typo in a script, the other is a bug inside one.
+        // A syntax error and a runtime error are different kinds, because they want different reactions: one is a typo in a script, the other is a bug inside one.
         NYA_Error syntax = nya_lua_run(vm, "this is not lua", "bad");
         nya_check(!syntax.ok && syntax.kind == NYA_ERROR_PARSE, "a syntax error should be a parse error");
 
@@ -92,8 +91,7 @@ s32 main(void) {
         NYA_EXPECT(nya_lua_global_set(vm, "greet", &nothing));
         nya_check(!nya_lua_has_function(vm, "greet"), "setting a global to nil removes it");
 
-        // Calling something that is not a function is NOT_FOUND rather than a failure, so an optional
-        // hook that a script simply did not define is distinguishable from one that threw.
+        // Calling something that is not a function is NOT_FOUND rather than a failure, so an optional hook that a script simply did not define is distinguishable from one that threw.
         NYA_Error missing = nya_lua_call(vm, arena, "no_such_function", nullptr, 0, nullptr);
         nya_check(!missing.ok && missing.kind == NYA_ERROR_NOT_FOUND, "a missing function is NOT_FOUND, got %s",
                   NYA_ERRORKIND_NAME_MAP[missing.kind]);
@@ -129,11 +127,7 @@ s32 main(void) {
         nya_check(scores.as_array.length == 3, "of three, got " FMTu64, scores.as_array.length);
         nya_check(fabs(scores.as_array.items[2].as_f64 - 30.0) < 0.0001, "in order");
 
-        /*
-         * A table with a hole is *not* an array, and this is the case the length operator alone gets
-         * wrong: `#sparse` may answer either 1 or 3, so a converter trusting it would silently drop
-         * a value or read a nil as one.
-         */
+        /* A table with a hole is *not* an array, and this is the case the length operator alone gets wrong: `#sparse` may answer either 1 or 3, so a converter trusting it would silently drop a value or read a nil as one. */
         NYA_Value sparse = { 0 };
         NYA_EXPECT(nya_lua_global_get(vm, arena, "sparse", &sparse));
         nya_check(sparse.type == NYA_TYPE_OBJECT, "a table with a hole is not a sequence, got %s", NYA_TYPE_NAME_MAP[sparse.type]);
@@ -196,12 +190,7 @@ s32 main(void) {
         nya_check(silent_ok.as_b8, "a binding returning nothing should be nil in Lua");
     }
 
-    /*
-     * A self-referencing table is refused rather than followed.
-     *
-     * Two lines of Lua would recurse a converter without a depth limit until the process dies. Only
-     * returning is asserted; the shape past the limit would just pin the limit.
-     */
+    /* A self-referencing table is refused rather than followed. Two lines of Lua would recurse a converter without a depth limit until the process dies. Only returning is asserted; the shape past the limit would just pin the limit. */
     {
         NYA_EXPECT(nya_lua_run(vm, "loop = {} loop.self = loop", "cycle"));
 
@@ -211,13 +200,7 @@ s32 main(void) {
         nya_check(cycle.type == NYA_TYPE_OBJECT, "it still converts as far as the limit");
     }
 
-    /*
-     * ── The stack stays balanced.
-     *
-     * The failure this catches is cumulative: a path that pops one fewer than it pushes is invisible
-     * once and fatal after a few thousand calls. Run enough times that a leak of a single slot per
-     * iteration would be unmistakable, then check what Lua thinks is on the stack.
-     */
+    /* ── The stack stays balanced. The failure this catches is cumulative: a path that pops one fewer than it pushes is invisible once and fatal after a few thousand calls. Run enough times that a leak of a single slot per iteration would be unmistakable, then check what Lua thinks is on the stack. */
     {
         NYA_EXPECT(nya_lua_run(vm, "function churn(t) return { n = (t.n or 0) + 1, tag = 'x' } end", "churn"));
 
@@ -235,8 +218,7 @@ s32 main(void) {
             (void)nya_lua_run(vm, "error('again')", "boom");
         }
 
-        // Reaching inside for this is the point: there is no public way to ask, and no other way to
-        // tell an imbalance from a program that simply used more memory.
+        // Reaching inside for this is the point: there is no public way to ask, and no other way to tell an imbalance from a program that simply used more memory.
         s32 depth = _nya_lua_stack_depth_for_test(vm);
         nya_check(depth == 0, "the Lua stack should be empty between calls, got %d", depth);
     }
@@ -287,8 +269,7 @@ s32 main(void) {
         nya_check(!nya_lua_has_function(nullptr, "x"), "no VM has no functions");
         nya_check(!nya_lua_call(vm, arena, nullptr, nullptr, 0, nullptr).ok, "a call needs a name");
 
-        // Past the argument ceiling is refused rather than truncated: a call that silently drops its
-        // last argument is worse than one that does not happen.
+        // Past the argument ceiling is refused rather than truncated: a call that silently drops its last argument is worse than one that does not happen.
         NYA_Value many[NYA_LUA_MAX_ARGUMENTS + 1] = { 0 };
         nya_check(!nya_lua_call(vm, arena, "greet", many, NYA_LUA_MAX_ARGUMENTS + 1, nullptr).ok, "too many arguments is refused");
 
@@ -302,16 +283,9 @@ s32 main(void) {
         nya_lua_destroy(doomed);
     }
 
-    // TEST: the script the game actually ships runs, and hands back what the game
-    //       reads out of it
+    // TEST: the script the game actually ships runs, and hands back what the game reads out of it
     {
-        /*
-         * Nothing tested this. Its only caller is gny_world_script_tick, which runs when a world
-         * exists, so a menu run never reaches it — and it had been calling nya.log as a function when
-         * the binding is nya.log.info, a table, and nya.time when the binding is nya.app.time. It
-         * failed on its first line, which meant the `gnyame` table below it was never set either, and
-         * the one thing the file exists for was quietly not happening.
-         */
+        /* Nothing tested this. Its only caller is gny_world_script_tick, which runs when a world exists, so a menu run never reaches it — and it had been calling nya.log as a function when the binding is nya.log.info, a table, and nya.time when the binding is nya.app.time. It failed on its first line, which meant the `gnyame` table below it was never set either, and the one thing the file exists for was quietly not happening. */
         nya_system_callback_init();
         NYA_EXPECT(nya_system_events_init());
         nya_system_asset_init();

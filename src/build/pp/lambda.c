@@ -126,15 +126,13 @@ void nya_lambda_generate(void) {
         NYA_ArrayᐸNYA_Stringᐳ* files = nya_array_create(arena, NYA_String);
         NYA_EXPECT(nya_filesystem_walk(arena, _NYA_LAMBDA_TREES[tree], _nya_lambda_collect, files), "while listing %s", _NYA_LAMBDA_TREES[tree]);
 
-        // Sorted, so the manifest and every companion are a function of the tree rather than of the
-        // order the filesystem happened to hand it over.
+        // Sorted, so the manifest and every companion are a function of the tree rather than of the order the filesystem happened to hand it over.
         nya_array_sort(files, _nya_lambda_compare);
 
         nya_array_foreach (files, file) _nya_lambda_scan_file(set, arena, nya_string_to_cstring(arena, file));
     }
 
-    // Every source that wrote a lambda has to include what was written for it, and it is cheaper to say
-    // so here, with the line to add, than to let the compiler report an undeclared function.
+    // Every source that wrote a lambda has to include what was written for it, and it is cheaper to say so here, with the line to add, than to let the compiler report an undeclared function.
     for (u32 i = 0; i < set->source_count; i++) {
         NYA_String* text = nya_string_create(arena);
         NYA_EXPECT(nya_file_read(set->sources[i].path, text), "while reading %s", set->sources[i].path);
@@ -145,10 +143,7 @@ void nya_lambda_generate(void) {
                             set->sources[i].include);
     }
 
-    /*
-     * Nothing has been written yet, and nothing is written now: a body that does not parse would
-     * otherwise leave one companion rewritten and the next one as it was.
-     */
+    /* Nothing has been written yet, and nothing is written now: a body that does not parse would otherwise leave one companion rewritten and the next one as it was. */
     if (set->problems > 0) nya_log_panic("nya_lambda_generate: " FMTu32 " problem(s); nothing was written.", set->problems);
 
     NYA_EXPECT(nya_filesystem_create_directory(NYA_LAMBDA_OUTPUT_DIRECTORY), "while creating the lambda directory");
@@ -350,8 +345,7 @@ void _nya_lambda_mangle(NYA_ConstCString path, OUT char* out, u64 capacity) {
     NYA_ConstCString rest = path;
     if (strncmp(rest, "./", 2) == 0) rest += 2;
 
-    // The engine and the game are the common case and nothing else in the tree is called `src`, so
-    // dropping it keeps the names readable without making two of them collide.
+    // The engine and the game are the common case and nothing else in the tree is called `src`, so dropping it keeps the names readable without making two of them collide.
     if (strncmp(rest, "src/", 4) == 0) rest += 4;
 
     u64 used = 0;
@@ -401,8 +395,7 @@ void _nya_lambda_scan_file(_NYA_LambdaSet* set, NYA_Arena* arena, NYA_ConstCStri
     NYA_String* text = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(path, text), "while reading %s", path);
 
-    // Read whole and searched once: almost nothing in the tree writes a lambda, and walking every file
-    // character by character to find out would be most of this pass's time.
+    // Read whole and searched once: almost nothing in the tree writes a lambda, and walking every file character by character to find out would be most of this pass's time.
     NYA_CString contents = nya_string_to_cstring(arena, text);
     if (strstr(contents, NYA_LAMBDA_MARKER) == nullptr) return;
 
@@ -412,10 +405,7 @@ void _nya_lambda_scan_file(_NYA_LambdaSet* set, NYA_Arena* arena, NYA_ConstCStri
     b8  fresh  = true;
 
     while (at < length) {
-        /*
-         * A preprocessor line is skipped whole, continuations included: base_lambda.h's own `#define`
-         * names the marker, and so would anything that wrapped it.
-         */
+        /* A preprocessor line is skipped whole, continuations included: base_lambda.h's own `#define` names the marker, and so would anything that wrapped it. */
         if (fresh && contents[at] == '#') {
             while (at < length && contents[at] != '\n') {
                 if (contents[at] == '\\' && at + 1 < length && contents[at + 1] == '\n') {
@@ -449,8 +439,7 @@ void _nya_lambda_scan_file(_NYA_LambdaSet* set, NYA_Arena* arena, NYA_ConstCStri
         at    = _nya_lambda_parse(set, path, contents, length, open, line);
         fresh = false;
 
-        // The line count is rebuilt over the call site rather than threaded out of the parser, which
-        // reads the same span several times and would count some of it twice.
+        // The line count is rebuilt over the call site rather than threaded out of the parser, which reads the same span several times and would count some of it twice.
         for (u64 i = marker; i < at; i++) {
             if (contents[i] == '\n') line++;
         }
@@ -605,8 +594,7 @@ void _nya_lambda_prune(const _NYA_LambdaSet* set, NYA_Arena* arena) {
     nya_array_foreach (existing, file) {
         NYA_CString path = nya_string_to_cstring(arena, file);
 
-        // By name: the walk reports a path relative to the tree it was given, which is not the spelling
-        // the companions were written under, and one directory cannot hold two files of one name.
+        // By name: the walk reports a path relative to the tree it was given, which is not the spelling the companions were written under, and one directory cannot hold two files of one name.
         NYA_ConstCString name = _nya_lambda_basename(path);
 
         b8 wanted = false;
@@ -614,8 +602,7 @@ void _nya_lambda_prune(const _NYA_LambdaSet* set, NYA_Arena* arena) {
             wanted = wanted || nya_string_equals(_nya_lambda_basename(set->sources[i].companion), name);
         }
 
-        // A call site that is gone has to take its function with it: a companion left behind would keep
-        // compiling into the file that no longer asks for it.
+        // A call site that is gone has to take its function with it: a companion left behind would keep compiling into the file that no longer asks for it.
         if (wanted) continue;
 
         NYA_EXPECT(nya_filesystem_delete(path), "while removing the stale companion %s", path);

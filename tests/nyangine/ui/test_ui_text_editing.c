@@ -251,8 +251,7 @@ s32 main(void) {
         nya_check(nya_string_equals(text, "abc"), "and the caret sits after the last character, got '%s'", text);
     }
 
-    // ── A click on a field above the one being typed in takes the keyboard. The upper field reads the click
-    //    before the lower one can see it and let go, which the agent found by crashing into it in the pause menu.
+    // ── A click on a field above the one being typed in takes the keyboard. The upper field reads the click before the lower one can see it and let go, which the agent found by crashing into it in the pause menu.
     {
         nya_ui_focus_reset(&window);
         text[0]  = '\0';

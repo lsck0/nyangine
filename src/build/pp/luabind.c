@@ -164,8 +164,7 @@ void nya_luabind_generate(void) {
     NYA_ArrayᐸNYA_Stringᐳ* files = nya_array_create(arena, NYA_String);
     NYA_EXPECT(nya_filesystem_walk(arena, NYA_LUABIND_DIRECTORY, _nya_luabind_collect, files), "while listing the engine sources");
 
-    // Sorted, so the generated file is a function of the tree rather than of the order the filesystem
-    // happened to hand it over. A diff of a generated file has to mean something changed.
+    // Sorted, so the generated file is a function of the tree rather than of the order the filesystem happened to hand it over. A diff of a generated file has to mean something changed.
     nya_array_sort(files, _nya_luabind_compare);
 
     _NYA_LuaBindSet* set = nya_arena_alloc(arena, sizeof(_NYA_LuaBindSet));
@@ -173,8 +172,7 @@ void nya_luabind_generate(void) {
 
     nya_array_foreach (files, file) _nya_luabind_scan_file(set, arena, nya_string_to_cstring(arena, file));
 
-    // A tree with no annotations at all means the marker changed or the scan broke, and emitting an
-    // empty table would compile and leave every script with no `nya` to call.
+    // A tree with no annotations at all means the marker changed or the scan broke, and emitting an empty table would compile and leave every script with no `nya` to call.
     NYA_EXPECT(set->count > 0 ? NYA_OK : nya_error(NYA_ERROR_NOT_FOUND, "no @lua annotations found under %s", NYA_LUABIND_DIRECTORY),
                "while generating the Lua bindings");
 
@@ -185,8 +183,7 @@ void nya_luabind_generate(void) {
     NYA_String* definitions = nya_string_create(arena);
     _nya_luabind_emit_definitions(set, definitions);
 
-    // The directory may not exist in a fresh clone; the file is committed, but the write has to work
-    // the first time somebody adds the pass to a tree that never had it.
+    // The directory may not exist in a fresh clone; the file is committed, but the write has to work the first time somebody adds the pass to a tree that never had it.
     NYA_EXPECT(nya_filesystem_create_directory("./docs/lua"), "while creating the Lua definitions directory");
     NYA_EXPECT(nya_file_write(NYA_LUABIND_OUTPUT_DEFINITIONS, definitions), "while writing the Lua definitions");
 
@@ -328,8 +325,7 @@ void _nya_luabind_derive_path(NYA_ConstCString function, OUT char* out, u64 capa
     NYA_ConstCString rest = function;
     if (strncmp(rest, "nya_", 4) == 0) rest += 4;
 
-    // The first word is the sub-table and the rest is the function, so `nya_entity_move_to` reads as
-    // `nya.entity.move_to` rather than as one long name under `nya`.
+    // The first word is the sub-table and the rest is the function, so `nya_entity_move_to` reads as `nya.entity.move_to` rather than as one long name under `nya`.
     const char* underscore = strchr(rest, '_');
 
     if (underscore == nullptr || underscore == rest) {
@@ -407,8 +403,7 @@ b8 _nya_luabind_parse_parameter(NYA_ConstCString text, OUT _NYA_LuaBindParameter
 
     *out = (_NYA_LuaBindParameter){ 0 };
 
-    // `void` as the whole parameter list means no parameters, which the caller handles; anything with
-    // a star, a bracket or a `const` in it is a pointer, an array or a view and does not cross.
+    // `void` as the whole parameter list means no parameters, which the caller handles; anything with a star, a bracket or a `const` in it is a pointer, an array or a view and does not cross.
     if (strchr(text, '*') != nullptr || strchr(text, '[') != nullptr) return false;
 
     const char* space = strrchr(text, ' ');
@@ -526,8 +521,7 @@ void _nya_luabind_scan_file(_NYA_LuaBindSet* set, NYA_Arena* arena, NYA_ConstCSt
     NYA_String* text = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(path, text), "while reading %s", path);
 
-    // Read whole and searched once: almost every file in the tree carries no annotation at all, and a
-    // line by line scan of three hundred files to find forty markers is most of this pass's time.
+    // Read whole and searched once: almost every file in the tree carries no annotation at all, and a line by line scan of three hundred files to find forty markers is most of this pass's time.
     NYA_CString contents = nya_string_to_cstring(arena, text);
     if (strstr(contents, NYA_LUABIND_MARKER) == nullptr && strstr(contents, NYA_LUABIND_MARKER_MANUAL) == nullptr) return;
 
@@ -550,8 +544,7 @@ void _nya_luabind_scan_file(_NYA_LuaBindSet* set, NYA_Arena* arena, NYA_ConstCSt
         }
 
         if (in_comment) {
-            // The leading `*` of a continuation line is decoration; the text after it is either prose
-            // or an annotation, and both are wanted.
+            // The leading `*` of a continuation line is decoration; the text after it is either prose or an annotation, and both are wanted.
             const char* content = line;
             while (*content == '*' || *content == '/') content++;
             while (*content == ' ') content++;
@@ -559,8 +552,7 @@ void _nya_luabind_scan_file(_NYA_LuaBindSet* set, NYA_Arena* arena, NYA_ConstCSt
             char stripped[NYA_LUABIND_MAX_LINE];
             (void)snprintf(stripped, sizeof(stripped), "%s", content);
 
-            // The closing `*/` is not part of what the line says, and leaving it on would put it in the
-            // summary of every one-line doc comment.
+            // The closing `*/` is not part of what the line says, and leaving it on would put it in the summary of every one-line doc comment.
             char* terminator = strstr(stripped, "*/");
             if (terminator != nullptr) *terminator = '\0';
 
@@ -583,8 +575,7 @@ void _nya_luabind_scan_file(_NYA_LuaBindSet* set, NYA_Arena* arena, NYA_ConstCSt
         b8 has_lua    = strstr(comment, NYA_LUABIND_MARKER) != nullptr;
 
         if (!has_manual && !has_lua) {
-            // A line that is not a declaration and carries no annotation clears the pending comment, so
-            // a doc block never drifts onto something further down the file.
+            // A line that is not a declaration and carries no annotation clears the pending comment, so a doc block never drifts onto something further down the file.
             comment[0] = '\0';
             prose[0]   = '\0';
             continue;
@@ -736,8 +727,7 @@ void _nya_luabind_emit_source(const _NYA_LuaBindSet* set, NYA_String* out) {
 
         if (binding->parameter_count > 0) nya_string_extend(out, "\n");
 
-        // The declared return type rather than `auto`: the generated file is read by people, and a
-        // reader should not have to find the header to know what came back.
+        // The declared return type rather than `auto`: the generated file is read by people, and a reader should not have to find the header to know what came back.
         if (returns->write != nullptr) nya_string_extend_sprintf(out, "    %s result = ", binding->return_type);
         else nya_string_extend(out, "    ");
 
@@ -789,10 +779,7 @@ void _nya_luabind_emit_definitions(const _NYA_LuaBindSet* set, NYA_String* out) 
                       "---@class nya\n"
                       "nya = {}\n\n");
 
-    /*
-     * The sub-tables first and each of them once: `nya.input = {}` has to exist before anything is
-     * declared on it, and two functions in one module must not declare it twice.
-     */
+    /* The sub-tables first and each of them once: `nya.input = {}` has to exist before anything is declared on it, and two functions in one module must not declare it twice. */
     char seen[NYA_LUABIND_MAX_BINDINGS][NYA_LUABIND_MAX_NAME] = { 0 };
     u32  seen_count                                           = 0;
 
@@ -805,8 +792,7 @@ void _nya_luabind_emit_definitions(const _NYA_LuaBindSet* set, NYA_String* out) 
 
         *last = '\0';
 
-        // Only one level deep, which is every path the derivation produces; a deeper one would need its
-        // parents declared too and nothing writes one.
+        // Only one level deep, which is every path the derivation produces; a deeper one would need its parents declared too and nothing writes one.
         if (strchr(module, '.') == nullptr) continue;
 
         b8 already = false;

@@ -46,8 +46,7 @@ static b8 law_normalize_folds_case(NYA_Property* property) {
     for (u64 index = 0; index < length; index++) {
         char c = name[index];
 
-        // Flip the case of each ASCII letter, at a drawn coin so mixed spellings are covered, not only
-        // the fully-shouted one. Everything else is left exactly as it is.
+        // Flip the case of each ASCII letter, at a drawn coin so mixed spellings are covered, not only the fully-shouted one. Everything else is left exactly as it is.
         if (nya_property_draw_bool(property, 60)) {
             if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
             else if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
@@ -63,8 +62,7 @@ static b8 law_normalize_folds_case(NYA_Property* property) {
     b8 ok_a = nya_account_username_normalize(name, a, sizeof(a));
     b8 ok_b = nya_account_username_normalize(flipped, b, sizeof(b));
 
-    // Case never changes whether a name is acceptable or how long it is, so the two verdicts match and,
-    // when both are taken, the folded forms are identical.
+    // Case never changes whether a name is acceptable or how long it is, so the two verdicts match and, when both are taken, the folded forms are identical.
     nya_property_note(property, "'%s' and case-variant '%s' folded to '%s' and '%s'", name, flipped, a, b);
     return ok_a == ok_b && (!ok_a || strcmp(a, b) == 0);
 }
@@ -100,8 +98,7 @@ static void draw_encoded(NYA_Property* property, OUT char* out, u64 capacity) {
         return;
     }
 
-    // Pure noise, capped to the column, kept a C string by ending it. Embedded NULs just end it earlier,
-    // which the strlen/strncmp parser must handle without walking off anything.
+    // Pure noise, capped to the column, kept a C string by ending it. Embedded NULs just end it earlier, which the strlen/strncmp parser must handle without walking off anything.
     u64 length = nya_property_draw_below(property, capacity - 1);
     for (u64 index = 0; index < length; index++) {
         u8 byte = (u8)(1 + nya_property_draw_below(property, 255)); // 1..255: no accidental early terminator.
@@ -119,9 +116,7 @@ static b8 law_password_hash_parses_cleanly(NYA_Property* property) {
     NYA_AccountUser user = { 0 };
     draw_encoded(property, user.password, sizeof(user.password));
 
-    // Total: it returns for every input. A hash it cannot read is one worth replacing, so this is true
-    // for noise and only sometimes false for a real hash — either way it must not crash. The sanitizers
-    // are the oracle for the reads and the writes; the assertions below are the oracle for the meaning.
+    // Total: it returns for every input. A hash it cannot read is one worth replacing, so this is true for noise and only sometimes false for a real hash — either way it must not crash. The sanitizers are the oracle for the reads and the writes; the assertions below are the oracle for the meaning.
     b8 needs = nya_account_password_needs_rehash(&user);
     nya_unused(needs);
 
@@ -137,8 +132,7 @@ static b8 law_password_hash_parses_cleanly(NYA_Property* property) {
         return memory_kib == 0 && passes == 0 && lanes == 0;
     }
 
-    // Accepted: every field is a real, non-zero number that fit a u32, which is the whole reason the
-    // parser is written by hand rather than handed to sscanf.
+    // Accepted: every field is a real, non-zero number that fit a u32, which is the whole reason the parser is written by hand rather than handed to sscanf.
     nya_property_note(property, "an accepted hash parsed to cost %u,%u,%u", memory_kib, passes, lanes);
     return memory_kib > 0 && passes > 0 && lanes > 0;
 }
@@ -201,8 +195,7 @@ static b8 law_throttle_never_locks(NYA_Property* property) {
     (void)snprintf(address, sizeof(address), "10.%llu.%llu.%llu", (unsigned long long)nya_property_draw_below(property, 256),
                    (unsigned long long)nya_property_draw_below(property, 256), (unsigned long long)nya_property_draw_below(property, 256));
 
-    // Past the free attempts, so the wait is guaranteed to have climbed off zero by the end; the point of
-    // the run is that it climbs and stays finite, not that a single mistyped password already costs.
+    // Past the free attempts, so the wait is guaranteed to have climbed off zero by the end; the point of the run is that it climbs and stays finite, not that a single mistyped password already costs.
     u32 rounds       = NYA_ACCOUNTS_THROTTLE_FREE_ATTEMPTS + 2 + (u32)nya_property_draw_below(property, 40);
     u32 previous     = 0;
     b8  ever_grew    = false;

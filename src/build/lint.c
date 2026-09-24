@@ -82,29 +82,21 @@ NYA_INTERNAL const _LintBannedCall _LINT_BANNED_CALLS[] = {
 NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     { "os",       0 }, { "base",     1 }, { "platform", 2 }, { "math",    2 }, { "serde",   3 }, { "nn",      3 }, { "crypto",  3 },
     { "permission", 3 },
-    // template renders a NYA_Object to text and includes only base, so it sits beside serde: a sibling
-    // that turns an object into a document rather than a wire format, and neither includes the other.
+    // template renders a NYA_Object to text and includes only base, so it sits beside serde: a sibling that turns an object into a document rather than a wire format, and neither includes the other.
     { "template", 3 },
-    // db is above crypto and base and below everything that stores anything, which is why it shares
-    // net's rank rather than sitting under it: neither includes the other and neither ever should.
+    // db is above crypto and base and below everything that stores anything, which is why it shares net's rank rather than sitting under it: neither includes the other and neither ever should.
     { "db",       4 },
     { "net",      4 },
-    // tls is beside them: a socket with a library on it, above os and base and below the http server
-    // that is the only thing here with a reason to want one.
+    // tls is beside them: a socket with a library on it, above os and base and below the http server that is the only thing here with a reason to want one.
     { "tls",      4 },
-    // accounts is above db, crypto and permission and below http, because a program with no HTTP
-    // server at all still has users: a CLI making the first account, a game with a control socket.
+    // accounts is above db, crypto and permission and below http, because a program with no HTTP server at all still has users: a CLI making the first account, a game with a control socket.
     { "accounts", 5 },
-    // smtp is a mail client above tls, whose client session it borrows, and below http, the one thing
-    // here with a reason to send a verification mail. It shares accounts' rank: neither includes the other.
+    // smtp is a mail client above tls, whose client session it borrows, and below http, the one thing here with a reason to send a verification mail. It shares accounts' rank: neither includes the other.
     { "smtp",     5 },
-    // acme is beside smtp: a certificate client that signs with crypto and reaches the CA over a
-    // transport the program wires, so it needs neither the socket nor http. It holds the HTTP-01
-    // challenge as data an http route reads, which is why http depends on nothing of it and it stays here.
+    // acme is beside smtp: a certificate client that signs with crypto and reaches the CA over a transport the program wires, so it needs neither the socket nor http. It holds the HTTP-01 challenge as data an http route reads, which is why http depends on nothing of it and it stays here.
     { "acme",     5 },
     { "http",     6 }, { "core",     7 },
-    // replicate is net's other half: a world on the wire rather than bytes on it, so it is written in
-    // entities and sits above the app loop where net sits below it. See replicate.h.
+    // replicate is net's other half: a world on the wire rather than bytes on it, so it is written in entities and sits above the app loop where net sits below it. See replicate.h.
     { "replicate", 8 }, { "renderer", 8 }, { "ui",      9 }, { "physics", 10 }, { "debug",   11 },
     { "testing",  12 }, { "plugins", 12 },
 };
@@ -295,8 +287,7 @@ void _lint_rule_layering(Lint* lint) {
             // the umbrella header and same-module includes say nothing about the order.
             if (to == nullptr || nya_string_equals(to, from)) continue;
 
-            // the prelude is below every module, including the lowest: it is types, attributes and the
-            // libc includes, with no code in it at all, so depending on it cannot invert anything.
+            // the prelude is below every module, including the lowest: it is types, attributes and the libc includes, with no code in it at all, so depending on it cannot invert anything.
             b8 prelude = false;
             for (u32 index = 0; index < nya_carray_length(_LINT_PRELUDE); index++) {
                 prelude |= nya_string_ends_with(included, _LINT_PRELUDE[index]);
@@ -573,8 +564,7 @@ void _lint_rule_redact(Lint* lint) {
                 if (_lint_symbol_is(token, '{')) depth++;
                 if (_lint_symbol_is(token, '}') && --depth == 0) break;
 
-                // a declarator, by the same shape the reflection pass reads: a name, then the end of
-                // the declaration, another declarator, or an array extent.
+                // a declarator, by the same shape the reflection pass reads: a name, then the end of the declaration, another declarator, or an array extent.
                 if (token->type != NYA_TOKEN_IDENT || cursor + 1 >= tokens->length) continue;
                 if (!_lint_symbol_is(&tokens->items[cursor + 1], ';') && !_lint_symbol_is(&tokens->items[cursor + 1], ',') &&
                     !_lint_symbol_is(&tokens->items[cursor + 1], '[')) {
@@ -692,8 +682,7 @@ void _lint_report(Lint* lint, NYA_ConstCString rule, const NYA_String* path, u32
 b8 _lint_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     Lint* lint = (Lint*)user_data;
 
-    // corpora and kept crashes are inputs to parsers, not source. Filtered per file, because returning false here
-    // ends the whole walk, and a directory's callback comes after its children anyway.
+    // corpora and kept crashes are inputs to parsers, not source. Filtered per file, because returning false here ends the whole walk, and a directory's callback comes after its children anyway.
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
     if (nya_string_contains(path, "/corpus/") || nya_string_contains(path, "/crashes/")) return true;
 
@@ -712,8 +701,7 @@ void _lint_file_add(Lint* lint, NYA_ConstCString path) {
     if (!nya_string_starts_with(file.path, "./")) nya_string_extend_front(file.path, "./");
     file.generated = nya_string_starts_with(file.path, "./src/genyarated/");
 
-    // UTF-8 names, since a derived type like NYA_ArrayᐸNYA_Stringᐳ is one identifier; character literals, so the
-    // quote in '"' cannot open a string that swallows the rest of the file.
+    // UTF-8 names, since a derived type like NYA_ArrayᐸNYA_Stringᐳ is one identifier; character literals, so the quote in '"' cannot open a string that swallows the rest of the file.
     file.lexer = nya_lexer_create(nya_string_to_cstring(nya_arena_global, file.text), NYA_LEXER_UTF8_IDENTS | NYA_LEXER_CHAR_LITERALS);
     nya_lexer_run(&file.lexer);
 

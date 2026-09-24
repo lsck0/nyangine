@@ -25,8 +25,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_SqlValue insert[] = { nya_sql_s64(1), nya_sql_blob(data, size), nya_sql_text("marker") };
     (void)nya_sql_exec_bound(db, "INSERT OR REPLACE INTO t (id, blob, text) VALUES (?, ?, ?)", insert, 3);
 
-    // The input as a TEXT value: the db layer must treat it as bytes, not trust a terminator that a
-    // fuzzed buffer does not carry. A copy is made so the text is a valid C string for that path.
+    // The input as a TEXT value: the db layer must treat it as bytes, not trust a terminator that a fuzzed buffer does not carry. A copy is made so the text is a valid C string for that path.
     NYA_CString as_text = nya_arena_alloc(arena, size + 1);
     if (as_text != nullptr) {
         if (size > 0) nya_memcpy(as_text, data, size);

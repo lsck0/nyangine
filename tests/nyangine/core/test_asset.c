@@ -90,8 +90,7 @@ s32 main(void) {
 
   // TEST: an unknown handle is unloaded rather than an error
   {
-    // Unloaded, not FAILED: nothing has been tried yet. A caller polling status before its load has
-    // been queued should see "not here" rather than "gave up".
+    // Unloaded, not FAILED: nothing has been tried yet. A caller polling status before its load has been queued should see "not here" rather than "gave up".
     nya_assert(nya_asset_status("nothing_by_this_name") == NYA_ASSET_STATUS_UNLOADED);
     nya_assert(nya_asset_get("nothing_by_this_name") == nullptr);
     nya_assert(nya_asset_reference_count("nothing_by_this_name") == 0);
@@ -113,8 +112,7 @@ s32 main(void) {
 
   // TEST: acquiring something that was never loaded fails without ending the process
   {
-    // Deliberately an error rather than an assert: a typo'd handle in game code should be
-    // recoverable, because assertions are live in shipping builds.
+    // Deliberately an error rather than an assert: a typo'd handle in game code should be recoverable, because assertions are live in shipping builds.
     NYA_Error result = nya_asset_acquire("never_loaded");
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND);
   }
@@ -127,8 +125,7 @@ s32 main(void) {
       .external = true,
     }));
 
-    // Visible and LOADING before any frame has ended: the registry entry is created by the queueing
-    // call, so a caller can already ask about the asset it just asked for.
+    // Visible and LOADING before any frame has ended: the registry entry is created by the queueing call, so a caller can already ask about the asset it just asked for.
     nya_assert(nya_asset_status(fixture) == NYA_ASSET_STATUS_LOADING, "queued but not yet loaded");
     nya_assert(nya_asset_get(fixture) != nullptr);
 
@@ -157,8 +154,7 @@ s32 main(void) {
 
     end_frame();
 
-    // Same bytes at the same address: the second request returned early rather than reloading and
-    // leaking the first copy.
+    // Same bytes at the same address: the second request returned early rather than reloading and leaking the first copy.
     nya_assert(nya_asset_get(fixture)->as_text.data == data, "an already loaded asset is not loaded again");
     nya_assert(nya_asset_status(fixture) == NYA_ASSET_STATUS_LOADED);
   }
@@ -171,8 +167,7 @@ s32 main(void) {
     NYA_EXPECT(nya_asset_acquire(fixture));
     nya_assert(nya_asset_reference_count(fixture) == 2);
 
-    // The case that used to assert: two systems share an asset and the first one to finish must not
-    // be able to pull it out from under the second.
+    // The case that used to assert: two systems share an asset and the first one to finish must not be able to pull it out from under the second.
     nya_assert(!nya_asset_unload(fixture), "still referenced, so the unload is refused");
 
     end_frame();
@@ -197,8 +192,7 @@ s32 main(void) {
 
   // TEST: releasing more often than acquiring does not wrap the count
   {
-    // atomic_fetch_sub on zero would wrap to UINT64_MAX and leave an asset nothing could ever
-    // unload. The release path compare-exchanges instead, so the count floors at zero.
+    // atomic_fetch_sub on zero would wrap to UINT64_MAX and leave an asset nothing could ever unload. The release path compare-exchanges instead, so the count floors at zero.
     nya_assert(nya_asset_reference_count(fixture) == 0);
 
     nya_asset_release(fixture);
@@ -224,8 +218,7 @@ s32 main(void) {
     nya_assert(nya_asset_unload(revived), "nothing holds it, so the unload is accepted");
     nya_assert(nya_asset_get(revived)->queued_for_unload);
 
-    // The asset is still fully intact here: the queue is not processed until the frame ends, so
-    // this is a plain revival rather than a resurrection of something already torn down.
+    // The asset is still fully intact here: the queue is not processed until the frame ends, so this is a plain revival rather than a resurrection of something already torn down.
     NYA_EXPECT(nya_asset_acquire(revived));
     nya_assert(!nya_asset_get(revived)->queued_for_unload, "acquiring cancels the pending unload");
 
@@ -241,8 +234,7 @@ s32 main(void) {
   {
     char missing[] = "./_test_asset_definitely_absent.txt";
 
-    // An external asset is a path from outside the game and may simply have moved, so the load
-    // failing is ordinary. The engine keeps running.
+    // An external asset is a path from outside the game and may simply have moved, so the load failing is ordinary. The engine keeps running.
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type     = NYA_ASSET_TYPE_TEXT,
       .handle   = missing,
@@ -252,8 +244,7 @@ s32 main(void) {
     end_frame();
     nya_assert(nya_asset_status(missing) == NYA_ASSET_STATUS_FAILED);
 
-    // Terminal, and said out loud rather than silently doing nothing: a second request for
-    // something already known to be broken is a caller bug worth surfacing.
+    // Terminal, and said out loud rather than silently doing nothing: a second request for something already known to be broken is a caller bug worth surfacing.
     NYA_Error again = nya_asset_load((NYA_AssetLoadParameters){
       .type     = NYA_ASSET_TYPE_TEXT,
       .handle   = missing,
@@ -267,10 +258,7 @@ s32 main(void) {
 
   // TEST: handles are interned, so an asset survives the caller's string going away
   {
-    // Handles are string literals in the game DLL, and hot reloading unmaps the .rodata they live
-    // in. The system copies every handle it keeps, so a dict keyed by content still hashes
-    // something that exists after the DLL is gone. A stack buffer that is then overwritten stands
-    // in for that unmapping.
+    // Handles are string literals in the game DLL, and hot reloading unmaps the .rodata they live in. The system copies every handle it keeps, so a dict keyed by content still hashes something that exists after the DLL is gone. A stack buffer that is then overwritten stands in for that unmapping.
     char handle[64];
     (void)snprintf(handle, sizeof(handle), "./_test_asset_interned.txt");
     write_file(handle, "interned");
@@ -295,9 +283,7 @@ s32 main(void) {
 
   // TEST: deinit unloads whatever is still registered
   {
-    // Left loaded on purpose. The deinit defer at the top of main is what tears this down, and the
-    // leak sanitizer is what checks it did: an asset still holding its bytes when the arena goes
-    // away would be reported on exit.
+    // Left loaded on purpose. The deinit defer at the top of main is what tears this down, and the leak sanitizer is what checks it did: an asset still holding its bytes when the arena goes away would be reported on exit.
     char leaked[] = "./_test_asset_left_loaded.txt";
     write_file(leaked, "cleaned up by deinit");
 
@@ -314,11 +300,7 @@ s32 main(void) {
 
   // TEST: a sound decodes, both streamed and predecoded
   {
-    /*
-     * The first type here other than text, and the reason that matters: the loading pass is a
-     * dispatch over NYA_AssetType, and a suite that only ever loads text leaves every other arm of
-     * it unexecuted. Sound is the one that reaches a real decoder without a GPU.
-     */
+    /* The first type here other than text, and the reason that matters: the loading pass is a dispatch over NYA_AssetType, and a suite that only ever loads text leaves every other arm of it unexecuted. Sound is the one that reaches a real decoder without a GPU. */
     write_test_wav();
     defer (void)remove(SOUND_FIXTURE);
 
@@ -363,10 +345,7 @@ s32 main(void) {
 
   // TEST: one font file at two point sizes is two assets
   {
-    /*
-     * The case `source` exists for: a face carries no size, so a .ttf at two sizes cannot be keyed on the
-     * path. Opening a face needs no GPU, so it is reachable here.
-     */
+    /* The case `source` exists for: a face carries no size, so a .ttf at two sizes cannot be keyed on the path. Opening a face needs no GPU, so it is reachable here. */
     char small[] = "font:aldrich@12";
     char large[] = "font:aldrich@48";
 
@@ -393,8 +372,7 @@ s32 main(void) {
     nya_assert(small_asset != nullptr && large_asset != nullptr, "both sizes must register");
     nya_assert(small_asset != large_asset, "two sizes of one face must not collapse into one asset");
 
-    // Guarded the same way as the sound: a build without SDL_ttf warns and fails the load rather
-    // than refusing to start, so the type is what is asserted unconditionally.
+    // Guarded the same way as the sound: a build without SDL_ttf warns and fails the load rather than refusing to start, so the type is what is asserted unconditionally.
     nya_assert(small_asset->type == NYA_ASSET_TYPE_FONT);
     nya_assert(large_asset->type == NYA_ASSET_TYPE_FONT);
 
@@ -407,10 +385,7 @@ s32 main(void) {
 
   // TEST: a GPU backed type fails rather than crashing without a device
   {
-    /*
-     * Headless is a supported configuration (NYA_HEADLESS, and CI runs the suite that way), so a texture
-     * request without a device must be an ordinary failed asset reached through the same queue.
-     */
+    /* Headless is a supported configuration (NYA_HEADLESS, and CI runs the suite that way), so a texture request without a device must be an ordinary failed asset reached through the same queue. */
     char texture[] = "./_test_asset_texture.png";
     write_file(texture, "not really a png");
     defer (void)remove(texture);

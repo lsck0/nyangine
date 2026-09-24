@@ -246,8 +246,7 @@ s32 main(void) {
 
     nya_assert(nya_reflect_field(&_NYA_REFLECT_TestEntity, "nope") == nullptr, "an absent field must not be invented");
 
-    // A path resolves through nested structs and hands back the address at the same time, which is
-    // the pair an inspector needs and the reason it is one call.
+    // A path resolves through nested structs and hands back the address at the same time, which is the pair an inspector needs and the reason it is one call.
     TestEntity entity = sample();
 
     void*                   address = nullptr;
@@ -257,8 +256,7 @@ s32 main(void) {
     nya_assert(green->type == &_NYA_REFLECT_f32);
     nya_assert(address == &entity.visual.color.g, "the path resolved to the wrong address");
 
-    // The address the compiler computed and the one reflection computed must agree, which is what
-    // says nya_offsetof survived the trip through the table.
+    // The address the compiler computed and the one reflection computed must agree, which is what says nya_offsetof survived the trip through the table.
     nya_assert(nya_reflect_field_pointer(&entity, health) == &entity.health);
 
     // A path that runs through a primitive has nowhere to go.
@@ -279,8 +277,7 @@ s32 main(void) {
     nya_assert(health.type == NYA_TYPE_S32);
     nya_assert(health.as_s32 == -42);
 
-    // Coercion: a number that came out of a file is whatever the reader made of it, not what the
-    // field wants. An integer must land in an f64 field.
+    // Coercion: a number that came out of a file is whatever the reader made of it, not what the field wants. An integer must land in an f64 field.
     nya_assert(nya_reflect_write(&_NYA_REFLECT_f64, &entity.weight, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 7 }));
     nya_assert(entity.weight == 7.0, "an integer did not widen into a float field");
 
@@ -305,8 +302,7 @@ s32 main(void) {
     nya_assert(nya_reflect_variant_value(&_NYA_REFLECT_TestKind, "TEST_KIND_CRATE", &value));
     nya_assert(value == 1);
 
-    // Zero is a real variant value, so the lookup reports success separately rather than by
-    // returning zero for "not found".
+    // Zero is a real variant value, so the lookup reports success separately rather than by returning zero for "not found".
     nya_assert(nya_reflect_variant_value(&_NYA_REFLECT_TestKind, "TEST_KIND_NONE", &value));
     nya_assert(value == 0);
     nya_assert(!nya_reflect_variant_value(&_NYA_REFLECT_TestKind, "NOPE", &value));
@@ -322,8 +318,7 @@ s32 main(void) {
 
     nya_assert(object != nullptr);
 
-    // A vector becomes an array of its elements, and its stride is its element size even though its
-    // own size is padded to sixteen.
+    // A vector becomes an array of its elements, and its stride is its element size even though its own size is padded to sixteen.
     NYA_Value* position = nya_object_get(object, "position");
     nya_assert(position != nullptr && position->type == NYA_TYPE_ARRAY);
     nya_assert(position->as_array.length == 3, "a three element vector produced %llu values",
@@ -405,8 +400,7 @@ s32 main(void) {
   // TEST: loading is partial, deliberately
   printf("TEST: partial load\n");
   {
-    // What an older save looks like against a newer struct: it mentions one field and knows nothing
-    // about the rest.
+    // What an older save looks like against a newer struct: it mentions one field and knows nothing about the rest.
     NYA_Object* partial = nya_object_create(arena);
     nya_object_add(partial, "health", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = 5 });
     nya_object_add(partial, "unknown_field", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 1 });
@@ -474,8 +468,7 @@ s32 main(void) {
     (void)snprintf(account.codes[0].code, sizeof(account.codes[0].code), "AAAA-BBBB");
     (void)snprintf(account.codes[1].code, sizeof(account.codes[1].code), "CCCC-DDDD");
 
-    // the plain conversion still writes everything: it is what a response body and a save are made of,
-    // and a redacting one would be redacting the answer rather than the record of it.
+    // the plain conversion still writes everything: it is what a response body and a save are made of, and a redacting one would be redacting the answer rather than the record of it.
     NYA_Object* plain = nya_reflect_to_object(arena, &_NYA_REFLECT_TestAccount, &account);
     NYA_String* plain_text = nya_serialize(arena, plain, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
 

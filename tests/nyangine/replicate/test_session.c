@@ -333,10 +333,7 @@ s32 main(void) {
   // TEST: prediction moves the player before the server answers
   printf("TEST: a remote client predicts its own movement\n");
   {
-    /*
-     * Prediction against a transport that is not local, with no server to correct it, isolates the
-     * property: the client applies its command immediately instead of waiting a round trip.
-     */
+    /* Prediction against a transport that is not local, with no server to correct it, isolates the property: the client applies its command immediately instead of waiting a round trip. */
     NYA_Arena* arena = nya_arena_create(.name = "test_session_predict");
     defer      nya_arena_destroy(arena);
 
@@ -356,8 +353,7 @@ s32 main(void) {
       .replicated_flag   = FLAG_REPLICATED,
       .on_apply_command  = nya_callback(apply_movement),
       .on_sample_command = nya_callback(sample_command),
-      // Wide, so the shared entity table's exact agreement does not trip a correction. What is being
-      // tested here is that prediction happens at all.
+      // Wide, so the shared entity table's exact agreement does not trip a correction. What is being tested here is that prediction happens at all.
       .correction_threshold = 1000.0F,
     }));
 
@@ -437,8 +433,7 @@ s32 main(void) {
                                         payload->length));
     }
 
-    // the server must be given this transport to drain it, but nya_net_server_attach_local makes its own
-    // pair, so the message goes through the server's loopback.
+    // the server must be given this transport to drain it, but nya_net_server_attach_local makes its own pair, so the message goes through the server's loopback.
     NYA_NetTransport* real_client = nullptr;
     NYA_EXPECT(nya_net_server_attach_local(&real_client));
 

@@ -22,10 +22,8 @@
 NYA_VendorRule vendor_openssl_linux_x86_64 = {
     .name = "openssl (linux-x86_64, the system's)",
 
-    // No `.includes`: the headers are wherever the system keeps them, which is on the default search
-    // path of the compiler that is building against that system's libraries.
+    // No `.includes`: the headers are wherever the system keeps them, which is on the default search path of the compiler that is building against that system's libraries.
     .linker_flags = { "-lssl", "-lcrypto", },
 
-    // No `.parts`, and no `.options_file`: there is nothing to build and nothing whose options could
-    // go stale. nya_vendor_build over this rule does nothing at all, which is correct.
+    // No `.parts`, and no `.options_file`: there is nothing to build and nothing whose options could go stale. nya_vendor_build over this rule does nothing at all, which is correct.
 };

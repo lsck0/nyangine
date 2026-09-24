@@ -24,10 +24,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_Arena* arena = nya_arena_create(.name = "fuzz_http_request");
     defer      nya_arena_destroy(arena);
 
-    /*
-     * From the arena rather than the stack: NYA_HttpRequest is twenty kilobytes, and a persistent AFL
-     * loop that put one on the stack per iteration would be measuring the stack rather than the parser.
-     */
+    /* From the arena rather than the stack: NYA_HttpRequest is twenty kilobytes, and a persistent AFL loop that put one on the stack per iteration would be measuring the stack rather than the parser. */
     NYA_HttpRequest* request = nya_arena_alloc(arena, sizeof(NYA_HttpRequest));
     if (request == nullptr) return;
 
@@ -52,8 +49,7 @@ static void fuzz_once(const u8* data, u64 size) {
 
     nya_assert(nya_http_method_is_valid(request->method), "a request parsed with no method");
 
-    // a body only ever reaches a handler on a verb a body means something on. The refusal is what
-    // keeps this server and whatever is in front of it agreeing where the next request starts.
+    // a body only ever reaches a handler on a verb a body means something on. The refusal is what keeps this server and whatever is in front of it agreeing where the next request starts.
     nya_assert(
         request->body_size == 0 || nya_http_method_allows_body(request->method),
         "a body parsed on a verb that carries none: %s",
@@ -64,8 +60,7 @@ static void fuzz_once(const u8* data, u64 size) {
     nya_assert(request->body_size <= NYA_HTTP_MAX_BODY_BYTES, "a body larger than the bound parsed");
     nya_assert(request->header_count <= NYA_HTTP_MAX_HEADERS, "more headers parsed than the table holds");
 
-    // every fixed buffer terminated inside itself, which is what lets everything downstream treat them
-    // as C strings without carrying a length beside them.
+    // every fixed buffer terminated inside itself, which is what lets everything downstream treat them as C strings without carrying a length beside them.
     u64 path_length = 0;
     while (path_length < NYA_HTTP_MAX_PATH && request->path[path_length] != '\0') path_length++;
     nya_assert(path_length < NYA_HTTP_MAX_PATH, "the path is not terminated");
@@ -104,10 +99,7 @@ static void fuzz_once(const u8* data, u64 size) {
         }
     }
 
-    /*
-     * What a handler does with a request that parsed: read a header, read a query parameter, and try
-     * the body as a document. All three take the parsed struct and none of them may be surprised by it.
-     */
+    /* What a handler does with a request that parsed: read a header, read a query parameter, and try the body as a document. All three take the parsed struct and none of them may be surprised by it. */
     (void)nya_http_request_header(request, "content-type");
 
     char value[64] = { 0 };
@@ -116,10 +108,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_Object* document = nullptr;
     (void)nya_http_request_json(request, arena, &document);
 
-    /*
-     * And what the server does with the answer: render a head for it. A request that parsed has to be
-     * answerable, since the alternative is a connection that has nothing to send and cannot say why.
-     */
+    /* And what the server does with the answer: render a head for it. A request that parsed has to be answerable, since the alternative is a connection that has nothing to send and cannot say why. */
     u8 body[64] = { 0 };
 
     NYA_HttpResponse response = { 0 };

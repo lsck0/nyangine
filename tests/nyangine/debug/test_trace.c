@@ -75,17 +75,7 @@ s32 main(void) {
             nya_trace_request();
 
             {
-                /*
-                 * The child spins five times the parent, not half of it.
-                 *
-                 * What is under test is that a nested scope's time lands on the child and is taken
-                 * off the parent. Asserting that with a parent that spins longer needs a tight upper
-                 * bound on a wall clock measurement — 2 ms of spin had to read under 2.9 — and a
-                 * sanitized build on a loaded machine oversleeps straight through it. This way the
-                 * two are separated by the whole of the child's spin whatever the machine does:
-                 * attributed, the parent reads about 1 ms against the child's 5; folded in, it would
-                 * read about 6.
-                 */
+                /* The child spins five times the parent, not half of it. What is under test is that a nested scope's time lands on the child and is taken off the parent. Asserting that with a parent that spins longer needs a tight upper bound on a wall clock measurement — 2 ms of spin had to read under 2.9 — and a sanitized build on a loaded machine oversleeps straight through it. This way the two are separated by the whole of the child's spin whatever the machine does: attributed, the parent reads about 1 ms against the child's 5; folded in, it would read about 6. */
                 nya_trace_scope(NYA_TRACE_SCENE);
                 spin_ns(1'000'000);
 

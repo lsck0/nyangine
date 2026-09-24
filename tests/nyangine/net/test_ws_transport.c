@@ -252,8 +252,7 @@ static void step(Client* client) {
 
         switch (event.kind) {
             case NYA_WEBSOCKET_EVENT_BINARY: {
-                // A binary message is either the server's acceptance or a carried net message; the tag
-                // in the first byte says which, the way the transport's own frames do.
+                // A binary message is either the server's acceptance or a carried net message; the tag in the first byte says which, the way the transport's own frames do.
                 if (event.size >= 1 && event.data[0] == (u8)NYA_NET_WS_TAG_ACCEPT) {
                     client->accepted = true;
                 } else if (event.size >= 1 && event.data[0] == (u8)NYA_NET_WS_TAG_DATA) {

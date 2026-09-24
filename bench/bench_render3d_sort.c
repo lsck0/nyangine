@@ -43,8 +43,7 @@ s32 main(void) {
         (void)snprintf(group, sizeof(group), "render3d transparent sort, %u triangles", count);
         nya_bench_begin(group);
 
-        // The memcpy is inside both cases on purpose: each sort must see the same unsorted input, and
-        // charging the copy to both keeps the comparison honest rather than flattering the second.
+        // The memcpy is inside both cases on purpose: each sort must see the same unsorted input, and charging the copy to both keeps the comparison honest rather than flattering the second.
         nya_bench("qsort (was)", count, {
             nya_memcpy(work, base, bytes);
             qsort(work, count, sizeof(NYA_Render3DSortKey), reference_compare);

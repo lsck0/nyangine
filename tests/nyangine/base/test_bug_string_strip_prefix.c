@@ -10,8 +10,7 @@ s32 main(void) {
   NYA_String* text = nya_string_from(arena, "ab");
   nya_assert(text->length == 2);
 
-  // A prefix longer than the whole string. Nothing should be stripped, and nothing read past the
-  // two bytes the string owns.
+  // A prefix longer than the whole string. Nothing should be stripped, and nothing read past the two bytes the string owns.
   nya_string_strip_prefix(text, "a_prefix_far_longer_than_the_string_it_is_being_compared_against");
 
   nya_assert(text->length == 2, "nothing matched, so nothing should have been stripped");

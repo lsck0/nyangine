@@ -40,8 +40,7 @@ s32 main(void) {
     u32*           nothing = nullptr;
     NYA_Heapᐸu32ᐳ* heap    = nya_heap_from_carray(arena, u32, nothing, (u64)0, &compare_u32_ascending);
 
-    // Growing from zero is proven by the next section; here it is only that an empty source is
-    // accepted at all rather than tripping the capacity-zero allocation path.
+    // Growing from zero is proven by the next section; here it is only that an empty source is accepted at all rather than tripping the capacity-zero allocation path.
     nya_assert(nya_heap_length(heap) == 0, "an empty carray produced " FMTu64 " items", nya_heap_length(heap));
 
     nya_heap_destroy(heap);
@@ -105,8 +104,7 @@ s32 main(void) {
   // TEST: an oversized allocation on an arena aligned beyond malloc's guarantee
   printf("TEST: oversized allocation on a 64 byte aligned arena\n");
   {
-    // region_size is deliberately smaller than the allocation, so each one takes a region of its
-    // own and the allocation is what decides that region's size.
+    // region_size is deliberately smaller than the allocation, so each one takes a region of its own and the allocation is what decides that region's size.
     NYA_Arena* aligned = nya_arena_create(.name = "aligned", .alignment = 64, .region_size = nya_kibyte_to_byte(4));
 
     for (u32 i = 0; i < 16; i++) {
@@ -131,9 +129,7 @@ s32 main(void) {
   // TEST: the alignment check rejects an even non-power-of-two
   printf("TEST: an alignment of 24 is rejected\n");
   {
-    // the on-stack constructor, because the heap one mallocs the NYA_Arena before validating options,
-    // and the assertion's longjmp would leak it. 48 KiB divides by 24, so the region size check passes
-    // and the alignment check fires.
+    // the on-stack constructor, because the heap one mallocs the NYA_Arena before validating options, and the assertion's longjmp would leak it. 48 KiB divides by 24, so the region size check passes and the alignment check fires.
     nya_expect_crash({
       NYA_Arena bad = nya_arena_create_on_stack(.name = "bad", .alignment = 24, .region_size = nya_kibyte_to_byte(48));
       (void)bad;
@@ -142,9 +138,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // TEST: nya_array_from_argv
-  //
-  // A macro only reports compile errors when expanded, so this expands it.
+  // TEST: nya_array_from_argv A macro only reports compile errors when expanded, so this expands it.
   printf("TEST: nya_array_from_argv\n");
   {
     const char* fake_argv[] = { "build", "run", "test" };
@@ -154,8 +148,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_array_get(args, 0), "build"), "argument 0 is not \"build\"");
     nya_assert(nya_string_equals(nya_array_get(args, 2), "test"), "argument 2 is not \"test\"");
 
-    // A zero argc gives an empty array rather than a zero capacity one that cannot be pushed to,
-    // and a negative one is clamped rather than becoming an enormous capacity.
+    // A zero argc gives an empty array rather than a zero capacity one that cannot be pushed to, and a negative one is clamped rather than becoming an enormous capacity.
     NYA_ArrayᐸNYA_Stringᐳ* none = nya_array_from_argv(arena, 0, fake_argv);
     nya_assert(none->length == 0, "expected no arguments, got " FMTu64, none->length);
 

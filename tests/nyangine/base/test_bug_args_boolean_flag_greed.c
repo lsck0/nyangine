@@ -26,8 +26,7 @@ static void fixture_init(Fixture* fixture) {
       .value.type = NYA_TYPE_B8,
       .name       = "strict",
     },
-    // With a default, so it is optional. A typed flag without one is required, and the cases below
-    // that leave it off are about the boolean beside it rather than about this.
+    // With a default, so it is optional. A typed flag without one is required, and the cases below that leave it off are about the boolean beside it rather than about this.
     .jobs = {
       .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
       .value.type    = NYA_TYPE_S64,
@@ -65,10 +64,7 @@ NYA_INTERNAL void test_boolean_flag_does_not_eat_positional(void) {
 // TEST: the silent case: a positional that looks like a boolean
 NYA_INTERNAL void test_positional_that_looks_like_a_boolean(void) {
   printf("TEST: --strict followed by a positional that parses as a boolean\n");
-  /*
-   * The dangerous half: consuming "0" would leave `strict` false and the source list empty, so the
-   * command would succeed while checking nothing.
-   */
+  /* The dangerous half: consuming "0" would leave `strict` false and the source list empty, so the command would succeed while checking nothing. */
   Fixture fixture;
   fixture_init(&fixture);
 
@@ -124,8 +120,7 @@ NYA_INTERNAL void test_nonsense_attached_value_is_refused(void) {
   NYA_ArgCommand* command = nullptr;
   NYA_Error       error   = nya_args_parse(&fixture.parser, 2, argv, &command);
 
-  // attached means the user meant it as the value, so a nonsense value is an error, unlike a following
-  // token.
+  // attached means the user meant it as the value, so a nonsense value is an error, unlike a following token.
   nya_assert(!error.ok, "an explicit value that is not a boolean is rejected");
 }
 
@@ -184,8 +179,7 @@ NYA_INTERNAL void test_unknown_flag_name_is_still_unknown(void) {
   NYA_ArgCommand* command = nullptr;
   NYA_Error       error   = nya_args_parse(&fixture.parser, 2, argv, &command);
 
-  // The name has to be matched against `nonsense`, not against `nonsense=1`, or every attached
-  // value would produce "unknown flag" for a flag that exists.
+  // The name has to be matched against `nonsense`, not against `nonsense=1`, or every attached value would produce "unknown flag" for a flag that exists.
   nya_assert(!error.ok, "an unknown flag is still rejected");
 }
 
@@ -200,8 +194,7 @@ NYA_INTERNAL void test_empty_attached_value(void) {
   NYA_ArgCommand* command = nullptr;
   NYA_Error       error   = nya_args_parse(&fixture.parser, 2, argv, &command);
 
-  // empty is a value the user wrote, so it is refused rather than treated as absent. Falling back to
-  // the next token would be greedy again.
+  // empty is a value the user wrote, so it is refused rather than treated as absent. Falling back to the next token would be greedy again.
   nya_assert(!error.ok, "an empty attached value is not a number");
 }
 

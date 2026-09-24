@@ -51,8 +51,7 @@
  */
 #define NYA_TERMINAL 1
 
-// nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls
-// in libc, and a system header included ahead of it has already fixed them at another value.
+// nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls in libc, and a system header included ahead of it has already fixed them at another value.
 #include "nyangine/nyangine.h"
 
 #include "SDL3/SDL_timer.h"
@@ -194,8 +193,7 @@ static void arena_row(NYA_UI* ui, Dashboard* dashboard, u32 index, const NYA_Are
     f32 share = stats->reserved_bytes > 0 ? (f32)part / (f32)stats->reserved_bytes : 0.0F;
     share     = nya_clamp(share, 0.0F, 1.0F);
 
-    // named by its place in the registry rather than by the arena: two arenas may share a name, and two rows
-    // sharing an id would share their widgets' ids with them.
+    // named by its place in the registry rather than by the arena: two arenas may share a name, and two rows sharing an id would share their widgets' ids with them.
     char id[16];
     (void)snprintf(id, sizeof(id), "arena%u", index);
 
@@ -204,8 +202,7 @@ static void arena_row(NYA_UI* ui, Dashboard* dashboard, u32 index, const NYA_Are
     nya_ui_size(ui, nya_ui_fixed(NAME_COLUMNS * CELL_W));
     if (nya_ui_selectable(ui, name, dashboard->selected == index)) dashboard->selected = index;
 
-    // the bar takes room the layout gave it, which is what nya_ui_space is for: the widgets above it are
-    // the engine's, this is the program's, and they share one column of pixels.
+    // the bar takes room the layout gave it, which is what nya_ui_space is for: the widgets above it are the engine's, this is the program's, and they share one column of pixels.
     nya_ui_size(ui, nya_ui_grow(1));
     NYA_Rectf track = nya_ui_space(ui, 0.0F, ROW_HEIGHT);
 
@@ -313,8 +310,7 @@ static void frame_pass(NYA_Window* window, NYA_UIPass pass, Dashboard* dashboard
         NYA_UIPanel body = { .direction = NYA_UI_DIRECTION_ROW, .height = nya_ui_grow(1), .frameless = true };
 
         if (nya_ui_panel_begin(ui, "body", body)) {
-            // the arenas scroll when there are more of them than rows, which is the wheel and the
-            // focus following the keys, both for free.
+            // the arenas scroll when there are more of them than rows, which is the wheel and the focus following the keys, both for free.
             NYA_UIPanel arenas = { .width = nya_ui_grow(1), .height = nya_ui_grow(1) };
 
             if (nya_ui_panel_begin(ui, "arenas", arenas)) {
@@ -401,22 +397,15 @@ static void legend_show(NYA_Window* window, Dashboard* dashboard, const u8* rgba
 static void input_pump(Dashboard* dashboard) {
     nya_assert(dashboard != nullptr);
 
-    /*
-     * The terminal's keys and mouse reports become NYA_Events here, and this loop is the same one a
-     * program on the GPU backend writes: nothing below reads a terminal type, and nothing below
-     * knows which backend produced the event. That is the point of routing terminal input through
-     * nya_event_dispatch rather than handing a program NYA_TerminalInput.
-     */
+    /* The terminal's keys and mouse reports become NYA_Events here, and this loop is the same one a program on the GPU backend writes: nothing below reads a terminal type, and nothing below knows which backend produced the event. That is the point of routing terminal input through nya_event_dispatch rather than handing a program NYA_TerminalInput. */
     nya_system_event_drain_terminal_events();
 
     NYA_Event event;
     while (nya_system_event_poll(&event)) {
-        // the input system is what nya_input_* and every nya_ui_* widget read, and it is fed by the
-        // events, not by the terminal.
+        // the input system is what nya_input_* and every nya_ui_* widget read, and it is fed by the events, not by the terminal.
         nya_system_input_handle_event(&event);
 
-        // the UI reads its own keys out of the input system; the only event this program wants for
-        // itself is the one that says the grid changed under it.
+        // the UI reads its own keys out of the input system; the only event this program wants for itself is the one that says the grid changed under it.
         if (event.type == NYA_EVENT_WINDOW_RESIZED) dashboard->resizes += 1;
     }
 }
@@ -444,12 +433,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);
     nya_backtrace_init();
 
-    /*
-     * Opened before anything is logged on purpose: a log line written after the switch to the
-     * alternate screen lands on the screen the dashboard is about to paint over, and one written
-     * during the loop would tear a frame. What the terminal probe found is logged by the open
-     * itself, and the first frame repaints over it.
-     */
+    /* Opened before anything is logged on purpose: a log line written after the switch to the alternate screen lands on the screen the dashboard is about to paint over, and one written during the loop would tear a frame. What the terminal probe found is logged by the open itself, and the first frame repaints over it. */
     NYA_Error opened = nya_render2d_terminal_open((NYA_TerminalOptions){ .alternate_screen = true, .mouse = true });
 
     if (!opened.ok) {
@@ -463,36 +447,26 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     NYA_Window* window = nya_render2d_terminal_window();
 
-    /*
-     * The three engine subsystems a TUI needs, and no more; see the file header. The callback system
-     * comes first because the input system registers a hook by name through it.
-     */
+    /* The three engine subsystems a TUI needs, and no more; see the file header. The callback system comes first because the input system registers a hook by name through it. */
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true, .frame_allocator = nya_arena_create(.name = "frame_allocator") };
 
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
     nya_system_input_init();
 
-    // what the UI reads confirm and cancel from. A TUI has no gamepad and no rebinding screen, so
-    // this is the whole of its input configuration.
+    // what the UI reads confirm and cancel from. A TUI has no gamepad and no rebinding screen, so this is the whole of its input configuration.
     nya_input_action_rebind(NYA_INPUT_ACTION_CONFIRM, NYA_KEY_RETURN);
     nya_input_action_rebind(NYA_INPUT_ACTION_CANCEL, NYA_KEY_ESCAPE);
 
     nya_ui_style_set(window, dashboard_style());
 
-    /*
-     * The presenter that makes this a TUI rather than a drawing of a GUI: buttons as `[ quit ]`, panels as box
-     * drawing, the slider as blocks. Without it the shape presenter draws rectangles, which the terminal
-     * backend rasterises into cells — the same widgets, doing the same things, in a look nobody expects from a
-     * terminal. Static because the grid is most of a megabyte and it outlives every pass.
-     */
+    /* The presenter that makes this a TUI rather than a drawing of a GUI: buttons as `[ quit ]`, panels as box drawing, the slider as blocks. Without it the shape presenter draws rectangles, which the terminal backend rasterises into cells — the same widgets, doing the same things, in a look nobody expects from a terminal. Static because the grid is most of a megabyte and it outlives every pass. */
     static NYA_UICells cells;
 
     nya_ui_cells_init(&cells, (NYA_UICellOptions){ .cell = { CELL_W, CELL_H } });
     nya_ui_presenter_set(window, nya_ui_cells_presenter(&cells));
 
-    // the arena the dashboard watches. Named, because the name is the label on its bar, and sized to
-    // the budget so the bar is a fraction of a number this file chose.
+    // the arena the dashboard watches. Named, because the name is the label on its bar, and sized to the budget so the bar is a fraction of a number this file chose.
     NYA_Arena* worker = nya_arena_create(.name = "worker", .region_size = WORKER_BUDGET_BYTES);
 
     NYA_Arena* scratch = nya_arena_create(.name = "scratch");
@@ -501,14 +475,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     static u8 legend[LEGEND_WIDTH_PX * LEGEND_HEIGHT_PX * 4];
     legend_fill(legend);
 
-    /*
-     * Torn down at the bottom rather than with `defer`, which is what the rest of the tree uses.
-     * clang's static analyser models a `defer` as running where it is written, so every use of these
-     * three below would be reported as a use after free, and this file is one of the four
-     * translation units `./build check --strict` analyses. There is one exit path out of the loop,
-     * so the explicit teardown is not a second way to get it wrong. Delete this and go back to
-     * `defer` when clang-analyzer understands C2Y's defer.
-     */
+    /* Torn down at the bottom rather than with `defer`, which is what the rest of the tree uses. clang's static analyser models a `defer` as running where it is written, so every use of these three below would be reported as a use after free, and this file is one of the four translation units `./build check --strict` analyses. There is one exit path out of the loop, so the explicit teardown is not a second way to get it wrong. Delete this and go back to `defer` when clang-analyzer understands C2Y's defer. */
 
     u64       started_ms = nya_clock_get_monotonic_ms();
     Dashboard dashboard  = { .selected = U32_MAX, .filling = true, .terminal_open = true };
@@ -519,12 +486,10 @@ s32 main(s32 argc, NYA_CString* argv) {
         dashboard.frame      = frame;
         dashboard.elapsed_ms = nya_clock_get_monotonic_ms() - started_ms;
 
-        // the input pass, before the edges roll: this is where a key press becomes a focus move and a
-        // click becomes a button. It draws nothing.
+        // the input pass, before the edges roll: this is where a key press becomes a focus move and a click becomes a button. It draws nothing.
         frame_pass(window, NYA_UI_PASS_INPUT, &dashboard, worker);
 
-        // what a frame loop would dispatch. Without it every key stays just-pressed for the rest of
-        // the run and the first arrow walks the whole list.
+        // what a frame loop would dispatch. Without it every key stays just-pressed for the rest of the run and the first arrow walks the whole list.
         nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_UPDATING_ENDED });
 
         if (dashboard.quit) break;
@@ -533,15 +498,13 @@ s32 main(s32 argc, NYA_CString* argv) {
         if (frame > 0 && frame % (FRAME_COUNT / 10) == 0) nya_arena_free_all(worker);
         if (dashboard.filling) (void)nya_arena_alloc(worker, WORKER_STEP_BYTES);
 
-        // a per frame scratch: taken, used, and given back whole at the end of the frame. Its bar
-        // never climbs, which is the point of showing it beside the other.
+        // a per frame scratch: taken, used, and given back whole at the end of the frame. Its bar never climbs, which is the point of showing it beside the other.
         NYA_String* line = nya_string_sprintf(scratch, "frame %u of %u", frame + 1, FRAME_COUNT);
         nya_assert(line->length > 0, "sprintf produced nothing");
 
         nya_render2d_terminal_frame_begin(window, COLOR_GROUND);
 
-        // the UI into its own grid of characters, that grid onto the terminal, and then what this program
-        // draws itself. See ui_present_cell.h for why those are three steps and not one.
+        // the UI into its own grid of characters, that grid onto the terminal, and then what this program draws itself. See ui_present_cell.h for why those are three steps and not one.
         nya_ui_cells_reset(&cells);
         frame_pass(window, NYA_UI_PASS_DRAW, &dashboard, worker);
         nya_ui_cells_present(&cells);
@@ -552,8 +515,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
         nya_arena_free_all(scratch);
 
-        // SDL's, not the engine's: platform/clock/ measures time but has no way to give it away.
-        // core_app.c's frame limiter calls SDL_DelayNS for the same reason.
+        // SDL's, not the engine's: platform/clock/ measures time but has no way to give it away. core_app.c's frame limiter calls SDL_DelayNS for the same reason.
         SDL_Delay(FRAME_INTERVAL_MS);
     }
 

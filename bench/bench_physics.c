@@ -79,8 +79,7 @@ s32 main(void) {
 
         fill_world_2d(count);
 
-        // A short settle before timing, so the pile is in contact rather than mid-drop, which is the
-        // configuration the solver spends its time on.
+        // A short settle before timing, so the pile is in contact rather than mid-drop, which is the configuration the solver spends its time on.
         for (u32 i = 0; i < 30; i++) nya_system_physics2d_update(TICK);
 
         char group[64];

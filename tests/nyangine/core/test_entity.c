@@ -47,13 +47,9 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // The callback system, because spawn options carry NYA_CallbackHandles, and the sim system,
-  // because nya_entity_despawn_deferred queues through nya_sim_defer. Without the latter the
-  // deferred path allocates from a null arena and asserts inside the allocator, which points at
-  // base_arena rather than at the missing dependency.
+  // The callback system, because spawn options carry NYA_CallbackHandles, and the sim system, because nya_entity_despawn_deferred queues through nya_sim_defer. Without the latter the deferred path allocates from a null arena and asserts inside the allocator, which points at base_arena rather than at the missing dependency.
   nya_system_callback_init();
-  // The world: entities, physics and the simulation barrier, brought up in the order they depend on
-  // each other. See core_world.h.
+  // The world: entities, physics and the simulation barrier, brought up in the order they depend on each other. See core_world.h.
   NYA_World* world = nya_world_create();
   (void)nya_world_set(world);
 
@@ -69,8 +65,7 @@ s32 main(void) {
     nya_assert(!nya_entity_is_valid(nothing), "a zeroed handle is not a valid entity");
     nya_assert(nya_entity_get(nothing) == nullptr);
 
-    // Despawning something that was never spawned has to be a no-op rather than a fault: an unwind
-    // path frequently holds a handle it is not sure about.
+    // Despawning something that was never spawned has to be a no-op rather than a fault: an unwind path frequently holds a handle it is not sure about.
     nya_entity_despawn(nothing);
     nya_assert(nya_entity_count() == 0);
   }
@@ -101,8 +96,7 @@ s32 main(void) {
 
   // TEST: a stale handle does not address whoever took the slot
   {
-    // The reason handles carry a generation at all. Spawn, despawn, spawn again: the second entity
-    // almost certainly lands in the freed slot, and the first handle must not reach it.
+    // The reason handles carry a generation at all. Spawn, despawn, spawn again: the second entity almost certainly lands in the freed slot, and the first handle must not reach it.
     NYA_EntityHandle first = nya_entity_spawn(.name = "first");
     nya_assert(nya_entity_is_valid(first));
 
@@ -189,8 +183,7 @@ s32 main(void) {
 
     nya_entity_despawn_deferred(handle);
 
-    // Still there, and marked. This is what lets an entity despawn itself from inside its own
-    // update without the system deleting the thing it is currently iterating.
+    // Still there, and marked. This is what lets an entity despawn itself from inside its own update without the system deleting the thing it is currently iterating.
     nya_assert(nya_entity_is_valid(handle), "deferred despawn does not take effect immediately");
     nya_assert(nya_flag_check(nya_entity_get(handle)->state, NYA_ENTITY_STATE_DESPAWNING), "but it is flagged");
 
@@ -215,8 +208,7 @@ s32 main(void) {
     );
     nya_assert(spawn_calls == 1, "on_spawn fired during the spawn, got " FMTu32, spawn_calls);
 
-    // explicitly not ACTIVE. Spawn defaults to ACTIVE | VISIBLE, so it must be overridden; the update loop
-    // skips it.
+    // explicitly not ACTIVE. Spawn defaults to ACTIVE | VISIBLE, so it must be overridden; the update loop skips it.
     NYA_EntityHandle inactive = nya_entity_spawn(
       .name      = "inactive",
       .state     = NYA_ENTITY_STATE_VISIBLE,
@@ -300,8 +292,7 @@ s32 main(void) {
   {
     nya_entity_clear();
 
-    // three decades apart, so each lands in a different cell, and one is negative, where truncating cell
-    // math goes wrong.
+    // three decades apart, so each lands in a different cell, and one is negative, where truncating cell math goes wrong.
     NYA_EntityHandle near_plane   = nya_entity_spawn(.name = "near_plane", .type = 1, .position = { 10.0F, 10.0F, 0.0F });
     NYA_EntityHandle far_plane    = nya_entity_spawn(.name = "far_plane", .type = 1, .position = { 4000.0F, 4000.0F, 0.0F });
     NYA_EntityHandle behind = nya_entity_spawn(.name = "behind", .type = 2, .position = { -500.0F, -500.0F, 0.0F });
@@ -326,8 +317,7 @@ s32 main(void) {
     count = nya_entity_query_rect((f32x2){ -10000.0F, -10000.0F }, (f32x2){ 10000.0F, 10000.0F }, found, 16);
     nya_assert(count == 3, "a query covering the world must find all three, got %u", count);
 
-    // A radius is the inscribed circle, not the bounding box: the far entity is inside the square
-    // that encloses this circle and outside the circle itself.
+    // A radius is the inscribed circle, not the bounding box: the far entity is inside the square that encloses this circle and outside the circle itself.
     count = nya_entity_query_radius((f32x2){ 0.0F, 0.0F }, 100.0F, found, 16);
     nya_assert(count == 1, "expected only the near_plane entity inside the radius, got %u", count);
 
@@ -344,8 +334,7 @@ s32 main(void) {
     count = nya_entity_query_rect((f32x2){ 50000.0F, 50000.0F }, (f32x2){ 50100.0F, 50100.0F }, found, 16);
     nya_assert(count == 0, "an empty region must find nothing, got %u", count);
 
-    // A despawn is invisible to the index until it is rebuilt, which is the contract: the grid is a
-    // snapshot of the last rebuild, not a live view.
+    // A despawn is invisible to the index until it is rebuilt, which is the contract: the grid is a snapshot of the last rebuild, not a live view.
     nya_entity_despawn(far_plane);
     nya_system_entity_grid_rebuild();
 
@@ -449,19 +438,16 @@ s32 main(void) {
     nya_entity_move_to(entity, (f32x3){ 100.0F, 0.0F, 0.0F }, 1.0F, NYA_EASE_LINEAR);
     nya_assert(nya_entity_moving(entity), "the move is running");
 
-    // Half the duration, linear, so exactly half the distance. Anything else here means the origin
-    // was not captured at the call and the lerp is stepping from wherever the entity happens to be.
+    // Half the duration, linear, so exactly half the distance. Anything else here means the origin was not captured at the call and the lerp is stepping from wherever the entity happens to be.
     tick(0.5F);
     nya_assert(close_enough(entity->position.x, 50.0F), "half a linear move is half the distance, got %f", (f64)entity->position.x);
 
-    // Deliberately overshooting the remaining time. The step clamps rather than extrapolating, so
-    // the entity lands on the target instead of sailing past it on a long frame.
+    // Deliberately overshooting the remaining time. The step clamps rather than extrapolating, so the entity lands on the target instead of sailing past it on a long frame.
     tick(10.0F);
     nya_assert(close_enough(entity->position.x, 100.0F), "an overlong tick still lands on the target, got %f", (f64)entity->position.x);
     nya_assert(!nya_entity_moving(entity), "the move ends on the tick it arrives, not the one after");
 
-    // Restart, then abandon it partway. The entity keeps what it had reached rather than snapping
-    // back to the origin or on to the target.
+    // Restart, then abandon it partway. The entity keeps what it had reached rather than snapping back to the origin or on to the target.
     nya_entity_move_to(entity, (f32x3){ 0.0F, 0.0F, 0.0F }, 1.0F, NYA_EASE_LINEAR);
     tick(0.25F);
     nya_entity_move_stop(entity);
@@ -491,13 +477,11 @@ s32 main(void) {
     entity->visual.z_order = 3.0F;
     nya_assert(nya_entity_sort_key(entity) == 3.0F, "without y-sorting the key is the field, got %f", (f64)nya_entity_sort_key(entity));
 
-    // with it on the field is ignored entirely; a partial version would flicker depth only for entities
-    // with both set.
+    // with it on the field is ignored entirely; a partial version would flicker depth only for entities with both set.
     entity->visual.y_sorted = true;
     nya_assert(nya_entity_sort_key(entity) == 40.0F, "y-sorting takes the position, got %f", (f64)nya_entity_sort_key(entity));
 
-    // The anchor is where the feet are, which is what makes a tall sprite sort against a short one
-    // by where they stand rather than by where their middles are.
+    // The anchor is where the feet are, which is what makes a tall sprite sort against a short one by where they stand rather than by where their middles are.
     entity->visual.y_sort_anchor = 16.0F;
     nya_assert(nya_entity_sort_key(entity) == 56.0F, "the anchor is added, got %f", (f64)nya_entity_sort_key(entity));
 

@@ -151,10 +151,7 @@ s32 main(void) {
   defer nya_world_destroy(world);
   defer nya_system_callback_deinit();
 
-  /*
-   * Seeded rather than random: a disagreement between the index and the scan has to be reproducible,
-   * and a test that spreads its entities differently every run cannot be replayed.
-   */
+  /* Seeded rather than random: a disagreement between the index and the scan has to be reproducible, and a test that spreads its entities differently every run cannot be replayed. */
   NYA_RNG rng = nya_rng_create(.seed = "DEFACED0DEFACED0");
 
   for (u32 i = 0; i < PLACED; i++) {
@@ -314,10 +311,7 @@ s32 main(void) {
     // every ray was aimed through an entity, so every one must hit something.
     nya_check(hits == 64, "and every aimed ray hit, " FMTu32 " of 64 did", hits);
 
-    /*
-     * Far from the placed volume: three in a row on the x axis, one behind the origin. The front one of
-     * the stack is the one picked, and what is behind the ray is never seen.
-     */
+    /* Far from the placed volume: three in a row on the x axis, one behind the origin. The front one of the stack is the one picked, and what is behind the ray is never seen. */
     NYA_EntityHandle behind = nya_entity_spawn(.name = "behind", .position = { 2990.0F, 0.0F, 0.0F });
     NYA_EntityHandle front  = nya_entity_spawn(.name = "front", .position = { 3010.0F, 0.0F, 0.0F });
     NYA_EntityHandle back   = nya_entity_spawn(.name = "back", .position = { 3030.0F, 0.0F, 0.0F });

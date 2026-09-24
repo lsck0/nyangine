@@ -50,10 +50,7 @@ s32 main(void) {
   // TEST: the encoder clamps rather than refusing
   printf("TEST: encoding more than the redundancy limit clamps\n");
   {
-    /*
-     * A caller handing over its whole ring is asking for "as many as fit", and the limit is the transport's
-     * business rather than something every call site has to remember.
-     */
+    /* A caller handing over its whole ring is asking for "as many as fit", and the limit is the transport's business rather than something every call site has to remember. */
     NYA_NetCommand many[16] = { 0 };
     for (u32 i = 0; i < 16; i++) many[i] = (NYA_NetCommand){ .tick = 200 + i, .actions = i };
 
@@ -89,10 +86,7 @@ s32 main(void) {
     NYA_NetCommand received[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
     u32            count                               = 0;
 
-    /*
-     * The case this bound exists for. `count` is a peer chosen byte and `received` holds exactly
-     * NYA_NET_COMMAND_REDUNDANCY, so 255 would write past an array on the server's stack.
-     */
+    /* The case this bound exists for. `count` is a peer chosen byte and `received` holds exactly NYA_NET_COMMAND_REDUNDANCY, so 255 would write past an array on the server's stack. */
     for (u32 claimed = NYA_NET_COMMAND_REDUNDANCY + 1; claimed <= 255; claimed++) {
       NYA_String* payload = nya_string_create(arena);
       nya_string_push_back(payload, (u8)claimed);
@@ -248,10 +242,7 @@ s32 main(void) {
 
       for (u64 i = 0; i < size; i++) buffer[i] = nya_rng_sample_u8(&rng, uniform);
 
-      /*
-       * A canary either side of the array catches a one element overrun inside this frame, where ASan's
-       * redzone may not reach.
-       */
+      /* A canary either side of the array catches a one element overrun inside this frame, where ASan's redzone may not reach. */
       struct {
         u64            guard_low;
         NYA_NetCommand commands[NYA_NET_COMMAND_REDUNDANCY];

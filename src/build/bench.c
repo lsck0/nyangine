@@ -11,8 +11,7 @@ NYA_INTERNAL b8 _bench_collect_sources(NYA_ConstCString path, const NYA_Director
     NYA_String* file = nya_string_from(nya_arena_global, path);
     if (!nya_string_ends_with(file, ".c")) return true;
 
-    // The rules below use these paths verbatim as input and output files, and nya_path_join has
-    // normalised the leading "./" away.
+    // The rules below use these paths verbatim as input and output files, and nya_path_join has normalised the leading "./" away.
     if (!nya_string_starts_with(file, "./")) nya_string_extend_front(file, "./");
 
     nya_array_push_back(sources, *file);
@@ -70,9 +69,7 @@ void bench_runner(NYA_ArgCommand* command) {
             .policy      = NYA_BUILD_ALWAYS,
             .output_file = binary,
 
-            // The codegen the project rules get. A benchmark is a unity build of the engine like a
-            // test is, so it reads the generated strings and reflection tables too; see the longer
-            // note on the same line in test.c.
+            // The codegen the project rules get. A benchmark is a unity build of the engine like a test is, so it reads the generated strings and reflection tables too; see the longer note on the same line in test.c.
             .dependencies = { &build_shaders, &index_assets, },
 
             .command = {
@@ -87,9 +84,7 @@ void bench_runner(NYA_ArgCommand* command) {
                     FLAGS_PLUGINS,
                     // FLAGS_BENCH, not FLAGS_TEST: optimised, headless, and no NYA_TESTING.
                     FLAGS_BENCH,
-                    // FLAGS_HOST_NATIVE_BENCH, not FLAGS_HOST_NATIVE: the latter bundles FLAGS_SANITIZE,
-                    // and a sanitized benchmark measures the sanitizer. That is the reason for this
-                    // command, and using the wrong macro here silently produced sanitized numbers.
+                    // FLAGS_HOST_NATIVE_BENCH, not FLAGS_HOST_NATIVE: the latter bundles FLAGS_SANITIZE, and a sanitized benchmark measures the sanitizer. That is the reason for this command, and using the wrong macro here silently produced sanitized numbers.
                     FLAGS_HOST_NATIVE_BENCH,
                 },
             },
@@ -110,8 +105,7 @@ void bench_runner(NYA_ArgCommand* command) {
             .policy  = NYA_BUILD_ALWAYS,
             .command = { .program = binary },
 
-            // Removed after running, like a test binary: it is a build artifact and the repo already
-            // ignores the pattern.
+            // Removed after running, like a test binary: it is a build artifact and the repo already ignores the pattern.
             .post_build_hooks = { &hook_remove_output_file, },
             .output_file      = binary,
         };

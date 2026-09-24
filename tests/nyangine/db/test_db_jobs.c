@@ -41,8 +41,7 @@ s32 main(void) {
 
   nya_log_info("SQLite %s", nya_sql_version());
 
-  // A large, nonzero base so `run_at == 0` (the "run now" sentinel) is never a real time we schedule,
-  // and so times before the base are still positive. Roughly 2023-11-14 in unix nanoseconds.
+  // A large, nonzero base so `run_at == 0` (the "run now" sentinel) is never a real time we schedule, and so times before the base are still positive. Roughly 2023-11-14 in unix nanoseconds.
   g_now_ns = 1700000000LL * NYA_NS_PER_SECOND;
   nya_instant_source_set((NYA_InstantSource){ .now = test_clock });
 
@@ -278,9 +277,7 @@ s32 main(void) {
     remove_database(path);
     defer remove_database(path);
 
-    // Two connections to one file: two independent workers, exactly the Phase 3 shape. SQLite's write
-    // lock serialises the claims, and the claim's WHERE re-checks state, so the second worker's UPDATE
-    // finds the row already claimed and takes a different one — the two never carry the same job away.
+    // Two connections to one file: two independent workers, exactly the Phase 3 shape. SQLite's write lock serialises the claims, and the claim's WHERE re-checks state, so the second worker's UPDATE finds the row already claimed and takes a different one — the two never carry the same job away.
     NYA_Database* db_a = nullptr;
     NYA_Database* db_b = nullptr;
     NYA_EXPECT(nya_sql_open(arena, path, &db_a));
@@ -413,8 +410,7 @@ s32 main(void) {
       NYA_EXPECT(nya_jobs_open(arena, db, &queue));
       defer nya_jobs_close(queue);
 
-      // The throwaway is enqueued first, so it has the lower id and the claim (which orders by run_at
-      // then id) takes it rather than the one we want to see survive.
+      // The throwaway is enqueued first, so it has the lower id and the claim (which orders by run_at then id) takes it rather than the one we want to see survive.
       s64 throwaway_id = 0;
       NYA_EXPECT(nya_job_enqueue(queue, "keep", (const u8*)"gone", 4, &throwaway_id));
       NYA_EXPECT(nya_job_enqueue(queue, "keep", (const u8*)"survive", 7, &pending_id));

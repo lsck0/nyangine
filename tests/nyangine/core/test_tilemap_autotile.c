@@ -154,13 +154,7 @@ s32 main(void) {
                   "an isolated cell has no neighbours");
     }
 
-    /*
-     * ── The blob mask: 47 cases out of 256, and a corner only counts with both its edges.
-     *
-     * Asserted as properties rather than as specific indices. Which index a given neighbourhood gets
-     * is a consequence of the enumeration order, and pinning those numbers here would mean this test
-     * had to be rewritten to match any change to it rather than catching one.
-     */
+    /* ── The blob mask: 47 cases out of 256, and a corner only counts with both its edges. Asserted as properties rather than as specific indices. Which index a given neighbourhood gets is a consequence of the enumeration order, and pinning those numbers here would mean this test had to be rewritten to match any change to it rather than catching one. */
     {
         const char* solid = "#####"
                             "#####"
@@ -179,16 +173,13 @@ s32 main(void) {
 
         u32 isolated = nya_tilemap_autotile_mask(pattern_filled, (void*)corner_only, 1, 2, NYA_TILEMAP_AUTOTILE_BLOB);
 
-        // (1, 2) has a north-east neighbour but neither the north nor the east edge, so that corner is
-        // hidden behind the gap and the cell must read as fully isolated.
+        // (1, 2) has a north-east neighbour but neither the north nor the east edge, so that corner is hidden behind the gap and the cell must read as fully isolated.
         nya_check(isolated == 0, "a corner with neither of its edges must collapse to isolated, got " FMTu32, isolated);
 
-        // And the collapse actually reaches all 47: every index has to be produced by something, or a
-        // sheet would have tiles nothing ever selects.
+        // And the collapse actually reaches all 47: every index has to be produced by something, or a sheet would have tiles nothing ever selects.
         b8 seen[47] = { 0 };
         for (u32 raw = 0; raw < 256; raw++) {
-            // Reconstructing the neighbourhood from a raw mask is what the internal table does; this
-            // walks the table it built instead, which is the thing being checked.
+            // Reconstructing the neighbourhood from a raw mask is what the internal table does; this walks the table it built instead, which is the thing being checked.
             seen[_nya_tilemap_blob_case[raw]] = true;
         }
 
@@ -209,8 +200,7 @@ s32 main(void) {
 
         NYA_EXPECT(nya_tilemap_autotile_layer(map, ground, lookup, 16, NYA_TILEMAP_AUTOTILE_EDGES, false));
 
-        // the filled cells are the 2x2 block at (1,1)-(2,2). Each has exactly two filled edge neighbours, so
-        // each gets a different corner piece and none keeps its old id.
+        // the filled cells are the 2x2 block at (1,1)-(2,2). Each has exactly two filled edge neighbours, so each gets a different corner piece and none keeps its old id.
         nya_check(nya_tilemap_tile_at(map, ground, 0, 0) == 0, "an empty cell stays empty");
 
         u32 top_left = nya_tilemap_tile_at(map, ground, 1, 1);

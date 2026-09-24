@@ -138,8 +138,7 @@ s32 main(void) {
     // Halfway is halfway in angle.
     nya_assert(fabs(carg(nya_complex_slerp(a, b, 0.5)) - M_PI_4) < EPS);
 
-    // Shortest way round: from just under a half turn to just over it should cross π, not sweep
-    // all the way back through zero.
+    // Shortest way round: from just under a half turn to just over it should cross π, not sweep all the way back through zero.
     c64 near_pi  = nya_complex_unit(M_PI - 0.1);
     c64 past_pi  = nya_complex_unit(-M_PI + 0.1);   // the same as π + 0.1, wrapped
     c64 midpoint = nya_complex_slerp(near_pi, past_pi, 0.5);

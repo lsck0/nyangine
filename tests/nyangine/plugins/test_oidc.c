@@ -173,8 +173,7 @@ static NYA_Error fake_perform(void* user, NYA_Arena* arena, NYA_Request request,
 
   (void)snprintf(fake->last_url, sizeof(fake->last_url), "%s", request.url);
 
-  // kept across a later bodyless call (the jwks GET that can follow a token POST inside one exchange),
-  // so a test can still see what the POST carried after nya_oidc_exchange returns.
+  // kept across a later bodyless call (the jwks GET that can follow a token POST inside one exchange), so a test can still see what the POST carried after nya_oidc_exchange returns.
   if (request.body != nullptr) {
     NYA_String* serialized = nya_serde_json_serialize(arena, request.body, NYA_SERDE_NONE);
     (void)snprintf(fake->last_body, sizeof(fake->last_body), "%s", nya_string_to_cstring(arena, serialized));
@@ -288,15 +287,13 @@ s32 main(void) {
     (void)snprintf(query_nonce, sizeof(query_nonce), "nonce=%s", state.nonce);
     nya_check(nya_string_contains((NYA_ConstCString)url, query_nonce), "and this exact nonce");
 
-    // the challenge in the url is base64url(sha256(verifier)), checked against this file's own crypto
-    // rather than trusted because the field is present.
+    // the challenge in the url is base64url(sha256(verifier)), checked against this file's own crypto rather than trusted because the field is present.
     NYA_CryptoSha256Digest expected_hash = { 0 };
     nya_crypto_sha256((const u8*)state.code_verifier, strlen(state.code_verifier), &expected_hash);
 
     char expected_challenge[64] = { 0 };
     u64  expected_length         = 0;
-    // nya_crypto_base64url_encode rather than a crypto_encoding.h call: this file shares oidc.c's
-    // translation unit, and that is the temporary local copy oidc.c itself uses — see its file note.
+    // nya_crypto_base64url_encode rather than a crypto_encoding.h call: this file shares oidc.c's translation unit, and that is the temporary local copy oidc.c itself uses — see its file note.
     nya_check(
         nya_crypto_base64url_encode(expected_hash.bytes, sizeof(expected_hash.bytes), expected_challenge, sizeof(expected_challenge), &expected_length),
         "the expected challenge encodes"
@@ -368,11 +365,7 @@ s32 main(void) {
     nya_check(exchange.ok, "an ES256 id_token verifies: %s", (NYA_ConstCString)exchange.message);
     nya_check(nya_string_equals((NYA_ConstCString)claims.subject, "user-42"), "and carries its subject, got '%s'", claims.subject);
 
-    /*
-     * The same token against a jwks that publishes the EC key under the RSA key's kid. The signature
-     * would verify with that key; what refuses it is that the header said ES256 and the kid it named
-     * is not an ES256 key, which is the confusion a verifier keyed on kid alone would walk into.
-     */
+    /* The same token against a jwks that publishes the EC key under the RSA key's kid. The signature would verify with that key; what refuses it is that the header said ES256 and the kid it named is not an ES256 key, which is the confusion a verifier keyed on kid alone would walk into. */
     Fake              confused          = { .now_ms = 1000, .now_s = 1'700'000'000 };
     NYA_OidcProvider* confused_provider = discovered_provider(arena, &confused);
 

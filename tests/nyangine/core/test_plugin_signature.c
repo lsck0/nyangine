@@ -103,8 +103,7 @@ s32 main(void) {
 
     printf("TEST: a signature by a pinned key verifies, using the crypto API directly\n");
     {
-        // The primitive, on the plugin's own digest: this is what nya_plugin_signature_write signs and
-        // nya_plugin_signature_verify checks, shown here against the raw Ed25519 calls with a test key.
+        // The primitive, on the plugin's own digest: this is what nya_plugin_signature_write signs and nya_plugin_signature_verify checks, shown here against the raw Ed25519 calls with a test key.
         NYA_CryptoSha256Digest digest = { 0 };
         nya_assert(nya_plugin_digest(demo, &digest).ok);
 
@@ -190,16 +189,14 @@ s32 main(void) {
         _nya_plugin_trusted_keys_reset();
         nya_assert(nya_plugin_trust_key("test-publisher", &publisher.public_key).ok);
 
-        // The unsigned "bare" plugin: refused before anything of it runs, because this build requires a
-        // signature. The refusal is a permission denial, not a Lua or manifest error.
+        // The unsigned "bare" plugin: refused before anything of it runs, because this build requires a signature. The refusal is a permission denial, not a Lua or manifest error.
         NYA_ConstCString bare   = plugin_directory(arena, "bare");
         NYA_Error        loaded = nya_plugin_load(bare);
         nya_assert(!loaded.ok, "an unsigned plugin was loaded by a build that requires signatures");
         nya_assert(loaded.kind == NYA_ERROR_PERMISSION_DENIED, "an unsigned plugin was refused for the wrong reason");
         nya_assert(nya_plugin_find("bare") == nullptr, "a refused plugin left a slot behind");
 
-        // The signed "demo" gets past the signature gate. Whether the VM then runs depends on whether
-        // this build has Lua; either way the loader does not refuse it for its signature.
+        // The signed "demo" gets past the signature gate. Whether the VM then runs depends on whether this build has Lua; either way the loader does not refuse it for its signature.
         NYA_Error signed_load = nya_plugin_load(demo);
         nya_assert(signed_load.ok || signed_load.kind != NYA_ERROR_PERMISSION_DENIED,
                    "a correctly signed plugin was refused at the signature gate");

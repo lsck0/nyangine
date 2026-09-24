@@ -272,8 +272,7 @@ s32 main(void) {
       nya_assert(frame.opcode == NYA_WEBSOCKET_OPCODE_BINARY);
       nya_assert(nya_memcmp(frame.mask, mask, 4) == 0);
 
-      // Every prefix of a legal header is incomplete rather than wrong, which is what lets a reader
-      // ask again instead of dropping the connection on a short read.
+      // Every prefix of a legal header is incomplete rather than wrong, which is what lets a reader ask again instead of dropping the connection on a short read.
       for (u64 shorter = 0; shorter < header_size; shorter++) {
         nya_assert(
             nya_websocket_frame_decode(header, shorter, &frame) == NYA_WEBSOCKET_FRAME_INCOMPLETE,
@@ -461,8 +460,7 @@ s32 main(void) {
     nya_assert(collected.last_size == 10);
     nya_assert(nya_memcmp(collected.last, "fragmented", 10) == 0);
 
-    // The server answers a ping with a pong even when the client never asked for one, which the client
-    // has to accept without reporting anything.
+    // The server answers a ping with a pong even when the client never asked for one, which the client has to accept without reporting anything.
     server_send(&server, NYA_WEBSOCKET_OPCODE_PING, true, (const u8*)"srv", 3);
     pump(socket, &server, arena, &collected, &collected.pongs, 2);
 
@@ -521,8 +519,7 @@ s32 main(void) {
         } break;
 
         case 1: {
-          // A length past this socket's ceiling, announced but never sent: the close happens on the
-          // header alone, so not one byte of the body is ever kept.
+          // A length past this socket's ceiling, announced but never sent: the close happens on the header alone, so not one byte of the body is ever kept.
           u8 frame[] = { 0x82, 0x7F, 0, 0, 0, 0, 0, 0x10, 0, 0 };
           {
           u64 wrote = 0;
@@ -552,8 +549,7 @@ s32 main(void) {
   {
     NYA_WebSocket* socket = nullptr;
 
-    // Nothing listens on this port, and the create still succeeds because the connect has not happened
-    // yet. The refusal arrives as a CLOSED event, which is the whole point of the state machine.
+    // Nothing listens on this port, and the create still succeeds because the connect has not happened yet. The refusal arrives as a CLOSED event, which is the whole point of the state machine.
     NYA_EXPECT(nya_websocket_create(arena, (NYA_WebSocketOptions){ .url = "ws://127.0.0.1:1", .handshake_timeout_ms = 2000 }, &socket));
     defer nya_websocket_destroy(socket);
 

@@ -13,8 +13,7 @@ static f64 xor_trial(NYA_NeatNetwork* network) {
   f64 error = 0.0;
 
   for (u32 i = 0; i < 4; i++) {
-    // Flushed between cases: the network may be recurrent, and without this the answer to one case
-    // depends on which case ran before it.
+    // Flushed between cases: the network may be recurrent, and without this the answer to one case depends on which case ran before it.
     nya_nn_neat_network_flush(network);
 
     nya_nn_neat_network_set_sensor(network, "x", inputs[i][0]);
@@ -52,8 +51,7 @@ static void record_phase(const NYA_Neat* neat, const NYA_NeatTrace* trace, void*
 static NYA_NeatNetwork* xor_seed(NYA_Arena* arena) {
   NYA_NeatNetwork* seed = nya_nn_neat_network_create(arena);
 
-  // XOR needs the bias. Without a constant a node cannot learn a threshold, and the population plateaus
-  // at 3 of 4, which looks like slow progress.
+  // XOR needs the bias. Without a constant a node cannot learn a threshold, and the population plateaus at 3 of 4, which looks like slow progress.
   nya_nn_neat_network_push_bias(seed, "bias");
   nya_nn_neat_network_push_sensor(seed, "x");
   nya_nn_neat_network_push_sensor(seed, "y");
@@ -120,8 +118,7 @@ s32 main(void) {
     nya_nn_neat_network_run(network);
     f64 clean = nya_nn_neat_network_get_output(network, "out");
 
-    // `out` past the end is the write; `in` past the end is the read. Both far enough out that a
-    // missing check lands well outside the array rather than in its slack.
+    // `out` past the end is the write; `in` past the end is the read. Both far enough out that a missing check lands well outside the array rather than in its slack.
     nya_array_push_back(network->connections, ((NYA_NeatConnection){ .in = 0, .out = node_count + 64, .weight = 9.0, .enabled = true }));
     nya_array_push_back(network->connections, ((NYA_NeatConnection){ .in = node_count + 64, .out = 1, .weight = 9.0, .enabled = true }));
 
@@ -133,8 +130,7 @@ s32 main(void) {
     nya_nn_neat_network_set_sensor(network, "in", 1.0);
     nya_nn_neat_network_run(network);
 
-    // the bad genes must contribute nothing, so the output must equal the output without them. Under
-    // sanitizers an unguarded version aborts before this.
+    // the bad genes must contribute nothing, so the output must equal the output without them. Under sanitizers an unguarded version aborts before this.
     f64 with_dangling = nya_nn_neat_network_get_output(network, "out");
     nya_assert(with_dangling == clean, "a dangling gene changed the result: %.17g against %.17g", with_dangling, clean);
   }
@@ -152,8 +148,7 @@ s32 main(void) {
     nya_nn_neat_network_run(network);
     nya_nn_neat_network_flush(network);
 
-    // Flushing clears hidden and output nodes; a bias is an input and must survive it, or the
-    // network loses its constant after the first trial.
+    // Flushing clears hidden and output nodes; a bias is an input and must survive it, or the network loses its constant after the first trial.
     nya_assert(fabs(network->nodes->items[0].value - 1.0) < 0.0001, "flush must not clear the bias");
   }
 
@@ -169,9 +164,7 @@ s32 main(void) {
     nya_assert(clone->nodes != original->nodes, "a clone must not share the node array");
     nya_assert(clone->connections != original->connections, "a clone must not share the connection array");
 
-    // The decisive check: mutating one must not touch the other. A shallow copy passes every
-    // structural assertion above and fails this one, and in a population it would mean every genome
-    // silently mutating every other.
+    // The decisive check: mutating one must not touch the other. A shallow copy passes every structural assertion above and fails this one, and in a population it would mean every genome silently mutating every other.
     clone->connections->items[0].weight = 99.0;
     nya_assert(fabs(original->connections->items[0].weight - 1.0) < 0.0001, "a clone must own its genes");
   }
@@ -208,8 +201,7 @@ s32 main(void) {
         nya_nn_neat_step(neat);
         best = nya_nn_neat_fitness_max(neat);
 
-        // 3.9 of 4 means every case is within 0.025 of right, which is solved rather than "leaning
-        // the right way".
+        // 3.9 of 4 means every case is within 0.025 of right, which is solved rather than "leaning the right way".
         if (best >= 3.9) break;
       }
 
@@ -219,9 +211,7 @@ s32 main(void) {
 
       solved++;
 
-      // XOR is not linearly separable, so no arrangement of weights on a bias-plus-two-inputs
-      // network can solve it. A champion scoring 3.9 with no hidden node would mean the fitness
-      // function is lying, not that NEAT found something clever.
+      // XOR is not linearly separable, so no arrangement of weights on a bias-plus-two-inputs network can solve it. A champion scoring 3.9 with no hidden node would mean the fitness function is lying, not that NEAT found something clever.
       NYA_NeatNetwork* champion = nya_nn_neat_best(neat);
       nya_assert(champion != nullptr, "a solved run must have a best network");
 
@@ -231,8 +221,7 @@ s32 main(void) {
       }
       if (hidden > 0) hidden_seen++;
 
-      // The champion survives being re-run, because it is snapshotted into the context arena rather
-      // than pointing into the population that is rebuilt every generation.
+      // The champion survives being re-run, because it is snapshotted into the context arena rather than pointing into the population that is rebuilt every generation.
       nya_assert(fabs(xor_trial(champion) - best) < 0.5, "the reported best should reproduce when re-run");
     }
 
@@ -244,11 +233,7 @@ s32 main(void) {
   {
     struct ObserverLog log = { 0 };
 
-    /*
-     * The hook lets a caller watch a run without the library deciding what to log. Asserts the five
-     * phases arrive in declaration order and the population is never reported empty; past NEAT failures
-     * here were generations that quietly bred nothing.
-     */
+    /* The hook lets a caller watch a run without the library deciding what to log. Asserts the five phases arrive in declaration order and the population is never reported empty; past NEAT failures here were generations that quietly bred nothing. */
     NYA_Neat* neat = nya_nn_neat_create((NYA_NeatConfig){
       .seed                = xor_seed(arena),
       .trial_function      = xor_trial,
@@ -287,14 +272,10 @@ s32 main(void) {
     nya_array_push_back(original->connections, ((NYA_NeatConnection){ .in = 1, .out = 3, .weight = 1.5, .enabled = true, .innovation_number = 7 }));
     nya_array_push_back(original->connections, ((NYA_NeatConnection){ .in = 3, .out = 2, .weight = -0.25, .enabled = true, .innovation_number = 9 }));
 
-    // A disabled gene, because it still carries an innovation number and a weight and must come back
-    // disabled rather than being dropped or revived.
+    // A disabled gene, because it still carries an innovation number and a weight and must come back disabled rather than being dropped or revived.
     nya_array_push_back(original->connections, ((NYA_NeatConnection){ .in = 0, .out = 2, .weight = 0.75, .enabled = false, .innovation_number = 11 }));
 
-    /*
-     * Both formats, since they take different serde paths and the extension chooses; testing only .json
-     * would never cover the native one.
-     */
+    /* Both formats, since they take different serde paths and the extension chooses; testing only .json would never cover the native one. */
     NYA_ConstCString paths[] = { "./tests/nyangine/nn/test_neat_genome.nya", TEST_NEAT_PATH };
 
     for (u32 format = 0; format < nya_carray_length(paths); format++) {
@@ -318,8 +299,7 @@ s32 main(void) {
     nya_assert(loaded->nodes->items[3].kind == NYA_NEAT_NODE_HIDDEN);
     nya_assert(loaded->nodes->items[3].label == nullptr, "a hidden node has no label and must not gain one");
 
-    // genes come back sorted by innovation number, which the distance function relies on, so check by
-    // number rather than position.
+    // genes come back sorted by innovation number, which the distance function relies on, so check by number rather than position.
     for (u32 i = 0; i < 3; i++) {
       u32 innovation = loaded->connections->items[i].innovation_number;
 
@@ -349,8 +329,7 @@ s32 main(void) {
       nya_nn_neat_network_run(loaded);
       f64 actual = nya_nn_neat_network_get_output(loaded, "out");
 
-      // Bit for bit, not approximately: nothing in the round trip is lossy, so a difference means a
-      // weight or a topology changed rather than that floating point drifted.
+      // Bit for bit, not approximately: nothing in the round trip is lossy, so a difference means a weight or a topology changed rather than that floating point drifted.
       nya_assert(expected == actual, "a loaded network must compute what it did before: %f vs %f", expected, actual);
     }
     }
@@ -362,8 +341,7 @@ s32 main(void) {
       NYA_Object* empty = nya_object_create(arena);
       nya_assert(!nya_nn_neat_network_from_object(arena, empty, nya_nn_neat_sigmoid, &rejected).ok, "an object with no version must be refused");
 
-      // A connection pointing at a node that does not exist would be an out of bounds read on every
-      // evaluation, which is what a save file from elsewhere might contain.
+      // A connection pointing at a node that does not exist would be an out of bounds read on every evaluation, which is what a save file from elsewhere might contain.
       NYA_Object* bad = nya_nn_neat_network_to_object(arena, original);
       NYA_Value*  connections = nya_object_get(bad, "connections");
       nya_object_add(&connections->as_array.items[0].as_object, "out", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 999 });
@@ -371,8 +349,7 @@ s32 main(void) {
       nya_assert(!nya_nn_neat_network_from_object(arena, bad, nya_nn_neat_sigmoid, &rejected).ok, "an out of range endpoint must be refused");
     }
 
-    // A network needs an activation function to run, and one cannot be stored, so omitting it fails
-    // rather than producing something that asserts the first time it is used.
+    // A network needs an activation function to run, and one cannot be stored, so omitting it fails rather than producing something that asserts the first time it is used.
     {
       NYA_NeatNetwork* rejected = nullptr;
       NYA_Object*      valid    = nya_nn_neat_network_to_object(arena, original);
@@ -384,11 +361,7 @@ s32 main(void) {
 
   // TEST: the activations and the phase names nothing had called
   {
-    /*
-     * nya_nn_neat_relu, nya_nn_neat_sigmoid_gentle and nya_nn_neat_phase_name had no caller anywhere.
-     * An activation is a place where being quietly wrong costs a training run rather than a crash:
-     * a relu that passes negatives through still trains, just worse, and nothing says so.
-     */
+    /* nya_nn_neat_relu, nya_nn_neat_sigmoid_gentle and nya_nn_neat_phase_name had no caller anywhere. An activation is a place where being quietly wrong costs a training run rather than a crash: a relu that passes negatives through still trains, just worse, and nothing says so. */
 
     // Rectified linear: zero below, identity above, and zero exactly at zero.
     nya_check(nya_nn_neat_relu(-1.0) == 0.0, "relu clears a negative, got %f", nya_nn_neat_relu(-1.0));

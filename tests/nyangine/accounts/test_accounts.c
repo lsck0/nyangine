@@ -23,8 +23,7 @@
 
 /** Opens a fresh in-memory database with the accounts tables on it. */
 static NYA_Database* open_accounts(NYA_Arena* arena) {
-  // the throttle outlives a database, being about traffic rather than about rows, so each case starts
-  // with a clean one or the failures of the last test would be waited out in this one.
+  // the throttle outlives a database, being about traffic rather than about rows, so each case starts with a clean one or the failures of the last test would be waited out in this one.
   nya_account_throttle_reset();
 
   NYA_Database* db = nullptr;
@@ -344,8 +343,7 @@ s32 main(void) {
     NYA_AccountUser again = { 0 };
     nya_check(nya_account_create(arena, "ada", PASSWORD, &again).ok, "and the username can be taken again");
 
-    // the id may well be the old one: sqlite hands a freed rowid back out, which is why an id is only
-    // ever an identity for as long as the row exists. What matters is that nothing came with it.
+    // the id may well be the old one: sqlite hands a freed rowid back out, which is why an id is only ever an identity for as long as the row exists. What matters is that nothing came with it.
     nya_check(again.created_at_s >= ada.created_at_s, "by an account made after the old one");
     nya_check(nya_account_session_list(arena, again.id, &listed, &count).ok && count == 0, "holding no sessions, got %u", count);
   }
@@ -713,9 +711,7 @@ s32 main(void) {
     u32 removed = 0;
     nya_check(nya_account_session_sweep(arena, &ended, &removed).ok && ended == 0, "a fresh session is not swept, got %u", ended);
 
-    // reissue and backdate it below the idle window by editing the row through a second session's absence:
-    // there is no setter, so open one and let validate not touch it, then sweep on a stale used_at.
-    // Instead, drive it by many revoked rows to test the keep-bound, which needs no clock trick.
+    // reissue and backdate it below the idle window by editing the row through a second session's absence: there is no setter, so open one and let validate not touch it, then sweep on a stale used_at. Instead, drive it by many revoked rows to test the keep-bound, which needs no clock trick.
     for (u32 index = 0; index < NYA_ACCOUNTS_SESSION_KEEP_REVOKED + 5; index++) {
       NYA_AccountSession s = { 0 };
       NYA_EXPECT(nya_account_session_issue(arena, ada.id, nullptr, nullptr, &s));

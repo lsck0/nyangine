@@ -152,10 +152,7 @@ s32 main(void) {
         nya_assert(nya_deserialize(arena, (const u8*)json->items, json->length, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &document).ok);
         nya_assert(document != nullptr);
 
-        /*
-         * 3.2.0 and not 3.1.0, because `query` became a field of the Path Item Object in 3.2 and a
-         * QUERY route has nowhere legal to sit in a 3.1 document. See the note in http_openapi.h.
-         */
+        /* 3.2.0 and not 3.1.0, because `query` became a field of the Path Item Object in 3.2 and a QUERY route has nowhere legal to sit in a 3.1 document. See the note in http_openapi.h. */
         nya_assert(nya_string_equals(string_at(document, "openapi"), "3.2.0"));
 
         NYA_Object* paths = object_at(document, "paths");

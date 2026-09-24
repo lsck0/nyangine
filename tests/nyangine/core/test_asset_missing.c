@@ -75,8 +75,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: past the ceiling it keeps warning rather than going quiet about a
-  //       handle it never recorded
+  // TEST: past the ceiling it keeps warning rather than going quiet about a handle it never recorded
   {
     nya_asset_missing_forget();
     nya_log_sink_add(count_warnings, nullptr);
@@ -91,8 +90,7 @@ s32 main(void) {
 
     nya_check(warnings == _NYA_ASSET_MISSING_REPORTED_MAX + 4, "every distinct handle warns, got " FMTu32, warnings);
 
-    // The four past the ceiling were never recorded, so they warn again. Repeating is the right way to
-    // be wrong here: going quiet would hide a handle nobody has been told about.
+    // The four past the ceiling were never recorded, so they warn again. Repeating is the right way to be wrong here: going quiet would hide a handle nobody has been told about.
     (void)snprintf((char*)handle, sizeof(handle), "./assets/texture/missing_%u.png", _NYA_ASSET_MISSING_REPORTED_MAX + 3);
     nya_asset_missing_report((NYA_ConstCString)handle);
 

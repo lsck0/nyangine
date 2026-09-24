@@ -91,8 +91,7 @@ static void on_message(NYA_DiscordRest* rest, const NYA_Object* message) {
 
     if (content == nullptr || channel_id == nullptr) return;
 
-    // A bot that answers its own messages talks to itself forever. Discord marks its own kind, and this
-    // is the cheapest of the several ways to check.
+    // A bot that answers its own messages talks to itself forever. Discord marks its own kind, and this is the cheapest of the several ways to check.
     NYA_Value* is_bot = nya_object_get(object_at(message, "author"), "bot");
     if (is_bot != nullptr && is_bot->type == NYA_TYPE_B8 && is_bot->as_b8) return;
 
@@ -103,8 +102,7 @@ static void on_message(NYA_DiscordRest* rest, const NYA_Object* message) {
     u64       id     = 0;
     NYA_Error queued = nya_discord_rest_message_send(rest, channel_id, "pong", &id);
 
-    // Not fatal. A full queue means the bot is further behind than Discord will let it catch up, and
-    // dropping one answer is the right thing to do about that.
+    // Not fatal. A full queue means the bot is further behind than Discord will let it catch up, and dropping one answer is the right thing to do about that.
     if (!queued.ok) nya_log_warn("Could not queue the answer: %s", (NYA_ConstCString)queued.message);
 }
 
@@ -139,11 +137,7 @@ s32 main(s32 argc, char** argv) {
 
     NYA_ConstCString token = getenv(TOKEN_VARIABLE);
 
-    /*
-     * The CI path. There is nothing wrong with a build that has no Discord credentials in it, so this
-     * says what is missing and leaves successfully rather than failing a pipeline over a secret that is
-     * deliberately not in the repository.
-     */
+    /* The CI path. There is nothing wrong with a build that has no Discord credentials in it, so this says what is missing and leaves successfully rather than failing a pipeline over a secret that is deliberately not in the repository. */
     if (token == nullptr || token[0] == '\0') {
         nya_log_info("No " TOKEN_VARIABLE " is set, so there is nothing to log in as.");
         nya_log_info("Make an application at https://discord.com/developers/applications, add a bot user,");
@@ -158,11 +152,7 @@ s32 main(s32 argc, char** argv) {
     NYA_Arena* arena = nya_arena_create(.name = "discord_bot");
     defer      nya_arena_destroy(arena);
 
-    /*
-     * The gateway. MESSAGE_CONTENT is privileged and has to be enabled on the application's page; asking
-     * for it without that is close code 4014, which this client treats as fatal rather than retrying
-     * into a disabled token.
-     */
+    /* The gateway. MESSAGE_CONTENT is privileged and has to be enabled on the application's page; asking for it without that is close code 4014, which this client treats as fatal rather than retrying into a disabled token. */
     NYA_DiscordGateway* gateway = nullptr;
     NYA_Error           opened  = nya_discord_gateway_create(
         arena,
@@ -199,8 +189,7 @@ s32 main(s32 argc, char** argv) {
         u64       id       = 0;
         NYA_Error queued   = nya_discord_rest_command_register(rest, "ping", "Answer with pong", &id);
 
-        // A global command takes up to an hour to appear everywhere, so this is a thing to run once and
-        // not on every start.
+        // A global command takes up to an hour to appear everywhere, so this is a thing to run once and not on every start.
         if (queued.ok) {
             nya_log_info("Registering /ping. A global command can take an hour to appear in every server.");
         } else {
@@ -211,10 +200,7 @@ s32 main(s32 argc, char** argv) {
     nya_log_info("Connecting. Say %s in a channel this bot can read; ctrl-c to stop.", PING_COMMAND);
 
     while (RUNNING) {
-        /*
-         * The gateway first. Neither of these blocks the loop: the gateway never does at all, and the
-         * REST client only for the one transfer it decides may go.
-         */
+        /* The gateway first. Neither of these blocks the loop: the gateway never does at all, and the REST client only for the one transfer it decides may go. */
         NYA_DiscordGatewayEvent event = { 0 };
 
         while (nya_discord_gateway_poll(gateway, &event)) {
@@ -239,10 +225,7 @@ s32 main(s32 argc, char** argv) {
                     nya_log_warn("Disconnected (%u): %s. Back in " FMTu64 " ms.", event.code, event.reason, event.retry_in_ms);
                     break;
 
-                /*
-                 * The token, the shard or the intents. Reconnecting cannot fix any of them and doing it
-                 * anyway is what gets a token disabled, so this stops.
-                 */
+                /* The token, the shard or the intents. Reconnecting cannot fix any of them and doing it anyway is what gets a token disabled, so this stops. */
                 case NYA_DISCORD_GATEWAY_EVENT_FATAL:
                     nya_log_error("Discord refused this bot (%u): %s", event.code, event.reason);
                     RUNNING = 0;
@@ -264,8 +247,7 @@ s32 main(s32 argc, char** argv) {
             }
         }
 
-        // A real sleep, as the web server example and the frame limiter do, so the loop does not spin a
-        // core waiting for a message that may be an hour away.
+        // A real sleep, as the web server example and the frame limiter do, so the loop does not spin a core waiting for a message that may be an hour away.
         SDL_Delay(TICK_SLEEP_MS);
     }
 

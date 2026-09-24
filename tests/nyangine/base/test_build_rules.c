@@ -75,8 +75,7 @@ s32 main(void) {
       .post_build_hooks = { &record_post },
     };
 
-    // Three separate builds. The epoch bookkeeping that stops a rule running twice within *one*
-    // build must not turn into "runs once ever" across separate ones.
+    // Three separate builds. The epoch bookkeeping that stops a rule running twice within *one* build must not turn into "runs once ever" across separate ones.
     for (u32 i = 0; i < 3; i++) NYA_EXPECT(nya_build(&always));
 
     nya_assert(pre_hook_calls == 3, "expected three runs, got " FMTu32, pre_hook_calls);
@@ -107,8 +106,7 @@ s32 main(void) {
     NYA_EXPECT(nya_build(&once));
     nya_assert(pre_hook_calls == 1, "a missing output must build, got " FMTu32, pre_hook_calls);
 
-    // the command was `true`, so the output still does not exist and the rule must run again. Once means
-    // once the artifact exists, not once per process.
+    // the command was `true`, so the output still does not exist and the rule must run again. Once means once the artifact exists, not once per process.
     NYA_EXPECT(nya_build(&once));
     nya_assert(pre_hook_calls == 2, "an output that was never produced must build again");
 
@@ -178,10 +176,7 @@ s32 main(void) {
 
   // TEST: a metarule runs no command but still obeys its policy
   {
-    /*
-     * A metarule short circuits before spawning, so `command` may be empty. The policy is still decided
-     * one level up, before the rule runs.
-     */
+    /* A metarule short circuits before spawning, so `command` may be empty. The policy is still decided one level up, before the rule runs. */
     reset_hooks();
 
     NYA_BuildRule meta_always = {
@@ -239,17 +234,13 @@ s32 main(void) {
     NYA_EXPECT(nya_build(&passing));
     nya_assert(nya_build_last_failure() == nullptr, "a build that succeeded reports no failure");
 
-    // The rule was still entered, so the failure is the command's rather than the dispatch refusing
-    // to run it.
+    // The rule was still entered, so the failure is the command's rather than the dispatch refusing to run it.
     nya_assert(pre_hook_calls == 1, "the pre hook must have fired before the command");
   }
 
   // TEST: a shared dependency is built once per build, not once per path
   {
-    /*
-     * Two rules sharing a dependency must not build it twice in one nya_build; last_built_epoch
-     * guarantees that.
-     */
+    /* Two rules sharing a dependency must not build it twice in one nya_build; last_built_epoch guarantees that. */
     reset_hooks();
 
     NYA_BuildRule shared = {
@@ -282,8 +273,7 @@ s32 main(void) {
   {
     reset_hooks();
 
-    // Two slots. Batches would hold the fast rules behind the slow one; a pool runs them all beside it,
-    // so the slow rule finishes last.
+    // Two slots. Batches would hold the fast rules behind the slow one; a pool runs them all beside it, so the slow rule finishes last.
     NYA_BuildRule slow = {
       .name    = "test_parallel_slow",
       .policy  = NYA_BUILD_ALWAYS,
@@ -363,8 +353,7 @@ s32 main(void) {
 
     nya_assert(!result.ok, "a failing rule must fail the parallel build");
 
-    // prepared like every rule, but never started once the failure was seen, while the rule already
-    // running was still reaped and finished.
+    // prepared like every rule, but never started once the failure was seen, while the rule already running was still reaped and finished.
     nya_assert(pre_hook_calls == 1, "every rule is prepared before any starts");
     nya_assert(post_hook_calls == 1, "a rule already running when another fails still finishes");
     nya_assert(never.last_built_epoch != running.last_built_epoch, "a rule after the failure must not have been built");

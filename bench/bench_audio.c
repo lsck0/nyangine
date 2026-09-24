@@ -91,10 +91,7 @@ s32 main(void) {
 
     if (nya_bench_end() != 0) return 1;
 
-    /*
-     * Propagation against Box3D: a walled yard with a wall across it, sixteen voices behind the wall, through the same
-     * adapter the app installs.
-     */
+    /* Propagation against Box3D: a walled yard with a wall across it, sixteen voices behind the wall, through the same adapter the app installs. */
     NYA_World* world = nya_world_create();
     (void)nya_world_set(world);
     defer nya_world_destroy(world);

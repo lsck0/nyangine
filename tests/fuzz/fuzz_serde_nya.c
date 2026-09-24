@@ -12,8 +12,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_Arena* arena = nya_arena_create(.name = "fuzz_serde_nya");
     defer      nya_arena_destroy(arena);
 
-    // every flag combination the reader takes, since the checksum and the obfuscation are each a
-    // branch a hostile file steers.
+    // every flag combination the reader takes, since the checksum and the obfuscation are each a branch a hostile file steers.
     for (u32 flags = 0; flags <= (NYA_SERDE_OBFUSCATE | NYA_SERDE_NO_CHECKSUM); flags++) {
         NYA_Object* object = nullptr;
 
@@ -21,8 +20,7 @@ static void fuzz_once(const u8* data, u64 size) {
 
         nya_assert(object != nullptr, "the reader reported success with nothing read");
 
-        // back out again: a document that parsed has to be one the writer can write, or the round
-        // trip a save file depends on is not closed.
+        // back out again: a document that parsed has to be one the writer can write, or the round trip a save file depends on is not closed.
         (void)nya_serialize(arena, object, NYA_SERDE_FORMAT_NYA, (NYA_SerdeFlags)flags);
     }
 }

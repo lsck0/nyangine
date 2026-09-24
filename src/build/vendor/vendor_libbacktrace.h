@@ -55,8 +55,7 @@ NYA_VendorRule vendor_libbacktrace_linux_x86_64 = {
                 .arguments = {
                     NYA_CONFIGURE_LEADING_ARGS
                     VENDOR_CC_MAKE,
-                    // -fPIC because the debug build links this archive into a shared object. No -g: the
-                    // shipped binary would carry libbacktrace's own line tables, and no trace needs them.
+                    // -fPIC because the debug build links this archive into a shared object. No -g: the shipped binary would carry libbacktrace's own line tables, and no trace needs them.
                     "CFLAGS=" NYA_VENDOR_OPTIMIZE " -fPIC",
                 },
             },

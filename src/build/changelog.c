@@ -96,8 +96,7 @@ NYA_INTERNAL void _changelog_render(NYA_Arena* arena, NYA_String* out, const Cha
 void version_runner(NYA_ArgCommand* command) {
     nya_unused(command);
 
-    // Bare, on stdout, no label: this exists so `version="$(./build version)"` is correct, which means
-    // nothing else may ever be printed here.
+    // Bare, on stdout, no label: this exists so `version="$(./build version)"` is correct, which means nothing else may ever be printed here.
     printf("%s\n", VERSION);
 }
 
@@ -117,9 +116,7 @@ NYA_String* build_capture(NYA_Arena* arena, NYA_ConstCString program, const NYA_
 
     NYA_EXPECT(nya_command_run(&command), "while running %s", program);
 
-    // Every caller needs the answer, so there is nothing sensible to return on a failure. The tool's
-    // own words first, then out: a build system that carried on with an empty string here would
-    // render a manifest with an empty version in it.
+    // Every caller needs the answer, so there is nothing sensible to return on a failure. The tool's own words first, then out: a build system that carried on with an empty string here would render a manifest with an empty version in it.
     if (command.exit_code != 0) {
         (void)fprintf(stderr, "Error: %s exited %d.\n", program, command.exit_code);
         if (command.stderr_content != nullptr) (void)fprintf(stderr, NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(command.stderr_content));
@@ -153,11 +150,7 @@ void _changelog_write(NYA_Arena* arena, b8 release_only) {
 
     NYA_String* out = nya_string_create(arena);
 
-    /*
-     * --release is the release notes for the newest version, on stdout. Same parser, same renderer,
-     * same wording as the file: the alternative was a second generator living in a workflow, which is
-     * how release notes and a changelog end up describing the same tag differently.
-     */
+    /* --release is the release notes for the newest version, on stdout. Same parser, same renderer, same wording as the file: the alternative was a second generator living in a workflow, which is how release notes and a changelog end up describing the same tag differently. */
     if (release_only) {
         if (release_count == 0) {
             nya_log_warn("No commits to describe.");
@@ -194,11 +187,7 @@ u32 _changelog_read(NYA_Arena* arena, ChangelogEntry* entries, ChangelogRelease*
     nya_assert(releases != nullptr);
     nya_assert(out_entry_count != nullptr);
 
-    /*
-     * One walk of the history, newest first, with each commit's ref names in front of it. A tag opens a
-     * new section; everything above the first tag is the unreleased one. Two separators no commit
-     * subject can contain, rather than a delimiter a subject might legitimately use.
-     */
+    /* One walk of the history, newest first, with each commit's ref names in front of it. A tag opens a new section; everything above the first tag is the unreleased one. Two separators no commit subject can contain, rather than a delimiter a subject might legitimately use. */
     NYA_String* log = build_capture(
         arena,
         "git",
@@ -230,10 +219,7 @@ u32 _changelog_read(NYA_Arena* arena, ChangelogEntry* entries, ChangelogRelease*
 
         if (subject->length == 0) continue;
 
-        /*
-         * A tag on this commit closes the section above it and opens its own. "tag: v" rather than
-         * "tag: ", so a non-version tag does not split the changelog into a section nobody released.
-         */
+        /* A tag on this commit closes the section above it and opens its own. "tag: v" rather than "tag: ", so a non-version tag does not split the changelog into a section nobody released. */
         NYA_CString version = nullptr;
         if (nya_string_contains(refs, "tag: v")) {
             NYA_ArrayᐸNYA_Stringᐳ* names = nya_string_split(arena, refs, ", ");
@@ -258,10 +244,7 @@ u32 _changelog_read(NYA_Arena* arena, ChangelogEntry* entries, ChangelogRelease*
             release_count++;
         }
 
-        /*
-         * `type(scope)!: summary`. Anything that is not that shape is not a conventional commit and is
-         * left out rather than guessed at; see CHANGELOG_SECTIONS.
-         */
+        /* `type(scope)!: summary`. Anything that is not that shape is not a conventional commit and is left out rather than guessed at; see CHANGELOG_SECTIONS. */
         NYA_ArrayᐸNYA_Stringᐳ* halves = nya_string_split(arena, subject, ": ");
         if (halves->length < 2) continue;
 
@@ -318,10 +301,7 @@ void _changelog_render(NYA_Arena* arena, NYA_String* out, const ChangelogEntry* 
 
     u32 end = release->first + release->count;
 
-    /*
-     * Breaking changes first and on their own, whatever type they carry. Someone reading a release note
-     * is looking for what will stop working, and it has to be above the feature that caused it.
-     */
+    /* Breaking changes first and on their own, whatever type they carry. Someone reading a release note is looking for what will stop working, and it has to be above the feature that caused it. */
     b8 any_breaking = false;
     for (u32 i = release->first; i < end; i++) {
         if (!entries[i].breaking) continue;

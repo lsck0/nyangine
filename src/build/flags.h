@@ -13,8 +13,7 @@
 
 #include "nyangine/base/base_basic.h"
 
-// Which host is doing the building decides the tool names every rule uses. First, because the flags
-// below and the vendor rules both expand them.
+// Which host is doing the building decides the tool names every rule uses. First, because the flags below and the vendor rules both expand them.
 #if OS_WINDOWS
 #include "build/on_windows/toolchain.h"
 #else
@@ -105,13 +104,7 @@
 // overflow there, and only CI on Windows would say so. A quarter of that stays one frame's share. Unoptimized
 // builds count compound literal temporaries too, so `*big = (T){ 0 }` of a large T is caught; memset it instead.
 #define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wframe-larger-than=262144", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
-/*
- * A rule that compiles with `-c` takes only compile flags: under -Werror clang rejects a linker flag it
- * cannot use. Link only are LINKER_FLAGS, every *_LINK macro, FLAGS_LINUX_X86_64, FLAGS_WINDOWS_X86_64
- * and the FLAGS_*_WINDOWS_X86_64 and FLAGS_DEBUG_LINUX_X86_64 linker setups. A link repeats the mode
- * flags, since optimisation, LTO, sanitizers and coverage all need them there too, and clang ignores
- * the preprocessor flags among them.
- */
+/* A rule that compiles with `-c` takes only compile flags: under -Werror clang rejects a linker flag it cannot use. Link only are LINKER_FLAGS, every *_LINK macro, FLAGS_LINUX_X86_64, FLAGS_WINDOWS_X86_64 and the FLAGS_*_WINDOWS_X86_64 and FLAGS_DEBUG_LINUX_X86_64 linker setups. A link repeats the mode flags, since optimisation, LTO, sanitizers and coverage all need them there too, and clang ignores the preprocessor flags among them. */
 
 // Only the project's own paths. Everything a third party dependency needs lives on its
 // NYA_VendorRule instead, so this does not grow as dependencies are added.
@@ -152,8 +145,7 @@
 #define FLAGS_MODULES_LINUX_X86_64   "-DNYA_MODULE_DB", FLAGS_MODULE_TLS_LINUX_X86_64 FLAGS_MODULE_COMPRESSION_LINUX_X86_64
 #define FLAGS_MODULES_WINDOWS_X86_64 "-DNYA_MODULE_DB", FLAGS_MODULE_TLS_WINDOWS_X86_64 FLAGS_MODULE_COMPRESSION_WINDOWS_X86_64
 
-// The module set for a rule built to run on this host: the tests, the build tool and `./build check`.
-// A Windows host never cross compiles a Linux target, so a host gate is right for the native side.
+// The module set for a rule built to run on this host: the tests, the build tool and `./build check`. A Windows host never cross compiles a Linux target, so a host gate is right for the native side.
 #if OS_WINDOWS
 #define FLAGS_MODULES FLAGS_MODULES_WINDOWS_X86_64
 #else
@@ -465,15 +457,7 @@
 
 /* HOST TARGETS */
 
-/*
- * Running always targets the host. Cross compiling to Windows from Linux is a build time
- * convenience; there is nothing sensible to do with the resulting .exe here, so `run` picks the
- * native artifact and the rules it names are selected by host rather than exposed as a choice.
- *
- * These are aliases, not references: a macro body is only looked up where it expands, so naming a
- * build rule here does not require the header that defines it to have been seen. build.h decides
- * that order, once.
- */
+/* Running always targets the host. Cross compiling to Windows from Linux is a build time convenience; there is nothing sensible to do with the resulting .exe here, so `run` picks the native artifact and the rules it names are selected by host rather than exposed as a choice. These are aliases, not references: a macro body is only looked up where it expands, so naming a build rule here does not require the header that defines it to have been seen. build.h decides that order, once. */
 
 #if OS_WINDOWS
 #define HOST_DEBUG_BINARY   WINDOWS_X86_64_DEBUG_BINARY
@@ -499,10 +483,7 @@
 
 /* HOST NATIVE ARTIFACTS */
 
-/*
- * For the two things built to run on this machine right now rather than to be shipped anywhere: the
- * build tool, which compiles itself, and the test binary, which the test runner then executes.
- */
+/* For the two things built to run on this machine right now rather than to be shipped anywhere: the build tool, which compiles itself, and the test binary, which the test runner then executes. */
 #if OS_WINDOWS
 
 #define BUILD_TOOL_BINARY "build.exe"

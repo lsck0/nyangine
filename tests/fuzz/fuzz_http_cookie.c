@@ -51,10 +51,7 @@ static void fuzz_once(const u8* data, u64 size) {
         }
     }
 
-    /*
-     * The round trip. Rendering what was read has to produce the header that was read: a parser that
-     * accepted a spelling it would not write is a parser a browser and this server can disagree about.
-     */
+    /* The round trip. Rendering what was read has to produce the header that was read: a parser that accepted a spelling it would not write is a parser a browser and this server can disagree about. */
     char rendered[NYA_HTTP_MAX_HEADER_VALUE * 2] = { 0 };
     u64  length                                  = 0;
 
@@ -70,10 +67,7 @@ static void fuzz_once(const u8* data, u64 size) {
     nya_assert(length == size, "a header of %llu bytes rendered back as %llu", (unsigned long long)size, (unsigned long long)length);
     nya_assert(memcmp(rendered, data, size) == 0, "a header did not render back to itself");
 
-    /*
-     * And what a caller does with it: look one up. Reading a name that is there finds the same bytes the
-     * walk did, and a name that is not finds nothing.
-     */
+    /* And what a caller does with it: look one up. Reading a name that is there finds the same bytes the walk did, and a name that is not finds nothing. */
     for (u32 index = 0; index < count; index++) {
         char name[NYA_HTTP_MAX_COOKIE_NAME] = { 0 };
         memcpy(name, names[index].text, names[index].size);

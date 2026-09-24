@@ -7,9 +7,7 @@
  * a failure report tells you to paste.
  **/
 
-// the game, not the engine alone: the generated reflection table describes the game's types next to
-// the engine's, and the simulation's reflection action needs all of them. gnyame.c is what compiles
-// it, so this test lives here rather than under tests/nyangine.
+// the game, not the engine alone: the generated reflection table describes the game's types next to the engine's, and the simulation's reflection action needs all of them. gnyame.c is what compiles it, so this test lives here rather than under tests/nyangine.
 #include "nyangine/nyangine.c"
 #include "gnyame/gnyame.c"
 
@@ -81,8 +79,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         } else if (nya_string_equals(argv[i], "--steps") && i + 1 < argc) {
             steps = strtoull(argv[++i], nullptr, 0);
         } else {
-            // a bad argument prints the usage and exits non-zero rather than running something the
-            // caller did not ask for.
+            // a bad argument prints the usage and exits non-zero rather than running something the caller did not ask for.
             (void)fprintf(stderr, "Error: unexpected argument '%s'\n\n", argv[i]);
             (void)fprintf(stderr, "Usage: test_simulation [--seed <n>] [--steps <n>] [--verbose]\n");
             return EXIT_FAILURE;
@@ -91,11 +88,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
     nya_assert(steps > 0, "a run of zero steps proves nothing");
 
-    /*
-     * A scratch data directory, so the simulation's save file and its deliberate disk faults land
-     * somewhere disposable rather than in the player's own save root. The same thing test_screens
-     * does, and for the same reason.
-     */
+    /* A scratch data directory, so the simulation's save file and its deliberate disk faults land somewhere disposable rather than in the player's own save root. The same thing test_screens does, and for the same reason. */
     NYA_Arena*  scratch   = nya_arena_create(.name = "test_simulation_scratch");
     NYA_String* temp_root = nullptr;
     NYA_EXPECT(nya_filesystem_temp_directory(scratch, &temp_root));
@@ -106,8 +99,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     nya_assert(nya_host_environment_add("XDG_DATA_HOME", data_home));
     nya_assert(nya_host_environment_add("APPDATA", data_home));
 
-    // the arena first, so the removal below still has the path: defers run last registered first, and
-    // `data_home` was allocated out of `scratch`.
+    // the arena first, so the removal below still has the path: defers run last registered first, and `data_home` was allocated out of `scratch`.
     defer nya_arena_destroy(scratch);
     defer (void)nya_filesystem_delete_recursive(data_home);
 

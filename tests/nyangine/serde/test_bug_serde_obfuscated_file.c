@@ -57,8 +57,7 @@ s32 main(void) {
       NYA_EXPECT(nya_filesystem_delete(path));
     }
 
-    // If no document in the sweep contained a zero byte, the test never exercised the truncation and
-    // would pass on the broken code too.
+    // If no document in the sweep contained a zero byte, the test never exercised the truncation and would pass on the broken code too.
     nya_assert(saw_a_zero_byte, "no obfuscated document in the sweep contained a zero byte; this test proves nothing");
   }
   printf("  PASSED\n");

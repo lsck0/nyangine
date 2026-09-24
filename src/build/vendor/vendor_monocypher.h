@@ -82,9 +82,7 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
                 .arguments = { "rcs", MONOCYPHER_A_LINUX_X86_64, MONOCYPHER_O_LINUX_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
         &(NYA_BuildRule){
@@ -109,9 +107,7 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
                 .arguments = { "rcs", MONOCYPHER_ED25519_A_LINUX_X86_64, MONOCYPHER_ED25519_O_LINUX_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
@@ -160,9 +156,7 @@ NYA_VendorRule vendor_monocypher_windows_x86_64 = {
                 .arguments = { "rcs", MONOCYPHER_A_WINDOWS_X86_64, MONOCYPHER_O_WINDOWS_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
         &(NYA_BuildRule){
@@ -187,9 +181,7 @@ NYA_VendorRule vendor_monocypher_windows_x86_64 = {
                 .arguments = { "rcs", MONOCYPHER_ED25519_A_WINDOWS_X86_64, MONOCYPHER_ED25519_O_WINDOWS_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },

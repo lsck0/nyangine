@@ -56,18 +56,14 @@ s32 main(void) {
 
   // TEST: `ok` agrees with `kind` everywhere an NYA_Error can be born
   {
-    /*
-     * `ok` is redundant state, kept true only because every NYA_Error comes from one of three places.
-     * This checks all three, so a new construction site or an initializer that forgets it fails here.
-     */
+    /* `ok` is redundant state, kept true only because every NYA_Error comes from one of three places. This checks all three, so a new construction site or an initializer that forgets it fails here. */
     nya_assert(NYA_OK.ok, "NYA_OK must be ok");
     nya_assert(NYA_OK.ok);
 
     nya_assert(!NYA_NOT_OK.ok, "NYA_NOT_OK must not be ok");
     nya_assert(NYA_NOT_OK.kind == NYA_ERROR_NOT_OK);
 
-    // _nya_error_create across every kind, including NONE, which is legal and the one case where `ok` is
-    // not simply false.
+    // _nya_error_create across every kind, including NONE, which is legal and the one case where `ok` is not simply false.
     for (u32 kind = 0; kind < NYA_ERROR_COUNT; kind++) {
       NYA_Error error = nya_error((NYA_ErrorKind)kind, "kind %u", kind);
 
@@ -84,8 +80,7 @@ s32 main(void) {
 
   // TEST: `ok` survives propagation through NYA_TRY
   {
-    // NYA_TRY copies the struct into the caller's frame and pushes a trace frame onto it, so this is
-    // checking that the flag rides along with the kind rather than being recomputed on the way.
+    // NYA_TRY copies the struct into the caller's frame and pushes a trace frame onto it, so this is checking that the flag rides along with the kind rather than being recomputed on the way.
     NYA_Error ok_result = try_ok();
     nya_assert(ok_result.ok);
     nya_assert(ok_result.ok);
@@ -111,10 +106,7 @@ s32 main(void) {
   nya_assert(NYA_ERROR_PARSE == 11);
   nya_assert(NYA_ERROR_COUNT == 12);
 
-  // TEST: NYA_ERRORKIND_NAME_MAP - every kind is named, and named correctly
-  //
-  // The loop is the part that matters: a kind added without a map entry leaves a null there, and
-  // the first thing to notice would otherwise be a crash while formatting some unrelated error.
+  // TEST: NYA_ERRORKIND_NAME_MAP - every kind is named, and named correctly The loop is the part that matters: a kind added without a map entry leaves a null there, and the first thing to notice would otherwise be a crash while formatting some unrelated error.
   for (u32 kind = 0; kind < NYA_ERROR_COUNT; kind++) { nya_assert(NYA_ERRORKIND_NAME_MAP[kind] != nullptr); }
 
   nya_assert(strcmp(NYA_ERRORKIND_NAME_MAP[NYA_ERROR_NONE], "NONE") == 0);
@@ -148,11 +140,7 @@ s32 main(void) {
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
   }
 
-  // TEST: _nya_error_create - panics on null format string
-  //
-  // Called directly rather than through _nya_error: with two arguments that macro selects
-  // _NYA_ERROR2, which passes "%s" as the format and the caller's value as the message, so a null
-  // there is a null *message* and never reaches the format assertion.
+  // TEST: _nya_error_create - panics on null format string Called directly rather than through _nya_error: with two arguments that macro selects _NYA_ERROR2, which passes "%s" as the format and the caller's value as the message, so a null there is a null *message* and never reaches the format assertion.
   nya_expect_crash((void)_nya_error_create(NYA_ERROR_NOT_OK, nullptr));
 
   // TEST: _nya_error - panics on invalid error code
@@ -261,8 +249,7 @@ s32 main(void) {
     errno = ENOTSUP;
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_NOT_SUPPORTED);
 
-    // not in the mapping, so it lands on the generic kind. PERMISSION_DENIED would be arguable; this pins
-    // current behaviour.
+    // not in the mapping, so it lands on the generic kind. PERMISSION_DENIED would be arguable; this pins current behaviour.
     errno = EROFS;
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_NOT_OK);
   }
@@ -334,8 +321,7 @@ s32 main(void) {
 
     NYA_Error result = nya_error(NYA_ERROR_NOT_OK, "%s", long_msg);
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
-    // Written against the macro rather than a literal: the buffer was 512 when this was first
-    // written and is 192 now, and a hardcoded length just moves the breakage to the next change.
+    // Written against the macro rather than a literal: the buffer was 512 when this was first written and is 192 now, and a hardcoded length just moves the breakage to the next change.
     nya_assert(strlen((const char*)result.message) == NYA_ERROR_MESSAGE_MAX_LENGTH - 1);
   }
 

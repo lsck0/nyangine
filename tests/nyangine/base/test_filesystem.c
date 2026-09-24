@@ -174,12 +174,7 @@ s32 main(void) {
     nya_assert(read_large.length == large_content.length);
     NYA_EXPECT(nya_filesystem_delete(large_file_path));
 
-    /*
-     * ─────────────────────────────────────────────────────────
-     * Everything the two per-target implementations used to be each other's only caller of. These ran on
-     * one host at a time before; now there is one implementation over os_file, so one test covers both.
-     * ─────────────────────────────────────────────────────────
-     */
+    /* Everything the two per-target implementations used to be each other's only caller of. These ran on one host at a time before; now there is one implementation over os_file, so one test covers both. */
 
     NYA_Arena* arena = nya_arena_create(.name = "test_filesystem");
     defer      nya_arena_destroy(arena);
@@ -263,8 +258,7 @@ s32 main(void) {
         WalkTally tally = { 0 };
         NYA_EXPECT(nya_filesystem_walk(arena, "test_tree", _test_walk_tally, &tally));
         nya_check(tally.visited == 4, "the walk should visit both directories and both files, got %u", tally.visited);
-        // depth first: what is inside "two" is handed over before "two" itself, which is what lets a caller
-        // delete as it goes.
+        // depth first: what is inside "two" is handed over before "two" itself, which is what lets a caller delete as it goes.
         nya_check(!tally.parent_came_first, "children should be visited before their parent");
 
         u32 stopped = 0;

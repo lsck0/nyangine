@@ -72,8 +72,7 @@ s32 main(void) {
   nya_system_callback_init();
   defer nya_system_callback_deinit();
 
-  // The input system registers an NYA_EVENT_UPDATING_ENDED hook, so the event system has to be up
-  // before it rather than after.
+  // The input system registers an NYA_EVENT_UPDATING_ENDED hook, so the event system has to be up before it rather than after.
   NYA_EXPECT(nya_system_events_init());
   defer nya_system_events_deinit();
 
@@ -90,8 +89,7 @@ s32 main(void) {
     nya_assert(nya_input_source_last().kind == NYA_INPUT_DEVICE_KIND_NONE);
     nya_assert(nya_input_source_at(0).kind == NYA_INPUT_DEVICE_KIND_NONE, "past the end is NONE rather than garbage");
 
-    // An unclaimed slot reads as nothing held, which is what lets a loop over the slots run without
-    // a guard around every query.
+    // An unclaimed slot reads as nothing held, which is what lets a loop over the slots run without a guard around every query.
     nya_assert(!nya_input_key_pressed_by(PLAYER_ONE, NYA_KEY_A));
     nya_assert(nya_input_modifiers_by(PLAYER_ONE) == NYA_KEYMOD_NONE);
     nya_assert(!nya_input_mouse_button_pressed_by(PLAYER_ONE, NYA_MOUSE_BUTTON_LEFT));
@@ -129,8 +127,7 @@ s32 main(void) {
 
     press(keyboard(1), NYA_KEY_A, NYA_KEYMOD_NONE);
 
-    // The single-player API, unchanged. This is the regression that would make every pause menu in
-    // every game stop responding the moment a second player was added.
+    // The single-player API, unchanged. This is the regression that would make every pause menu in every game stop responding the moment a second player was added.
     nya_assert(nya_input_key_pressed(NYA_KEY_A), "a routed event still reaches the merged view");
     nya_assert(nya_input_key_just_pressed(NYA_KEY_A));
     nya_assert(nya_input_key_pressed_by(NYA_INPUT_PLAYER_ANY, NYA_KEY_A), "PLAYER_ANY is the merged view");
@@ -233,8 +230,7 @@ s32 main(void) {
 
   // TEST: an out of range mouse button is ignored rather than written past the table
   {
-    // A gaming mouse reports button numbers well past the five every mouse has. The three button
-    // tables sit next to each other in NYA_InputState, so an unbounded write lands in the next one.
+    // A gaming mouse reports button numbers well past the five every mouse has. The three button tables sit next to each other in NYA_InputState, so an unbounded write lands in the next one.
     click(mouse(1), (NYA_MouseButton)(NYA_MOUSE_BUTTON_COUNT + 4), true);
 
     nya_assert(!nya_input_mouse_button_pressed_by(PLAYER_ONE, NYA_MOUSE_BUTTON_LEFT), "a side button does not become a left click");
@@ -272,8 +268,7 @@ s32 main(void) {
 
   // TEST: the roster is bounded, and a device past the cap still works
   {
-    // Well past NYA_INPUT_MAX_SOURCES. Nothing may be evicted: doing so would unassign a player
-    // mid-game over nothing more than somebody plugging in another device.
+    // Well past NYA_INPUT_MAX_SOURCES. Nothing may be evicted: doing so would unassign a player mid-game over nothing more than somebody plugging in another device.
     for (u32 i = 0; i < NYA_INPUT_MAX_SOURCES + 8; i++) {
       press(keyboard(100 + i), NYA_KEY_Z, NYA_KEYMOD_NONE);
       release(keyboard(100 + i), NYA_KEY_Z);
@@ -304,8 +299,7 @@ s32 main(void) {
       nya_assert(nya_input_key_pressed_by(PLAYER_TWO, NYA_KEY_B), "cycle %u: player two's key", cycle);
       nya_assert(!nya_input_key_pressed_by(PLAYER_ONE, NYA_KEY_B), "cycle %u: still no crosstalk", cycle);
 
-      // Deliberately without releasing: a player who leaves mid-press is the case that would leave
-      // a key stuck down in a slot somebody else is about to be given.
+      // Deliberately without releasing: a player who leaves mid-press is the case that would leave a key stuck down in a slot somebody else is about to be given.
       nya_input_players_reset();
 
       nya_assert(!nya_input_key_pressed_by(PLAYER_ONE, NYA_KEY_A), "cycle %u: a reset slot holds nothing", cycle);

@@ -80,12 +80,7 @@ NYA_VendorRule vendor_curl_linux_x86_64 = {
 
     .includes = { "-I./vendor/curl/include/", },
 
-    /*
-     * OpenSSL only; CURL_CMAKE_COMMON disables every other system library.
-     *
-     * Keep this in step with CURL_CMAKE_COMMON. Enabled there but not linked here means undefined symbols;
-     * linked here but disabled there means a missing library.
-     */
+    /* OpenSSL only; CURL_CMAKE_COMMON disables every other system library. Keep this in step with CURL_CMAKE_COMMON. Enabled there but not linked here means undefined symbols; linked here but disabled there means a missing library. */
     .linker_flags = { CURL_A_LINUX_X86_64, "-lssl", "-lcrypto", },
 
     .parts = {
@@ -120,13 +115,10 @@ NYA_VendorRule vendor_curl_windows_x86_64 = {
 
     .name = "curl (windows-x86_64)",
 
-    // CURL_STATICLIB is required on Windows. Without it curl.h declares entry points dllimport and linking
-    // the static archive fails with "a relevant symbol is available but cannot be used because it is not
-    // an import library".
+    // CURL_STATICLIB is required on Windows. Without it curl.h declares entry points dllimport and linking the static archive fails with "a relevant symbol is available but cannot be used because it is not an import library".
     .includes = { "-I./vendor/curl/include/", "-DCURL_STATICLIB", },
 
-    // schannel is the Windows TLS stack, so there is no third party crypto to ship at all. iphlpapi
-    // carries if_nametoindex, which curl reaches for to resolve an IPv6 scope id.
+    // schannel is the Windows TLS stack, so there is no third party crypto to ship at all. iphlpapi carries if_nametoindex, which curl reaches for to resolve an IPv6 scope id.
     .linker_flags = { CURL_A_WINDOWS_X86_64, "-lws2_32", "-lcrypt32", "-lbcrypt", "-lsecur32", "-lwldap32", "-lnormaliz", "-liphlpapi", },
 
     .parts = {

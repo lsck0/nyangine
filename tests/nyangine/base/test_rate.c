@@ -139,8 +139,7 @@ s32 main(void) {
 
     nya_check(nya_rate_bucket_count(limiter) == NYA_RATE_MAX_BUCKETS, "the table is full, got %u", nya_rate_bucket_count(limiter));
 
-    // a newcomer waits with them rather than taking a slot: a fresh full bucket under pressure is how
-    // a limiter stops limiting.
+    // a newcomer waits with them rather than taking a slot: a fresh full bucket under pressure is how a limiter stops limiting.
     u64 wait_ms = 0;
     nya_check(!nya_rate_take(limiter, "newcomer", &wait_ms), "and a new key gets no fresh budget out of it");
 

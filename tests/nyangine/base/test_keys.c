@@ -58,8 +58,7 @@ s32 main(void) {
   nya_assert(NYA_KEY_SCANCODE_MASK == (1u << 30));
   nya_assert(NYA_SCANCODE_TO_KEYCODE(4) == (4 | NYA_KEY_SCANCODE_MASK));
 
-  // TEST: scancode constants for different key groups
-  // Letter keys A-Z
+  // TEST: scancode constants for different key groups Letter keys A-Z
   nya_assert(NYA_SCANCODE_A == 4);
   nya_assert(NYA_SCANCODE_B == 5);
   nya_assert(NYA_SCANCODE_Q == 20);
@@ -130,8 +129,7 @@ s32 main(void) {
   // TEST: count value
   nya_assert(NYA_SCANCODE_COUNT == 512);
 
-  // TEST: comparing scan codes
-  // Scan codes should be sequential in some areas
+  // TEST: comparing scan codes Scan codes should be sequential in some areas
   nya_assert(NYA_SCANCODE_B == NYA_SCANCODE_A + 1);
   nya_assert(NYA_SCANCODE_C == NYA_SCANCODE_B + 1);
 

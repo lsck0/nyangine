@@ -48,8 +48,7 @@ static const NYA_HttpRoute ROUTES[] = {
      .auth     = NYA_HTTP_AUTH_NONE,
      .handler  = guarded,
      .summary  = "A route behind the proof-of-work wall",
-     // OK is the handler's; BAD_REQUEST and UNAUTHORIZED are the layer's, and a route's statuses cover
-     // its whole chain (see http_router.h). SERVICE_UNAVAILABLE and INTERNAL_ERROR are 5xx and need no declaration.
+     // OK is the handler's; BAD_REQUEST and UNAUTHORIZED are the layer's, and a route's statuses cover its whole chain (see http_router.h). SERVICE_UNAVAILABLE and INTERNAL_ERROR are 5xx and need no declaration.
      .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED },
      },
 };
@@ -249,8 +248,7 @@ s32 main(void) {
         char fresh_token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
         if (token != nullptr) (void)snprintf(fresh_token, sizeof(fresh_token), "%s", token);
 
-        // The fresh challenge's own nonce, and a suffix found to be under the bar against it: an honest
-        // under-difficulty answer rather than a solved one, chosen deterministically so the test never flakes.
+        // The fresh challenge's own nonce, and a suffix found to be under the bar against it: an honest under-difficulty answer rather than a solved one, chosen deterministically so the test never flakes.
         u8  fresh_nonce[NYA_HTTP_POW_NONCE_BYTES] = { 0 };
         u64 fresh_nonce_size                      = 0;
         nya_check(nya_crypto_base64url_decode(challenge, strlen(challenge), fresh_nonce, sizeof(fresh_nonce), &fresh_nonce_size), "the fresh nonce decodes");

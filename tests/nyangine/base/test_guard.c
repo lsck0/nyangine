@@ -101,10 +101,7 @@ s32 main(void) {
     nya_assert(g_test_cleanup_called == 2);
   }
 
-  // TEST: Deferred statements run in reverse order of declaration
-  //
-  // Worth pinning because it is the one thing NYA_CLEANUP_WITH could not promise: destructor order
-  // there was the compiler's choice, whereas defer is specified last in, first out.
+  // TEST: Deferred statements run in reverse order of declaration Worth pinning because it is the one thing NYA_CLEANUP_WITH could not promise: destructor order there was the compiler's choice, whereas defer is specified last in, first out.
   {
     s32 order[3] = { 0, 0, 0 };
     s32 next     = 0;

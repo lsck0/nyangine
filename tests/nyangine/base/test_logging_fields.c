@@ -113,8 +113,7 @@ s32 main(void) {
             nya_check(level != nullptr && level->type == NYA_TYPE_STRING && strcmp(level->as_string, "INFO") == 0,
                       "level field missing or wrong in %s", LAST_JSON);
 
-            // the numeric and boolean fields are there and carry the value, whatever number type the parser
-            // chose for them.
+            // the numeric and boolean fields are there and carry the value, whatever number type the parser chose for them.
             nya_check(nya_object_get(object, "attempts") != nullptr, "attempts field missing from %s", LAST_JSON);
             nya_check(nya_object_get(object, "elapsed_ms") != nullptr, "elapsed_ms field missing from %s", LAST_JSON);
             nya_check(nya_object_get(object, "ok") != nullptr, "ok field missing from %s", LAST_JSON);

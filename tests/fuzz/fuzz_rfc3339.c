@@ -19,8 +19,7 @@ static void fuzz_once(const u8* data, u64 size) {
 
     if (result != NYA_TIME_PARSE_OK) return;
 
-    // whatever was accepted has a canonical spelling, and that spelling is the same instant and is
-    // itself canonical: written again, it does not change.
+    // whatever was accepted has a canonical spelling, and that spelling is the same instant and is itself canonical: written again, it does not change.
     u8  text[NYA_RFC3339_LENGTH_MAX + 1] = { 0 };
     u32 length                           = nya_instant_to_rfc3339(instant, text, sizeof(text));
 

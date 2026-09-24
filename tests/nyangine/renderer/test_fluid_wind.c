@@ -54,8 +54,7 @@ int main(void) {
         for (u32 i = 0; i < 20; i++) nya_fluid_step(fluid, 0.05F);
         f32 after = nya_fluid_velocity_at(fluid, centre).x;
 
-        // with no forcing and no viscosity the advected field only diffuses/decays, never grows, so it does not
-        // climb past where it was when the wind was removed.
+        // with no forcing and no viscosity the advected field only diffuses/decays, never grows, so it does not climb past where it was when the wind was removed.
         nya_check(after <= before + 1e-3F, "a null field adds no more wind, before=%f after=%f", (f64)before, (f64)after);
     }
 

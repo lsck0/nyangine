@@ -22,8 +22,7 @@ typedef struct {
 
 typedef u32 (*CombineFn)(u32 a, u32 b);
 
-// The bodies below, hoisted out to here before anything compiled, which is why WalkTally is declared
-// above it: a body sees what is in scope at this line and nothing further down. See base_lambda.h.
+// The bodies below, hoisted out to here before anything compiled, which is why WalkTally is declared above it: a body sees what is in scope at this line and nothing further down. See base_lambda.h.
 #include "genyarated/lambdas/tests_nyangine_base_test_lambda_generated_c.h"
 
 s32 main(void) {
@@ -74,8 +73,7 @@ s32 main(void) {
                                    }),
                                    &tally));
 
-    // The file this is written in is in that directory, so the walk cannot have missed it unless the
-    // callback never ran or was handed something other than a path.
+    // The file this is written in is in that directory, so the walk cannot have missed it unless the callback never ran or was handed something other than a path.
     nya_assert(tally.entries > 0, "the walk called the lambda for nothing");
     nya_assert(tally.found_itself, "the lambda saw %u files and not the one it is written in", tally.entries);
 
@@ -106,8 +104,7 @@ s32 main(void) {
 
     NYA_CString text = nya_string_to_cstring(arena, manifest);
 
-    // Every tag, against the file it was written in: the manifest is what says a tag is one name
-    // across the whole tree, so a tag missing from it is a tag nothing would have caught twice.
+    // Every tag, against the file it was written in: the manifest is what says a tag is one name across the whole tree, so a tag missing from it is a tag nothing would have caught twice.
     const NYA_ConstCString tags[] = { "test_lambda_descending", "test_lambda_walk", "test_lambda_concatenate", "test_lambda_multiply" };
 
     for (u32 i = 0; i < nya_carray_length(tags); i++) {

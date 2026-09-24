@@ -50,8 +50,7 @@ s32 main(void) {
         (void)nya_tilemap_tile_set(map, ground, 3, 4, original);
     }
 
-    // ── Off the map does nothing and says so, rather than asserting. A brush dragged past the edge
-    //    is ordinary, so this is the contract that keeps an editor from having to bounds check.
+    // ── Off the map does nothing and says so, rather than asserting. A brush dragged past the edge is ordinary, so this is the contract that keeps an editor from having to bounds check.
     {
         nya_check(!nya_tilemap_tile_set(map, ground, -1, 0, 1), "negative x should be refused");
         nya_check(!nya_tilemap_tile_set(map, ground, 0, -1, 1), "negative y should be refused");
@@ -103,8 +102,7 @@ s32 main(void) {
                   "dimensions should survive the round trip");
         nya_check(reloaded->orientation == edited->orientation, "orientation should survive");
         nya_check(reloaded->tile_width == edited->tile_width, "tile size should survive");
-        // Tile layers survive; object layers are deliberately not written back. Asserting the
-        // documented contract rather than the total, so this test fails if that ever silently changes.
+        // Tile layers survive; object layers are deliberately not written back. Asserting the documented contract rather than the total, so this test fails if that ever silently changes.
         u32 edited_tile_layers = 0;
         for (u32 i = 0; i < edited->layer_count; i++) {
             if (edited->layers[i].kind == NYA_TILEMAP_LAYER_TILES) edited_tile_layers++;

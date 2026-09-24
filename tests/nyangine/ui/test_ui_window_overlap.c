@@ -265,8 +265,7 @@ s32 main(void) {
         Scene after = scene(NYA_UI_PASS_DRAW);
         nya_check(after.under_layer > after.over_layer, "and stayed in front");
 
-        // which is the whole point: the raised window's own button now takes the pointer even where the
-        // other window is drawn over that spot.
+        // which is the whole point: the raised window's own button now takes the pointer even where the other window is drawn over that spot.
         f32x2 own = { after.under_button.x + 20.0F, after.under_button.y + after.under_button.height * 0.5F };
 
         Scene hit = click(own);
@@ -289,9 +288,7 @@ s32 main(void) {
 
         nya_check(now.over_layer > now.under_layer, "the lower window is behind before this case");
 
-        // its own button, clear of the window in front: one click brings the window forward and the
-        // button does not take it, because somebody aiming at a window they cannot see is aiming at the
-        // window.
+        // its own button, clear of the window in front: one click brings the window forward and the button does not take it, because somebody aiming at a window they cannot see is aiming at the window.
         f32x2 own = { now.under_button.x + 20.0F, now.under_button.y + now.under_button.height * 0.5F };
         nya_check(!nya_rect_contains(now.over_bounds, own), "the button clicked is clear of the window in front");
 
@@ -310,9 +307,7 @@ s32 main(void) {
         Scene now = scene(NYA_UI_PASS_DRAW);
         nya_check(now.under_layer > now.over_layer, "the lower window is still the raised one");
 
-        // the upper window's bar, clear of the other window and clear of its own chrome: the collapse
-        // chevron and the close X live in the right of the bar, and pressing one is a button rather
-        // than the start of a drag.
+        // the upper window's bar, clear of the other window and clear of its own chrome: the collapse chevron and the close X live in the right of the bar, and pressing one is a button rather than the start of a drag.
         f32x2 bar = { now.over_bounds.x + WIDTH - 120.0F, now.over_bounds.y + TITLE * 0.5F };
         nya_check(!nya_rect_contains(now.under_bounds, bar), "the bar grabbed is clear of the other window");
 
@@ -330,12 +325,7 @@ s32 main(void) {
 
     // ── the strip a window is dragged by is the bar that is drawn ────────────────
     {
-        /*
-         * What gnyame does: a big title, a hamburger, and a panel declared before the windows. The bar a
-         * person sees is the strip to grab, so the two have to be the same rectangle — a grip that
-         * starts at the window's top edge and stops short of the bar's bottom is a window that does not
-         * move when it is grabbed by the part of the bar below the mismatch.
-         */
+        /* What gnyame does: a big title, a hamburger, and a panel declared before the windows. The bar a person sees is the strip to grab, so the two have to be the same rectangle — a grip that starts at the window's top edge and stops short of the bar's bottom is a window that does not move when it is grabbed by the part of the bar below the mismatch. */
         nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 22.0F, .title_size = 44.0F, .padding = 14.0F, .spacing = 6.0F, .item_height = 40.0F });
 
         for (u32 i = 0; i < 32 && nya_font_metrics(nya_font(FACE, 44.0F)).line_height <= 0.0F; i++) {

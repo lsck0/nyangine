@@ -21,8 +21,7 @@ static void fuzz_once(const u8* data, u64 size) {
 
     NYA_NetMessageKind kind = nya_net_message_kind(data, size, &body);
 
-    // what the framing promises: a kind inside the enum and a body inside the datagram. Everything
-    // downstream slices at `body` without checking it again.
+    // what the framing promises: a kind inside the enum and a body inside the datagram. Everything downstream slices at `body` without checking it again.
     nya_assert(kind <= NYA_NET_MSG_COUNT, "the framing reported a message kind that does not exist");
     nya_assert(body <= size, "the framing reported a body past the end of the message");
 

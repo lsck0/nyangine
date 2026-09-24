@@ -42,8 +42,7 @@ static void rig_build(void) {
 
     skeleton = (NYA_Skeleton){ .bones = bones, .bone_count = BONE_COUNT };
 
-    // Deliberately far apart and moving in opposite directions, so a transition between them has both
-    // a large offset and a large *relative* velocity to reconcile.
+    // Deliberately far apart and moving in opposite directions, so a transition between them has both a large offset and a large *relative* velocity to reconcile.
     slide_clip(left_frames, &clip_left, 0.0F, 2.0F, 0.0F, "left");
     slide_clip(right_frames, &clip_right, 10.0F, 8.0F, 1.0F, "right");
 }
@@ -156,8 +155,7 @@ s32 main(void) {
 
             f32 offset = pose.local[BONE_CHILD].translation.x - clean.local[BONE_CHILD].translation.x;
 
-            // The offset started negative. Crossing zero would mean the limb swung past the
-            // destination and came back, which reads worse than the pop this exists to remove.
+            // The offset started negative. Crossing zero would mean the limb swung past the destination and came back, which reads worse than the pop this exists to remove.
             nya_check(offset <= 1e-5F, "the offset never crosses zero, %f at t=%f", (f64)offset, (f64)elapsed);
 
             largest = nya_max(largest, fabsf(offset));

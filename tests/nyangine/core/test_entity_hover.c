@@ -69,8 +69,7 @@ s32 main(void) {
 
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()), "a fresh world hovers nothing");
 
-    // zero is NYA_ENTITY_HANDLE_NONE and generations start at one, so a zeroed system reads as nothing
-    // hovered without an init.
+    // zero is NYA_ENTITY_HANDLE_NONE and generations start at one, so a zeroed system reads as nothing hovered without an init.
     NYA_EntityHandle nothing = nya_entity_hover((f32x2){ 500.0F, 500.0F });
 
     nya_assert(!nya_entity_is_valid(nothing));
@@ -123,8 +122,7 @@ s32 main(void) {
     (void)nya_entity_hover((f32x2){ 0.0F, 0.0F });
     nya_assert(call_count == 1 && call_was(0, left, true));
 
-    // straight from one to the other with no empty frame between, the ordinary case for adjacent things
-    // and where order matters.
+    // straight from one to the other with no empty frame between, the ordinary case for adjacent things and where order matters.
     NYA_EntityHandle hit = nya_entity_hover((f32x2){ 200.0F, 0.0F });
 
     nya_assert(hit.index == right.index, "the new entity is the hovered one");
@@ -162,15 +160,13 @@ s32 main(void) {
 
     (void)nya_entity_hover((f32x2){ 100.0F, 100.0F });
 
-    // What the cursor leaving the window has to do. Without it the last hovered entity would keep its
-    // highlight until the cursor came back, because nothing else would ever tell it otherwise.
+    // What the cursor leaving the window has to do. Without it the last hovered entity would keep its highlight until the cursor came back, because nothing else would ever tell it otherwise.
     nya_entity_hover_clear();
 
     nya_assert(call_count == 2 && call_was(1, crate, false), "clearing fires the leave");
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()));
 
-    // Twice is not two leaves. Clearing an already-clear hover is a no-op, which matters because the
-    // obvious place to call this is unconditionally on a focus-lost event.
+    // Twice is not two leaves. Clearing an already-clear hover is a no-op, which matters because the obvious place to call this is unconditionally on a focus-lost event.
     nya_entity_hover_clear();
     nya_entity_hover_clear();
 
@@ -194,8 +190,7 @@ s32 main(void) {
     nya_assert(call_count == 1, "despawning does not fire the leave edge, got %u calls", call_count);
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()), "and the hover is released immediately");
 
-    // the next arrival is a clean enter, not swallowed as "no change" against a stale handle in a reused
-    // slot.
+    // the next arrival is a clean enter, not swallowed as "no change" against a stale handle in a reused slot.
     NYA_EntityHandle other = spawn_2d("other", (f32x2){ 100.0F, 100.0F }, true);
 
     (void)nya_entity_hover((f32x2){ 100.0F, 100.0F });
@@ -218,8 +213,7 @@ s32 main(void) {
     nya_assert(hit.index == cube.index && hit.generation == cube.generation, "the ray finds the cube");
     nya_assert(call_count == 1 && call_was(0, cube, true), "and fires entered, same as the 2D path");
 
-    // Resting is resting in three dimensions too: a slightly different ray onto the same body is not a
-    // new hover.
+    // Resting is resting in three dimensions too: a slightly different ray onto the same body is not a new hover.
     (void)nya_entity_hover((f32x3){ 0.1F, 0.1F, 10.0F }, (f32x3){ 0.0F, 0.0F, -20.0F });
     nya_assert(call_count == 1, "a second ray onto the same body changes nothing, got %u calls", call_count);
 

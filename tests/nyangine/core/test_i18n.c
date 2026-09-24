@@ -14,8 +14,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // What the asset system needs, rather than nya_app_init: an arena, and somewhere to register its
-  // frame-ended hooks, which is the event system, which needs the callback system.
+  // What the asset system needs, rather than nya_app_init: an arena, and somewhere to register its frame-ended hooks, which is the event system, which needs the callback system.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();
@@ -30,9 +29,7 @@ s32 main(void) {
   {
     NYA_ConstCString missing = nya_i18n_raw(NYA_STRING_MENU_START);
 
-    // Not an empty string. An empty one is indistinguishable from a label meant to be blank, so a
-    // missing translation would show as a gap nobody investigates; this shows on screen and says
-    // which key to add.
+    // Not an empty string. An empty one is indistinguishable from a label meant to be blank, so a missing translation would show as a gap nobody investigates; this shows on screen and says which key to add.
     nya_assert(missing != nullptr && missing[0] == '[', "an unloaded id reads as a placeholder, got '%s'", missing);
     nya_assert(nya_string_equals(nya_i18n_locale(), ""), "and no locale is loaded");
 
@@ -64,8 +61,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_i18n_locale(), "de"), "the locale is de");
     nya_assert(nya_string_equals(nya_string_menu_start(), "starten"), "got '%s'", nya_string_menu_start());
 
-    // Non-ASCII, which is the other half of this working at all: `hauptmenü` is nine characters and
-    // ten bytes, and a renderer that could not draw the tenth would show a gap.
+    // Non-ASCII, which is the other half of this working at all: `hauptmenü` is nine characters and ten bytes, and a renderer that could not draw the tenth would show a gap.
     nya_assert(nya_string_equals(nya_string_menu_main_menu(), "hauptmenü"), "got '%s'", nya_string_menu_main_menu());
     nya_assert(nya_utf8_count(nya_string_menu_main_menu()) == 9, "nine characters, ten bytes");
 
@@ -84,8 +80,7 @@ s32 main(void) {
 
     nya_assert(!error.ok, "a missing locale fails");
 
-    // And changes nothing. A player's saved language preference may name a locale a later build
-    // dropped, and the right response is to keep speaking the language already loaded.
+    // And changes nothing. A player's saved language preference may name a locale a later build dropped, and the right response is to keep speaking the language already loaded.
     nya_assert(nya_string_equals(nya_i18n_locale(), "en"), "the loaded locale is untouched, got '%s'", nya_i18n_locale());
     nya_assert(nya_string_equals(nya_string_menu_start(), "start"), "and so are its strings");
 
@@ -101,8 +96,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(first, "Hello, one!"), "got '%s'", first);
     nya_assert(nya_string_equals(second, "Hello, two!"), "got '%s'", second);
 
-    // And exactly NYA_I18N_FORMAT_SLOTS later the first is gone. Documented rather than defended:
-    // this is what makes the call free of an arena and a free, and is why nothing should store one.
+    // And exactly NYA_I18N_FORMAT_SLOTS later the first is gone. Documented rather than defended: this is what makes the call free of an arena and a free, and is why nothing should store one.
     for (u32 i = 0; i < NYA_I18N_FORMAT_SLOTS; i++) (void)nya_string_hud_greeting("filler");
 
     nya_assert(nya_string_equals(first, "Hello, filler!"), "the ring recycled, got '%s'", first);

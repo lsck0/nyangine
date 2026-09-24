@@ -46,10 +46,7 @@ s32 main(void) {
 
   // TEST: a handle that is not a window answers rather than crashing
   {
-    /*
-     * The case a caller reaches by holding a handle across a close, which is the ordinary way to get
-     * one of these wrong. Every one of them has to answer.
-     */
+    /* The case a caller reaches by holding a handle across a close, which is the ordinary way to get one of these wrong. Every one of them has to answer. */
     const NYA_WindowHandle nowhere = { 0 };
 
     nya_check(!nya_window_is_valid(nowhere), "a zeroed handle is not a window");
@@ -81,11 +78,7 @@ s32 main(void) {
 
   // TEST: a getter agrees with the flag the window was created with
   {
-    /*
-     * The one claim that does not depend on a compositor honouring anything: the window asked to be
-     * resizable at creation, so the getter has to say so. A getter reading the wrong SDL flag, or
-     * reading a different window's flags, fails right here.
-     */
+    /* The one claim that does not depend on a compositor honouring anything: the window asked to be resizable at creation, so the getter has to say so. A getter reading the wrong SDL flag, or reading a different window's flags, fails right here. */
     nya_check(nya_window_is_resizable(window), "a window created resizable reads as resizable");
     nya_check(!nya_window_is_borderless(window), "and not as borderless, which it did not ask for");
 
@@ -114,12 +107,7 @@ s32 main(void) {
 
   // TEST: the setters run and the getters keep answering
   {
-    /*
-     * Not "the request took". Every one of these is a request a window system may refuse, and the
-     * offscreen driver refuses most of them; asserting that fullscreen sticks would be asserting
-     * something about the driver rather than about this code. What is asserted is that the pair runs
-     * and still answers, which is what catches a wrapper that reads a freed handle.
-     */
+    /* Not "the request took". Every one of these is a request a window system may refuse, and the offscreen driver refuses most of them; asserting that fullscreen sticks would be asserting something about the driver rather than about this code. What is asserted is that the pair runs and still answers, which is what catches a wrapper that reads a freed handle. */
     nya_window_set_fullscreen(window, true);
     (void)nya_window_is_fullscreen(window);
     nya_window_set_fullscreen(window, false);
@@ -132,11 +120,7 @@ s32 main(void) {
     (void)nya_window_is_always_on_top(window);
     nya_window_set_always_on_top(window, false);
 
-    /*
-     * Not asserted either way. SDL_SetWindowResizable(false) is ignored by the offscreen driver —
-     * probed directly against SDL to be sure whose behaviour that is, and the flag stays set — so an
-     * assertion here would be about the driver and would fail on a runner with a real display.
-     */
+    /* Not asserted either way. SDL_SetWindowResizable(false) is ignored by the offscreen driver — probed directly against SDL to be sure whose behaviour that is, and the flag stays set — so an assertion here would be about the driver and would fail on a runner with a real display. */
     nya_window_set_resizable(window, false);
     (void)nya_window_is_resizable(window);
     nya_window_set_resizable(window, true);
@@ -158,8 +142,7 @@ s32 main(void) {
     const NYA_Rect bounds = nya_window_display_bounds(window);
     const NYA_Rect usable = nya_window_display_usable_bounds(window);
 
-    // The offscreen driver has a display; a headless build with none returns a zeroed rect, which is
-    // an answer rather than a crash and is the only thing worth asserting for both cases.
+    // The offscreen driver has a display; a headless build with none returns a zeroed rect, which is an answer rather than a crash and is the only thing worth asserting for both cases.
     nya_check(bounds.width >= 0 && bounds.height >= 0, "the display bounds are not negative, got %dx%d", bounds.width, bounds.height);
     nya_check(usable.width >= 0 && usable.height >= 0, "and neither is the usable area, got %dx%d", usable.width, usable.height);
 
@@ -177,22 +160,11 @@ s32 main(void) {
 
   // TEST: the cursor, which is four more calls nothing made
   {
-    /*
-     * nya_cursor_set, nya_cursor, nya_cursor_visible_set and nya_cursor_visible had no caller. The
-     * shape is engine state rather than a request the window system can refuse — the header says it
-     * is cheap to call every frame with the same value, which only holds if the engine remembers what
-     * is set — so unlike the window flags above, this one does assert that it took.
-     */
+    /* nya_cursor_set, nya_cursor, nya_cursor_visible_set and nya_cursor_visible had no caller. The shape is engine state rather than a request the window system can refuse — the header says it is cheap to call every frame with the same value, which only holds if the engine remembers what is set — so unlike the window flags above, this one does assert that it took. */
     const NYA_CursorShape original  = nya_cursor();
     const b8              was_shown = nya_cursor_visible();
 
-    /*
-     * Whether a shape sticks is the platform's to decide: the offscreen driver answers
-     * "CreateSystemCursor is not currently supported" for every one of them, and the engine's
-     * documented answer to that is to warn and keep whatever it had. So the claim here is the one
-     * that holds either way — a shape it could not create leaves the previous one intact rather than
-     * recording a shape that was never set.
-     */
+    /* Whether a shape sticks is the platform's to decide: the offscreen driver answers "CreateSystemCursor is not currently supported" for every one of them, and the engine's documented answer to that is to warn and keep whatever it had. So the claim here is the one that holds either way — a shape it could not create leaves the previous one intact rather than recording a shape that was never set. */
     for (u32 shape = 0; shape < NYA_CURSOR_COUNT; shape++) {
       nya_cursor_set((NYA_CursorShape)shape);
 
@@ -225,12 +197,7 @@ s32 main(void) {
 
   // TEST: geometry reads back, and requests answer for their own window only
   {
-    /*
-     * The second cluster the caller rule found: geometry, opacity, grab, flash and sync had no caller. As
-     * above, a request the window system may refuse is not asserted to have taken. What is asserted is
-     * what holds on any driver: the reads describe a window of the size it was created at, a request
-     * answers what nya_window_geometry_is_client_controlled says, and nothing answers for a non-window.
-     */
+    /* The second cluster the caller rule found: geometry, opacity, grab, flash and sync had no caller. As above, a request the window system may refuse is not asserted to have taken. What is asserted is what holds on any driver: the reads describe a window of the size it was created at, a request answers what nya_window_geometry_is_client_controlled says, and nothing answers for a non-window. */
     u32 width = 0, height = 0, pixel_width = 0, pixel_height = 0;
     nya_window_size(window, &width, &height);
     nya_window_size_in_pixels(window, &pixel_width, &pixel_height);
@@ -303,10 +270,7 @@ s32 main(void) {
 
   // TEST: the region callback is what the platform's hit test asks
   {
-    /*
-     * The platform calls the hit test while the pointer moves, which no test can make it do, so it is
-     * called here the way SDL would. Removing the callback must hand the question back to the platform.
-     */
+    /* The platform calls the hit test while the pointer moves, which no test can make it do, so it is called here the way SDL would. Removing the callback must hand the question back to the platform. */
     NYA_Window* target = nya_window_get(window);
     SDL_Point   inside = { 10, 10 };
 

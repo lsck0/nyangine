@@ -23,8 +23,7 @@ static void fuzz_setup(void) {
     b8 sdl_ok = SDL_Init(0);
     nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-    // the asset system registers an end-of-frame hook, so events come up first. By hand rather than
-    // through nya_app_init, which wants a window.
+    // the asset system registers an end-of-frame hook, so events come up first. By hand rather than through nya_app_init, which wants a window.
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
     nya_system_asset_init();
@@ -41,23 +40,18 @@ static void fuzz_once(const u8* data, u64 size) {
 
     if (!nya_file_write(FUZZ_TILEMAP_PATH, content).ok) return;
 
-    // removed however this returns: a map left in the asset tree would be indexed into the generated
-    // asset header by the next build.
+    // removed however this returns: a map left in the asset tree would be indexed into the generated asset header by the next build.
     defer (void)nya_filesystem_delete(FUZZ_TILEMAP_PATH);
 
     NYA_Tilemap* map = nullptr;
     if (!nya_tilemap_load(arena, FUZZ_TILEMAP_PATH, &map).ok || map == nullptr) return;
 
-    /*
-     * What the loader promises whoever draws or queries the map, and what nothing downstream checks
-     * again: a layer covers the map, and every tile lookup inside it is in bounds.
-     */
+    /* What the loader promises whoever draws or queries the map, and what nothing downstream checks again: a layer covers the map, and every tile lookup inside it is in bounds. */
     nya_assert(map->width > 0 && map->height > 0, "a loaded map has no size");
     nya_assert(map->tile_width > 0 && map->tile_height > 0, "a loaded map has no tile size");
 
     for (u32 layer = 0; layer < map->layer_count; layer++) {
-        // corners and centre rather than every cell: the bound is the same check at every index, and
-        // a map fuzzing at a thousand inputs a second should not walk a million of them.
+        // corners and centre rather than every cell: the bound is the same check at every index, and a map fuzzing at a thousand inputs a second should not walk a million of them.
         (void)nya_tilemap_tile_at(map, layer, 0, 0);
         (void)nya_tilemap_tile_at(map, layer, (s32)map->width - 1, (s32)map->height - 1);
         (void)nya_tilemap_tile_at(map, layer, (s32)map->width / 2, (s32)map->height / 2);

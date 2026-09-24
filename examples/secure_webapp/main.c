@@ -330,8 +330,7 @@ NYA_INTERNAL NYA_HttpStatus handle_members(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
 
     if (!request_account(exchange, &user)) {
-        // A single inert page rather than the component: nothing behind the gate is drawn for a request
-        // that has not passed it. 401, because it is the credentials — their absence — that were refused.
+        // A single inert page rather than the component: nothing behind the gate is drawn for a request that has not passed it. 401, because it is the credentials — their absence — that were refused.
         NYA_ConstCString locked = "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\">"
                                   "<title>Members — sign in</title>"
                                   "<body style=\"font-family:system-ui;max-width:40rem;margin:3rem auto;padding:0 1rem\">"
@@ -355,8 +354,7 @@ NYA_INTERNAL NYA_HttpStatus handle_members(NYA_HttpExchange* exchange) {
     char nonce[32] = { 0 };
     if (!ssr_security_policy(exchange, nonce, sizeof(nonce))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // No NYA_PageMeta here: a members page is private, robots.txt keeps it out of an index, and there is
-    // nothing to unfurl. nya_ui_html_document is nya_ui_html_document_meta without the head tags.
+    // No NYA_PageMeta here: a members page is private, robots.txt keeps it out of an index, and there is nothing to unfurl. nya_ui_html_document is nya_ui_html_document_meta without the head tags.
     static char page[NYA_UI_HTML_MAX + 8192];
     u32         written = nya_ui_html_document(&HTML, page, sizeof(page), "Members area", nonce);
     if (written == 0) return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -538,8 +536,7 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
         .count       = nya_carray_length(feed_items),
     }));
 
-    // robots.txt: keep the members area, the API and the scrape endpoint out of a crawler's index, and
-    // point it at the sitemap.
+    // robots.txt: keep the members area, the API and the scrape endpoint out of a crawler's index, and point it at the sitemap.
     const NYA_ConstCString    robots_disallow[] = { "/members", "/api/", "/metrics" };
     const NYA_HttpRobotsGroup robots_groups[]   = {
         { .user_agent = "*", .disallow = robots_disallow, .disallow_count = nya_carray_length(robots_disallow) },
@@ -547,8 +544,7 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
     NYA_TRY(nya_http_robots_mount((NYA_HttpRobotsConfig){
         .groups = robots_groups, .count = nya_carray_length(robots_groups), .sitemap = SITE_URL NYA_HTTP_SITEMAP_PATH }));
 
-    // llms.txt, the strict preset: the document states its content is not for training, then points a
-    // model at the home page it may read.
+    // llms.txt, the strict preset: the document states its content is not for training, then points a model at the home page it may read.
     const NYA_HttpLlmsLink llms_links[] = {
         { .title = "Home", .url = SITE_URL "/", .note = "the content site itself" },
     };
@@ -678,8 +674,7 @@ NYA_INTERNAL void self_test_run(void* data) {
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;
 
-    // Default is the headless self test, so `./build run example secure_webapp` proves itself and exits.
-    // --serve is the persistent server, for a browser.
+    // Default is the headless self test, so `./build run example secure_webapp` proves itself and exits. --serve is the persistent server, for a browser.
     b8 serve = false;
 
     for (s32 i = 1; i < argc; i++) {
@@ -704,12 +699,7 @@ s32 main(s32 argc, char** argv) {
     }
     defer SDL_Quit();
 
-    /*
-     * No window, no renderer, no frame loop. What comes up is the set the SSR path reads through — an app
-     * instance, the settings, callback and event registries, the input system a focused field would reach
-     * for, the window system that lookup resolves against, and the asset system a style may use — plus the
-     * save root and the accounts database. The same set ui_ssr and accounts_api bring up between them.
-     */
+    /* No window, no renderer, no frame loop. What comes up is the set the SSR path reads through — an app instance, the settings, callback and event registries, the input system a focused field would reach for, the window system that lookup resolves against, and the asset system a style may use — plus the save root and the accounts database. The same set ui_ssr and accounts_api bring up between them. */
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     nya_system_settings_init();
@@ -754,9 +744,7 @@ s32 main(s32 argc, char** argv) {
     nya_ui_presenter_set(&WINDOW, nya_ui_html_presenter(&HTML));
     defer nya_ui_html_deinit(&HTML);
 
-    // One record per request at the headers level, and the compression layer outermost so it wraps every
-    // route. Single-threaded: every route is MAIN, so the loop below is the only thing answering, and the
-    // self test's requests come in on a thread of their own.
+    // One record per request at the headers level, and the compression layer outermost so it wraps every route. Single-threaded: every route is MAIN, so the loop below is the only thing answering, and the self test's requests come in on a thread of their own.
     nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_HEADERS, .address = NYA_HTTP_LOG_ADDRESS_NETWORK });
 
     static const NYA_HttpLayerFn LAYERS[] = { compress_layer, nya_http_layer_log };
@@ -799,10 +787,7 @@ s32 main(s32 argc, char** argv) {
     nya_log_info("  discoverable at " NYA_HTTP_SITEMAP_PATH ", " NYA_HTTP_FEED_PATH ", " NYA_HTTP_FEED_ATOM_PATH ", " NYA_HTTP_ROBOTS_PATH " and " NYA_HTTP_LLMS_PATH);
     nya_log_info("  gzip on the wire for every route that is worth compressing");
 
-    /*
-     * --serve: the persistent server, answered from this loop until ctrl-c. This is the shape a real
-     * deployment runs.
-     */
+    /* --serve: the persistent server, answered from this loop until ctrl-c. This is the shape a real deployment runs. */
     if (serve) {
         nya_log_info("Serving until interrupted (ctrl-c). Register, log in, and open /members.");
 
@@ -815,11 +800,7 @@ s32 main(s32 argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    /*
-     * The default: the headless self test. The checks run on a thread of their own — they block on the
-     * HTTP client, and the routes they hit are answered from this loop, so the two cannot be the same
-     * thread. The loop ticks until the test clears RUNNING, or until the frame cap, whichever comes first.
-     */
+    /* The default: the headless self test. The checks run on a thread of their own — they block on the HTTP client, and the routes they hit are answered from this loop, so the two cannot be the same thread. The loop ticks until the test clears RUNNING, or until the frame cap, whichever comes first. */
     nya_log_info("Headless self test (pass --serve to keep serving instead):");
 
     SelfTest test = { .port = nya_http_server_port(), .running = &RUNNING, .ok = 0 };
@@ -835,8 +816,7 @@ s32 main(s32 argc, char** argv) {
         nya_os_time_sleep_ms(TICK_SLEEP_MS);
     }
 
-    // Wait for the test to finish however it went — a pass cleared RUNNING, a hang hit the frame cap — so
-    // nothing of its is running before the server and its arenas come down through the defers above.
+    // Wait for the test to finish however it went — a pass cleared RUNNING, a hang hit the frame cap — so nothing of its is running before the server and its arenas come down through the defers above.
     nya_thread_join(test_thread);
 
     nya_log_info("Stopping after " FMTu64 " requests.", nya_http_server_request_count());

@@ -29,8 +29,7 @@ static void write_fixture(NYA_ConstCString text) {
 
   NYA_EXPECT(nya_file_write(FIXTURE_PATH, text));
 
-  // two writes a few milliseconds apart can get the same timestamp from a coarse filesystem clock, and a
-  // watch comparing timestamps then never sees the edit. Rewritten until the timestamp moves.
+  // two writes a few milliseconds apart can get the same timestamp from a coarse filesystem clock, and a watch comparing timestamps then never sees the edit. Rewritten until the timestamp moves.
   for (u32 attempt = 0; existed && attempt < 200; attempt++) {
     u64 after = 0;
     NYA_EXPECT(nya_filesystem_last_modified(FIXTURE_PATH, &after));
@@ -68,11 +67,7 @@ s32 main(void) {
   defer nya_system_callback_deinit();
 
   // TEST: the shipped starter file's "engine" object is already loaded by nya_system_config_init
-  /*
-   * The engine's own half is not fetched here: nya_system_config_init, called above, already loaded it
-   * into nya_config_engine(), the same way any other program brings it up. NYA_ConfigEngine's fields are
-   * one level down from that; the next test loads NYA_ConfigEngine alone from a fixture shaped for it.
-   */
+  /* The engine's own half is not fetched here: nya_system_config_init, called above, already loaded it into nya_config_engine(), the same way any other program brings it up. NYA_ConfigEngine's fields are one level down from that; the next test loads NYA_ConfigEngine alone from a fixture shaped for it. */
   printf("TEST: nya_system_config_init reads assets/config/engine.nya's \"engine\" object\n");
   {
     const NYA_ConfigEngine* engine = nya_config_engine();
@@ -211,10 +206,7 @@ s32 main(void) {
                   "    };\n"
                   "}\n");
 
-    /*
-     * Driven rather than waited on, and more than one frame by design: nya_asset_get stats at most once
-     * per interval, and reload waits for the timestamp to settle. Same as test_i18n_reload.c.
-     */
+    /* Driven rather than waited on, and more than one frame by design: nya_asset_get stats at most once per interval, and reload waits for the timestamp to settle. Same as test_i18n_reload.c. */
     b8 reloaded = false;
 
     for (u32 frame = 0; frame < 40 && !reloaded; frame++) {
@@ -226,8 +218,7 @@ s32 main(void) {
 
     nya_assert(reloaded, "the edit should have been picked up, got %u", engine.physics.sub_steps);
 
-    // A field the edit did not touch has to still be there: the reload re-resolves the whole file
-    // rather than patching one key.
+    // A field the edit did not touch has to still be there: the reload re-resolves the whole file rather than patching one key.
     nya_assert(engine.renderer.shadow_map_size == 1024, "the untouched field survived, got %u", engine.renderer.shadow_map_size);
 
     // watching the same path again repoints the watch, as a game does after a code reload moved its global.

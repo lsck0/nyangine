@@ -16,8 +16,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "bench_db");
     defer      nya_arena_destroy(arena);
 
-    // A scratch arena the query benches reset each iteration, so the rows a query allocates do not
-    // pile up across the batch and turn the measurement into an allocation of ever-growing size.
+    // A scratch arena the query benches reset each iteration, so the rows a query allocates do not pile up across the batch and turn the measurement into an allocation of ever-growing size.
     NYA_Arena* scratch = nya_arena_create(.name = "bench_db_scratch");
     defer      nya_arena_destroy(scratch);
 
@@ -37,8 +36,7 @@ s32 main(void) {
 
     u64 cycle = 0;
 
-    // A bound insert, the write a request makes. OR REPLACE over a cycling id keeps the table at ROWS
-    // so the cost measured is one statement's, not a table growing under the batch.
+    // A bound insert, the write a request makes. OR REPLACE over a cycling id keeps the table at ROWS so the cost measured is one statement's, not a table growing under the batch.
     nya_bench("insert or replace, bound", 1, {
         u64          id  = cycle++ % ROWS;
         NYA_SqlValue row[] = { nya_sql_s64((s64)id), nya_sql_s64((s64)(id % 500)) };

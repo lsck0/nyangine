@@ -103,17 +103,14 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     Score score = { 0 };
 
-    // `restricted` refuses io, os, package, ffi and debug, which is what running someone else's
-    // script should look like. The arena owns the wrapper; LuaJIT owns its own heap, so
-    // nya_lua_destroy is required and freeing the arena alone would leak all of it.
+    // `restricted` refuses io, os, package, ffi and debug, which is what running someone else's script should look like. The arena owns the wrapper; LuaJIT owns its own heap, so nya_lua_destroy is required and freeing the arena alone would leak all of it.
     NYA_LuaVM* vm = nullptr;
     NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true }, &vm), "while creating the VM");
     defer nya_lua_destroy(vm);
 
     nya_lua_register(vm, "score_add", binding_score_add, &score);
 
-    // A script is input, not code: a syntax error in it is an operating error, so it is reported
-    // and the program carries on rather than crashing.
+    // A script is input, not code: a syntax error in it is an operating error, so it is reported and the program carries on rather than crashing.
     NYA_Error ran = nya_lua_run(vm, SCRIPT, "plugin_scripting.lua");
     if (!ran.ok) {
         nya_log_error("The script did not load: %s", (NYA_ConstCString)ran.message);
@@ -153,12 +150,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_log_info("LuaJIT holds %llu bytes.", (unsigned long long)nya_lua_memory_bytes(vm));
 
-    // ── what a plugin's VM looks like ───────────────────────────────────────────────────────────
-    //
-    // The same call the plugin host makes for every plugin it loads. A permission the plugin did not
-    // get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and
-    // indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement
-    // mechanism, and it is why there is nothing for a script to reach around.
+    // ── what a plugin's VM looks like ─────────────────────────────────────────────────────────── The same call the plugin host makes for every plugin it loads. A permission the plugin did not get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement mechanism, and it is why there is nothing for a script to reach around.
     NYA_LuaVM* sandboxed = nullptr;
     NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true }, &sandboxed), "while creating the second VM");
     defer nya_lua_destroy(sandboxed);

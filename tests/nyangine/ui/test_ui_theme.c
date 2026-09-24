@@ -113,8 +113,7 @@ s32 main(void) {
   // TEST: a bad field is rejected and the built-in default kept, valid siblings applied
   printf("TEST: an out-of-range or wrong-type field is rejected, keeping the built-in default\n");
   {
-    // A radius below zero, an alpha above one, a size that is text not a number, and a key that names no
-    // field. The valid sibling (spacing) must still take, proving one bad line costs only its own field.
+    // A radius below zero, an alpha above one, a size that is text not a number, and a key that names no field. The valid sibling (spacing) must still take, proving one bad line costs only its own field.
     write_fixture("nya 2 0\n"
                   "{\n"
                   "    radius: f32 -5.0;\n"

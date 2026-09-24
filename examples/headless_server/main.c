@@ -181,8 +181,7 @@ NYA_INTERNAL const NYA_HttpRouter SERVER_ROUTER = {
  * whether the round trip saw a 200.
  * */
 NYA_INTERNAL b8 self_test(u16 port) {
-    // Refcounted, so this pairs with the server's own start/stop and never actually stops the library
-    // out from under the still-running listener.
+    // Refcounted, so this pairs with the server's own start/stop and never actually stops the library out from under the still-running listener.
     if (nya_os_socket_start() != NYA_OS_SOCKET_OK) {
         nya_log_error("self-test: the host's socket library could not start");
         return false;
@@ -289,9 +288,7 @@ s32 main(s32 argc, char** argv) {
         }
     }
 
-    // The frame budget for a headless run: NYA_HEADLESS_SERVER_FRAMES=N runs the self-test on its own
-    // thread and quits once it has answered or after at most N ticks, so CI can prove the server serves
-    // without a person. Unset serves until interrupted, the way an operator runs it.
+    // The frame budget for a headless run: NYA_HEADLESS_SERVER_FRAMES=N runs the self-test on its own thread and quits once it has answered or after at most N ticks, so CI can prove the server serves without a person. Unset serves until interrupted, the way an operator runs it.
     u32              max_frames = 0;
     NYA_ConstCString frames_env = getenv("NYA_HEADLESS_SERVER_FRAMES");
     if (frames_env != nullptr) max_frames = (u32)strtoul(frames_env, nullptr, 10);
@@ -299,35 +296,23 @@ s32 main(s32 argc, char** argv) {
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
     (void)signal(SIGINT, stop);
 
-    /*
-     * No SDL, no window, no frame loop, and no core to bring up — not the callback, event or save systems
-     * the other server examples start, because none of them is linked. The server is a standalone
-     * subsystem driven by the three calls below and nothing else; see http_server.h.
-     */
+    /* No SDL, no window, no frame loop, and no core to bring up — not the callback, event or save systems the other server examples start, because none of them is linked. The server is a standalone subsystem driven by the three calls below and nothing else; see http_server.h. */
     nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_HEADERS, .address = NYA_HTTP_LOG_ADDRESS_NETWORK });
 
-    // One worker, so the listener runs on its own thread and the accept path is exercised the way a real
-    // server's is; the MAIN routes are still answered on this loop's tick. Zero would be one drain a
-    // tick on this thread, which serves too — the loop below is identical either way.
+    // One worker, so the listener runs on its own thread and the accept path is exercised the way a real server's is; the MAIN routes are still answered on this loop's tick. Zero would be one drain a tick on this thread, which serves too — the loop below is identical either way.
     NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){ .port = port, .workers = 1 }), "while starting the server");
     defer nya_system_http_deinit();
 
     NYA_EXPECT(nya_http_server_merge(&SERVER_ROUTER), "while merging the routes");
     defer nya_http_server_unmerge(&SERVER_ROUTER);
 
-    // /healthz and /readyz, for an orchestrator. The engine ships the router; what "ready" means is the
-    // program's, so with no check registered /readyz simply passes. See http_health.h.
+    // /healthz and /readyz, for an orchestrator. The engine ships the router; what "ready" means is the program's, so with no check registered /readyz simply passes. See http_health.h.
     NYA_EXPECT(nya_http_server_merge(nya_http_health_router()), "while merging the health router");
     defer nya_http_server_unmerge(nya_http_health_router());
 
     nya_log_info("headless_server on http://127.0.0.1:%u — GET " ROOT_PATH ", " STATUS_PATH ", /healthz. ctrl-c to stop.", nya_http_server_port());
 
-    /*
-     * The self-test, when a frame budget asked for one. It runs on its own thread because it talks to the
-     * server over a socket and the server answers the MAIN routes on this loop — a loop that blocked in
-     * its own client would wait for an answer it had stopped ticking to produce, the shape blob_service
-     * takes for the same reason.
-     */
+    /* The self-test, when a frame budget asked for one. It runs on its own thread because it talks to the server over a socket and the server answers the MAIN routes on this loop — a loop that blocked in its own client would wait for an answer it had stopped ticking to produce, the shape blob_service takes for the same reason. */
     b8           passed = false;
     NYA_Thread*  client = nullptr;
     SelfTestArgs args   = { .port = nya_http_server_port(), .out = &passed };
@@ -343,8 +328,7 @@ s32 main(s32 argc, char** argv) {
     u32 frame = 0;
 
     while (RUNNING) {
-        // Answers the MAIN routes queued for this thread and drains the sockets. Returns rather than
-        // blocking, so the budget check below runs every tick.
+        // Answers the MAIN routes queued for this thread and drains the sockets. Returns rather than blocking, so the budget check below runs every tick.
         nya_system_http_tick();
 
         if (max_frames > 0) {

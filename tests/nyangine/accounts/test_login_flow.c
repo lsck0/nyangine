@@ -55,9 +55,7 @@ static NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
     if (username == nullptr || username->type != NYA_TYPE_STRING) return NYA_HTTP_STATUS_BAD_REQUEST;
     if (password == nullptr || password->type != NYA_TYPE_STRING) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    // One refusal for every way the credentials can be wrong, at the same cost whether the account
-    // exists or not: it is nya_account_authenticate that guarantees that, and this route says nothing
-    // more than it does.
+    // One refusal for every way the credentials can be wrong, at the same cost whether the account exists or not: it is nya_account_authenticate that guarantees that, and this route says nothing more than it does.
     NYA_AccountUser user    = { 0 };
     NYA_Error       allowed = nya_account_authenticate(exchange->arena, username->as_string, password->as_string, exchange->address, &user);
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
@@ -263,9 +261,7 @@ s32 main(void) {
         nya_check(session_cookie_token(answer, token, sizeof(token)), "and the answer carries a __Host-session cookie");
         nya_check(token[0] != '\0', "with a token in it");
 
-        // The flags that make it a session cookie: unreadable from script, sent over TLS only, and not
-        // sent on a cross-site request — the three that keep the token out of an injected script's reach
-        // and off a forged cross-site POST. Path=/ and the __Host- prefix pin it to this exact origin.
+        // The flags that make it a session cookie: unreadable from script, sent over TLS only, and not sent on a cross-site request — the three that keep the token out of an injected script's reach and off a forged cross-site POST. Path=/ and the __Host- prefix pin it to this exact origin.
         nya_check(nya_string_contains(answer, "HttpOnly"), "the cookie is HttpOnly");
         nya_check(nya_string_contains(answer, "Secure"), "the cookie is Secure");
         nya_check(nya_string_contains(answer, "SameSite=Strict"), "the cookie is SameSite=Strict");
@@ -310,8 +306,7 @@ s32 main(void) {
         nya_assert(exchange(client, nya_string_to_cstring(arena, logout), answer, sizeof(answer)) > 0);
         nya_check(status_of(answer) == 204, "logging out succeeds, got '%.15s'", answer);
 
-        // The same token, now against a revoked row: a signed claim would still be valid here, and this
-        // is the whole reason a session is a row instead of one.
+        // The same token, now against a revoked row: a signed claim would still be valid here, and this is the whole reason a session is a row instead of one.
         NYA_String* after = nya_string_sprintf(arena,
                                                "GET /api/me HTTP/1.1\r\nHost: 127.0.0.1\r\nCookie: " NYA_HTTP_SESSION_COOKIE
                                                "=%s\r\nConnection: keep-alive\r\n\r\n",

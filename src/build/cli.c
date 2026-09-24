@@ -26,8 +26,7 @@ NYA_INTERNAL void wasm_runner(NYA_ArgCommand* command) {
     NYA_Arena* arena = nya_arena_create(.name = "wasm_runner");
     defer nya_arena_destroy(arena);
 
-    // emcc writes web/nyangine.js and .wasm but does not create web/ itself. Idempotent: an existing
-    // directory is not an error.
+    // emcc writes web/nyangine.js and .wasm but does not create web/ itself. Idempotent: an existing directory is not an error.
     NYA_EXPECT(nya_filesystem_create_directory(WASM_OUTPUT_DIRECTORY), "while creating %s", WASM_OUTPUT_DIRECTORY);
 
     NYA_BuildRule build_wasm = {
@@ -41,8 +40,7 @@ NYA_INTERNAL void wasm_runner(NYA_ArgCommand* command) {
                 WASM_DEMO_SOURCE,
                 "-o", WASM_JS_OUTPUT,
                 FLAGS_WASM,
-                // The engine's own include roots, so the NYA_WASM_WITH_ENGINE path in wasm_demo.c
-                // resolves its headers once the wasm engine port makes that block compile.
+                // The engine's own include roots, so the NYA_WASM_WITH_ENGINE path in wasm_demo.c resolves its headers once the wasm engine port makes that block compile.
                 INCLUDE_PATHS,
             },
         },
@@ -54,8 +52,7 @@ NYA_INTERNAL void wasm_runner(NYA_ArgCommand* command) {
     if (!nya_filesystem_exists(WASM_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_JS_OUTPUT);
     if (!nya_filesystem_exists(WASM_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_WASM_OUTPUT);
 
-    // The export, by reading it back: the loader references the symbol by name, so its absence there
-    // means the wasm exports nothing the page can call, whatever emcc's exit code said.
+    // The export, by reading it back: the loader references the symbol by name, so its absence there means the wasm exports nothing the page can call, whatever emcc's exit code said.
     NYA_String* loader = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(WASM_JS_OUTPUT, loader), "while reading %s back", WASM_JS_OUTPUT);
     if (!nya_string_contains(nya_string_to_cstring(arena, loader), WASM_EXPORTED_SYMBOL)) {
@@ -92,8 +89,7 @@ NYA_INTERNAL void wasm_ui_runner(NYA_ArgCommand* command) {
                 WASM_UI_SOURCE,
                 "-o", WASM_UI_JS_OUTPUT,
                 FLAGS_WASM_UI,
-                // The engine's own include roots, beside the vendored ones FLAGS_WASM_UI adds, so the
-                // full header graph NYA_App needs resolves.
+                // The engine's own include roots, beside the vendored ones FLAGS_WASM_UI adds, so the full header graph NYA_App needs resolves.
                 INCLUDE_PATHS,
             },
         },
@@ -105,8 +101,7 @@ NYA_INTERNAL void wasm_ui_runner(NYA_ArgCommand* command) {
     if (!nya_filesystem_exists(WASM_UI_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_JS_OUTPUT);
     if (!nya_filesystem_exists(WASM_UI_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_WASM_OUTPUT);
 
-    // Both exports, by reading the loader back: the page calls both, so either one dropped means a page
-    // that cannot render or cannot forward a click, whatever emcc's exit code said.
+    // Both exports, by reading the loader back: the page calls both, so either one dropped means a page that cannot render or cannot forward a click, whatever emcc's exit code said.
     NYA_String* loader = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(WASM_UI_JS_OUTPUT, loader), "while reading %s back", WASM_UI_JS_OUTPUT);
 
@@ -149,8 +144,7 @@ NYA_INTERNAL void wasm_game_runner(NYA_ArgCommand* command) {
                 WASM_GAME_SOURCE,
                 "-o", WASM_GAME_JS_OUTPUT,
                 FLAGS_WASM_GAME,
-                // The engine's own include roots, beside the vendored ones FLAGS_WASM_GAME adds, so the
-                // full header graph NYA_Vertex2D and the SDL_GPU types come from resolves.
+                // The engine's own include roots, beside the vendored ones FLAGS_WASM_GAME adds, so the full header graph NYA_Vertex2D and the SDL_GPU types come from resolves.
                 INCLUDE_PATHS,
             },
         },
@@ -187,8 +181,7 @@ NYA_INTERNAL void completions_runner(NYA_ArgCommand* command) {
 
     NYA_Error result = nya_args_print_completions(&parser, BUILD_TOOL_BINARY, shell->value.as_string);
 
-    // A misspelled shell is user input, not a broken build, so it gets the same message and exit
-    // code main gives any other bad argument rather than a panic and a stack trace.
+    // A misspelled shell is user input, not a broken build, so it gets the same message and exit code main gives any other bad argument rather than a panic and a stack trace.
     if (!result.ok) {
         (void)fprintf(stderr, "Error: %s\n\n", result.message);
         nya_args_print_usage(&parser, command);
@@ -213,16 +206,13 @@ NYA_INTERNAL NYA_ArgParameter test_files = {
     .value.type  = NYA_TYPE_STRING,
     .name        = "tests",
     .description = "Which tests to run. If none specified, all tests are run.",
-    // Matched as a substring against every source under ./tests, so completing paths relative to
-    // that directory hands the runner something it will always match.
+    // Matched as a substring against every source under ./tests, so completing paths relative to that directory hands the runner something it will always match.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, .directory = "tests", .glob = "*.c", },
 };
 
 NYA_INTERNAL NYA_ArgParameter coverage_fail_under = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
-    // S64, not F64: a percentage floor is expressed in whole points, and the parser takes B8, S64,
-    // F64 and STRING. The measured coverage is compared as a real, so a run at 44.9% still fails a
-    // floor of 45.
+    // S64, not F64: a percentage floor is expressed in whole points, and the parser takes B8, S64, F64 and STRING. The measured coverage is compared as a real, so a run at 44.9% still fails a floor of 45.
     .value.type    = NYA_TYPE_S64,
     .name          = "fail-under",
     .description   = "Exit non-zero if total line coverage of src/nyangine is below this percent.",
@@ -241,18 +231,14 @@ NYA_INTERNAL NYA_ArgParameter example_name = {
     .value.type  = NYA_TYPE_STRING,
     .name        = "example",
     .description = "Which example to build and run. The directory name under examples/.",
-    // straight from the directory listing, so a new example folder is offered without being named here.
-    // Not KIND_FILE: the argument is a directory name, and path completion would offer
-    // examples/hello_world/main.c, which is not accepted.
+    // straight from the directory listing, so a new example folder is offered without being named here. Not KIND_FILE: the argument is a directory name, and path completion would offer examples/hello_world/main.c, which is not accepted.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &example_completion_name, },
 };
 
 NYA_INTERNAL NYA_ArgParameter fuzz_target = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .value.type  = NYA_TYPE_STRING,
-    // variadic so it is optional, not so it takes several: the parser makes a variadic positional the
-    // only optional kind, and running the command bare lists what there is, which for a command that
-    // otherwise runs until it is interrupted is the useful thing to do. More than one is refused.
+    // variadic so it is optional, not so it takes several: the parser makes a variadic positional the only optional kind, and running the command bare lists what there is, which for a command that otherwise runs until it is interrupted is the useful thing to do. More than one is refused.
     .variadic    = true,
     .name        = "target",
     .description = "Which fuzz target to run. If none specified, the targets are listed.",
@@ -262,13 +248,11 @@ NYA_INTERNAL NYA_ArgParameter fuzz_target = {
 
 NYA_INTERNAL NYA_ArgParameter simulation_seed = {
     .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
-    // S64, not U64: the parser takes B8, S64, F64 and STRING. A seed is a bit pattern rather than a
-    // count, so the sign is meaningless and the cast back to u64 in the runner is exact.
+    // S64, not U64: the parser takes B8, S64, F64 and STRING. A seed is a bit pattern rather than a count, so the sign is meaningless and the cast back to u64 in the runner is exact.
     .value.type    = NYA_TYPE_S64,
     .name          = "seed",
     .description   = "Which seed to simulate. If none specified, a fresh one is drawn and printed.",
-    // zero means "draw one": a seed of zero is as good as any other and nobody asks for it by name,
-    // so this costs no reachable value. See simulation_runner.
+    // zero means "draw one": a seed of zero is as good as any other and nobody asks for it by name, so this costs no reachable value. See simulation_runner.
     .default_value = { .type = NYA_TYPE_S64, .as_s64 = 0 },
 };
 
@@ -277,8 +261,7 @@ NYA_INTERNAL NYA_ArgParameter simulation_steps = {
     .value.type  = NYA_TYPE_S64,
     .name        = "steps",
     .description = "How many actions to take. Longer runs reach deeper states.",
-    // a hundred thousand is about a minute under sanitizers, which is long enough for a scheduled run
-    // to find something and short enough to wait for.
+    // a hundred thousand is about a minute under sanitizers, which is long enough for a scheduled run to find something and short enough to wait for.
     .default_value = { .type = NYA_TYPE_S64, .as_s64 = 100000 },
 };
 
@@ -312,8 +295,7 @@ NYA_INTERNAL NYA_ArgParameter agent_episodes = {
     .value.type  = NYA_TYPE_S64,
     .name        = "episodes",
     .description = "Sessions to play, or NEAT generations. Each one is a session per genome.",
-    // eight of the default length is a few minutes and enough for a DQN's exploration to anneal
-    // most of the way, which is where it starts playing rather than flailing.
+    // eight of the default length is a few minutes and enough for a DQN's exploration to anneal most of the way, which is where it starts playing rather than flailing.
     .default_value = { .type = NYA_TYPE_S64, .as_s64 = 8 },
 };
 
@@ -355,8 +337,7 @@ NYA_INTERNAL NYA_ArgParameter check_sources = {
     .value.type  = NYA_TYPE_STRING,
     .name        = "sources",
     .description = "Which translation units to check. If none specified, all of them are checked.",
-    // Completing against ./src finds main.c and gnyame.c, which are two of the three roots. The
-    // third is ./build.c and is a single well known name nobody needs completion for.
+    // Completing against ./src finds main.c and gnyame.c, which are two of the three roots. The third is ./build.c and is a single well known name nobody needs completion for.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, .directory = "src", .glob = "*.c", },
 };
 
@@ -369,8 +350,7 @@ NYA_INTERNAL NYA_ArgParameter check_strict_flag = {
 
 NYA_INTERNAL NYA_ArgParameter commit_check_target = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
-    // variadic so it is optional, not so it takes several: with none, the HEAD commit is checked; with
-    // one, either a message file or a git range. A second argument is refused.
+    // variadic so it is optional, not so it takes several: with none, the HEAD commit is checked; with one, either a message file or a git range. A second argument is refused.
     .variadic    = true,
     .value.type  = NYA_TYPE_STRING,
     .name        = "target",
@@ -422,15 +402,12 @@ NYA_ArgParameter server_flag = {
 
 NYA_INTERNAL NYA_ArgParameter dist_target = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
-    // Several in one run, because a run is the unit a checksum is consistent over: each invocation
-    // rebuilds and rearchives what it stages, so two of them leave a manifest hashing an archive the
-    // second one has already replaced.
+    // Several in one run, because a run is the unit a checksum is consistent over: each invocation rebuilds and rearchives what it stages, so two of them leave a manifest hashing an archive the second one has already replaced.
     .variadic    = true,
     .value.type  = NYA_TYPE_STRING,
     .name        = "targets",
     .description = "Which distributions to stage. If none specified, every one this host can produce.",
-    // Straight from the table in dist.c that also parses this argument, so a target added there is
-    // offered here without this file learning its name.
+    // Straight from the table in dist.c that also parses this argument, so a target added there is offered here without this file learning its name.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &dist_completion_target, },
 };
 
@@ -472,8 +449,7 @@ NYA_INTERNAL NYA_ArgParameter completions_shell = {
     .value.type  = NYA_TYPE_STRING,
     .name        = "shell",
     .description = "Which shell to generate for.",
-    // Straight from the registry in base_args.c, so a shell added there is offered here without
-    // this file knowing any shell's name.
+    // Straight from the registry in base_args.c, so a shell added there is offered here without this file knowing any shell's name.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &nya_args_completion_shell_name, },
 };
 
@@ -504,9 +480,7 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .build_rule  = &run_release,
         },
 #if !OS_WINDOWS
-        // The second app, to show a project runs more than one binary. Same host, same hot reload; the
-        // host loads gnyame-cli.debug.so because the binary it runs is named gnyame-cli.debug. `run debug`
-        // above is still the default app, gnyame. See build_gnyame_cli_debug_linux.
+        // The second app, to show a project runs more than one binary. Same host, same hot reload; the host loads gnyame-cli.debug.so because the binary it runs is named gnyame-cli.debug. `run debug` above is still the default app, gnyame. See build_gnyame_cli_debug_linux.
         &(NYA_ArgCommand){
             .name        = "gnyame-cli",
             .description = "Build and run the gnyame-cli app under the host with hot reload. Sanitized, like `run debug`.",
@@ -556,8 +530,7 @@ NYA_INTERNAL NYA_ArgCommand build = {
     .name        = "build",
     .description = "Build things.",
     .subcommands = {
-// The linux targets are absent on a Windows host rather than present and failing: a command
-// that cannot work on this machine should not be in the help output or the completions.
+// The linux targets are absent on a Windows host rather than present and failing: a command that cannot work on this machine should not be in the help output or the completions.
 #if !OS_WINDOWS
         &(NYA_ArgCommand){
             .name        = "debug-linux",
@@ -574,8 +547,7 @@ NYA_INTERNAL NYA_ArgCommand build = {
             .description = "Build the linux debug dll.",
             .build_rule  = &build_project_debug_dll_linux,
         },
-        // The second app: its debug host (gnyame's host relinked under gnyame-cli's name) and its dll.
-        // The default app's rules above are unchanged. See build_gnyame_cli_debug_linux.
+        // The second app: its debug host (gnyame's host relinked under gnyame-cli's name) and its dll. The default app's rules above are unchanged. See build_gnyame_cli_debug_linux.
         &(NYA_ArgCommand){
             .name        = "gnyame-cli",
             .description = "Build the gnyame-cli app: its debug host and dll.",
@@ -671,10 +643,7 @@ NYA_INTERNAL NYA_ArgCommand build = {
         &(NYA_ArgCommand){
             .name        = "assets",
             .description = "Regenerate src/genyarated/assets.h and src/genyarated/assets.c from what is on disk.",
-            // bundle_assets, not index_assets: it depends on the index, so this writes the handle
-            // header and the byte blob from one walk of the asset tree rather than two that could
-            // disagree. Compiling the shaders and the icon comes with it, because the index has to
-            // list artifacts that exist.
+            // bundle_assets, not index_assets: it depends on the index, so this writes the handle header and the byte blob from one walk of the asset tree rather than two that could disagree. Compiling the shaders and the icon comes with it, because the index has to list artifacts that exist.
             .build_rule  = &bundle_assets,
         },
         &(NYA_ArgCommand){

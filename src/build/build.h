@@ -27,13 +27,11 @@
 // After hooks.h and the vendors, both of which its rules name.
 #include "build/pp/pp.h"
 /**/
-// The per host project rules. They depend on the asset rules in pp/pp.h, and flags.h has already
-// aliased host_build_debug and friends to whichever of them this host defines.
+// The per host project rules. They depend on the asset rules in pp/pp.h, and flags.h has already aliased host_build_debug and friends to whichever of them this host defines.
 #if !OS_WINDOWS
 #include "build/on_linux/build_linux.h"
 #endif
-// Not per host: the native and cross compiled Windows rules were identical, so there is one copy.
-// See build_windows.h.
+// Not per host: the native and cross compiled Windows rules were identical, so there is one copy. See build_windows.h.
 #include "build/build_windows.h"
 /**/
 // Last: both name rules from everything above.

@@ -294,8 +294,7 @@ s32 main(void) {
   // TEST: the webhook secret, which is the only proof telegram offers.
   {
     NYA_HttpRequest request = { 0 };
-    // lower case, because that is what the parser stores: nya_http_request_header lowers the name it is
-    // asked for and compares it against bytes that are already lowered.
+    // lower case, because that is what the parser stores: nya_http_request_header lowers the name it is asked for and compares it against bytes that are already lowered.
     (void)snprintf(request.headers[0].name, sizeof(request.headers[0].name), "%s", "x-telegram-bot-api-secret-token");
     (void)snprintf(request.headers[0].value, sizeof(request.headers[0].value), "%s", "a-secret-nobody-else-knows");
     request.header_count = 1;

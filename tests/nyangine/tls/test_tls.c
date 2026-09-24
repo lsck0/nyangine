@@ -98,8 +98,7 @@ static NYA_OsSocket dial(u16 port) {
 
   if (connected != NYA_OS_SOCKET_OK && connected != NYA_OS_SOCKET_WOULD_BLOCK) return NYA_OS_SOCKET_NONE;
 
-  // a non-blocking connect is under way rather than done, and writability is how the host says it
-  // finished; loopback usually beats the first wait to it.
+  // a non-blocking connect is under way rather than done, and writability is how the host says it finished; loopback usually beats the first wait to it.
   wait_for(socket, false, true);
 
   if (nya_os_socket_error(socket) != NYA_OS_SOCKET_OK) {
@@ -372,11 +371,7 @@ s32 main(void) {
       &response
     );
 
-    /*
-     * What the status is does not matter, and 404 is the right one: nothing is mounted on this
-     * server. nya_request_perform calls a 404 an error, so the status is what is asserted on — a
-     * status at all is the handshake, the request and the answer, which is everything under test.
-     */
+    /* What the status is does not matter, and 404 is the right one: nothing is mounted on this server. nya_request_perform calls a 404 an error, so the status is what is asserted on — a status at all is the handshake, the request and the answer, which is everything under test. */
     (void)answered;
 
     nya_check(response.status == 404, "an HTTPS request is answered by the router, got %u", response.status);
@@ -388,8 +383,7 @@ s32 main(void) {
     nya_check(nya_response_header(&response, "Strict-Transport-Security", hsts, sizeof(hsts)), "on the response itself");
     nya_check(nya_string_contains(hsts, "max-age="), "with a max-age on it, got '%s'", hsts);
 
-    // and plain HTTP to the same port is refused rather than answered, which is the whole reason a TLS
-    // server does not also speak the other thing.
+    // and plain HTTP to the same port is refused rather than answered, which is the whole reason a TLS server does not also speak the other thing.
     NYA_ConstCString plain = nya_string_to_cstring(arena, nya_string_sprintf(arena, "http://127.0.0.1:%u/", (u32)port));
 
     NYA_Response ignored = { 0 };
@@ -398,8 +392,7 @@ s32 main(void) {
     nya_check(!refused.ok || ignored.status == 0, "plaintext to an https port gets nothing back");
   }
 
-  // TEST: the round trip with this program's own TLS client, verifying the certificate rather than
-  // skipping it — the two halves of this module against each other, which curl cannot prove.
+  // TEST: the round trip with this program's own TLS client, verifying the certificate rather than skipping it — the two halves of this module against each other, which curl cannot prove.
   {
     u16 port = 0;
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
@@ -413,38 +406,33 @@ s32 main(void) {
 
     defer nya_system_http_deinit();
 
-    // liveness answers 200 on a worker, so the listener thread writes it back with nothing for the
-    // frame to do — which is what lets this test drive the whole exchange by hand.
+    // liveness answers 200 on a worker, so the listener thread writes it back with nothing for the frame to do — which is what lets this test drive the whole exchange by hand.
     NYA_EXPECT(nya_http_server_merge(nya_http_health_router()));
 
     char             buffer[1024] = { 0 };
     NYA_ConstCString protocol     = "";
 
-    // the certificate is its own authority, pinned as the trust store; "localhost" is what its
-    // subjectAltName names, so verification passes over a socket that connected to 127.0.0.1.
+    // the certificate is its own authority, pinned as the trust store; "localhost" is what its subjectAltName names, so verification passes over a socket that connected to 127.0.0.1.
     b8 got = https_get(arena, port, pair.certificate, "localhost", buffer, sizeof(buffer), &protocol);
 
     nya_check(got, "the engine's TLS client completes a verified handshake and reads an answer");
     nya_check(nya_string_starts_with(buffer, "HTTP/1.1 200"), "GET /healthz is 200 over TLS, got '%.16s'", buffer);
     nya_check(nya_string_starts_with(protocol, "TLSv1."), "on TLS 1.2 or better, got '%s'", protocol);
 
-    // a certificate that verifies against the wrong name must fail the handshake rather than be taken:
-    // the trust store is the same pin, but "example.com" is not what the certificate is for.
+    // a certificate that verifies against the wrong name must fail the handshake rather than be taken: the trust store is the same pin, but "example.com" is not what the certificate is for.
     char        rejected[256] = { 0 };
     NYA_ConstCString unused    = "";
     b8          wrong_host     = https_get(arena, port, pair.certificate, "example.com", rejected, sizeof(rejected), &unused);
 
     nya_check(!wrong_host, "a certificate for another host is refused by the verifying client");
 
-    // and bytes that are not a ClientHello are dropped, not answered and not left hanging: a plain HTTP
-    // request at the https port is the port scanner and the wrong-scheme browser both.
+    // and bytes that are not a ClientHello are dropped, not answered and not left hanging: a plain HTTP request at the https port is the port scanner and the wrong-scheme browser both.
     static const u8 GARBAGE[] = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
     char            drained[256] = { 0 };
 
     nya_check(raw_exchange(port, GARBAGE, sizeof(GARBAGE) - 1, drained, sizeof(drained)), "a garbage handshake is dropped cleanly, not hung on");
 
-    // the server is still whole after that: another verified round trip is still answered, which is
-    // what says the failed handshake freed its session rather than wedging the pool.
+    // the server is still whole after that: another verified round trip is still answered, which is what says the failed handshake freed its session rather than wedging the pool.
     char after[1024] = { 0 };
     NYA_ConstCString after_protocol = "";
 
@@ -454,8 +442,7 @@ s32 main(void) {
     );
   }
 
-  // TEST: no certificate is plaintext, not a refusal — the loopback development server, which speaks
-  // HTTP over a bare socket and sends no HSTS because there is no TLS for a browser to pin to.
+  // TEST: no certificate is plaintext, not a refusal — the loopback development server, which speaks HTTP over a bare socket and sends no HSTS because there is no TLS for a browser to pin to.
   {
     u16 port = 0;
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");

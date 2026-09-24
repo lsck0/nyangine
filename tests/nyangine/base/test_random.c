@@ -260,14 +260,7 @@ s32 main(void) {
 
   // TEST: every sampled width, including the four nothing had ever called
   {
-    /*
-     * s8, s16, s64 and f16 had no caller anywhere in the tree, and u16 had one. They are each a cast
-     * and a clamp over nya_rng_sample_f64, so what can be wrong with them is the clamp: the wrong
-     * bound, or a bound of the wrong sign. That is invisible until someone asks for a negative.
-     *
-     * A range wider than the type on purpose, so the clamp is what decides the answer rather than the
-     * distribution never reaching the edges.
-     */
+    /* s8, s16, s64 and f16 had no caller anywhere in the tree, and u16 had one. They are each a cast and a clamp over nya_rng_sample_f64, so what can be wrong with them is the clamp: the wrong bound, or a bound of the wrong sign. That is invisible until someone asks for a negative. A range wider than the type on purpose, so the clamp is what decides the answer rather than the distribution never reaching the edges. */
     NYA_RNG width_rng = nya_rng_create(.seed = "D7150000000BEEF5");
 
     const NYA_RNGDistribution wide = {
@@ -297,12 +290,7 @@ s32 main(void) {
       saw_negative_f16 = saw_negative_f16 || (f32)d < 0.0F;
     }
 
-    /*
-     * The half that would go unnoticed. F16_MIN here is -65504, the most negative half, and not the C
-     * library's FLT_MIN convention of the smallest positive normal — clamping to that convention would
-     * push every negative sample up to a tiny positive one and the generator would silently never
-     * return a negative number again.
-     */
+    /* The half that would go unnoticed. F16_MIN here is -65504, the most negative half, and not the C library's FLT_MIN convention of the smallest positive normal — clamping to that convention would push every negative sample up to a tiny positive one and the generator would silently never return a negative number again. */
     nya_check(saw_negative_s8, "s8 sampling reaches negative numbers");
     nya_check(saw_negative_s16, "s16 sampling reaches negative numbers");
     nya_check(saw_negative_s64, "s64 sampling reaches negative numbers");

@@ -16,14 +16,11 @@
 #include "build/lint.c"
 // After lint.c, whose lint_run it calls before clang-tidy.
 #include "build/check.c"
-// A sibling gate: spell-checks the prose and code. Independent of the above; here beside check.c
-// because it is the other read-only quality gate.
+// A sibling gate: spell-checks the prose and code. Independent of the above; here beside check.c because it is the other read-only quality gate.
 #include "build/typos.c"
-// Another sibling gate: bounded model checking of the untrusted-input parsers with CBMC. Beside the
-// other read-only gates, and independent of them.
+// Another sibling gate: bounded model checking of the untrusted-input parsers with CBMC. Beside the other read-only gates, and independent of them.
 #include "build/verify.c"
-// Another sibling gate, over the commit messages rather than the code: a thin bridge onto the shared
-// shell linter the commit-msg hook also runs.
+// Another sibling gate, over the commit messages rather than the code: a thin bridge onto the shared shell linter the commit-msg hook also runs.
 #include "build/commit.c"
 // Another sibling gate beside check.c and typos.c: clang-format over the hand-written C. Advisory, and
 // not on the critical path, so it sits with the other read-only quality gates.
@@ -39,11 +36,9 @@
 #include "build/fuzz.c"
 #include "build/simulation.c"
 #include "build/agent.c"
-// The project scaffolder: writes a new source tree from in-source templates. No dependency on the
-// rules above, so its place here is only that it is another code command beside them.
+// The project scaffolder: writes a new source tree from in-source templates. No dependency on the rules above, so its place here is only that it is another code command beside them.
 #include "build/new.c"
-// Beside new.c: reads a project.nya manifest and resolves it to a build plan. The first slice of
-// consuming the engine as a vendored dependency.
+// Beside new.c: reads a project.nya manifest and resolves it to a build plan. The first slice of consuming the engine as a vendored dependency.
 #include "build/project.c"
 // Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"

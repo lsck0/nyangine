@@ -179,15 +179,13 @@ void nya_watch_generate(void) {
         NYA_ArrayᐸNYA_Stringᐳ* files = nya_array_create(arena, NYA_String);
         NYA_EXPECT(nya_filesystem_walk(arena, _NYA_WATCH_TREES[tree], _nya_watch_collect, files), "while listing %s", _NYA_WATCH_TREES[tree]);
 
-        // Sorted, so the manifest and every companion are a function of the tree rather than of the
-        // order the filesystem happened to hand it over.
+        // Sorted, so the manifest and every companion are a function of the tree rather than of the order the filesystem happened to hand it over.
         nya_array_sort(files, _nya_watch_compare);
 
         nya_array_foreach (files, file) _nya_watch_scan_file(set, arena, nya_string_to_cstring(arena, file));
     }
 
-    // A source that forgot the include would get an undeclared function for every watched local; it is
-    // cheaper to say so here, with the line to add.
+    // A source that forgot the include would get an undeclared function for every watched local; it is cheaper to say so here, with the line to add.
     for (u32 i = 0; i < set->source_count; i++) {
         NYA_String* text = nya_string_create(arena);
         NYA_EXPECT(nya_file_read(set->sources[i].path, text), "while reading %s", set->sources[i].path);
@@ -198,10 +196,7 @@ void nya_watch_generate(void) {
                            set->sources[i].include);
     }
 
-    /*
-     * Nothing has been written yet, and nothing is written now: a function this pass could not read
-     * would otherwise leave one companion rewritten and the next one as it was.
-     */
+    /* Nothing has been written yet, and nothing is written now: a function this pass could not read would otherwise leave one companion rewritten and the next one as it was. */
     if (set->problems > 0) nya_log_panic("nya_watch_generate: " FMTu32 " problem(s); nothing was written.", set->problems);
 
     NYA_EXPECT(nya_filesystem_create_directory(NYA_WATCH_OUTPUT_DIRECTORY), "while creating the watch directory");
@@ -323,10 +318,7 @@ b8 _nya_watch_comment_has(const NYA_Lexer* lexer, u32 index, NYA_ConstCString ma
     u64 marker_length = strlen(marker);
     if (token.length < marker_length) return false;
 
-    /*
-     * Only at the start of a line inside the comment, so that prose naming the annotation is prose and
-     * the annotation is an annotation.
-     */
+    /* Only at the start of a line inside the comment, so that prose naming the annotation is prose and the annotation is an annotation. */
     for (u64 i = 0; i + marker_length <= token.length; i++) {
         if (nya_memcmp(lexer->source + token.source_location + i, marker, marker_length) != 0) continue;
 
@@ -414,12 +406,10 @@ b8 _nya_watch_declarator(const NYA_Lexer* lexer, u32 from, u32 to, OUT u32* out_
         if (token.type == NYA_TOKEN_SYMBOL) {
             if (token.symbol == '(' || token.symbol == '[' || token.symbol == '{') depth++;
 
-            // A span can begin inside a bracket it never opened, because a compound literal in an `if`
-            // condition ends a block the statement scanner was counting. Nothing to close, then.
+            // A span can begin inside a bracket it never opened, because a compound literal in an `if` condition ends a block the statement scanner was counting. Nothing to close, then.
             if ((token.symbol == ')' || token.symbol == ']' || token.symbol == '}') && depth > 0) depth--;
 
-            // The initialiser is not part of the declarator, and it is where every expression that
-            // could look like anything at all lives.
+            // The initialiser is not part of the declarator, and it is where every expression that could look like anything at all lives.
             if (token.symbol == '=' && depth == 0) break;
         }
 
@@ -458,8 +448,7 @@ b8 _nya_watch_read_declaration(
         if (_nya_watch_token_is(lexer, tokens[0], _NYA_WATCH_NOT_A_TYPE[i])) return false;
     }
 
-    // What makes it a declaration rather than a call or an assignment: a second name, or a pointer
-    // star, where an expression would have an operator.
+    // What makes it a declaration rather than a call or an assignment: a second name, or a pointer star, where an expression would have an operator.
     const b8 declaration = lexer->tokens->items[tokens[1]].type == NYA_TOKEN_IDENT || _nya_watch_token_symbol(lexer, tokens[1], '*');
     if (!declaration) return false;
 
@@ -518,8 +507,7 @@ void _nya_watch_local_add(_NYA_WatchSet* set, _NYA_WatchFunction* function, NYA_
 void _nya_watch_skipped_add(_NYA_WatchFunction* function, NYA_ConstCString name, _NYA_WatchSkip reason, u32 line) {
     nya_assert(function != nullptr);
 
-    // Dropped rather than grown: this list only exists so the companion can say what it left out, and a
-    // function with sixteen of them has been told plenty.
+    // Dropped rather than grown: this list only exists so the companion can say what it left out, and a function with sixteen of them has been told plenty.
     if (function->skipped_count >= NYA_WATCH_MAX_SKIPPED) return;
 
     _NYA_WatchSkipped* skipped = &function->skipped[function->skipped_count];
@@ -537,8 +525,7 @@ void _nya_watch_mangle(NYA_ConstCString path, OUT char* out, u64 capacity) {
     NYA_ConstCString rest = path;
     if (strncmp(rest, "./", 2) == 0) rest += 2;
 
-    // The engine and the game are the common case and nothing else in the tree is called `src`, so
-    // dropping it keeps the names readable without making two of them collide.
+    // The engine and the game are the common case and nothing else in the tree is called `src`, so dropping it keeps the names readable without making two of them collide.
     if (strncmp(rest, "src/", 4) == 0) rest += 4;
 
     u64 used = 0;
@@ -587,24 +574,17 @@ void _nya_watch_scan_file(_NYA_WatchSet* set, NYA_Arena* arena, NYA_ConstCString
     NYA_String* text = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(path, text), "while reading %s", path);
 
-    // Read whole and searched once: almost nothing in the tree is annotated, and lexing every file to
-    // find that out would be most of this pass's time.
+    // Read whole and searched once: almost nothing in the tree is annotated, and lexing every file to find that out would be most of this pass's time.
     NYA_CString contents = nya_string_to_cstring(arena, text);
     if (strstr(contents, NYA_WATCH_MARKER) == nullptr && strstr(contents, NYA_WATCH_CALL "(") == nullptr) return;
 
-    // Character literals, because this is C source: without them the quote in `c == '"'` opens a string
-    // that runs to the next quote in the file. UTF-8 identifiers, because the derived container types
-    // mangle their names with non-ASCII brackets.
+    // Character literals, because this is C source: without them the quote in `c == '"'` opens a string that runs to the next quote in the file. UTF-8 identifiers, because the derived container types mangle their names with non-ASCII brackets.
     NYA_Lexer lexer = nya_lexer_create(contents, NYA_LEXER_UTF8_IDENTS | NYA_LEXER_CHAR_LITERALS);
     nya_lexer_run(&lexer);
 
     defer nya_lexer_destroy(&lexer);
 
-    /*
-     * Every call site in the file, so that one left behind by a deleted annotation is reported rather
-     * than left to fail as an undeclared macro. A call on a preprocessor line is base_watch.h's own
-     * definition, or something wrapping it.
-     */
+    /* Every call site in the file, so that one left behind by a deleted annotation is reported rather than left to fail as an undeclared macro. A call on a preprocessor line is base_watch.h's own definition, or something wrapping it. */
     u32 calls[NYA_WATCH_MAX_FUNCTIONS] = { 0 };
     u32 call_count                     = 0;
     u32 preprocessor_line              = 0;
@@ -649,8 +629,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
 
     const u32 line = lexer->tokens->items[marker].line_number;
 
-    // Any further comment lines between the annotation and the function are skipped, so the marker may
-    // sit at the top of a doc block rather than immediately above the definition.
+    // Any further comment lines between the annotation and the function are skipped, so the marker may sit at the top of a doc block rather than immediately above the definition.
     u32 cursor = _nya_watch_skip_comments(lexer, marker + 1);
 
     // The declarator: everything up to the parameter list, whose name is the token in front of it.
@@ -749,8 +728,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
         if (_nya_watch_token_symbol(lexer, at, '(')) parenthesis++;
         if (_nya_watch_token_symbol(lexer, at, ')') && parenthesis > 0) parenthesis--;
 
-        // Inside parentheses a brace belongs to a compound literal, not to a block: the statement it
-        // sits in is still running, and a `(NYA_UIPanel){ ... }` in an `if` must not end it.
+        // Inside parentheses a brace belongs to a compound literal, not to a block: the statement it sits in is still running, and a `(NYA_UIPanel){ ... }` in an `if` must not end it.
         if (_nya_watch_token_symbol(lexer, at, '{') && parenthesis == 0) {
             depth++;
             statement_start = at + 1;
@@ -776,11 +754,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
         if (!read && !skipped) continue;
 
         if (!above) {
-            /*
-             * Below the call site the local is not in scope where the registration sits, so it cannot be
-             * watched at all. Written into the companion rather than logged: the companion is committed,
-             * so the omission turns up in the review of the annotation instead of in every later build.
-             */
+            /* Below the call site the local is not in scope where the registration sits, so it cannot be watched at all. Written into the companion rather than logged: the companion is committed, so the omission turns up in the review of the annotation instead of in every later build. */
             _nya_watch_skipped_add(&function, local.name, _NYA_WATCH_SKIP_LATE, lexer->tokens->items[at].line_number);
             continue;
         }
@@ -850,8 +824,7 @@ void _nya_watch_emit_companion(const _NYA_WatchSet* set, u32 source, NYA_String*
                                   " \\\n    ");
 
         for (u32 local = 0; local < function->local_count; local++) {
-            // sizeof over the type rather than over the name: sizeof of a pointer to a struct reads as
-            // a mistake to the linter, and half of what gets watched is one.
+            // sizeof over the type rather than over the name: sizeof of a pointer to a struct reads as a mistake to the linter, and half of what gets watched is one.
             nya_string_extend_sprintf(
                 out, " \\\n    nya_watch_record(_nya_watch_frame, \"%s\", \"%s\", \"%s\", _nya_watch_type_of(%s), (u32)sizeof(typeof(%s)), &%s);",
                 function->name, function->locals[local].name, function->locals[local].type, function->locals[local].name,
@@ -874,8 +847,7 @@ void _nya_watch_prune(const _NYA_WatchSet* set, NYA_Arena* arena) {
     nya_array_foreach (existing, file) {
         NYA_CString path = nya_string_to_cstring(arena, file);
 
-        // By name: the walk reports a path relative to the tree it was given, which is not the spelling
-        // the companions were written under, and one directory cannot hold two files of one name.
+        // By name: the walk reports a path relative to the tree it was given, which is not the spelling the companions were written under, and one directory cannot hold two files of one name.
         NYA_ConstCString name = _nya_watch_basename(path);
 
         b8 wanted = false;
@@ -883,8 +855,7 @@ void _nya_watch_prune(const _NYA_WatchSet* set, NYA_Arena* arena) {
             wanted = wanted || nya_string_equals(_nya_watch_basename(set->sources[i].companion), name);
         }
 
-        // An annotation that is gone has to take its macro with it, or the source keeps including a
-        // registration for locals that may no longer be there.
+        // An annotation that is gone has to take its macro with it, or the source keeps including a registration for locals that may no longer be there.
         if (wanted) continue;
 
         NYA_EXPECT(nya_filesystem_delete(path), "while removing the stale companion %s", path);

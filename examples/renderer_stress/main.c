@@ -324,14 +324,7 @@ NYA_INTERNAL u32 terrain_build(NYA_Vertex3D* out) {
     return at;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PROP MESHES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * A crystal spire: a many-sided prism narrowing toward the top, the same shape at three resolutions so the
- * LOD chain has distinct silhouettes to pick between. Built once, uploaded once, drawn thousands of times.
- */
+/* PROP MESHES A crystal spire: a many-sided prism narrowing toward the top, the same shape at three resolutions so the LOD chain has distinct silhouettes to pick between. Built once, uploaded once, drawn thousands of times. */
 
 /** Writes two triangles for quad `a b c d` with the flat normal the winding gives. Returns six. */
 NYA_INTERNAL u32 prop_face(NYA_Vertex3D* out, f32x3 a, f32x3 b, f32x3 c, f32x3 d, NYA_Color color) {
@@ -447,14 +440,7 @@ NYA_INTERNAL void meshes_register(NYA_Window* window) {
     state->registered = true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SCATTER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Prop placement is derived from the index by hashing rather than stored, so the count is a pure knob and no
- * per-instance memory grows with it.
- */
+/* SCATTER Prop placement is derived from the index by hashing rather than stored, so the count is a pure knob and no per-instance memory grows with it. */
 
 /** Where prop `index` stands, on the terrain. */
 NYA_INTERNAL f32x3 prop_position(u32 index) {
@@ -502,8 +488,7 @@ NYA_INTERNAL void systems_build(void) {
 
     NYA_Arena* allocator = nya_world()->allocator;
 
-    // From the world's arena, so they die with the world rather than needing their own teardown. A previous
-    // set is simply abandoned into the arena; the scene is a stress test, not a long-lived app.
+    // From the world's arena, so they die with the world rather than needing their own teardown. A previous set is simply abandoned into the arena; the scene is a stress test, not a long-lived app.
     state->dust   = nya_particles_create(allocator, sc->dust_pool);
     state->sparks = nya_particles_create(allocator, sc->spark_pool);
     state->smoke  = nya_particles_create(allocator, sc->smoke_pool);
@@ -639,8 +624,7 @@ void stress_layer_on_create(NYA_Window* window) {
     post_pipelines_ensure(window);
 
 #if !OS_WASM
-    // the opt-in GPU-compute particle field, built once (and again after a reload, which destroyed it). A
-    // null result — no compute on this device — is fine: step and draw ignore it and the scene is unchanged.
+    // the opt-in GPU-compute particle field, built once (and again after a reload, which destroyed it). A null result — no compute on this device — is fine: step and draw ignore it and the scene is unchanged.
     if (state->compute_on && state->compute_field == nullptr) {
         state->compute_field = nya_gpu_particle_field_create(window, 1024, 192);
     }
@@ -838,8 +822,7 @@ void stress_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_particles_update(state->smoke, delta_time_s);
 
 #if !OS_WASM
-    // the GPU-compute field, once a tick, on its own command buffer. Ignored when off. The frame draws the
-    // texture it leaves behind; see stress_layer_on_render.
+    // the GPU-compute field, once a tick, on its own command buffer. Ignored when off. The frame draws the texture it leaves behind; see stress_layer_on_render.
     nya_gpu_particle_field_step(window, state->compute_field, delta_time_s);
 #endif
 
@@ -1050,9 +1033,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         nya_render3d_cube(window, center, half * 2.0F, nya_quaternion_identity, (NYA_Color){ 0.22F, 0.22F, 0.26F, 1.0F });
     }
 
-    // the opaque props, bucketed by material so instances of the same LOD mesh batch into few draws. The LOD
-    // chain on PROP_MESH_L0 swaps the drawn mesh by distance, and the surplus past the instance ceiling is
-    // counted as dropped draws — one of the limits this example exists to surface.
+    // the opaque props, bucketed by material so instances of the same LOD mesh batch into few draws. The LOD chain on PROP_MESH_L0 swaps the drawn mesh by distance, and the surplus past the instance ceiling is counted as dropped draws — one of the limits this example exists to surface.
     for (u32 bucket = 0; bucket < MATERIAL_COUNT; bucket++) {
         nya_render3d_material_set(window, material_of(bucket));
 
@@ -1104,9 +1085,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
                                    });
     }
 
-    // TODO(wind/foliage/water): the swaying foliage, the wind field and the water surface slot in here, drawn
-    // after the opaque props and before the additive passes. They land separately; see render_wind.* and the
-    // gnyame foliage work.
+    // TODO(wind/foliage/water): the swaying foliage, the wind field and the water surface slot in here, drawn after the opaque props and before the additive passes. They land separately; see render_wind.* and the gnyame foliage work.
 
     // the particles: opaque dust first (through the sorted transparent pass), then smoke, then additive sparks.
     nya_particles_draw(window, state->dust);
@@ -1202,8 +1181,7 @@ NYA_INTERNAL void apply_scene_features(NYA_Window* window, Stress* state) {
     // bloom and ambient occlusion at every level; the rest only at the heavy levels.
     nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true, .threshold = 0.9F, .intensity = 1.0F });
 
-    // classic SSAO stands in for the stylised occlusion when asked; the two share the half resolution buffer, so only
-    // one runs at a time.
+    // classic SSAO stands in for the stylised occlusion when asked; the two share the half resolution buffer, so only one runs at a time.
     if (state->ssao_on) {
         nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
         nya_post_ssao_set(window, (NYA_PostSsao){ .enabled = true, .strength = 0.6F });
@@ -1292,9 +1270,7 @@ void stress_layer_on_render(NYA_Window* window) {
                                  state->occlusion_on ? "on" : "off");
 
 #if !OS_WASM
-    // the GPU-compute field, drawn in the top-right corner over the flushed scene. The compute passes that
-    // filled this texture ran in on_update on a command buffer of their own; here it is just sampled. Ignored
-    // when the field is off or the device had no compute.
+    // the GPU-compute field, drawn in the top-right corner over the flushed scene. The compute passes that filled this texture ran in on_update on a command buffer of their own; here it is just sampled. Ignored when the field is off or the device had no compute.
     if (state->compute_field != nullptr) {
         u32 target_width = 0, target_height = 0;
         nya_render2d_target_size(window, &target_width, &target_height);
@@ -1305,8 +1281,7 @@ void stress_layer_on_render(NYA_Window* window) {
     }
 #endif
 
-    // the engine's own overlay: the trace table, VRAM by kind and the fixed-capacity ceilings. This is the
-    // instrumentation the task asks for — it names which resource is fullest, not just the frame time.
+    // the engine's own overlay: the trace table, VRAM by kind and the fixed-capacity ceilings. This is the instrumentation the task asks for — it names which resource is fullest, not just the frame time.
     nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){
                                        .x                   = 12.0F,
                                        .y                   = y + (step * 1.5F),

@@ -28,8 +28,7 @@ void bug_hook_that_registers_a_new_type(NYA_Event* event) {
   if (registered) return;
   registered = true;
 
-  // A type no hook has claimed, so this is an insert, and the insert is what crosses the load
-  // factor and rehashes the map out from under the walk.
+  // A type no hook has claimed, so this is an insert, and the insert is what crosses the load factor and rehashes the map out from under the walk.
   nya_event_hook_register((NYA_EventHook){
       .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
       .event_type = NYA_EVENT_KEYMAP_CHANGED,
@@ -49,8 +48,7 @@ s32 main(void) {
 
   NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* hooks = _NYA_APP_INSTANCE.event_system.immediate_event_hooks;
 
-  // One insert short of the load factor, using event types that are neither the one dispatched nor
-  // the one the handler claims.
+  // One insert short of the load factor, using event types that are neither the one dispatched nor the one the handler claims.
   u64           threshold = (u64)((f32)hooks->capacity * _NYA_HASHMAP_LOAD_FACTOR);
   NYA_EventType filler    = (NYA_EventType)(NYA_EVENT_INVALID + 1);
 
@@ -67,8 +65,7 @@ s32 main(void) {
     filler = (NYA_EventType)(filler + 1);
   }
 
-  // NYA_EVENT_QUIT takes the last slot below the threshold. Its first hook is the one that inserts
-  // a new key mid dispatch; the rest are there so the walk continues afterwards.
+  // NYA_EVENT_QUIT takes the last slot below the threshold. Its first hook is the one that inserts a new key mid dispatch; the rest are there so the walk continues afterwards.
   nya_event_hook_register((NYA_EventHook){
       .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
       .event_type = NYA_EVENT_QUIT,
@@ -87,9 +84,7 @@ s32 main(void) {
 
   nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_QUIT });
 
-  // The rehash has to have happened, or this test is no longer exercising anything. `hooks` is still
-  // the right pointer to ask: a rehash swaps the keys, values and occupied blocks but never moves
-  // the NYA_HMap struct itself.
+  // The rehash has to have happened, or this test is no longer exercising anything. `hooks` is still the right pointer to ask: a rehash swaps the keys, values and occupied blocks but never moves the NYA_HMap struct itself.
   nya_assert(hooks->capacity > capacity_before, "the map did not rehash; the test no longer reproduces the bug");
 
   // Every hook registered before the dispatch must have run. The one added during it may or may not.

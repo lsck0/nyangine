@@ -129,8 +129,7 @@ static NYA_OsSocket connect_to(u16 port) {
 
   nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-  // a non-blocking connect is under way rather than done, and writability is how the host says it
-  // finished; loopback usually beats the first wait to it.
+  // a non-blocking connect is under way rather than done, and writability is how the host says it finished; loopback usually beats the first wait to it.
   NYA_OsSocketWait watched = { .socket = socket, .writable = true };
   u32              ready   = 0;
 
@@ -378,10 +377,7 @@ s32 main(void) {
 
         nya_assert(client.binaries == 1 && client.last_size == sizeof(bytes) && nya_memcmp(client.last, bytes, sizeof(bytes)) == 0);
 
-        /*
-         * A message in three masked fragments, built by hand: nya_websocket_protocol_send writes one
-         * final frame, and what is being checked here is the server joining what a browser splits.
-         */
+        /* A message in three masked fragments, built by hand: nya_websocket_protocol_send writes one final frame, and what is being checked here is the server joining what a browser splits. */
         {
             static const struct {
                 NYA_WebSocketOpcode opcode;

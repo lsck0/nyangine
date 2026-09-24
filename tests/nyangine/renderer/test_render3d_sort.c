@@ -28,8 +28,7 @@ static b8 agrees_with_qsort(NYA_Render3DSortKey* keys, u32 count, NYA_Arena* are
     nya_render3d_sort_keys(radix, scratch, count);
     qsort(reference, count, sizeof(NYA_Render3DSortKey), reference_compare);
 
-    // The radix pass sorts ascending and the draw walks it backwards, so index i of the reference
-    // corresponds to index count-1-i of the radix result.
+    // The radix pass sorts ascending and the draw walks it backwards, so index i of the reference corresponds to index count-1-i of the radix result.
     for (u32 i = 0; i < count; i++) {
         if (radix[count - 1 - i].depth != reference[i].depth) return false;
     }
@@ -41,11 +40,9 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_sort");
     defer      nya_arena_destroy(arena);
 
-    /* A plain LCG rather than NYA_RNG: this wants a reproducible spread of depths, not a good
-     * distribution, and keeping it local means the test cannot fail for a reason in the RNG. */
+    /* A plain LCG rather than NYA_RNG: this wants a reproducible spread of depths, not a good distribution, and keeping it local means the test cannot fail for a reason in the RNG. */
     u32 state = 0x1234567u;
-    /* Widened and masked rather than relying on wraparound: this build enables
-     * -fsanitize=unsigned-integer-overflow, which an LCG would otherwise trip every call. */
+    /* Widened and masked rather than relying on wraparound: this build enables -fsanitize=unsigned-integer-overflow, which an LCG would otherwise trip every call. */
     #define NEXT_DEPTH(scale)                                                                                                                        \
         ((f32)((state = (u32)((((u64)state * 1664525ull) + 1013904223ull) & 0xFFFFFFFFull)) >> 8) / 16777216.0F * (scale))
 
@@ -117,8 +114,7 @@ s32 main(void) {
         }
         nya_check(out_of_order == 0, "%u pairs were out of ascending order", out_of_order);
 
-        // Every `first` must appear exactly once: a radix pass that loses or duplicates a key drops or
-        // doubles a triangle, which is far harder to spot on screen than a mis-ordering.
+        // Every `first` must appear exactly once: a radix pass that loses or duplicates a key drops or doubles a triangle, which is far harder to spot on screen than a mis-ordering.
         u32 seen = 0;
         for (u32 i = 0; i < count; i++) {
             for (u32 j = 0; j < count; j++) {

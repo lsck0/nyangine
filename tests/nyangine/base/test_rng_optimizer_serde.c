@@ -79,8 +79,7 @@ s32 main(void) {
       nya_check(fabsf(p->data[0] - (-0.29F)) < 1e-5F, "sgd momentum gave %.7f, expected -0.29", (f64)p->data[0]);
     }
 
-    // Adam, first step: the moments cancel against the bias correction, so the update is very
-    // nearly exactly the learning rate regardless of the gradient's size.
+    // Adam, first step: the moments cancel against the bias correction, so the update is very nearly exactly the learning rate regardless of the gradient's size.
     {
       NYA_NNTensor* p = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1), true);
       p->data[0]      = 0.0F;
@@ -171,8 +170,7 @@ s32 main(void) {
         printf("  second: " NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(json_again));
       }
 
-      // The fixed point is reached after one pass, not zero: JSON has no widths, so a u64 past
-      // S64_MAX comes back as f64 on the first read by design. Two and three must agree.
+      // The fixed point is reached after one pass, not zero: JSON has no widths, so a u64 past S64_MAX comes back as f64 on the first read by design. Two and three must agree.
       NYA_Object* json_third = nullptr;
       NYA_Error   third_error = nya_serde_json_deserialize(arena, json_again->items, json_again->length, 0, &json_third);
       nya_check(third_error.ok, "JSON failed to reparse its second pass output");

@@ -108,8 +108,7 @@ static void child_crash_unattended(void) {
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
     (void)SDL_Init(SDL_INIT_VIDEO);
 
-    // a directory of its own: the parent still holds today's log open in TEST_DIRECTORY, and Windows
-    // refuses a second process that file.
+    // a directory of its own: the parent still holds today's log open in TEST_DIRECTORY, and Windows refuses a second process that file.
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY "/child", 14));
     NYA_EXPECT(nya_crash_reporter_init());
 
@@ -127,8 +126,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     const NYA_LogLevel original_level = nya_log_level_get();
     nya_log_level_set(NYA_LOG_LEVEL_TRACE);
 
-    // TEST: the report carries the crash itself, where it came from, and the blocks
-    //       a bug report is triaged from
+    // TEST: the report carries the crash itself, where it came from, and the blocks a bug report is triaged from
     nya_log_ring_clear();
     nya_log_info("a line from before the crash, marker ZZTOP");
 
@@ -154,10 +152,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     nya_check(contains("\nPlatform\n"), "the report should have a platform block");
     nya_check(contains("  cpu "), "the platform block should name the processor");
 
-    /*
-     * Which system, and what this process was holding. "Linux" in a bug report is not an answer, and
-     * how much RAM the machine has does not say whether this program was the one that ran out.
-     */
+    /* Which system, and what this process was holding. "Linux" in a bug report is not an answer, and how much RAM the machine has does not say whether this program was the one that ran out. */
     nya_check(contains("  system "), "the platform block should name the distribution");
     nya_check(contains("  kernel "), "the platform block should name the kernel");
     nya_check(contains("  ram used "), "the platform block should carry the process's resident memory");
@@ -186,8 +181,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(contains("NOT_FOUND"), "a thrown error report should name the error kind");
     }
 
-    // TEST: a buffer too small truncates and says so, rather than overrunning or
-    //       ending mid sentence as though the program had simply stopped
+    // TEST: a buffer too small truncates and says so, rather than overrunning or ending mid sentence as though the program had simply stopped
     {
         u8        small[512] = { 0 };
         const u32 written    = nya_crash_report_compose(&assertion, small, sizeof(small));
@@ -197,15 +191,13 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(strstr((const char*)small, "[report truncated]") != nullptr, "a truncated report must say that it was truncated");
     }
 
-    // TEST: the scrub redacts the machine's identity from a report, deterministically,
-    //       against known home, user and host values fed straight in
+    // TEST: the scrub redacts the machine's identity from a report, deterministically, against known home, user and host values fed straight in
     {
         NYA_ConstCString home = "/home/aria";
         NYA_ConstCString user = "aria";
         NYA_ConstCString host = "aria-desktop";
 
-        // Every place an identity leaks into a real report: a stack frame path, a watched string, a log
-        // line with a home path, and the bare user and host names on their own.
+        // Every place an identity leaks into a real report: a stack frame path, a watched string, a log line with a home path, and the bare user and host names on their own.
         u8 sample[512] = { 0 };
         u32 sample_length =
             (u32)snprintf((char*)sample, sizeof(sample),
@@ -234,8 +226,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
                   "the home directory is redacted whole, not left as /home/[user]");
     }
 
-    // TEST: the scrub is a safe no-op when there is nothing to redact, and never runs
-    //       off the end of the buffer it is given
+    // TEST: the scrub is a safe no-op when there is nothing to redact, and never runs off the end of the buffer it is given
     {
         u8        untouched[64] = { 0 };
         const u32 written       = (u32)snprintf((char*)untouched, sizeof(untouched), "no identity in here at all\n");
@@ -245,9 +236,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(strcmp((const char*)untouched, "no identity in here at all\n") == 0, "and change none of its bytes");
     }
 
-    // TEST: a real composed report carries no absolute home path, because compose
-    //       scrubs it before returning. The identity comes from this machine, so the
-    //       check only runs where there is a home directory to have leaked.
+    // TEST: a real composed report carries no absolute home path, because compose scrubs it before returning. The identity comes from this machine, so the check only runs where there is a home directory to have leaked.
     {
         const char* real_home = getenv("HOME");
         if (real_home != nullptr && strlen(real_home) >= 2) {
@@ -274,8 +263,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(path[0] == '\0', "a failed submit should leave no path behind");
     }
 
-    // TEST: submitting writes the whole report under the log directory and names
-    //       the file it wrote
+    // TEST: submitting writes the whole report under the log directory and names the file it wrote
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 14));
 
     length = nya_crash_report_compose(&assertion, report, sizeof(report));
@@ -297,23 +285,14 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(nya_memcmp(written->items, report, length) == 0, "the file should hold the report verbatim");
     }
 
-    // TEST: the window declines to open where there is no video subsystem, rather
-    //       than failing. A headless build and a test are both that case.
+    // TEST: the window declines to open where there is no video subsystem, rather than failing. A headless build and a test are both that case.
     nya_crash_window_show(&assertion, (NYA_ConstCString)report);
 
-    // TEST: and opens, draws and closes where there is one. The quit comes from a
-    //       thread because the window blocks until it is dismissed, which is what
-    //       it is supposed to do.
+    // TEST: and opens, draws and closes where there is one. The quit comes from a thread because the window blocks until it is dismissed, which is what it is supposed to do.
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         nya_log_warn("No video subsystem here, skipping the crash window: %s", SDL_GetError());
     } else {
-        /*
-         * Probed rather than assumed, and skipped rather than failed. The window draws through
-         * SDL_Renderer and the only render drivers this build of SDL carries want a real display, so a
-         * machine with none is one this test cannot run on rather than a reporter that is broken. It has
-         * to be a probe and not a try: where the window cannot open, nya_crash_window_show falls through
-         * to a modal message box, and a test that opens one waits for a person who is not there.
-         */
+        /* Probed rather than assumed, and skipped rather than failed. The window draws through SDL_Renderer and the only render drivers this build of SDL carries want a real display, so a machine with none is one this test cannot run on rather than a reporter that is broken. It has to be a probe and not a try: where the window cannot open, nya_crash_window_show falls through to a modal message box, and a test that opens one waits for a person who is not there. */
         SDL_Window*   probe          = nullptr;
         SDL_Renderer* probe_renderer = nullptr;
 
@@ -345,8 +324,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     nya_crash_reporter_deinit();
     nya_crash_reporter_deinit(); // and the teardown takes anything, including nothing
 
-    // TEST: a test that crashes writes the report and exits, rather than waiting
-    //       in a window for a click nobody will make
+    // TEST: a test that crashes writes the report and exits, rather than waiting in a window for a click nobody will make
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_crash_report_child");
         defer      nya_arena_destroy(arena);
@@ -365,9 +343,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
         if (nya_check_failures() > 0) (void)fprintf(stderr, "child stderr:\n%.*s\n", (int)child.stderr_content->length, child.stderr_content->items);
 
-        // TEST: and that report says what the program held, not only where it stopped:
-        //       both operands of the comparison that failed, and every local of both
-        //       watched frames, the innermost first
+        // TEST: and that report says what the program held, not only where it stopped: both operands of the comparison that failed, and every local of both watched frames, the innermost first
         NYA_ArrayᐸNYA_DirectoryEntryᐳ* written = nullptr;
         NYA_EXPECT(nya_filesystem_list(arena, TEST_DIRECTORY "/child", &written));
 

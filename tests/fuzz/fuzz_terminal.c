@@ -45,8 +45,7 @@ static void fuzz_once(const u8* data, u64 size) {
     u32 count    = nya_terminal_input_decode(data, size, false, out, nya_carray_length(out), &consumed);
     fuzz_check_decode(out, count, nya_carray_length(out), consumed, size);
 
-    // final: no more bytes are coming, so a lone ESC is a key and every complete sequence is flushed. The
-    // final read consumes at least what the mid-stream one did, since nothing is held back for a next read.
+    // final: no more bytes are coming, so a lone ESC is a key and every complete sequence is flushed. The final read consumes at least what the mid-stream one did, since nothing is held back for a next read.
     u64 final_consumed = 0;
     u32 final_count    = nya_terminal_input_decode(data, size, true, out, nya_carray_length(out), &final_consumed);
     fuzz_check_decode(out, final_count, nya_carray_length(out), final_consumed, size);

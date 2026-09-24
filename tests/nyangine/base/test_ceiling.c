@@ -38,8 +38,7 @@ s32 main(void) {
         nya_assert(nya_ceiling_capacity_at(1) == 512);
         nya_assert(nya_ceiling_live_at(1) == 3);
 
-        // the registry publishes a pointer, not a snapshot, so moving the counter moves the read and the
-        // order: tweens at 500/512 is now fuller than fonts at 1/32.
+        // the registry publishes a pointer, not a snapshot, so moving the counter moves the read and the order: tweens at 500/512 is now fuller than fonts at 1/32.
         tweens = 500;
         nya_assert(nya_string_equals(nya_ceiling_name_at(0), "tweens"), "the registry should read the counter live, not a copy taken at registration");
         nya_assert(nya_ceiling_live_at(0) == 500);
@@ -115,8 +114,7 @@ s32 main(void) {
 
         nya_assert(remaining > 1, "the registry is too full for this test to have room to overflow it");
 
-        // One, not zero: these are the fullest ceilings there are, so they sort ahead of anything a lazy
-        // registration added and the ordering assertion below is about them rather than about it.
+        // One, not zero: these are the fullest ceilings there are, so they sort ahead of anything a lazy registration added and the ordering assertion below is about them rather than about it.
         static u32 live = 1;
 
         u8 names[NYA_CEILING_REGISTRY_MAX + 1][8];

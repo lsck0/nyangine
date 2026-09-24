@@ -103,8 +103,7 @@ s32 main(void) {
   {
     NYA_CryptoEcdsaPublicKey key = { 0 };
 
-    // one coordinate moved: a point that satisfies some other curve's equation, which is the attack
-    // this refuses rather than doing arithmetic in whatever group it lands in.
+    // one coordinate moved: a point that satisfies some other curve's equation, which is the attack this refuses rather than doing arithmetic in whatever group it lands in.
     u8 off_curve[sizeof(FIXTURE_X)];
     nya_memcpy(off_curve, FIXTURE_X, sizeof(off_curve));
     off_curve[31] ^= 0x01;

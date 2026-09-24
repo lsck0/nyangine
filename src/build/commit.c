@@ -35,14 +35,12 @@ void commit_check_runner(NYA_ArgCommand* command) {
     NYA_Arena* arena = nya_arena_create(.name = "commit_check_runner");
     defer nya_arena_destroy(arena);
 
-    // The linter has to be here to run: a checkout that removed hooks/ has nothing to enforce, and
-    // saying so plainly beats a shell error about a missing script.
+    // The linter has to be here to run: a checkout that removed hooks/ has nothing to enforce, and saying so plainly beats a shell error about a missing script.
     if (!nya_filesystem_exists(COMMIT_LINTER)) {
         nya_log_panic("%s is missing; the commit-message linter cannot run.", COMMIT_LINTER);
     }
 
-    // What to lint. An argument that names an existing file is a message file, passed with -f;
-    // anything else is a git revision range, passed with -r; nothing given is the HEAD commit.
+    // What to lint. An argument that names an existing file is a message file, passed with -f; anything else is a git revision range, passed with -r; nothing given is the HEAD commit.
     NYA_ConstCString flag;
     NYA_ConstCString what;
     if (target->values_count == 0) {
@@ -53,8 +51,7 @@ void commit_check_runner(NYA_ArgCommand* command) {
         flag = nya_filesystem_exists(what) ? "-f" : "-r";
     }
 
-    // Run through `sh` rather than the script directly, so enforcement does not hinge on the execute
-    // bit surviving a checkout or an unpack. Its output is the user's answer, shown as it comes.
+    // Run through `sh` rather than the script directly, so enforcement does not hinge on the execute bit surviving a checkout or an unpack. Its output is the user's answer, shown as it comes.
     NYA_Command lint = {
         .flags     = NYA_COMMAND_FLAG_OUTPUT_SHOW,
         .program   = "sh",

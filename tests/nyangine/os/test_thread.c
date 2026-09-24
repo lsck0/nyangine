@@ -131,13 +131,7 @@ s32 main(void) {
         nya_os_semaphore_deinit(&shared.semaphore);
     }
 
-    /*
-     * ── A thread can be let go of instead of joined.
-     *
-     * Abandoned after its post has been taken, so this process does not end while it is still running:
-     * what is under test is that letting go of a thread is allowed and leaks nothing, not what happens
-     * to a program that walks away from live work.
-     */
+    /* ── A thread can be let go of instead of joined. Abandoned after its post has been taken, so this process does not end while it is still running: what is under test is that letting go of a thread is allowed and leaks nothing, not what happens to a program that walks away from live work. */
     {
         Shared shared = { 0 };
         nya_check(nya_os_semaphore_init(&shared.semaphore, 0) == NYA_OS_THREAD_OK, "a semaphore should be makeable");

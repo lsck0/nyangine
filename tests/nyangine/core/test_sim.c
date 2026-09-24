@@ -47,8 +47,7 @@ s32 main(void) {
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
   nya_system_callback_init();
-  // The world: entities, physics and the simulation barrier, brought up in the order they depend on
-  // each other. See core_world.h.
+  // The world: entities, physics and the simulation barrier, brought up in the order they depend on each other. See core_world.h.
   NYA_World* world = nya_world_create();
   (void)nya_world_set(world);
 
@@ -70,8 +69,7 @@ s32 main(void) {
     s32 value = 42;
     nya_sim_defer(apply_command, &value, sizeof(value));
 
-    // The whole point: queueing is not applying. A command queued from inside an update must not
-    // run until every update for the tick has finished.
+    // The whole point: queueing is not applying. A command queued from inside an update must not run until every update for the tick has finished.
     nya_assert(applied_count == 0, "the command has not run yet");
 
     nya_system_sim_apply_commands();
@@ -85,8 +83,7 @@ s32 main(void) {
     applied_count = 0;
     applied_value = 0;
 
-    // A stack local that goes out of scope before the barrier. If the queue kept the pointer this
-    // would read freed stack; because it copies, the value survives.
+    // A stack local that goes out of scope before the barrier. If the queue kept the pointer this would read freed stack; because it copies, the value survives.
     {
       s32 scoped = 7;
       nya_sim_defer(apply_command, &scoped, sizeof(scoped));
@@ -103,8 +100,7 @@ s32 main(void) {
   {
     applied_count = second_count = 0;
 
-    // Order matters for the obvious reason: "spawn the thing" then "point the camera at it" is not
-    // the same as the reverse.
+    // Order matters for the obvious reason: "spawn the thing" then "point the camera at it" is not the same as the reverse.
     s32 first = 1;
     nya_sim_defer(apply_command, &first, sizeof(first));
     nya_sim_defer(apply_second, nullptr, 0);
@@ -128,8 +124,7 @@ s32 main(void) {
     nya_system_sim_apply_commands();
     nya_assert(applied_count == 1);
 
-    // A second barrier with nothing queued must do nothing at all. Re-running the previous tick's
-    // commands would double every spawn in the game.
+    // A second barrier with nothing queued must do nothing at all. Re-running the previous tick's commands would double every spawn in the game.
     nya_system_sim_apply_commands();
     nya_assert(applied_count == 1, "the queue was drained, got " FMTu32, applied_count);
   }
@@ -156,8 +151,7 @@ s32 main(void) {
 
   // TEST: end of frame clears the records
   {
-    // Records live in the frame arena and describe one frame. Carrying them over would mean an
-    // observer sees the same event on every subsequent frame.
+    // Records live in the frame arena and describe one frame. Carrying them over would mean an observer sees the same event on every subsequent frame.
     nya_assert(nya_sim_records()->length > 0, "carried over from the block above");
 
     nya_system_sim_end_frame();
@@ -184,8 +178,7 @@ s32 main(void) {
     nya_assert(observer_b_calls == 1, "each observer is called once per frame, not once per record");
     nya_assert(counter == 1, "user_data arrived intact");
 
-    // A frame with nothing recorded still ends; whether observers run for it is the system's
-    // business, but the counters must not go backwards and nothing may fault.
+    // A frame with nothing recorded still ends; whether observers run for it is the system's business, but the counters must not go backwards and nothing may fault.
     u32 before = observed_records;
     nya_system_sim_end_frame();
     nya_assert(observed_records == before, "an empty frame contributes no records");
@@ -201,8 +194,7 @@ s32 main(void) {
   {
     nya_system_sim_end_frame();
 
-    // "The player died" needs no data beyond its type, and forcing a dummy payload on every such
-    // event would be noise at each call site.
+    // "The player died" needs no data beyond its type, and forcing a dummy payload on every such event would be noise at each call site.
     nya_sim_record(99, nullptr, 0);
 
     const NYA_ArrayᐸNYA_SimRecordᐳ* records = nya_sim_records();

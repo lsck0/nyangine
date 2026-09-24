@@ -240,10 +240,7 @@ NYA_INTERNAL f32 terrain_height(f32 x, f32 z) {
     // the bed climbs from the channel floor up to the bank top across the middle band.
     f32 channel = nya_lerp(-BED_DEPTH, BANK_HEIGHT, profile);
 
-    // eroded hills, faded in by `profile` so they raise the banks and uplands but leave the wet channel smooth. A
-    // second, longer octave gives the wide world a few distinct ridges rather than one repeating swell.
-    // Stronger, taller relief than the first pass, which was so shallow over this wide world that it read
-    // as a flat grey plain. A big low-frequency swell raises real hills and uplands the banks climb into.
+    // eroded hills, faded in by `profile` so they raise the banks and uplands but leave the wet channel smooth. A second, longer octave gives the wide world a few distinct ridges rather than one repeating swell. Stronger, taller relief than the first pass, which was so shallow over this wide world that it read as a flat grey plain. A big low-frequency swell raises real hills and uplands the banks climb into.
     f32 hills = (sinf(x * 0.055F) * 5.0F) + (cosf((z * 0.045F) + 1.3F) * 4.0F) + (sinf((x + z) * 0.085F) * 2.2F)
                 + (cosf((x * 0.020F) - (z * 0.017F)) * 7.0F) + (sinf((x * 0.012F) + (z * 0.010F)) * 9.0F);
 
@@ -362,15 +359,7 @@ NYA_INTERNAL u32 build_river(NYA_Vertex3D* vertices) {
     return count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PLANT GEOMETRY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * The three plant meshes are built once with their base at y = 0 and a sway flexibility up their height in the
- * vertex colour's alpha (0 anchored at the base, 1 free at the tips). The foliage vertex shader consumes that
- * alpha to bend the geometry about its base, and never lets it reach the fragment stage as opacity.
- * */
+/* PLANT GEOMETRY The three plant meshes are built once with their base at y = 0 and a sway flexibility up their height in the vertex colour's alpha (0 anchored at the base, 1 free at the tips). The foliage vertex shader consumes that alpha to bend the geometry about its base, and never lets it reach the fragment stage as opacity. */
 
 /** One triangle, its normal from its winding, each corner carrying its own flexibility in alpha. */
 NYA_INTERNAL void plant_triangle(NYA_Vertex3D* vertices, u32* count, f32x3 a, f32x3 b, f32x3 c, f32x3 rgb, f32 flex_a, f32 flex_b,
@@ -567,8 +556,7 @@ void showcase_layer_on_create(NYA_Window* window) {
     // a dim dawn sky-blue behind everything, so the terrain's rim reads before the sky pass paints over it.
     nya_render_clear_color_set(window, (NYA_Color){ 0.06F, 0.08F, 0.12F, 1.0F });
 
-    // one scratch arena builds every mesh and the physics heights; the GPU and Box3D keep their own copies, so it
-    // frees after registering. Big enough for the widest single mesh (a full tile or the river) staged at a time.
+    // one scratch arena builds every mesh and the physics heights; the GPU and Box3D keep their own copies, so it frees after registering. Big enough for the widest single mesh (a full tile or the river) staged at a time.
     NYA_Arena* scratch = nya_arena_create(.name = "showcase_build");
     defer nya_arena_destroy(scratch);
 
@@ -577,10 +565,7 @@ void showcase_layer_on_create(NYA_Window* window) {
 
     b8 ok = true;
 
-    // the terrain, tiled: each tile is built full and coarse, both registered, and an LOD chain under the full
-    // handle lets nya_render3d_mesh pick the rung by the camera's distance to that tile. Reusing one scratch
-    // buffer means a T-junction can crack where a full tile meets a coarse one, but the fog and the stylized flat
-    // shading hide it at the distance the switch happens.
+    // the terrain, tiled: each tile is built full and coarse, both registered, and an LOD chain under the full handle lets nya_render3d_mesh pick the rung by the camera's distance to that tile. Reusing one scratch buffer means a T-junction can crack where a full tile meets a coarse one, but the fog and the stylized flat shading hide it at the distance the switch happens.
     for (u32 row = 0; row < TILE_ROWS; row++) {
         for (u32 col = 0; col < TILE_COLS; col++) {
             f32 wx0 = nya_lerp(-WORLD_HALF_X, WORLD_HALF_X, (f32)col / (f32)TILE_COLS);
@@ -615,15 +600,13 @@ void showcase_layer_on_create(NYA_Window* window) {
     state->meshes_ready = ok;
     if (!ok) nya_log_error("showcase: a mesh or LOD chain failed to register; the scene will draw incomplete.");
 
-    // the drifting pollen, from the world arena so it shares the world's lifetime. Its on_update reads the one
-    // wind field, which is why the motes travel with the same air as the grass and the water.
+    // the drifting pollen, from the world arena so it shares the world's lifetime. Its on_update reads the one wind field, which is why the motes travel with the same air as the grass and the water.
     state->dust = nya_particles_create(nya_world()->allocator, DUST_POOL);
     nya_particles_space_set(state->dust, NYA_PARTICLE_SPACE_3D);
     nya_particles_texture_set(state->dust, NYA_ASSET_TEXTURES_PUFF_PNG);
     nya_particles_on_update_set(state->dust, dust_ride_wind, &state->wind);
 
-    // the sun's cascaded shadows, tuned like the cube3d demo: three cascades, a large map, and a cool tinted
-    // shade so shadows read blue rather than merely dark, keeping the stylized look.
+    // the sun's cascaded shadows, tuned like the cube3d demo: three cascades, a large map, and a cool tinted shade so shadows read blue rather than merely dark, keeping the stylized look.
     nya_render3d_shadow_options_set(window, (NYA_Render3DShadowOptions){
                                                 .cascades = NYA_RENDER3D_SHADOW_CASCADES,
                                                 .map_size = 2048,
@@ -633,12 +616,10 @@ void showcase_layer_on_create(NYA_Window* window) {
     // the cube3d-style bloom: threshold and spread that let the sunlit surf and the crystals' glints bleed.
     nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true, .threshold = 0.78F, .intensity = 1.10F, .spread = 3.0F });
 
-    // the light beams: volumetric shafts gathered from the sky's sun through the scene. This is a scene feature
-    // nya_post_end runs over the post target, so it needs the scene drawn through the chain (it is, below).
+    // the light beams: volumetric shafts gathered from the sky's sun through the scene. This is a scene feature nya_post_end runs over the post target, so it needs the scene drawn through the chain (it is, below).
     nya_post_light_shafts_set(window, (NYA_PostLightShafts){ .enabled = true, .intensity = 1.0F, .length = 0.8F });
 
-    // the trails the balls leave land as decals on the ground: switch decals on, say what they land on (the same
-    // valley surface), and preload the atlas so the first mark is not blank while it loads.
+    // the trails the balls leave land as decals on the ground: switch decals on, say what they land on (the same valley surface), and preload the atlas so the first mark is not blank while it loads.
     nya_render3d_decals_set(window, (NYA_Render3DDecals){ .enabled = true });
     nya_render3d_decal_probe_set(window, nya_callback(ground_decal_probe), nullptr);
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = TRAIL_TEXTURE });
@@ -666,8 +647,7 @@ void showcase_layer_on_create(NYA_Window* window) {
                                     .height_count_x = GROUND_POINTS_X, .height_count_z = GROUND_POINTS_Z,
                                     .height_cell_size = { cell_x, cell_z }, .friction = 0.7F);
 
-    // the herd: dynamic spheres given a shove along the valley, each with its own colour and wander phase. They
-    // cast into the shadow cascades like any mesh, part the grass as foliage disturbers, and lay down trails.
+    // the herd: dynamic spheres given a shove along the valley, each with its own colour and wander phase. They cast into the shadow cascades like any mesh, part the grass as foliage disturbers, and lay down trails.
     static const NYA_Color palette[] = {
         { 0.86F, 0.38F, 0.32F, 1.0F }, { 0.36F, 0.62F, 0.86F, 1.0F }, { 0.92F, 0.78F, 0.36F, 1.0F },
         { 0.52F, 0.80F, 0.46F, 1.0F }, { 0.78F, 0.50F, 0.82F, 1.0F }, { 0.40F, 0.78F, 0.78F, 1.0F },
@@ -782,8 +762,7 @@ void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
     nya_particles_update(state->dust, delta_time_s);
 
-    // release pollen on a timer, so its rate does not ride the frame rate. It spawns high over the valley and is
-    // then carried by dust_ride_wind, so where it drifts is the wind's doing, not the burst's.
+    // release pollen on a timer, so its rate does not ride the frame rate. It spawns high over the valley and is then carried by dust_ride_wind, so where it drifts is the wind's doing, not the burst's.
     state->emit_timer_s += delta_time_s;
 
     while (state->emit_timer_s >= 0.05F) {
@@ -805,8 +784,7 @@ void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
                                               });
     }
 
-    // the herd: each ball wanders, and on a timer drops a fading mark under itself into the shared ring, so the
-    // trail is a stream of decals thinning behind it rather than one smear.
+    // the herd: each ball wanders, and on a timer drops a fading mark under itself into the shared ring, so the trail is a stream of decals thinning behind it rather than one smear.
     for (u32 i = 0; i < BALL_COUNT; i++) ball_steer(state, i, delta_time_s);
 
     state->trail_timer_s += delta_time_s;
@@ -853,9 +831,7 @@ void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
 /** Which way the sun's light travels. Kept in one place so the sky disc, the shading and the shafts agree. */
 NYA_INTERNAL f32x3 sun_travel(void) {
-    // Low and coming from over the down-valley (-x) end, the way the fly-through opens looking: the light-shaft
-    // pass only gathers when the sun faces the camera, so a sun the eye starts turned toward greets the view with
-    // beams from the first frame and rakes them across the water and through the trees as the orbit swings past it.
+    // Low and coming from over the down-valley (-x) end, the way the fly-through opens looking: the light-shaft pass only gathers when the sun faces the camera, so a sun the eye starts turned toward greets the view with beams from the first frame and rakes them across the water and through the trees as the orbit swings past it.
     return nya_vector_normalize((f32x3){ 0.55F, -0.42F, -0.16F });
 }
 
@@ -906,14 +882,11 @@ NYA_INTERNAL void draw_trails(NYA_Window* window) {
 NYA_INTERNAL void draw_scene(NYA_Window* window) {
     Showcase* state = showcase();
 
-    // a slow, wide fly-through of the enlarged valley: a low orbit that rises and falls and lets its target sweep
-    // down the river, so both banks, the herd and the sun all pass through frame and it reads as a living world.
+    // a slow, wide fly-through of the enlarged valley: a low orbit that rises and falls and lets its target sweep down the river, so both banks, the herd and the sun all pass through frame and it reads as a living world.
     f32 t      = state->elapsed_s * 0.045F;
     f32 radius = 40.0F + (sinf(t * 0.7F) * 8.0F);
 
-    // Higher and closer than before, looking down into the valley: the old low, level eye filled half the
-    // frame with sky and left the wide terrain reading as an empty plain. gnyame's cube3d orbits looking
-    // down at its scene; this matches that framing so the relief and the banks fill the view.
+    // Higher and closer than before, looking down into the valley: the old low, level eye filled half the frame with sky and left the wide terrain reading as an empty plain. gnyame's cube3d orbits looking down at its scene; this matches that framing so the relief and the banks fill the view.
     f32x3 eye = {
         cosf(t) * radius,
         26.0F + (sinf(t * 1.3F) * 5.0F),
@@ -927,14 +900,9 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
 
     f32x3 sun = sun_travel();
 
-    // the sky behind everything, its sun aligned with the directional light and the shafts.
-    // a golden-hour sky: a deep blue overhead warming to a gold band at the horizon the low sun sits in, so the
-    // whole valley reads as late-afternoon light rather than a flat grey day.
+    // the sky behind everything, its sun aligned with the directional light and the shafts. a golden-hour sky: a deep blue overhead warming to a gold band at the horizon the low sun sits in, so the whole valley reads as late-afternoon light rather than a flat grey day.
     nya_render3d_sky_draw(window, (NYA_Render3DSky){
-                                      // The camera looks down into the valley, so most of the frame is BELOW the
-                                      // sky's horizon line and shows `ground`. A near-black ground read as a black
-                                      // void; a warm haze here (close to the fog and horizon) makes the distance
-                                      // past the terrain read as atmosphere instead.
+                                      // The camera looks down into the valley, so most of the frame is BELOW the sky's horizon line and shows `ground`. A near-black ground read as a black void; a warm haze here (close to the fog and horizon) makes the distance past the terrain read as atmosphere instead.
                                       .zenith        = { 0.16F, 0.32F, 0.60F, 1.0F },
                                       .horizon       = { 0.92F, 0.74F, 0.50F, 1.0F },
                                       .ground        = { 0.58F, 0.52F, 0.44F, 1.0F },
@@ -944,8 +912,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
                                       .sun_angle     = 0.05F,
                                   });
 
-    // the one warm sun, low so the shadows rake long across the valley; the ambient is tinted sky-blue above and
-    // warm-earth below (a hemispheric fill), so shaded slopes stay coloured instead of going muddy black.
+    // the one warm sun, low so the shadows rake long across the valley; the ambient is tinted sky-blue above and warm-earth below (a hemispheric fill), so shaded slopes stay coloured instead of going muddy black.
     nya_render3d_light_set(window, (NYA_Render3DLight){
                                        .direction = sun,
                                        .color     = { 1.0F, 0.87F, 0.66F, 1.0F },
@@ -955,10 +922,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
                                        .ground    = { 0.32F, 0.27F, 0.20F, 1.0F },
                                    });
 
-    // distance and height fog with aerial perspective: the depth cue a flat-shaded valley otherwise lacks, and
-    // what lets the far tiles recede into the sky's hue as the LOD coarsens them.
-    // fog in the sky's warm horizon hue, tinted toward the sun, so the far hills recede into a golden haze rather
-    // than a grey wall — the depth cue a flat-shaded valley needs, matched to the light.
+    // distance and height fog with aerial perspective: the depth cue a flat-shaded valley otherwise lacks, and what lets the far tiles recede into the sky's hue as the LOD coarsens them. fog in the sky's warm horizon hue, tinted toward the sun, so the far hills recede into a golden haze rather than a grey wall — the depth cue a flat-shaded valley needs, matched to the light.
     nya_render3d_fog_set(window, (NYA_Render3DFog){
                                      .color          = { 0.86F, 0.72F, 0.54F, 1.0F },
                                      .density        = 0.0055F,
@@ -972,9 +936,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         return;
     }
 
-    // the herd, and the disturbers they press into the foliage. Fed here, after begin and before the plants,
-    // because disturbers are cleared at begin — this is where physics reaches the sway. The spheres are opaque, so
-    // they are drawn with the ground's material and cast into the shadow cascades.
+    // the herd, and the disturbers they press into the foliage. Fed here, after begin and before the plants, because disturbers are cleared at begin — this is where physics reaches the sway. The spheres are opaque, so they are drawn with the ground's material and cast into the shadow cascades.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.85F });
 
     for (u32 i = 0; i < BALL_COUNT; i++) {
@@ -987,8 +949,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         nya_render3d_sphere(window, at, BALL_RADIUS, state->ball_color[i]);
     }
 
-    // the ground, opaque, drawn first so the water's and crystals' refraction capture sees the bed behind them.
-    // Each tile is drawn at its own centre, so its LOD chain resolves the right rung by distance.
+    // the ground, opaque, drawn first so the water's and crystals' refraction capture sees the bed behind them. Each tile is drawn at its own centre, so its LOD chain resolves the right rung by distance.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){ .roughness = 1.0F });
 
     for (u32 row = 0; row < TILE_ROWS; row++) {
@@ -1031,9 +992,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
     // the drifting pollen, through the sorted transparent pass, before the refractive surfaces.
     nya_particles_draw(window, state->dust);
 
-    // the translucent crystals: the scene's opacity pass, drawn after the opaque solids so they refract and blur
-    // the resolved image behind them, like the cube3d demo's glass. Grouped under one glass material, so the whole
-    // cluster is one flush.
+    // the translucent crystals: the scene's opacity pass, drawn after the opaque solids so they refract and blur the resolved image behind them, like the cube3d demo's glass. Grouped under one glass material, so the whole cluster is one flush.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){
                                           .metallic    = 0.1F,
                                           .roughness   = 0.15F,
@@ -1056,8 +1015,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
                           (NYA_Color){ 0.70F, 0.90F, 0.95F, 0.55F });
     }
 
-    // a lightly glossy surface for a soft sun glint, set just before the water so it applies to it alone. Kept
-    // low: a mirror-bright slab blew the river out to white and, on an HDR display, dragged everything else dark.
+    // a lightly glossy surface for a soft sun glint, set just before the water so it applies to it alone. Kept low: a mirror-bright slab blew the river out to white and, on an HDR display, dragged everything else dark.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.25F, .roughness = 0.55F, .reflectance = 0.28F });
 
     NYA_Render3DWater river = {
@@ -1090,16 +1048,13 @@ void showcase_layer_on_render(NYA_Window* window) {
     // fit the sun's cascades around the valley centre, ahead of the camera path. Tuned like cube3d's strength.
     nya_render3d_shadow_set(window, (NYA_Render3DShadowFit){ .near_distance = 0.1F, .range = 180.0F, .strength = 0.45F });
 
-    // SDR output, deliberately: forcing HDR mapped this SDR-authored scene to near-black on an HDR display (the
-    // sky and shaded ground vanished, only the bright water survived). Bloom, light shafts and the scene tonemap
-    // all still run in SDR — the cube3d demo likewise leaves HDR to the config rather than forcing it on.
+    // SDR output, deliberately: forcing HDR mapped this SDR-authored scene to near-black on an HDR display (the sky and shaded ground vanished, only the bright water survived). Bloom, light shafts and the scene tonemap all still run in SDR — the cube3d demo likewise leaves HDR to the config rather than forcing it on.
     nya_render_output_set(window, (NYA_RenderOutput){ .hdr = false });
 
     // the scene target keeps its depth, for the 3D pass and so the water and crystal refraction read a resolved image.
     state->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
 
-    // through the chain (a render texture, so refraction, bloom and the light shafts have a target); straight to
-    // the window only if the chain cannot be set up this frame, where the water falls back to its colour.
+    // through the chain (a render texture, so refraction, bloom and the light shafts have a target); straight to the window only if the chain cannot be set up this frame, where the water falls back to its colour.
     if (nya_post_begin(window, &state->post)) {
         draw_scene(window);
         nya_post_end(window, &state->post, nullptr, 0);

@@ -48,8 +48,7 @@ static b8 relevance_by_type(NYA_NetPeerId peer, const NYA_Entity* peer_entity, c
 
   RELEVANCE_CALLS++;
 
-  // Recorded rather than acted on: the assertion is that the engine *tells* a rule what it is already
-  // sending, which is the only way a rule with no distance metric can be hysteretic.
+  // Recorded rather than acted on: the assertion is that the engine *tells* a rule what it is already sending, which is the only way a rule with no distance metric can be hysteretic.
   if (currently_relevant) RELEVANCE_SAW_CURRENT = true;
 
   return entity != nullptr && entity->type == RELEVANT_TYPE;
@@ -84,8 +83,7 @@ static NYA_NetPeerId start_listen_server(NYA_NetServerConfig config, u64* tick) 
 
   nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING, "the handshake did not complete");
 
-  // a server sends nothing to its own player, who shares the world. Treated as remote here, so the snapshots this
-  // file inspects are built over a loopback instead of a socket.
+  // a server sends nothing to its own player, who shares the world. Treated as remote here, so the snapshots this file inspects are built over a loopback instead of a socket.
   NYA_NetPeerId local = nya_net_server_local_peer();
 
   _NYA_NET_SERVER.peers[local.index]->public_state.is_local = false;
@@ -168,10 +166,7 @@ s32 main(void) {
 
     nya_assert(filtered < unfiltered, "the radius filtered nothing");
 
-    /*
-     * The player is at the origin and crates are every 100 units, so 0, 100 and 200 are inside 250 and
-     * the rest are not. Plus the player itself.
-     */
+    /* The player is at the origin and crates are every 100 units, so 0, 100 and 200 are inside 250 and the rest are not. Plus the player itself. */
     nya_assert(filtered == 4, "expected the player plus three crates within 250 units, got %u", filtered);
 
     /* The peer's own entity is always sent, whatever the rule says. */
@@ -179,8 +174,7 @@ s32 main(void) {
       NYA_Entity* player = nya_entity_get(SPAWNED[peer.index]);
       nya_assert(player != nullptr);
 
-      // Far outside its own radius from everything else, so only the "always include yourself" rule
-      // can keep it in.
+      // Far outside its own radius from everything else, so only the "always include yourself" rule can keep it in.
       player->position = (f32x3){ 100000.0F, 0.0F, 0.0F };
 
       nya_net_server_tick(tick, TICK_SECONDS);
@@ -428,8 +422,7 @@ s32 main(void) {
 
     nya_net_server_rewind_end();
 
-    // And everything is put back exactly. Not approximately: the present is what has to be restored, and
-    // an approximation of it would drift a little further every shot anybody fired.
+    // And everything is put back exactly. Not approximately: the present is what has to be restored, and an approximation of it would drift a little further every shot anybody fired.
     nya_assert(nya_entity_get(target)->position.x == present, "the world was not restored exactly (%f vs %f)",
                (f64)nya_entity_get(target)->position.x, (f64)present);
 
@@ -461,8 +454,7 @@ s32 main(void) {
       tick++;
     }
 
-    // zero history means off, and off returns false. A game acting on a successful rewind would resolve
-    // shots against the present while believing it compensated.
+    // zero history means off, and off returns false. A game acting on a successful rewind would resolve shots against the present while believing it compensated.
     nya_assert(!nya_net_server_rewind_begin(peer), "rewinding with no history configured must be refused");
 
     stop_everything();
@@ -471,10 +463,7 @@ s32 main(void) {
   // TEST: a custom relevance rule, and the hysteresis it has to implement itself
   printf("TEST: a game's own relevance rule\n");
   {
-    /*
-     * A room or portal rule has no radius for hysteresis, so the engine tells the callback whether the
-     * entity is already sent and the rule decides. Rules that ignore it flicker.
-     */
+    /* A room or portal rule has no radius for hysteresis, so the engine tells the callback whether the entity is already sent and the rule decides. Rules that ignore it flicker. */
     RELEVANCE_CALLS       = 0;
     RELEVANCE_SAW_CURRENT = false;
 
@@ -494,17 +483,12 @@ s32 main(void) {
 
     nya_assert(RELEVANCE_CALLS > 0, "the relevance callback was never called");
 
-    // The player plus the two the rule accepted. The player is always included whatever the rule says,
-    // because reconciliation needs the server's answer for it every snapshot.
+    // The player plus the two the rule accepted. The player is always included whatever the rule says, because reconciliation needs the server's answer for it every snapshot.
     nya_assert(sent == 3, "expected the player plus two accepted entities, got %u", sent);
 
     // ── the callback is told what it is already sending ───────────────────────
     {
-      /*
-       * On the second snapshot the two accepted entities are already being sent, so the callback must see
-       * `currently_relevant` set for them. Without that a game has no way to be hysteretic and the engine
-       * has no way to help it.
-       */
+      /* On the second snapshot the two accepted entities are already being sent, so the callback must see `currently_relevant` set for them. Without that a game has no way to be hysteretic and the engine has no way to help it. */
       RELEVANCE_SAW_CURRENT = false;
 
       nya_net_server_tick(tick, TICK_SECONDS);
@@ -541,8 +525,7 @@ s32 main(void) {
     NYA_Object* event = nya_object_create(arena_for_events);
     nya_object_add(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "test" });
 
-    // To one peer, and to everyone. NYA_NET_PEER_NONE means broadcast, which saves a caller writing the
-    // same loop.
+    // To one peer, and to everyone. NYA_NET_PEER_NONE means broadcast, which saves a caller writing the same loop.
     NYA_EXPECT(nya_net_server_send_event(peer, event));
     NYA_EXPECT(nya_net_server_send_event(NYA_NET_PEER_NONE, event));
 
@@ -593,8 +576,7 @@ s32 main(void) {
     NYA_EXPECT(nya_net_server_attach_local(&first));
     nya_assert(!nya_net_server_attach_local(&second).ok, "a second local player was attached");
 
-    // An excessive lag history is clamped rather than refused, since it is a request for "as much as I can
-    // have" rather than a mistake worth failing over.
+    // An excessive lag history is clamped rather than refused, since it is a request for "as much as I can have" rather than a mistake worth failing over.
     nya_net_server_stop();
 
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .lag_history_ticks = NYA_NET_LAG_HISTORY * 4 }));

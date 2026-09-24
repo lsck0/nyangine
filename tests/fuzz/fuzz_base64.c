@@ -15,8 +15,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_String* decoded = nya_string_create(arena);
     nya_base64_decode(decoded, data, size);
 
-    // what came out has to encode back to something the decoder accepts, and to the same length. A
-    // decoder that produced bytes no encoder could have written read past its input.
+    // what came out has to encode back to something the decoder accepts, and to the same length. A decoder that produced bytes no encoder could have written read past its input.
     NYA_String* encoded = nya_string_create(arena);
     nya_base64_encode(encoded, (const u8*)decoded->items, decoded->length);
 

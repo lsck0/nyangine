@@ -34,22 +34,18 @@ static void count_problem(NYA_ConstCString path, NYA_ConstCString found, NYA_Con
 static void bind_as(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat format) {
     const NYA_TypeReflection* type = nya_reflect_of(NYA_HttpCeilingsDto);
 
-    // The text formats carry a checksum this path does not want to enforce over hand-shaped input, which
-    // is exactly the flag nya_http_request_reflect's document read passes for the native text.
+    // The text formats carry a checksum this path does not want to enforce over hand-shaped input, which is exactly the flag nya_http_request_reflect's document read passes for the native text.
     NYA_Object* document = nullptr;
     if (!nya_deserialize(arena, data, size, format, NYA_SERDE_NO_CHECKSUM, &document).ok) return;
 
     nya_assert(document != nullptr, "the reader reported success with nothing read");
 
-    // The check is a pure walk over the document and must be total for any object; its count is a fact
-    // about the document, not a pass or fail.
+    // The check is a pure walk over the document and must be total for any object; its count is a fact about the document, not a pass or fail.
     u32 problems = 0;
     (void)nya_reflect_check(type, document, count_problem, &problems);
     nya_unused(problems);
 
-    // The binding itself, over a zeroed DTO exactly as the request path does. It must return cleanly for
-    // any object rather than reaching an assert or a bad write; the sanitizers are the oracle for the
-    // memory, so a walk that runs past the fixed `rows` array is caught here rather than asserted for.
+    // The binding itself, over a zeroed DTO exactly as the request path does. It must return cleanly for any object rather than reaching an assert or a bad write; the sanitizers are the oracle for the memory, so a walk that runs past the fixed `rows` array is caught here rather than asserted for.
     static NYA_HttpCeilingsDto dto;
     memset(&dto, 0, sizeof(dto));
     (void)nya_reflect_from_object(type, &dto, document);

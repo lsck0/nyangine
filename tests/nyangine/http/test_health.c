@@ -152,9 +152,7 @@ int main(void) {
         nya_assert(nya_circuit_state(breaker, "upstream") == NYA_CIRCUIT_CLOSED);
         nya_assert(dispatch(arena, request, &response) == NYA_HTTP_STATUS_OK, "a closed breaker is ready");
 
-        // Two failures in a row trip it OPEN, and an OPEN breaker is fail-fast, which is not-ready. Each
-        // record pairs with an allow, which is the contract base_circuit.h states and what creates the
-        // key's entry in the first place.
+        // Two failures in a row trip it OPEN, and an OPEN breaker is fail-fast, which is not-ready. Each record pairs with an allow, which is the contract base_circuit.h states and what creates the key's entry in the first place.
         nya_assert(nya_circuit_allow(breaker, "upstream"), "a closed breaker lets the call through");
         nya_circuit_record(breaker, "upstream", false);
         nya_assert(nya_circuit_allow(breaker, "upstream"), "still closed after one failure");

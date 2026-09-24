@@ -43,8 +43,7 @@ s32 main(void) {
 
   // TEST: malformed input makes progress and stays in bounds
   {
-    // A lead byte claiming three bytes with nothing after it. Consuming the three it claimed would
-    // read past the terminator; consuming zero would spin forever. One byte is the only safe answer.
+    // A lead byte claiming three bytes with nothing after it. Consuming the three it claimed would read past the terminator; consuming zero would spin forever. One byte is the only safe answer.
     u32 codepoint = 0;
     u32 length    = nya_utf8_next("\xE2", &codepoint);
 
@@ -55,8 +54,7 @@ s32 main(void) {
     length = nya_utf8_next("\x80", &codepoint);
     nya_assert(length == 1 && codepoint == 0xFFFD, "a stray continuation byte is replaced");
 
-    // Every byte of a garbage string is consumed, so the loop terminates. That is the property that
-    // actually matters: a decoder that stalls hangs the frame rather than drawing badly.
+    // Every byte of a garbage string is consumed, so the loop terminates. That is the property that actually matters: a decoder that stalls hangs the frame rather than drawing badly.
     u32 count = decode_all("\xFF\xFE\x80\xC0", out, nya_carray_length(out));
     nya_assert(count == 4, "four bad bytes are four replacements, got " FMTu32, count);
 
@@ -65,8 +63,7 @@ s32 main(void) {
 
   // TEST: overlong encodings and surrogates are rejected
   {
-    // C0 80 is a two byte spelling of NUL. Accepting it is the classic way a decoder becomes a
-    // security problem: a filter that checked for a literal 0x00 never sees this one.
+    // C0 80 is a two byte spelling of NUL. Accepting it is the classic way a decoder becomes a security problem: a filter that checked for a literal 0x00 never sees this one.
     u32 codepoint = 0;
     (void)nya_utf8_next("\xC0\x80", &codepoint);
     nya_assert(codepoint == 0xFFFD, "an overlong NUL is rejected");
@@ -75,8 +72,7 @@ s32 main(void) {
     (void)nya_utf8_next("\xE0\x80\x80", &codepoint);
     nya_assert(codepoint == 0xFFFD, "and so is the three byte version");
 
-    // ED A0 80 is U+D800, half of a surrogate pair. Surrogates exist only inside UTF-16 and have no
-    // legal UTF-8 encoding at all.
+    // ED A0 80 is U+D800, half of a surrogate pair. Surrogates exist only inside UTF-16 and have no legal UTF-8 encoding at all.
     (void)nya_utf8_next("\xED\xA0\x80", &codepoint);
     nya_assert(codepoint == 0xFFFD, "a surrogate has no UTF-8 encoding");
 
@@ -85,8 +81,7 @@ s32 main(void) {
 
   // TEST: real text in several languages round trips
   {
-    // the strings an i18n file holds, each checked by codepoint count, since bytes and characters differ
-    // for every one.
+    // the strings an i18n file holds, each checked by codepoint count, since bytes and characters differ for every one.
     nya_assert(decode_all("Grüße", out, nya_carray_length(out)) == 5, "German");
     nya_assert(decode_all("l'été", out, nya_carray_length(out)) == 5, "French");
     nya_assert(decode_all("años", out, nya_carray_length(out)) == 4, "Spanish");

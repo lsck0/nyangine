@@ -39,8 +39,7 @@ static void fuzz_check_span(const NYA_CborReader* reader, const u8* bytes, u64 s
 }
 
 static void fuzz_once(const u8* data, u64 size) {
-    // a skip over each top-level value: what walking past an entry the parser does not interpret does. Each
-    // item consumes at least one byte, so the buffer bounds the loop even before skip refuses a bad value.
+    // a skip over each top-level value: what walking past an entry the parser does not interpret does. Each item consumes at least one byte, so the buffer bounds the loop even before skip refuses a bad value.
     {
         NYA_CborReader reader = nya_cbor_reader(data, size);
 
@@ -51,8 +50,7 @@ static void fuzz_once(const u8* data, u64 size) {
         }
     }
 
-    // the attestation-object walk: a definite-length map, then a label and a skipped value per entry. The
-    // count is the authenticator's to claim, so it is capped by the buffer and every read is checked.
+    // the attestation-object walk: a definite-length map, then a label and a skipped value per entry. The count is the authenticator's to claim, so it is capped by the buffer and every read is checked.
     {
         NYA_CborReader reader = nya_cbor_reader(data, size);
 
@@ -71,8 +69,7 @@ static void fuzz_once(const u8* data, u64 size) {
         }
     }
 
-    // each typed read on a fresh reader, so a header crafted for one kind is exercised as that kind and the
-    // pointer a string read hands back is checked to land inside the buffer.
+    // each typed read on a fresh reader, so a header crafted for one kind is exercised as that kind and the pointer a string read hands back is checked to land inside the buffer.
     {
         NYA_CborReader reader = nya_cbor_reader(data, size);
         u64            value  = 0;

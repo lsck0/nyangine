@@ -39,11 +39,7 @@ typedef struct {
 s32 main(void) {
   // TEST: the macro produces the identifier you would have written by hand
   {
-    /*
-     * The key property. Containers are declared through nya_template and used by writing the
-     * unicode name out (NYA_ArrayᐸNYA_Jobᐳ in core_job.h). If the two disagreed they would be different
-     * types and only the using file would fail to compile.
-     */
+    /* The key property. Containers are declared through nya_template and used by writing the unicode name out (NYA_ArrayᐸNYA_Jobᐳ in core_job.h). If the two disagreed they would be different types and only the using file would fail to compile. */
     nya_template(Box, OneByte) declared = { .tag = 1 };
     BoxᐸOneByteᐳ*            written  = &declared;
 
@@ -58,12 +54,7 @@ s32 main(void) {
 
   // TEST: every arity from one to four dispatches to its own arm
   {
-    /*
-     * The arity is picked by counting arguments against a trailing list of arm names, which is the
-     * part that is easy to get subtly wrong: an off-by-one there sends two parameters to the three
-     * parameter arm, and the paste fails to compile in a way that names neither the macro nor the
-     * caller. These four lines are what would catch that.
-     */
+    /* The arity is picked by counting arguments against a trailing list of arm names, which is the part that is easy to get subtly wrong: an off-by-one there sends two parameters to the three parameter arm, and the paste fails to compile in a way that names neither the macro nor the caller. These four lines are what would catch that. */
     nya_template(Box, OneByte)                          one   = { .tag = 1 };
     nya_template(Box, OneByte, SixteenBytes)            two   = { .tag = 2 };
     nya_template(Box, OneByte, SixteenBytes, u32)       three = { .tag = 3 };
@@ -71,8 +62,7 @@ s32 main(void) {
 
     nya_assert(one.tag == 1 && two.tag == 2 && three.tag == 3 && four.tag == 4);
 
-    // each arity is a different type. _Generic rejects duplicate associations, so this fails to compile
-    // if two mangle to the same name.
+    // each arity is a different type. _Generic rejects duplicate associations, so this fails to compile if two mangle to the same name.
     nya_assert(
         _Generic(
             one,
@@ -100,10 +90,7 @@ s32 main(void) {
 
   // TEST: parameter order is part of the name
   {
-    /*
-     * A separator lost in the paste would make Boxᐸa,bᐳ and Boxᐸb,aᐳ the same identifier, a type confusion
-     * the compiler would never report.
-     */
+    /* A separator lost in the paste would make Boxᐸa,bᐳ and Boxᐸb,aᐳ the same identifier, a type confusion the compiler would never report. */
     derive_box(SixteenBytes, OneByte);
 
     static_assert(
@@ -138,10 +125,7 @@ s32 main(void) {
 
   // TEST: the real derives in the engine are the same mangling
   {
-    /*
-     * Checks that the container macros and this file build names the same way, so hand written
-     * NYA_ArrayᐸTᐳ names the array nya_derive_array declared.
-     */
+    /* Checks that the container macros and this file build names the same way, so hand written NYA_ArrayᐸTᐳ names the array nya_derive_array declared. */
     NYA_Arena* arena = nya_arena_create(.name = "template_test");
     defer nya_arena_destroy(arena);
 

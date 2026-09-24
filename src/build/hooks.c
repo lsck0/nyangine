@@ -104,11 +104,7 @@ NYA_INTERNAL b8 cmake_truth_of(NYA_ConstCString value, OUT b8* out_truth) {
 NYA_INTERNAL b8 cmake_values_agree(NYA_ConstCString wanted, NYA_ConstCString cached) {
     if (nya_string_equals((NYA_CString)wanted, (NYA_CString)cached)) return true;
 
-    /*
-     * A program named rather than located. cmake resolves CMAKE_C_COMPILER=clang against PATH and
-     * writes back /usr/sbin/clang, so the text never matches again and the whole of SDL was thrown
-     * away and rebuilt for a compiler that had not changed.
-     */
+    /* A program named rather than located. cmake resolves CMAKE_C_COMPILER=clang against PATH and writes back /usr/sbin/clang, so the text never matches again and the whole of SDL was thrown away and rebuilt for a compiler that had not changed. */
     if (strchr(wanted, '/') == nullptr && cached[0] == '/') {
         NYA_ConstCString last = strrchr(cached, '/');
         if (last != nullptr && nya_string_equals((NYA_CString)(last + 1), (NYA_CString)wanted)) return true;
@@ -126,8 +122,7 @@ NYA_INTERNAL b8 cmake_values_agree(NYA_ConstCString wanted, NYA_ConstCString cac
 void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
-    // The build directory is whatever follows -B, so this works for every cmake rule without each
-    // of them having to repeat the path.
+    // The build directory is whatever follows -B, so this works for every cmake rule without each of them having to repeat the path.
     NYA_ConstCString build_directory = nullptr;
     for (u64 i = 0; i + 1 < NYA_COMMAND_MAX_ARGUMENTS; i++) {
         NYA_ConstCString argument = rule->command.arguments[i];
@@ -164,16 +159,7 @@ void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule) {
         return;
     }
 
-    /*
-     * And the case that actually bites: an option in the recipe that disagrees with the one the cache
-     * was built from.
-     *
-     * cmake applies a changed -D on a reconfigure for most variables, but not for all of them, and not
-     * for anything a CMakeLists only reads the first time through. Turning SDL_RENDER on is exactly
-     * that kind of change: it had to be found by a test opening a window that had never been able to
-     * open. A wipe is the only answer that is right for every variable, and it costs a full rebuild of
-     * one vendor on the builds where somebody actually edited an option.
-     */
+    /* And the case that actually bites: an option in the recipe that disagrees with the one the cache was built from. cmake applies a changed -D on a reconfigure for most variables, but not for all of them, and not for anything a CMakeLists only reads the first time through. Turning SDL_RENDER on is exactly that kind of change: it had to be found by a test opening a window that had never been able to open. A wipe is the only answer that is right for every variable, and it costs a full rebuild of one vendor on the builds where somebody actually edited an option. */
     for (u64 i = 0; i < NYA_COMMAND_MAX_ARGUMENTS; i++) {
         NYA_ConstCString argument = rule->command.arguments[i];
         if (argument == nullptr) break;
@@ -191,12 +177,7 @@ void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule) {
         NYA_CString colon = strchr(name, ':');
         if (colon != nullptr) *colon = '\0';
 
-        /*
-         * Only the last -D for a name decides, because that is what cmake does with it. The windows
-         * vendors set CMAKE_C_FLAGS_RELEASE twice, once in vendor_common.h and again in the mingw
-         * toolchain that adds -D__INTRINSIC_DEFINED___cpuidex to it, so comparing the earlier one
-         * against the cache reported a change on every build that ever reached this hook.
-         */
+        /* Only the last -D for a name decides, because that is what cmake does with it. The windows vendors set CMAKE_C_FLAGS_RELEASE twice, once in vendor_common.h and again in the mingw toolchain that adds -D__INTRINSIC_DEFINED___cpuidex to it, so comparing the earlier one against the cache reported a change on every build that ever reached this hook. */
         b8        overridden = false;
         const u64 name_length = strlen(name);
 
@@ -393,19 +374,7 @@ NYA_INTERNAL b8 git_run(NYA_ConstCString const* arguments, OUT s32* out_exit_cod
 void hook_add_build_info_flag(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
-    /*
-     * Resolved once per build tool run, since each of these spawns a process.
-     *
-     * The commit hash used to stay off because ccache's direct mode hashes the command line. That worry
-     * does not survive a look at when it actually changes: every artifact is one unity translation unit,
-     * so a new commit means changed sources and a cache miss regardless, and going back to a commit that
-     * was built before produces the same hash and hits again. Only the `-dirty` suffix flips often, and it
-     * flips exactly when the tree changed.
-     *
-     * A build *timestamp* is the flag that would genuinely destroy the cache, because it differs on every
-     * invocation, so it is not injected. base_crash.h reads the executable's own modification time instead,
-     * which is when the linker wrote it, which is the build time.
-     */
+    /* Resolved once per build tool run, since each of these spawns a process. The commit hash used to stay off because ccache's direct mode hashes the command line. That worry does not survive a look at when it actually changes: every artifact is one unity translation unit, so a new commit means changed sources and a cache miss regardless, and going back to a commit that was built before produces the same hash and hits again. Only the `-dirty` suffix flips often, and it flips exactly when the tree changed. A build *timestamp* is the flag that would genuinely destroy the cache, because it differs on every invocation, so it is not injected. base_crash.h reads the executable's own modification time instead, which is when the linker wrote it, which is the build time. */
     static b8          resolved         = false;
     static NYA_CString BUILD_INFO_FLAG  = nullptr;
 
@@ -417,9 +386,7 @@ void hook_add_build_info_flag(NYA_BuildRule* rule) {
         b8          answered  = git_run((NYA_ConstCString[]){ "rev-parse", "--short=12", "HEAD", nullptr }, &exit_code, &commit);
 
         if (answered && exit_code == 0 && commit->length > 0) {
-            // `--quiet` prints nothing and exits 1 when the working tree differs from HEAD, which is
-            // what marks the build dirty. An unavailable answer is read as clean rather than as dirty,
-            // so a shallow or grafted checkout does not permanently label itself modified.
+            // `--quiet` prints nothing and exits 1 when the working tree differs from HEAD, which is what marks the build dirty. An unavailable answer is read as clean rather than as dirty, so a shallow or grafted checkout does not permanently label itself modified.
             NYA_String*      ignored = nullptr;
             NYA_ConstCString dirty   = "";
             if (git_run((NYA_ConstCString[]){ "diff", "--quiet", "HEAD", nullptr }, &exit_code, &ignored) && exit_code != 0) dirty = "-dirty";
@@ -466,8 +433,7 @@ void hook_remove_output_file(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
     nya_assert(rule->output_file);
 
-    // A file that is not there is already the state this asks for, which is what lets the hook run
-    // before a rule as well as after one: the first build of an archive has nothing to delete.
+    // A file that is not there is already the state this asks for, which is what lets the hook run before a rule as well as after one: the first build of an archive has nothing to delete.
     if (!nya_filesystem_exists(rule->output_file)) return;
 
     NYA_EXPECT(nya_filesystem_delete(rule->output_file));
@@ -554,9 +520,7 @@ void hook_verify_hardening(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
     nya_assert(rule->output_file != nullptr, "hook_verify_hardening needs an output_file to inspect.");
 
-    // One readelf pass over the dynamic section (-d), the program headers (-l) and the dynamic symbol
-    // table (--dyn-syms); -W keeps it from truncating wide lines. Every mitigation is read out of this
-    // text, so a toolchain that silently dropped one trips an assert here instead of shipping soft.
+    // One readelf pass over the dynamic section (-d), the program headers (-l) and the dynamic symbol table (--dyn-syms); -W keeps it from truncating wide lines. Every mitigation is read out of this text, so a toolchain that silently dropped one trips an assert here instead of shipping soft.
     NYA_Command readelf = {
         .arena     = nya_arena_global,
         .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
@@ -569,26 +533,19 @@ void hook_verify_hardening(NYA_BuildRule* rule) {
 
     NYA_String* elf = readelf.stdout_content;
 
-    // Full RELRO is -z relro (the GNU_RELRO segment) plus -z now (immediate binding). readelf prints
-    // BIND_NOW in DT_FLAGS and NOW in DT_FLAGS_1; either proves -z now took. Without it the GOT stays
-    // writable and RELRO is only partial.
+    // Full RELRO is -z relro (the GNU_RELRO segment) plus -z now (immediate binding). readelf prints BIND_NOW in DT_FLAGS and NOW in DT_FLAGS_1; either proves -z now took. Without it the GOT stays writable and RELRO is only partial.
     nya_assert_always(nya_string_contains(elf, "GNU_RELRO"),
                       "%s has no GNU_RELRO segment: -Wl,-z,relro did not take.", rule->output_file);
     nya_assert_always(nya_string_contains(elf, "BIND_NOW") || nya_string_contains(elf, "NOW"),
                       "%s has no BIND_NOW / FLAGS_1 NOW: -Wl,-z,now did not take, so RELRO is only partial.", rule->output_file);
 
-    // NX stack: a PT_GNU_STACK segment that is not executable. readelf writes segment flags as e.g. RW,
-    // or RWE when executable; an executable segment is exactly what -z noexecstack forbids on the stack.
+    // NX stack: a PT_GNU_STACK segment that is not executable. readelf writes segment flags as e.g. RW, or RWE when executable; an executable segment is exactly what -z noexecstack forbids on the stack.
     nya_assert_always(nya_string_contains(elf, "GNU_STACK"),
                       "%s has no GNU_STACK segment to mark non-executable.", rule->output_file);
     nya_assert_always(!nya_string_contains(elf, "RWE"),
                       "%s has a writable-executable (RWE) segment: the stack is not NX. -Wl,-z,noexecstack did not take.", rule->output_file);
 
-    // Stack protector and _FORTIFY_SOURCE leave their runtime helpers as undefined dynamic symbols, which
-    // is proof the codegen flags reached the object rather than only the command line: __stack_chk_fail
-    // for -fstack-protector-strong, and the __*_chk wrappers for the level-3 _FORTIFY_SOURCE. Several
-    // fortify wrappers are checked because which ones appear depends on the source; at least one of these
-    // ubiquitous calls is fortified in any real build.
+    // Stack protector and _FORTIFY_SOURCE leave their runtime helpers as undefined dynamic symbols, which is proof the codegen flags reached the object rather than only the command line: __stack_chk_fail for -fstack-protector-strong, and the __*_chk wrappers for the level-3 _FORTIFY_SOURCE. Several fortify wrappers are checked because which ones appear depends on the source; at least one of these ubiquitous calls is fortified in any real build.
     nya_assert_always(nya_string_contains(elf, "__stack_chk_fail"),
                       "%s references no __stack_chk_fail: -fstack-protector-strong produced no canaries.", rule->output_file);
     b8 has_fortify = nya_string_contains(elf, "__memcpy_chk") || nya_string_contains(elf, "__memset_chk") ||
@@ -623,8 +580,7 @@ void hook_sign_windows_executable(NYA_BuildRule* rule) {
         return;
     }
 
-    // Captured rather than shown: signing narrates its progress and its timestamp server round trip
-    // on stdout, which is noise in a build log. Kept so that a failure can still say what went wrong.
+    // Captured rather than shown: signing narrates its progress and its timestamp server round trip on stdout, which is noise in a build log. Kept so that a failure can still say what went wrong.
 #if OS_WINDOWS
     // signtool edits the file in place, so there is nothing to move afterwards.
     NYA_Command command = {
@@ -636,16 +592,14 @@ void hook_sign_windows_executable(NYA_BuildRule* rule) {
             "/f", pfx,
             "/p", password,
             "/fd", "SHA256",
-            // /tr, not /t: an RFC 3161 countersignature is what keeps already shipped binaries
-            // verifying after the certificate behind them expires.
+            // /tr, not /t: an RFC 3161 countersignature is what keeps already shipped binaries verifying after the certificate behind them expires.
             "/tr", timestamp,
             "/td", "SHA256",
             rule->output_file,
         },
     };
 #else
-    // osslsigncode refuses to write over its input, so it signs to a temporary beside the binary
-    // which then replaces it.
+    // osslsigncode refuses to write over its input, so it signs to a temporary beside the binary which then replaces it.
     NYA_String* signed_path_string = nya_string_sprintf(nya_arena_global, "%s.signed", rule->output_file);
     NYA_CString signed_path        = nya_string_to_cstring(nya_arena_global, signed_path_string);
 
@@ -668,9 +622,7 @@ void hook_sign_windows_executable(NYA_BuildRule* rule) {
     NYA_Error result = nya_command_run(&command);
 
     if (!result.ok || command.exit_code != 0) {
-        // A missing signing tool is the ordinary case on a machine that only builds to run the
-        // game, so it cannot fail the build. A release that has to be signed is a CI concern, and
-        // CI installs the tool.
+        // A missing signing tool is the ordinary case on a machine that only builds to run the game, so it cannot fail the build. A release that has to be signed is a CI concern, and CI installs the tool.
         NYA_ConstCString reason = !result.ok ? (NYA_ConstCString)result.message : "the signing tool reported failure";
         nya_log_warn("Could not sign %s: %s. Leaving it unsigned.", rule->output_file, reason);
 
@@ -757,11 +709,7 @@ void hook_stamp_output_file(NYA_BuildRule* rule) {
 
     if (rule->output_file == nullptr) return;
 
-    /*
-     * The content is the point of the file, not its bytes: what the next invocation compares is the
-     * modification time, and a write is the portable way to set one. The recipe's own name goes in
-     * so a stamp found by hand says which rule left it.
-     */
+    /* The content is the point of the file, not its bytes: what the next invocation compares is the modification time, and a write is the portable way to set one. The recipe's own name goes in so a stamp found by hand says which rule left it. */
     NYA_Error written = nya_file_write(rule->output_file, rule->name);
     if (!written.ok) nya_log_warn("could not stamp '%s' for rule '%s'; it will run again", rule->output_file, rule->name);
 }
@@ -771,27 +719,15 @@ void hook_assemble_docs(NYA_BuildRule* rule) {
 
     NYA_ConstCString site = "./site";
 
-    /*
-     * A fresh tree every time: a page deleted from docs/ must not linger in the deployed site, and a
-     * doxygen run left over from a previous build must not shadow this one.
-     */
+    /* A fresh tree every time: a page deleted from docs/ must not linger in the deployed site, and a doxygen run left over from a previous build must not shadow this one. */
     if (nya_filesystem_exists(site)) {
         NYA_EXPECT(nya_filesystem_delete_recursive(site), "while clearing the staged docs site");
     }
 
-    /*
-     * The hand-written GitBook tree, and with it the cheatsheet that the generate_cheatsheet
-     * dependency wrote into docs/ just before this hook ran. doxygen writes its HTML into
-     * ./site/doxygen once this hook returns (its OUTPUT_DIRECTORY in docs/doxygen.config), so the
-     * three tiers — prose, cheatsheet, generated reference — share one directory and their relative
-     * links resolve wherever the tree is deployed.
-     */
+    /* The hand-written GitBook tree, and with it the cheatsheet that the generate_cheatsheet dependency wrote into docs/ just before this hook ran. doxygen writes its HTML into ./site/doxygen once this hook returns (its OUTPUT_DIRECTORY in docs/doxygen.config), so the three tiers — prose, cheatsheet, generated reference — share one directory and their relative links resolve wherever the tree is deployed. */
     NYA_EXPECT(nya_filesystem_copy_recursive("./docs", site), "while staging the GitBook prose");
 
-    /*
-     * The staged tree is its own deploy root, so its .gitbook.yaml points at itself rather than at
-     * ./docs the way the committed one at the repository root does.
-     */
+    /* The staged tree is its own deploy root, so its .gitbook.yaml points at itself rather than at ./docs the way the committed one at the repository root does. */
     NYA_EXPECT(nya_file_write("./site/.gitbook.yaml",
                               "root: ./\n"
                               "\n"

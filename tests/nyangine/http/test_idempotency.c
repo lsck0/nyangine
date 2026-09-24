@@ -36,11 +36,7 @@ static NYA_HttpStatus dispatch_note(NYA_Arena* arena, NYA_ConstCString body, NYA
 static NYA_HttpStatus create_note(NYA_HttpExchange* exchange) {
     SIDE_EFFECTS++;
 
-    /*
-     * While this one is in flight its key is reserved, so a duplicate that arrives now is the 409 case.
-     * Re-entering here is how the test reaches that state without a second thread: the nested dispatch
-     * carries the same key and must be refused, and its handler must not run.
-     */
+    /* While this one is in flight its key is reserved, so a duplicate that arrives now is the 409 case. Re-entering here is how the test reaches that state without a second thread: the nested dispatch carries the same key and must be refused, and its handler must not run. */
     if (REENTER && !REENTERED_ALREADY) {
         REENTERED_ALREADY = true;
 

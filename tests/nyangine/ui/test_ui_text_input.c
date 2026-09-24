@@ -248,8 +248,7 @@ s32 main(void) {
         nya_check(!nya_ui_typing(&window), "and so does a focus reset");
     }
 
-    // ── The write-back the SSR server drives: focus with a click, select the whole line, then type the
-    //    value over it — which replaces the buffer rather than appending — and an empty value deletes it.
+    // ── The write-back the SSR server drives: focus with a click, select the whole line, then type the value over it — which replaces the buffer rather than appending — and an empty value deletes it.
     {
         f32x2 field = { FIELD.x + 200.0F, FIELD.y + 20.0F };
 

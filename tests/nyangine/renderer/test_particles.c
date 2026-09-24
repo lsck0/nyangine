@@ -39,8 +39,7 @@ s32 main(void) {
     nya_assert(nya_particles_emit(system, (NYA_ParticleBurst){ .count = 10 }) == 10, "ten fit");
     nya_assert(nya_particles_count(system) == 10, "and are live");
 
-    // Past the ceiling: what fits is created, the rest is counted. An effect that loses a few under
-    // load is working correctly, so this is not an error.
+    // Past the ceiling: what fits is created, the rest is counted. An effect that loses a few under load is working correctly, so this is not an error.
     nya_assert(nya_particles_emit(system, (NYA_ParticleBurst){ .count = 40 }) == 22, "only the room left is used");
     nya_assert(nya_particles_count(system) == 32, "the pool is full");
     nya_assert(system->dropped == 18, "and the shortfall is counted, got " FMTu32, system->dropped);
@@ -57,8 +56,7 @@ s32 main(void) {
   {
     NYA_ParticleSystem* system = nya_particles_create(arena, 64);
 
-    // Two bursts with very different lifetimes, so the short ones die while the long ones live and
-    // the swap-with-last actually has to move something.
+    // Two bursts with very different lifetimes, so the short ones die while the long ones live and the swap-with-last actually has to move something.
     (void)nya_particles_emit(system, (NYA_ParticleBurst){ .count = 20, .lifetime_s = { 0.1F, 0.1F }, .user_id = 1 });
     (void)nya_particles_emit(system, (NYA_ParticleBurst){ .count = 20, .lifetime_s = { 10.0F, 10.0F }, .user_id = 2 });
 

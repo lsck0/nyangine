@@ -91,11 +91,7 @@
 
 // clang-format on
 
-/*
- * Build order, which differs from link order: sqlean and sqlvec compile against sqlite3.h, which
- * sqlite's configure generates, so sqlite is listed again first. Listing it twice is free, since its
- * parts are ONCE or IF_OUTDATED and nya_build memoizes rules within an invocation.
- */
+/* Build order, which differs from link order: sqlean and sqlvec compile against sqlite3.h, which sqlite's configure generates, so sqlite is listed again first. Listing it twice is free, since its parts are ONCE or IF_OUTDATED and nya_build memoizes rules within an invocation. */
 
 /** Everything needed to produce a Linux target. */
 NYA_VendorRule* NYA_VENDORS_LINUX_X86_64[] = {

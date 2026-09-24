@@ -33,8 +33,7 @@ s32 main(void) {
 
   // VENDOR: SDL3, and the three satellite libraries built against it
   {
-    // Nothing that needs a device: no video, no audio. This is a link and version check, and a CI
-    // container has neither.
+    // Nothing that needs a device: no video, no audio. This is a link and version check, and a CI container has neither.
     b8 ok = SDL_Init(0);
     nya_assert(ok, "SDL_Init(0) failed: %s", SDL_GetError());
     defer SDL_Quit();
@@ -43,8 +42,7 @@ s32 main(void) {
     nya_assert(version > 0, "SDL reported version %d", version);
     nya_log_info("SDL %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
 
-    // each satellite compiles against SDL's headers, so a version mismatch would link and then disagree
-    // about struct layouts.
+    // each satellite compiles against SDL's headers, so a version mismatch would link and then disagree about struct layouts.
     int image_version = IMG_Version();
     int ttf_version   = TTF_Version();
     int mixer_version = MIX_Version();
@@ -77,8 +75,7 @@ s32 main(void) {
     b2BodyId body = b2CreateBody(world, &body_def);
     nya_assert(b2Body_IsValid(body), "b2CreateBody returned an invalid body");
 
-    // A shape, because a dynamic body without one has zero mass and box2d does not integrate it.
-    // Gravity alone is not enough to make something fall.
+    // A shape, because a dynamic body without one has zero mass and box2d does not integrate it. Gravity alone is not enough to make something fall.
     b2Polygon  box       = b2MakeBox(0.5F, 0.5F);
     b2ShapeDef shape_def = b2DefaultShapeDef();
     shape_def.density    = 1.0F;
@@ -86,8 +83,7 @@ s32 main(void) {
 
     nya_assert(b2Body_GetMass(body) > 0.0F, "the shape gave the body no mass");
 
-    // Stepping is the part that proves the library works rather than merely loads: a body under
-    // gravity has to have fallen.
+    // Stepping is the part that proves the library works rather than merely loads: a body under gravity has to have fallen.
     for (u32 i = 0; i < 60; i++) b2World_Step(world, 1.0F / 60.0F, 4);
 
     b2Vec2 position = b2Body_GetPosition(body);
@@ -131,8 +127,7 @@ s32 main(void) {
     nya_log_info("lz4 %s", LZ4_versionString());
     nya_assert(LZ4_versionNumber() > 0);
 
-    // Repetitive on purpose, so the result is meaningfully smaller and a compressor that silently
-    // did nothing would be visible.
+    // Repetitive on purpose, so the result is meaningfully smaller and a compressor that silently did nothing would be visible.
     char source[1024];
     for (u64 i = 0; i < sizeof(source); i++) source[i] = (char)('a' + (i % 8));
 
@@ -151,8 +146,7 @@ s32 main(void) {
 
     nya_log_info("lz4: 1024 bytes -> %d -> 1024", compressed_size);
 
-    // The frame API is a separate translation unit inside the same archive, so it is worth touching
-    // independently: a partial build would resolve one and not the other.
+    // The frame API is a separate translation unit inside the same archive, so it is worth touching independently: a partial build would resolve one and not the other.
     LZ4F_preferences_t preferences = { 0 };
     u64                frame_bound = LZ4F_compressFrameBound(sizeof(source), &preferences);
     nya_assert(frame_bound > 0, "LZ4F_compressFrameBound returned zero");
@@ -160,18 +154,14 @@ s32 main(void) {
 
   // VENDOR: LuaJIT, a state that runs a script
   {
-    // This is the one that was silently broken: libluajit-linux.a held COFF objects, lld skipped
-    // every member with a warning, and the link still succeeded because nothing called Lua. Calling
-    // it is the only thing that would have caught it.
+    // This is the one that was silently broken: libluajit-linux.a held COFF objects, lld skipped every member with a warning, and the link still succeeded because nothing called Lua. Calling it is the only thing that would have caught it.
     lua_State* state = luaL_newstate();
     nya_assert(state != nullptr, "luaL_newstate() failed, is the archive built for this platform?");
     defer lua_close(state);
 
     luaL_openlibs(state);
 
-    // LUA_RELEASE rather than LUAJIT_VERSION: the latter lives in luajit.h, which LuaJIT's Makefile
-    // generates and does not track, so a checkout whose archive came from a cache does not have it.
-    // A test that names the library should not be the thing that breaks on that.
+    // LUA_RELEASE rather than LUAJIT_VERSION: the latter lives in luajit.h, which LuaJIT's Makefile generates and does not track, so a checkout whose archive came from a cache does not have it. A test that names the library should not be the thing that breaks on that.
     nya_log_info("%s (LuaJIT)", LUA_RELEASE);
 
     int loaded = luaL_dostring(state, "return 6 * 7");
@@ -193,8 +183,7 @@ s32 main(void) {
     nya_log_info("SQLite %s", sqlite3_libversion());
     nya_assert(sqlite3_libversion_number() >= 3000000, "SQLite reported %d", sqlite3_libversion_number());
 
-    // Threadsafe() reports how the library was compiled, which is the sort of configure time
-    // decision that a linked-but-wrong build gets wrong.
+    // Threadsafe() reports how the library was compiled, which is the sort of configure time decision that a linked-but-wrong build gets wrong.
     nya_log_info("SQLite threadsafe: %d", sqlite3_threadsafe());
 
     // The plugin covers real usage; this only proves the library underneath it is the one we built.
@@ -205,9 +194,7 @@ s32 main(void) {
 
   // VENDOR: sqlean and sqlvec, the archives exist and their entry points link
   {
-    // both archives expose one init function (see vendor_sqlean.h and vendor_sqlvec.h). Linking them
-    // directly, not through nya_sql_open, fails on a missing archive or wrong link order. What they do
-    // once registered is in test_sql_extensions.c.
+    // both archives expose one init function (see vendor_sqlean.h and vendor_sqlvec.h). Linking them directly, not through nya_sql_open, fails on a missing archive or wrong link order. What they do once registered is in test_sql_extensions.c.
     sqlite3* handle = nullptr;
     nya_assert(sqlite3_open(":memory:", &handle) == SQLITE_OK);
     defer     (void)sqlite3_close_v2(handle);
@@ -224,8 +211,7 @@ s32 main(void) {
     nya_assert(info != nullptr, "curl_version_info returned null");
     nya_log_info("libcurl %s, %s", info->version, info->ssl_version != nullptr ? info->ssl_version : "no TLS");
 
-    // TLS is the configure time decision most likely to be silently wrong, and an https request
-    // without it fails at runtime with a confusing protocol error rather than at build time.
+    // TLS is the configure time decision most likely to be silently wrong, and an https request without it fails at runtime with a confusing protocol error rather than at build time.
     nya_assert((info->features & CURL_VERSION_SSL) != 0, "libcurl was built without TLS support");
     nya_assert(info->ssl_version != nullptr && info->ssl_version[0] != '\0', "libcurl reports TLS but names no backend");
 
@@ -243,10 +229,7 @@ s32 main(void) {
 
   // VENDOR: libbacktrace, already wired into base_backtrace
   {
-    // base_backtrace falls back to a null backend when backtrace.h is missing, so a missing
-    // libbacktrace still builds and captures no frames. Capturing one tells them apart.
-    // Initialised first, since libbacktrace builds its debug info lazily and would otherwise report zero
-    // frames like the null backend.
+    // base_backtrace falls back to a null backend when backtrace.h is missing, so a missing libbacktrace still builds and captures no frames. Capturing one tells them apart. Initialised first, since libbacktrace builds its debug info lazily and would otherwise report zero frames like the null backend.
     nya_backtrace_init();
 
     NYA_Backtrace trace = { 0 };

@@ -75,8 +75,7 @@ s32 main(void) {
     nya_assert(count_of(signals, count, NYA_SPRITE_ANIMATION_STARTED) == 1, "play then advance emits exactly one STARTED");
     nya_assert(signals[0].kind == NYA_SPRITE_ANIMATION_STARTED, "STARTED comes before frame zero's own marker");
 
-    // A marker on frame zero fires immediately, not when the animation leaves that frame. An attack
-    // whose windup sound sits on frame zero would otherwise play a frame late, every single time.
+    // A marker on frame zero fires immediately, not when the animation leaves that frame. An attack whose windup sound sits on frame zero would otherwise play a frame late, every single time.
     nya_assert(has_event(signals, count, EVENT_WINDUP), "a marker on frame zero fires on the first advance");
 
     nya_assert(animator.playing, "it is playing");

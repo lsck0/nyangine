@@ -139,10 +139,7 @@ s32 main(void) {
 
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING, "the handshake did not complete");
 
-    /*
-     * The world is set first, because entity queries use the current world and the loop above left the
-     * client's current.
-     */
+    /* The world is set first, because entity queries use the current world and the loop above left the client's current. */
     (void)nya_world_set(SERVER_WORLD);
     nya_assert(nya_entity_is_valid(SERVER_PLAYER), "the server spawned no player");
 
@@ -187,10 +184,7 @@ s32 main(void) {
 
   printf("TEST: prediction moves the client ahead of the server\n");
   {
-    /*
-     * The client applies its own command when sampled. With the sides moving at different speeds on
-     * purpose, the client drifts from the server, which makes the correction observable.
-     */
+    /* The client applies its own command when sampled. With the sides moving at different speeds on purpose, the client drifts from the server, which makes the correction observable. */
     HELD = 1;
 
     for (u32 i = 0; i < 10; i++) {
@@ -275,10 +269,7 @@ s32 main(void) {
 
   printf("TEST: interpolation runs on a remote client\n");
   {
-    /*
-     * On a loopback this returns immediately, so it is only ever a no-op in the other tests. Here there is a
-     * replica map with entries in it and a real snapshot interval to measure.
-     */
+    /* On a loopback this returns immediately, so it is only ever a no-op in the other tests. Here there is a replica map with entries in it and a real snapshot interval to measure. */
     (void)nya_world_set(CLIENT_WORLD);
 
     // Twice, so the second call has a non-zero alpha to advance from.

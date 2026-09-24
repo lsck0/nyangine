@@ -50,8 +50,7 @@ s32 main(void) {
     NYA_Object* row = result.rows->items[0];
     nya_assert(row != nullptr);
 
-    // The whole point of the module: a row is an ordinary object, so every accessor that works on a
-    // parsed JSON body works here too.
+    // The whole point of the module: a row is an ordinary object, so every accessor that works on a parsed JSON body works here too.
     NYA_Value* name = nya_object_get(row, "name");
     nya_assert(name != nullptr, "columns are keyed by their name");
     nya_assert(name->type == NYA_TYPE_STRING);
@@ -65,8 +64,7 @@ s32 main(void) {
     nya_assert(ratio != nullptr && ratio->type == NYA_TYPE_F64);
     nya_assert(ratio->as_f64 == 0.5);
 
-    // Present with a null value rather than absent, which is what lets a caller tell "no such
-    // column" from "this column is null".
+    // Present with a null value rather than absent, which is what lets a caller tell "no such column" from "this column is null".
     NYA_Value* missing = nya_object_get(row, "missing");
     nya_assert(missing != nullptr, "a NULL column is still a key");
     nya_assert(missing->type == NYA_TYPE_NULL);
@@ -81,8 +79,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE players (name TEXT)"));
 
-    // The classic. Interpolated into the string this closes the literal and drops the table; bound,
-    // it is just an unusual name.
+    // The classic. Interpolated into the string this closes the literal and drops the table; bound, it is just an unusual name.
     NYA_ConstCString hostile  = "Robert'); DROP TABLE players;--";
     NYA_SqlValue     insert[] = { nya_sql_text(hostile) };
     NYA_EXPECT(nya_sql_exec_bound(db, "INSERT INTO players (name) VALUES (?)", insert, 1));
@@ -101,8 +98,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (a INTEGER, b INTEGER)"));
 
-    // Checked by the module rather than surfacing as SQLITE_RANGE, which reads like a database
-    // problem when the actual fault is that the call site and the string disagree.
+    // Checked by the module rather than surfacing as SQLITE_RANGE, which reads like a database problem when the actual fault is that the call site and the string disagree.
     NYA_SqlValue too_few[] = { nya_sql_s64(1) };
     NYA_Error    result    = nya_sql_exec_bound(db, "INSERT INTO t (a, b) VALUES (?, ?)", too_few, 1);
     nya_assert(result.kind == NYA_ERROR_INVALID_ARGUMENT, "one value for two placeholders");
@@ -111,8 +107,7 @@ s32 main(void) {
     NYA_Error     nulled = nya_sql_query(db, arena, "SELECT * FROM t WHERE a = ?", nullptr, 1, &query);
     nya_assert(nulled.kind == NYA_ERROR_INVALID_ARGUMENT, "a count with no values is a mistake, not a crash");
 
-    // A placeholder nobody binds is NULL to SQLite rather than an error, so a statement handed no
-    // values at all would match no rows and look like an empty table.
+    // A placeholder nobody binds is NULL to SQLite rather than an error, so a statement handed no values at all would match no rows and look like an empty table.
     NYA_Error unbound = nya_sql_query(db, arena, "SELECT * FROM t WHERE a = ?", nullptr, 0, &query);
     nya_assert(unbound.kind == NYA_ERROR_INVALID_ARGUMENT, "no values for one placeholder is the same mistake");
 
@@ -126,8 +121,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (a INTEGER)"));
 
-    // sqlite3_prepare_v2 silently ignores everything after the first statement, which would make
-    // this look like it fully ran. Refused instead.
+    // sqlite3_prepare_v2 silently ignores everything after the first statement, which would make this look like it fully ran. Refused instead.
     NYA_SqlResult result = { 0 };
     NYA_Error     error  = nya_sql_query(db, arena, "INSERT INTO t VALUES (1); DROP TABLE t;", nullptr, 0, &result);
     nya_assert(error.kind == NYA_ERROR_INVALID_ARGUMENT, "trailing sql is refused rather than dropped");
@@ -215,8 +209,7 @@ s32 main(void) {
     NYA_Error empty = nya_sql_exec(db, "");
     nya_assert(empty.kind == NYA_ERROR_INVALID_ARGUMENT);
 
-    // the connection is still usable, proving the failed statement was finalized; nya_sql_close would
-    // refuse otherwise.
+    // the connection is still usable, proving the failed statement was finalized; nya_sql_close would refuse otherwise.
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE fine (x INTEGER)"));
   }
 
@@ -254,8 +247,7 @@ s32 main(void) {
     NYA_EXPECT(nya_sql_query(db, arena, "SELECT data FROM t", nullptr, 0, &result));
     nya_assert(result.rows->length == 1);
 
-    // Base64 rather than raw bytes, because NYA_Value has no byte array and a row has to stay
-    // something serde can write out unchanged.
+    // Base64 rather than raw bytes, because NYA_Value has no byte array and a row has to stay something serde can write out unchanged.
     NYA_Value* data = nya_object_get(result.rows->items[0], "data");
     nya_assert(data != nullptr && data->type == NYA_TYPE_STRING, "a blob arrives as text");
 
@@ -267,8 +259,7 @@ s32 main(void) {
 
   // TEST: a key is refused by a build with no cipher, and no file is left behind
   {
-    // The encryption seam. Written so it stays true on the day SQLCipher lands: what is asserted is
-    // that a key is either honoured or refused, never taken and then ignored.
+    // The encryption seam. Written so it stays true on the day SQLCipher lands: what is asserted is that a key is either honoured or refused, never taken and then ignored.
     u8 key[NYA_SQL_KEY_SIZE] = { 0 };
     nya_assert(nya_os_random_bytes(key, sizeof(key)));
 
@@ -285,8 +276,7 @@ s32 main(void) {
     } else {
       nya_assert(!opened.ok && opened.kind == NYA_ERROR_NOT_SUPPORTED, "a key this build cannot use is refused, not ignored");
 
-      // The half that matters: refusing after creating the file would leave a database somebody
-      // asked to have encrypted sitting there in the clear.
+      // The half that matters: refusing after creating the file would leave a database somebody asked to have encrypted sitting there in the clear.
       nya_assert(!nya_filesystem_exists(path), "a refused key created '%s' anyway", path);
     }
 
@@ -298,8 +288,7 @@ s32 main(void) {
 
   // TEST: a file backed database is created and persists across connections
   {
-    // The one thing ":memory:" cannot show: that reopening a path finds what the last connection
-    // wrote, which is the whole premise of a save file.
+    // The one thing ":memory:" cannot show: that reopening a path finds what the last connection wrote, which is the whole premise of a save file.
     NYA_ConstCString path = "./_test_sql_persist.db";
     (void)remove(path);
     defer (void)remove(path);

@@ -21,8 +21,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // the asset system registers an end-of-frame hook, so events come up first, by hand like the other
-  // core tests, since nya_app_init wants a window.
+  // the asset system registers an end-of-frame hook, so events come up first, by hand like the other core tests, since nya_app_init wants a window.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();
@@ -51,8 +50,7 @@ s32 main(void) {
     nya_assert(map->tilesets[0].first_gid == 1, "ids start at one");
     nya_assert(map->tilesets[0].columns == 4, "four tiles across");
 
-    // The image path is relative to the .tmj, and resolving it against the map's directory is what
-    // turns it into the handle the asset index generated. Getting this wrong loads no texture at all.
+    // The image path is relative to the .tmj, and resolving it against the map's directory is what turns it into the handle the asset index generated. Getting this wrong loads no texture at all.
     nya_assert(nya_string_equals(map->tilesets[0].texture, NYA_ASSET_MAPS_TILESET_PNG), "the tileset resolved to '%s'",
                map->tilesets[0].texture);
 
@@ -82,8 +80,7 @@ s32 main(void) {
     nya_assert(nya_tilemap_tile_at(map, ground, 7, 5) == 3, "the pond is water");
     nya_assert(nya_tilemap_tile_at(map, ground, 0, 11) == 4, "the bottom row is wall");
 
-    // Off the map answers empty rather than asserting: a query around a position routinely runs off
-    // the edge, and making every caller clamp first is how one of them forgets.
+    // Off the map answers empty rather than asserting: a query around a position routinely runs off the edge, and making every caller clamp first is how one of them forgets.
     nya_assert(nya_tilemap_tile_at(map, ground, -1, 0) == 0, "left of the map is empty");
     nya_assert(nya_tilemap_tile_at(map, ground, 0, -1) == 0, "above it is empty");
     nya_assert(nya_tilemap_tile_at(map, ground, 20, 0) == 0, "right of it is empty");
@@ -110,8 +107,7 @@ s32 main(void) {
     nya_assert(chest != nullptr, "and so is the chest");
     nya_assert(chest->size.x == 32.0F && chest->size.y == 32.0F, "a rectangle object has a size");
 
-    // Filled in as every type at once, because Tiled writes a float of one as `1` and there is no
-    // way to tell it from an int afterwards.
+    // Filled in as every type at once, because Tiled writes a float of one as `1` and there is no way to tell it from an int afterwards.
     const NYA_TilemapProperty* gold = nya_tilemap_object_property(chest, "gold");
     nya_assert(gold != nullptr, "the gold property is there");
     nya_assert(gold->as_integer == 25, "as an integer, got " FMTs64, gold->as_integer);
@@ -145,14 +141,12 @@ s32 main(void) {
     nya_assert(map->orientation == NYA_TILEMAP_ISOMETRIC, "the file says isometric");
     nya_assert(map->tile_width == 32 && map->tile_height == 16, "a 2:1 diamond, got %ux%u", map->tile_width, map->tile_height);
 
-    // Stepping one tile along +x moves half a tile right and half a tile down; along +y it moves half
-    // a tile *left* and half down. That asymmetry is the whole projection.
+    // Stepping one tile along +x moves half a tile right and half a tile down; along +y it moves half a tile *left* and half down. That asymmetry is the whole projection.
     nya_assert(same_tile(nya_tilemap_tile_to_world(map, (f32x2){ 0.0F, 0.0F }), (f32x2){ 0.0F, 0.0F }), "the origin is the origin");
     nya_assert(same_tile(nya_tilemap_tile_to_world(map, (f32x2){ 1.0F, 0.0F }), (f32x2){ 16.0F, 8.0F }), "+x goes right and down");
     nya_assert(same_tile(nya_tilemap_tile_to_world(map, (f32x2){ 0.0F, 1.0F }), (f32x2){ -16.0F, 8.0F }), "+y goes left and down");
 
-    // The inverse is not obvious by eye, which is why it is a function. Several points,
-    // including a fractional one and one in the negative quadrant.
+    // The inverse is not obvious by eye, which is why it is a function. Several points, including a fractional one and one in the negative quadrant.
     f32x2 samples[] = { { 0.0F, 0.0F }, { 3.0F, 5.0F }, { 12.5F, 0.25F }, { -4.0F, 9.0F } };
 
     for (u32 i = 0; i < nya_carray_length(samples); i++) {
@@ -196,8 +190,7 @@ s32 main(void) {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_ISOMETRIC_TMJ, &map));
 
-    // A diamond is not a box, and boxing one is wrong in a way nobody sees until something walks into
-    // a corner. Refused with a warning rather than answered badly.
+    // A diamond is not a box, and boxing one is wrong in a way nobody sees until something walks into a corner. Refused with a warning rather than answered badly.
     nya_assert(nya_tilemap_collision_build(map, "collision", KIND_TERRAIN) == 0, "isometric collision is refused");
     nya_assert(nya_physics2d_body_count() == 0, "and builds nothing");
 

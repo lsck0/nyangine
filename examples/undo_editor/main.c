@@ -41,17 +41,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * A NEWTYPE OF OUR OWN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * base_newtype.h ships NYA_Email, NYA_Username and NYA_UserId; this shows the other half of the file —
- * defining one. A Slug is the URL-safe stub of a title: lowercase letters, digits and interior hyphens.
- * The predicate is an ordinary function, so it reads, tests and documents the rule on its own; the macro
- * turns it into a distinct type with a parse, a reader and an equality that the compiler keeps from ever
- * being confused with a bare string or a sibling newtype.
- */
+/* A NEWTYPE OF OUR OWN base_newtype.h ships NYA_Email, NYA_Username and NYA_UserId; this shows the other half of the file — defining one. A Slug is the URL-safe stub of a title: lowercase letters, digits and interior hyphens. The predicate is an ordinary function, so it reads, tests and documents the rule on its own; the macro turns it into a distinct type with a parse, a reader and an equality that the compiler keeps from ever being confused with a bare string or a sibling newtype. */
 
 /** A slug is 1..63 bytes of lowercase alnum and interior hyphens: no leading, trailing or doubled '-'. */
 #define DOC_SLUG_CAPACITY 64
@@ -148,14 +138,7 @@ NYA_INTERNAL b8 document_equals(const EditorDocument* a, const EditorDocument* b
            a->body_words == b->body_words && a->published == b->published;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PART 1 — EDITS RECORDED AS SNAPSHOTS, THEN UNDONE AND REDONE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Each commit bumps the revision and records the whole document. Recording is the "the user pressed
- * save on this edit" moment: the snapshot is taken there and the caller may keep mutating immediately.
- */
+/* PART 1 — EDITS RECORDED AS SNAPSHOTS, THEN UNDONE AND REDONE Each commit bumps the revision and records the whole document. Recording is the "the user pressed save on this edit" moment: the snapshot is taken there and the caller may keep mutating immediately. */
 
 /** Bumps the revision, records the new state, and prints it. The one place an edit becomes a commit. */
 NYA_INTERNAL void commit(NYA_History* history, EditorDocument* doc, NYA_ConstCString label) {
@@ -178,8 +161,7 @@ NYA_INTERNAL void part_undo_redo(void) {
                            .author_id = 1815, .revision = 0, .body_words = 0, .published = false };
     commit(history, &doc, "created");
 
-    // A run of edits, each its own commit. We keep a copy of the mid-history state to prove later that
-    // undo returns *exactly* it, byte for byte, not merely something plausible.
+    // A run of edits, each its own commit. We keep a copy of the mid-history state to prove later that undo returns *exactly* it, byte for byte, not merely something plausible.
     field_set(doc.title, DOC_TITLE_MAX, "On Analytical Engines");
     doc.body_words = 120;
     commit(history, &doc, "titled + drafted");
@@ -221,8 +203,7 @@ NYA_INTERNAL void part_undo_redo(void) {
     nya_assert(!nya_history_can_redo(history), "we are back at the newest state, nothing to redo");
     nya_log_info("redo returned to the exact 'slugged + published' state (rev %u).", doc.revision);
 
-    // A commit here would truncate the redo tail — standard editor semantics — but we are at the tip,
-    // so there is nothing to drop. Prove the round trip held its bytes and move on.
+    // A commit here would truncate the redo tail — standard editor semantics — but we are at the tip, so there is nothing to drop. Prove the round trip held its bytes and move on.
 }
 
 /*
@@ -270,16 +251,7 @@ NYA_INTERNAL void part_newtype_gate(void) {
     nya_log_info("user id %llu admitted.", (unsigned long long)nya_user_id_value(id));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PART 3 — A TASK-GROUP NURSERY VALIDATING A BATCH IN PARALLEL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * An editor validates in bulk: someone pastes a column of candidate slugs and each is independent work.
- * A task group fans them onto the job pool and joins them in one call, carrying the first failure back.
- * Each task's argument outlives the wait — it lives in the caller's array, and the wait blocks until
- * every task is done — so there is no lifetime the group leaves dangling.
- */
+/* PART 3 — A TASK-GROUP NURSERY VALIDATING A BATCH IN PARALLEL An editor validates in bulk: someone pastes a column of candidate slugs and each is independent work. A task group fans them onto the job pool and joins them in one call, carrying the first failure back. Each task's argument outlives the wait — it lives in the caller's array, and the wait blocks until every task is done — so there is no lifetime the group leaves dangling. */
 
 /** What one validation task reads and writes. `error` is written only by the task that owns it. */
 typedef struct SlugCheck {
@@ -329,8 +301,7 @@ NYA_INTERNAL void part_task_group(void) {
     nya_log_info("validated %u candidates in parallel, all accepted:", good_count);
     for (u32 i = 0; i < good_count; i++) nya_log_info("    ok  %s", doc_slug_cstring(&good_batch[i].slug));
 
-    // Round two: one ringer with spaces. The group's wait hands back that first failure for the caller
-    // to NYA_TRY, and swallows the rest — one error is more use than a pile.
+    // Round two: one ringer with spaces. The group's wait hands back that first failure for the caller to NYA_TRY, and swallows the rest — one error is more use than a pile.
     SlugCheck mixed_batch[] = {
         { .input = "well-formed" }, { .input = "also-fine" },
         { .input = "Not A Slug" }, // the ringer: spaces and capitals.
@@ -350,9 +321,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc);
     nya_unused(argv);
 
-    // The task group in part 3 rides on the engine's job pool, which core_app brings up. A headless
-    // app stands up the non-visual systems (the job pool among them) and no window or renderer, which
-    // is exactly what a simulation like this wants: nya_app_init does the backtrace wiring too.
+    // The task group in part 3 rides on the engine's job pool, which core_app brings up. A headless app stands up the non-visual systems (the job pool among them) and no window or renderer, which is exactly what a simulation like this wants: nya_app_init does the backtrace wiring too.
     NYA_Error up = nya_app_init(.headless = true, .app_id = "undo_editor");
     if (!up.ok) {
         (void)fprintf(stderr, "Error: could not bring up the engine: %s\n", (NYA_ConstCString)up.message);

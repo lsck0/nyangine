@@ -72,8 +72,7 @@ static void fuzz_once(const u8* data, u64 size) {
                    && strcmp(again.subject, identity.subject) == 0,
                "the decoder was not deterministic for one token");
 
-    // a token that verified under the right secret must not verify under a wrong one of the same length: the
-    // signature is what carries the trust, so flipping the key it is checked against has to refuse it.
+    // a token that verified under the right secret must not verify under a wrong one of the same length: the signature is what carries the trust, so flipping the key it is checked against has to refuse it.
     static const u8 OTHER_SECRET[] = "fedcba9876543210fedcba9876543210";
 
     NYA_HttpIdentity wrong = { 0 };

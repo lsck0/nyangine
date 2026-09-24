@@ -9,8 +9,7 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_arena_freelist_order", .defragmentation_threshold = 1);
 
-  // three consecutive blocks. The third is never freed, so neither of the others is the region's last
-  // allocation, which would move `used` back instead of touching the free list.
+  // three consecutive blocks. The third is never freed, so neither of the others is the region's last allocation, which would move `used` back instead of touching the free list.
   u8* lower    = nya_arena_alloc(arena, BLOCK_SIZE);
   u8* higher   = nya_arena_alloc(arena, BLOCK_SIZE);
   u8* sentinel = nya_arena_alloc(arena, BLOCK_SIZE);

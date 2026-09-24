@@ -79,8 +79,7 @@ int main(void) {
   {
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 
-    // [2,3] by [3,2], worked by hand, since a consistently wrong matmul (a transpose, say) passes every
-    // gradient check below.
+    // [2,3] by [3,2], worked by hand, since a consistently wrong matmul (a transpose, say) passes every gradient check below.
     NYA_NNTensor* a = nya_nn_tensor_from(graph, NYA_NN_SHAPE(2, 3), (f32[]){ 1, 2, 3, 4, 5, 6 });
     NYA_NNTensor* b = nya_nn_tensor_from(graph, NYA_NN_SHAPE(3, 2), (f32[]){ 7, 8, 9, 10, 11, 12 });
 
@@ -97,11 +96,7 @@ int main(void) {
 
   // TEST: autograd against finite differences, over the whole DQN path
   {
-    /*
-     * The exact expression a DQN optimises: gather the taken action's value out of the network's
-     * output, then Huber against a target. Checking the pieces separately would miss the thing most
-     * likely to be wrong, which is how they compose.
-     */
+    /* The exact expression a DQN optimises: gather the taken action's value out of the network's output, then Huber against a target. Checking the pieces separately would miss the thing most likely to be wrong, which is how they compose. */
     const u32 batch   = 4;
     const u32 inputs  = 3;
     const u32 outputs = 2;
@@ -150,8 +145,7 @@ int main(void) {
         f32 analytic = parameter->grad[i];
         f32 original = parameter->data[i];
 
-        // Central difference, not forward: its error is quadratic in epsilon rather than linear, and
-        // at f32 precision that is the difference between a check that passes and one that is noise.
+        // Central difference, not forward: its error is quadratic in epsilon rather than linear, and at f32 precision that is the difference between a check that passes and one that is noise.
         parameter->data[i] = original + TEST_NN_EPSILON;
         f32 plus           = gradient_check_forward(&context);
 
@@ -162,8 +156,7 @@ int main(void) {
 
         f32 numeric = (plus - minus) / (2.0F * TEST_NN_EPSILON);
 
-        // Relative to the larger of the two, with a floor: a gradient that is legitimately near zero
-        // cannot be compared in relative terms at all.
+        // Relative to the larger of the two, with a floor: a gradient that is legitimately near zero cannot be compared in relative terms at all.
         f32 scale      = nya_max(nya_max(fabsf(analytic), fabsf(numeric)), 1e-3F);
         f32 difference = fabsf(analytic - numeric) / scale;
 
@@ -240,12 +233,7 @@ int main(void) {
 
   // TEST: the whole stack learns XOR
   {
-    /*
-     * XOR, for the same reason nn_neat's test uses it: it is not linearly separable, so a network
-     * that solves it has necessarily learned something a single layer cannot represent. It is also
-     * the smallest problem where a broken optimizer still drives the loss down a little and then
-     * stalls, which a "did the loss decrease" assertion would happily accept.
-     */
+    /* XOR, for the same reason nn_neat's test uses it: it is not linearly separable, so a network that solves it has necessarily learned something a single layer cannot represent. It is also the smallest problem where a broken optimizer still drives the loss down a little and then stalls, which a "did the loss decrease" assertion would happily accept. */
     NYA_NNGraph*      graph   = nya_nn_graph_create(arena);
     NYA_NNSequential* network = nya_nn_sequential_create(arena);
 
@@ -294,10 +282,7 @@ int main(void) {
 
   // TEST: the graph arena does not grow across steps
   {
-    /*
-     * What makes training usable inside a frame: a loop allocating per step leaks for as long as the game
-     * runs.
-     */
+    /* What makes training usable inside a frame: a loop allocating per step leaks for as long as the game runs. */
     NYA_NNGraph*      graph   = nya_nn_graph_create(arena);
     NYA_NNSequential* network = build_network(arena, &rng, 4, 3);
 
@@ -363,8 +348,7 @@ int main(void) {
 
   // TEST: a parameter used twice in one pass gets both contributions
   {
-    // The reason gradients accumulate rather than assign. w appears on both sides, so dloss/dw is
-    // the sum of two paths; an implementation that assigned would report only the last one.
+    // The reason gradients accumulate rather than assign. w appears on both sides, so dloss/dw is the sum of two paths; an implementation that assigned would report only the last one.
     NYA_NNGraph*  graph = nya_nn_graph_create(arena);
     NYA_NNTensor* w     = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1, 1), true);
 
@@ -383,10 +367,7 @@ int main(void) {
 
   // TEST: every op's gradient, individually, against finite differences
   {
-    /*
-     * The composed check above exercises the ops the DQN path uses. This one covers the rest, so an
-     * op that nothing currently composes is still known to be right the day something does.
-     */
+    /* The composed check above exercises the ops the DQN path uses. This one covers the rest, so an op that nothing currently composes is still known to be right the day something does. */
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 
     for (u32 op = 0; op < 6; op++) {
@@ -517,14 +498,10 @@ int main(void) {
 
   // TEST: the visualiser survives what a debug overlay gets handed
   {
-    /*
-     * Headless, so draws are no-ops, but layout, the forward pass and every guard still run. Debug overlays
-     * call the visualiser on half built or empty networks, and it must never crash the frame.
-     */
+    /* Headless, so draws are no-ops, but layout, the forward pass and every guard still run. Debug overlays call the visualiser on half built or empty networks, and it must never crash the frame. */
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 
-    // A zeroed window is enough: headless draw calls assert it is non-null and then do nothing, so
-    // this exercises every line of the visualiser that is not the GPU.
+    // A zeroed window is enough: headless draw calls assert it is non-null and then do nothing, so this exercises every line of the visualiser that is not the GPU.
     NYA_Window* window = nya_arena_alloc(arena, sizeof(NYA_Window));
     nya_memset(window, 0, sizeof(NYA_Window));
 
@@ -549,8 +526,7 @@ int main(void) {
         .output_labels = output_labels, .output_label_count = nya_carray_length(output_labels),
     });
 
-    // A count claiming more labels than the array holds must not be read past either, so it is
-    // clamped by the unit count rather than trusted.
+    // A count claiming more labels than the array holds must not be read past either, so it is clamped by the unit count rather than trusted.
     nya_nn_draw(window, network, graph, input, (NYA_NNDrawStyle){
         .width = 300.0F, .height = 200.0F,
         .output_labels = output_labels, .output_label_count = 2,
@@ -570,11 +546,7 @@ int main(void) {
 
   // TEST: the learning rate can be read and changed between steps
   {
-    /*
-     * The pair a schedule needs, and neither had a caller. A setter that does not reach the optimizer
-     * is the worst kind of wrong here: the schedule runs, the numbers in the log move, and training
-     * carries on at whatever rate it started with.
-     */
+    /* The pair a schedule needs, and neither had a caller. A setter that does not reach the optimizer is the worst kind of wrong here: the schedule runs, the numbers in the log move, and training carries on at whatever rate it started with. */
     NYA_NNTensor* w = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1), true);
     nya_nn_tensor_fill(w, 1.0F);
 

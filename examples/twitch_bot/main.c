@@ -101,8 +101,7 @@ static void on_chat(NYA_TwitchHelix* helix, NYA_ConstCString channel_id, NYA_Con
 
     if (text == nullptr) return;
 
-    // A bot that answers its own messages talks to itself forever, and Twitch delivers a bot's own chat
-    // back to it like anybody else's. The id is what tells them apart; the display name is not unique.
+    // A bot that answers its own messages talks to itself forever, and Twitch delivers a bot's own chat back to it like anybody else's. The id is what tells them apart; the display name is not unique.
     if (id != nullptr && nya_string_equals(id, bot_id)) return;
 
     nya_log_info("<%s> %s", who != nullptr ? who : "someone", text);
@@ -111,8 +110,7 @@ static void on_chat(NYA_TwitchHelix* helix, NYA_ConstCString channel_id, NYA_Con
 
     NYA_Error queued = nya_twitch_helix_chat_send(helix, channel_id, "pong", nullptr);
 
-    // Not fatal. A full queue means the bot is further behind than Twitch will let it catch up, and
-    // dropping one answer is the right thing to do about that.
+    // Not fatal. A full queue means the bot is further behind than Twitch will let it catch up, and dropping one answer is the right thing to do about that.
     if (!queued.ok) nya_log_warn("Could not queue the answer: %s", (NYA_ConstCString)queued.message);
 }
 
@@ -178,11 +176,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
         while (nya_twitch_eventsub_poll(events, &message)) {
             switch (message.kind) {
-                /*
-                 * A session, which is the only thing a subscription can be made against — and a
-                 * different one every time, so this runs again after every reconnect. A bot that
-                 * subscribed once at start-up would go quiet the first time Twitch moved it.
-                 */
+                /* A session, which is the only thing a subscription can be made against — and a different one every time, so this runs again after every reconnect. A bot that subscribed once at start-up would go quiet the first time Twitch moved it. */
                 case NYA_TWITCH_EVENTSUB_WELCOME: {
                     NYA_Error queued = nya_twitch_helix_subscribe(helix, CHAT_SUBSCRIPTION, CHAT_VERSION, channel_id, message.session, nullptr);
 
@@ -204,10 +198,7 @@ s32 main(s32 argc, NYA_CString* argv) {
                     break;
                 }
 
-                /*
-                 * Twitch dropped the subscription: the token was revoked, its scopes were taken away,
-                 * or the channel banned the bot. None of those get better by subscribing again.
-                 */
+                /* Twitch dropped the subscription: the token was revoked, its scopes were taken away, or the channel banned the bot. None of those get better by subscribing again. */
                 case NYA_TWITCH_EVENTSUB_REVOKED: {
                     nya_log_error("Twitch revoked %s; there is nothing left to listen to.", message.subscription_type);
                     RUNNING = 0;
@@ -242,8 +233,7 @@ s32 main(s32 argc, NYA_CString* argv) {
             }
         }
 
-        // A real sleep, as the discord bot and the web server examples do, so the loop does not spin a
-        // core waiting for a message that may be an hour away.
+        // A real sleep, as the discord bot and the web server examples do, so the loop does not spin a core waiting for a message that may be an hour away.
         SDL_Delay(TICK_SLEEP_MS);
     }
 

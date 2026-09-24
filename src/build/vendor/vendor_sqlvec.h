@@ -24,8 +24,7 @@
 #include "build/hooks.h"
 #include "build/flags.h"
 #include "build/vendor/vendor_common.h"
-// For SQLITE_BUILD_*: sqlite-vec compiles against sqlite3.h, which only exists once sqlite has been
-// configured, so the path to it belongs to that vendor rather than being spelled out again here.
+// For SQLITE_BUILD_*: sqlite-vec compiles against sqlite3.h, which only exists once sqlite has been configured, so the path to it belongs to that vendor rather than being spelled out again here.
 #include "build/vendor/vendor_sqlite.h"
 
 #define SQLVEC_SOURCE_DIRECTORY "./vendor/sqlvec"
@@ -74,8 +73,7 @@ NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name = "vendor_sqlvec_linux_x86_64_directory",
-            // See the same rule in vendor_sqlean.h: no policy means NYA_BUILD_ALWAYS, and a metarule
-            // is dispatched before the policy is read, so this ran on every ./build regardless.
+            // See the same rule in vendor_sqlean.h: no policy means NYA_BUILD_ALWAYS, and a metarule is dispatched before the policy is read, so this ran on every ./build regardless.
             .policy      = NYA_BUILD_ONCE,
             .is_metarule = true,
             .output_file = SQLVEC_BUILD_LINUX_X86_64,
@@ -85,14 +83,12 @@ NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
         },
         &(NYA_BuildRule){
             .name = "vendor_sqlvec_header",
-            // Keyed on VERSION because that is what the template reads: bumping the submodule to a
-            // new release has to regenerate the header, and "does sqlite-vec.h exist" would say yes.
+            // Keyed on VERSION because that is what the template reads: bumping the submodule to a new release has to regenerate the header, and "does sqlite-vec.h exist" would say yes.
             .policy      = NYA_BUILD_IF_OUTDATED,
             .input_file  = SQLVEC_VERSION_FILE,
             .output_file = SQLVEC_HEADER,
 
-            // upstream's own recipe, which calls envsubst, git and date. Substituting here would silently miss
-            // whatever placeholders the template gains.
+            // upstream's own recipe, which calls envsubst, git and date. Substituting here would silently miss whatever placeholders the template gains.
             .command = {
                 .working_directory = SQLVEC_SOURCE_DIRECTORY,
                 .program           = "make",
@@ -127,9 +123,7 @@ NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
                 .arguments = { "rcs", SQLVEC_A_LINUX_X86_64, SQLVEC_O_LINUX_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
@@ -196,9 +190,7 @@ NYA_VendorRule vendor_sqlvec_windows_x86_64 = {
                 .arguments = { "rcs", SQLVEC_A_WINDOWS_X86_64, SQLVEC_O_WINDOWS_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },

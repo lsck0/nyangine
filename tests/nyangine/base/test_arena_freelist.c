@@ -21,8 +21,7 @@ s32 main(void) {
   {
     NYA_Arena* arena = nya_arena_create(.name = "reuse", .region_size = nya_kibyte_to_byte(64));
 
-    // Two allocations so the first is not the most recent, which takes the "last allocation" path
-    // in free rather than going onto the free list.
+    // Two allocations so the first is not the most recent, which takes the "last allocation" path in free rather than going onto the free list.
     void* first  = nya_arena_alloc(arena, 256);
     void* second = nya_arena_alloc(arena, 256);
     nya_assert(first != nullptr && second != nullptr);
@@ -41,11 +40,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: adjacent freed blocks coalesce
-  //
-  // Freeing a run of neighbouring blocks leaves a contiguous span. If the free list keeps them as
-  // separate nodes, an allocation the size of the whole span cannot be served from it even though
-  // the bytes are sitting there, and the region grows instead.
+  // TEST: adjacent freed blocks coalesce Freeing a run of neighbouring blocks leaves a contiguous span. If the free list keeps them as separate nodes, an allocation the size of the whole span cannot be served from it even though the bytes are sitting there, and the region grows instead.
   printf("TEST: adjacent frees coalesce\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "coalesce", .region_size = nya_kibyte_to_byte(64));
@@ -55,8 +50,7 @@ s32 main(void) {
     void* blocks[BLOCKS];
     for (u32 i = 0; i < BLOCKS; i++) blocks[i] = nya_arena_alloc(arena, BLOCK_SIZE);
 
-    // A tail allocation, so freeing the blocks above cannot take the "last allocation" shortcut and
-    // every one of them really does go onto the free list.
+    // A tail allocation, so freeing the blocks above cannot take the "last allocation" shortcut and every one of them really does go onto the free list.
     void* tail = nya_arena_alloc(arena, 64);
     nya_assert(tail != nullptr);
 
@@ -75,10 +69,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: churn does not grow the region without bound
-  //
-  // Allocating and freeing the same size repeatedly should settle: the block comes back each time
-  // rather than the region marching forward.
+  // TEST: churn does not grow the region without bound Allocating and freeing the same size repeatedly should settle: the block comes back each time rather than the region marching forward.
   printf("TEST: churn is bounded\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "churn", .region_size = nya_kibyte_to_byte(64));

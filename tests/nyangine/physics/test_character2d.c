@@ -159,13 +159,11 @@ s32 main(void) {
 
     // ── Jump buffering: a press just before landing fires on touchdown.
     {
-        // started just above the floor so the fall is a few ticks. The buffer is a real time window, and a
-        // press from far above should expire.
+        // started just above the floor so the fall is a few ticks. The buffer is a real time window, and a press from far above should expire.
         NYA_CharacterController2D controller = { .tuning = { .jump_buffer_s = 0.15F } };
         Scene                     scene      = scene_create(120.0F);
 
-        // fall until close to the floor, then press, so the test does not depend on fall geometry. A press
-        // from far above should expire; that is the next case.
+        // fall until close to the floor, then press, so the test does not depend on fall geometry. A press from far above should expire; that is the next case.
         for (u32 i = 0; i < 60 && nya_entity_get(scene.body)->position.y < 150.0F; i++) {
             tick(&controller, &scene, (NYA_CharacterInput2D){ 0 }, 1);
         }

@@ -171,8 +171,7 @@ s32 main(void) {
                   "the report should carry the right operand, carried '%s'", caught != nullptr ? (const char*)caught->message : "");
     }
 
-    // TEST: and each side is evaluated once, so an operand with a side effect has
-    //       the same meaning it would have had in the comparison itself
+    // TEST: and each side is evaluated once, so an operand with a side effect has the same meaning it would have had in the comparison itself
     {
         reads = 0;
         nya_assert_eq(read_once(3), 3U);
@@ -183,8 +182,7 @@ s32 main(void) {
         nya_check(reads == 1, "a comparison that fails should still read each side once, read %u times", reads);
     }
 
-    // TEST: a watched frame registers on the way in and unregisters on every way
-    //       out, the early one included
+    // TEST: a watched frame registers on the way in and unregisters on every way out, the early one included
     {
         nya_check(nya_watch_count() == 0, "nothing should be watched before the first frame, %u was", nya_watch_count());
 
@@ -255,8 +253,7 @@ s32 main(void) {
         nya_check(nya_watch_dropped() == 0, "and nothing is missing from an empty ring, reported %u", nya_watch_dropped());
     }
 
-    // TEST: a crash that is caught rather than fatal still takes the frame's
-    //       entries with it, because no defer runs on the way out of a longjmp
+    // TEST: a crash that is caught rather than fatal still takes the frame's entries with it, because no defer runs on the way out of a longjmp
     {
         nya_expect_crash(watched_frame_that_crashes());
 

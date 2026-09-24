@@ -48,14 +48,7 @@ typedef enum NewKind {
     NEW_KIND_APP,
 } NewKind;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TEMPLATES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Each is the exact text of a file, with `nyanew`/`NYANEW` standing in for the name. Written as adjacent
- * line literals so the template reads as the file it becomes.
- */
+/* TEMPLATES Each is the exact text of a file, with `nyanew`/`NYANEW` standing in for the name. Written as adjacent line literals so the template reads as the file it becomes. */
 
 /** examples/<name>/nyanew.h — the literate header a plain example gets. */
 NYA_INTERNAL NYA_ConstCString NEW_TEMPLATE_EXAMPLE_HEADER =
@@ -312,14 +305,12 @@ void new_runner(NYA_ArgCommand* command) {
     NYA_String* name_upper = _new_uppercase(arena, name);
     NYA_CString upper      = nya_string_to_cstring(arena, name_upper);
 
-    // The directory the kind lives in, and the two files it gets. An app's source is named after it (the
-    // build compiles that translation unit); an example's is always main.c, which is what discovery looks for.
+    // The directory the kind lives in, and the two files it gets. An app's source is named after it (the build compiles that translation unit); an example's is always main.c, which is what discovery looks for.
     NYA_ConstCString root           = (kind == NEW_KIND_APP) ? NEW_APP_ROOT : NEW_EXAMPLE_ROOT;
     NYA_String*      directory      = nya_string_sprintf(arena, "%s/%s", root, name);
     NYA_CString      directory_cstr = nya_string_to_cstring(arena, directory);
 
-    // A directory that already exists is left as it is: scaffolding over an existing project would
-    // overwrite files it did not write.
+    // A directory that already exists is left as it is: scaffolding over an existing project would overwrite files it did not write.
     if (nya_filesystem_exists(directory_cstr)) {
         (void)fprintf(stderr, "Error: %s already exists; not overwriting it. Pick another name or remove it first.\n", directory_cstr);
         exit(EXIT_FAILURE);
@@ -354,8 +345,7 @@ void new_runner(NYA_ArgCommand* command) {
 
     nya_log_info("Scaffolded %s.", directory_cstr);
 
-    // Next steps: for an example the build discovers it, so one line; for an app the build has to be
-    // told its name, so the three edits that do it, each pointing at where gnyame-cli already does the same.
+    // Next steps: for an example the build discovers it, so one line; for an app the build has to be told its name, so the three edits that do it, each pointing at where gnyame-cli already does the same.
     if (kind == NEW_KIND_APP) {
         nya_log_info("An app is not auto-discovered. Wire it in like gnyame-cli, three edits:");
         nya_log_info("  1. src/build/flags.h: an APP_%s_NAME / APP_%s_DLL_SOURCE pair and the debug binary/dll names,", upper, upper);

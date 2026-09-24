@@ -47,8 +47,7 @@ s32 main(void) {
   // TEST: a child that floods stderr while stdout stays open
   printf("TEST: %d bytes of stderr\n", STDERR_BYTES);
   {
-    // `yes` piped through head is portable and needs no temporary file. The stdout write keeps the
-    // parent's first read waiting, which is what makes the ordering matter.
+    // `yes` piped through head is portable and needs no temporary file. The stdout write keeps the parent's first read waiting, which is what makes the ordering matter.
     NYA_String* script = nya_string_sprintf(
       arena,
       "printf 'on stdout\\n'; yes 'flooding stderr with a reasonably long line of text' | head -c %d 1>&2; printf 'done\\n'",

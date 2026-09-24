@@ -129,12 +129,9 @@ s32 main(void) {
         nya_check(nya_string_contains(page, "&lt;script&gt;alert(1)"), "with the widget body still escaped inside it");
     }
 
-    // TEST: a program's custom style reaches the browser as inline CSS. A distinctive
-    // accent and panel colour and a larger radius must show on the right elements,
-    // and a colour left at alpha zero must fall through to the stylesheet, unwritten.
+    // TEST: a program's custom style reaches the browser as inline CSS. A distinctive accent and panel colour and a larger radius must show on the right elements, and a colour left at alpha zero must fall through to the stylesheet, unwritten.
     {
-        // The button body colour is deliberately alpha zero on every state: opaque blue would be unmistakable
-        // in the output, so its absence proves the presenter honours "alpha zero means the default".
+        // The button body colour is deliberately alpha zero on every state: opaque blue would be unmistakable in the output, so its absence proves the presenter honours "alpha zero means the default".
         nya_ui_style_set(&window, (NYA_UIStyle){
                                       .panel   = { 0.0F, 1.0F, 0.0F, 1.0F },   // green, on the panel
                                       .accent  = { 1.0F, 0.0F, 0.0F, 1.0F },   // red, on the chosen toggle and the slider
@@ -162,8 +159,7 @@ s32 main(void) {
         nya_check(nya_string_contains(styled, "border-radius:16px"), "and the larger radius rounds the styled widgets");
         nya_check(!nya_string_contains(styled, "0,0,255"), "a colour left at alpha zero is not emitted, leaving the stylesheet's default");
 
-        // Style beyond the fill colours: the ink outlines the panel, and the track, accent, radius and
-        // padding reach the value widgets as inherited CSS custom properties their inputs read.
+        // Style beyond the fill colours: the ink outlines the panel, and the track, accent, radius and padding reach the value widgets as inherited CSS custom properties their inputs read.
         nya_check(nya_string_contains(styled, "border-color:rgba(0,255,255"), "the ink colour outlines the panel");
         nya_check(nya_string_contains(styled, "--nya-track:rgba(255,255,0"), "the track colour reaches the field and slider");
         nya_check(nya_string_contains(styled, "--nya-accent:rgba(255,0,0"), "the accent reaches the slider's fill");

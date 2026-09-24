@@ -14,13 +14,7 @@ NYA_INTERNAL NYA_ArgParser parser;
 
 /* WHAT MAIN DISPATCHES ON */
 
-/*
- * These are the commands and flags something outside cli.c has to recognise by identity rather than
- * run. main short circuits to `completions` before anything writes to stdout, prints usage for
- * `help` instead of dispatching, and consults `no-rebuild` before rebuilding itself; the
- * preprocessor passes in pp/ consult `regenerate`. Every other command reaches main only as an
- * opaque NYA_ArgCommand* handed straight to nya_args_run_command.
- */
+/* These are the commands and flags something outside cli.c has to recognise by identity rather than run. main short circuits to `completions` before anything writes to stdout, prints usage for `help` instead of dispatching, and consults `no-rebuild` before rebuilding itself; the preprocessor passes in pp/ consult `regenerate`. Every other command reaches main only as an opaque NYA_ArgCommand* handed straight to nya_args_run_command. */
 
 /** `./build completions <shell>`. Handled early, see main. */
 NYA_INTERNAL NYA_ArgCommand completions;

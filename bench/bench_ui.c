@@ -108,16 +108,14 @@ s32 main(void) {
 
     nya_ui_style_set(&window, (NYA_UIStyle){ .padding = 8.0F, .spacing = 6.0F });
 
-    // The recorder presenter: it measures in cells, so a frame builds and lays out with no face
-    // registered and no GPU, which is exactly the headless build pass we want to time.
+    // The recorder presenter: it measures in cells, so a frame builds and lays out with no face registered and no GPU, which is exactly the headless build pass we want to time.
     static NYA_UIRecorder recorder;
     nya_ui_recorder_init(&recorder, (f32x2){ 8.0F, 16.0F });
     defer nya_ui_recorder_deinit(&recorder);
 
     nya_ui_presenter_set(&window, nya_ui_recorder_presenter(&recorder));
 
-    // Two passes to settle the persistent layout for every container, then one clean pass whose
-    // count is the widgets a frame declares. That count is handed to the harness as the item count.
+    // Two passes to settle the persistent layout for every container, then one clean pass whose count is the widgets a frame declares. That count is handed to the harness as the item count.
     build_frame();
     nya_ui_recorder_reset(&recorder);
     build_frame();
@@ -126,8 +124,7 @@ s32 main(void) {
 
     nya_bench_begin("ui frame build (headless, recorder presenter)");
 
-    // The recorder is reset inside the timed body: a live frame starts from an empty command stream
-    // too, so the reset is part of what a frame costs rather than something to hide from it.
+    // The recorder is reset inside the timed body: a live frame starts from an empty command stream too, so the reset is part of what a frame costs rather than something to hide from it.
     nya_bench("build settings screen + list", widgets, {
         nya_ui_recorder_reset(&recorder);
         build_frame();

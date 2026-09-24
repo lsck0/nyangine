@@ -22,8 +22,7 @@
 #include "build/hooks.h"
 #include "build/flags.h"
 #include "build/vendor/vendor_common.h"
-// For SQLITE_BUILD_*: the extensions compile against sqlite3ext.h, which only exists once sqlite has
-// been configured, so the path to it belongs to that vendor rather than being spelled out again.
+// For SQLITE_BUILD_*: the extensions compile against sqlite3ext.h, which only exists once sqlite has been configured, so the path to it belongs to that vendor rather than being spelled out again.
 #include "build/vendor/vendor_sqlite.h"
 
 #define SQLEAN_SOURCE "./vendor/sqlean/src"
@@ -70,8 +69,7 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name = "vendor_sqlean_linux_x86_64_directory",
-            // ONCE keyed on the directory, like the lz4 and lua metarules. Without a policy it defaults to
-            // NYA_BUILD_ALWAYS and reruns the mkdir on every ./build.
+            // ONCE keyed on the directory, like the lz4 and lua metarules. Without a policy it defaults to NYA_BUILD_ALWAYS and reruns the mkdir on every ./build.
             .policy      = NYA_BUILD_ONCE,
             .is_metarule = true,
             .output_file = SQLEAN_BUILD_LINUX_X86_64,
@@ -81,9 +79,7 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
         },
         &(NYA_BuildRule){
             .name = "vendor_sqlean_linux_x86_64_compile",
-            // IF_OUTDATED rather than ONCE, unlike most vendor parts: the input is a file in this
-            // repository that gets edited, so keying on "does the object exist" would mean adding an
-            // extension and watching nothing happen.
+            // IF_OUTDATED rather than ONCE, unlike most vendor parts: the input is a file in this repository that gets edited, so keying on "does the object exist" would mean adding an extension and watching nothing happen.
             .policy      = NYA_BUILD_IF_OUTDATED,
             .input_file  = SQLEAN_GLUE_SOURCE,
             .output_file = SQLEAN_O_LINUX_X86_64,
@@ -110,10 +106,7 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
                 .arguments = { "rcs", SQLEAN_A_LINUX_X86_64, SQLEAN_O_LINUX_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that
-            // gets renamed leaves its old self inside forever, and the link keeps seeing a definition the
-            // repository no longer contains. Deleting the archive first makes it say only what was just
-            // compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed leaves its old self inside forever, and the link keeps seeing a definition the repository no longer contains. Deleting the archive first makes it say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
@@ -167,8 +160,7 @@ NYA_VendorRule vendor_sqlean_windows_x86_64 = {
                 .arguments = { "rcs", SQLEAN_A_WINDOWS_X86_64, SQLEAN_O_WINDOWS_X86_64, },
             },
 
-            // The same reason as the linux archive above: the archive is rebuilt from scratch so a
-            // renamed object cannot survive in it.
+            // The same reason as the linux archive above: the archive is rebuilt from scratch so a renamed object cannot survive in it.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },

@@ -45,12 +45,10 @@ s32 main(void) {
 
   // TEST: nya_typeof_field macro
   {
-    // Test that the macro returns the correct type
-    // We can't directly test the type, but we can use it in assignments
+    // Test that the macro returns the correct type We can't directly test the type, but we can use it in assignments
     TestStruct test_struct = { 0 };
 
-    // These should compile without errors if the types are correct
-    // Note: nya_typeof_field is just typeof wrapper, so we test by usage
+    // These should compile without errors if the types are correct Note: nya_typeof_field is just typeof wrapper, so we test by usage
     __typeof__(test_struct.byte_field)  byte_val  = 0;
     __typeof__(test_struct.int_field)   int_val   = 0;
     __typeof__(test_struct.float_field) float_val = 0.0f;
@@ -258,21 +256,18 @@ s32 main(void) {
 
   // TEST: nya_alloca is bounded
   {
-    // callers size stack allocations from data, so without the bound a long input overflows the stack
-    // with no diagnostic.
+    // callers size stack allocations from data, so without the bound a long input overflows the stack with no diagnostic.
 
     // Right up to the limit still allocates, so the guard is a ceiling rather than a haircut.
     volatile u8* at_limit = nya_alloca(NYA_ALLOCA_MAX);
     nya_assert(at_limit != nullptr, "an allocation exactly at NYA_ALLOCA_MAX must still be made");
 
-    // Written to, so the allocation has to be real memory rather than a pointer nobody touches. The
-    // far end is what a too-small allocation would fail on.
+    // Written to, so the allocation has to be real memory rather than a pointer nobody touches. The far end is what a too-small allocation would fail on.
     at_limit[0]                    = 0xAB;
     at_limit[NYA_ALLOCA_MAX - 1]   = 0xCD;
     nya_assert(at_limit[0] == 0xAB && at_limit[NYA_ALLOCA_MAX - 1] == 0xCD);
 
-    // One byte past it must die rather than quietly take the stack with it. Left null so the
-    // assertion after it also proves the allocation never happened.
+    // One byte past it must die rather than quietly take the stack with it. Left null so the assertion after it also proves the allocation never happened.
     volatile u8* over = nullptr;
     nya_expect_crash(over = nya_alloca(NYA_ALLOCA_MAX + 1));
     nya_assert(over == nullptr, "an allocation past the bound must not be made");
@@ -290,9 +285,7 @@ s32 main(void) {
 
   // TEST: nya_alloca evaluates its size exactly once
   {
-    // A plain comma-expression version of the bound would evaluate `size` twice, so a caller passing
-    // anything with a side effect would allocate one length and advance the other. The statement
-    // expression exists for this; nothing else would notice it had been dropped.
+    // A plain comma-expression version of the bound would evaluate `size` twice, so a caller passing anything with a side effect would allocate one length and advance the other. The statement expression exists for this; nothing else would notice it had been dropped.
     u64 evaluations = 0;
     u64 side_effect = 0;
 

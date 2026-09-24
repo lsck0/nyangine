@@ -76,8 +76,7 @@ s32 main(void) {
   {
     reset();
 
-    // No callback at all. Not having one *is* declining to be clickable; there is deliberately no
-    // separate flag, so there is nothing for the two to disagree about.
+    // No callback at all. Not having one *is* declining to be clickable; there is deliberately no separate flag, so there is nothing for the two to disagree about.
     NYA_EntityHandle terrain = nya_entity_spawn(.name = "terrain", .position = { 0.0F, 0.0F, 0.0F });
 
     b8 ok = nya_physics2d_body_attach(
@@ -104,8 +103,7 @@ s32 main(void) {
     );
     nya_assert(ok);
 
-    // Ten units up the z axis, firing back at the origin. Length is reach, so this comfortably gets
-    // there.
+    // Ten units up the z axis, firing back at the origin. Length is reach, so this comfortably gets there.
     NYA_EntityHandle hit = nya_entity_click((f32x3){ 0.0F, 0.0F, 10.0F }, (f32x3){ 0.0F, 0.0F, -20.0F }, NYA_MOUSE_BUTTON_LEFT);
 
     nya_assert(clicks == 1, "a ray through a body runs its on_click; the case that was unreachable before");

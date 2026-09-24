@@ -165,12 +165,7 @@ s32 main(void) {
     nya_check(nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,
               "the key is read");
 
-    /*
-     * The signature of a *different* key over this message: a number that decrypts to noise under
-     * this modulus. It stands in for every forgery that is not simply a flipped bit, and what refuses
-     * it is that the recovered block is compared against the padding whole rather than searched for a
-     * digest somewhere inside it.
-     */
+    /* The signature of a *different* key over this message: a number that decrypts to noise under this modulus. It stands in for every forgery that is not simply a flipped bit, and what refuses it is that the recovered block is compared against the padding whole rather than searched for a digest somewhere inside it. */
     u8 foreign[sizeof(FIXTURE_SIGNATURE)];
     nya_memcpy(foreign, FIXTURE_SIGNATURE, sizeof(foreign));
 

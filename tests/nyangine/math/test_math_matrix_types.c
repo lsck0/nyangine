@@ -5,8 +5,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-// f128 vectors are passed by value below on purpose, and clang notes that the ABI for that differs
-// without avx512f. Nothing here crosses an ABI boundary.
+// f128 vectors are passed by value below on purpose, and clang notes that the ABI for that differs without avx512f. Nothing here crosses an ABI boundary.
 #pragma clang diagnostic ignored "-Wpsabi"
 
 s32 main(void) {
@@ -102,11 +101,7 @@ s32 main(void) {
         f128x2   v2 = nya_matrix_times_vector(m2, (f128x2){ 1, 1 });
         nya_check(fabsl(v2.x - 3.0L) < 1e-12L && fabsl(v2.y - 7.0L) < 1e-12L, "f128 2x2, got (%Lf, %Lf)", v2.x, v2.y);
 
-        /*
-         * nya_matrix_create for f128x3 tripped an AddressSanitizer stack-buffer-overflow (a 40-byte write
-         * past a 32-byte object), caused by ext_vector_type(3) over x87 long double. See the f128x3 typedef in
-         * math_vector.h. With sanitizers on, removing the padding lane aborts on the first line below.
-         */
+        /* nya_matrix_create for f128x3 tripped an AddressSanitizer stack-buffer-overflow (a 40-byte write past a 32-byte object), caused by ext_vector_type(3) over x87 long double. See the f128x3 typedef in math_vector.h. With sanitizers on, removing the padding lane aborts on the first line below. */
         f128_3x3 m3 = nya_matrix_create((f128x3){ 1, 0, 0 }, (f128x3){ 0, 2, 0 }, (f128x3){ 0, 0, 3 });
         f128x3   v3 = nya_matrix_times_vector(m3, (f128x3){ 1, 1, 1 });
         nya_check(fabsl(v3.x - 1.0L) < 1e-12L && fabsl(v3.y - 2.0L) < 1e-12L && fabsl(v3.z - 3.0L) < 1e-12L,
@@ -147,8 +142,7 @@ s32 main(void) {
     {
         f32_4x4 projection = nya_matrix_perspective(1.0F, 16.0F / 9.0F, 0.1F, 100.0F);
 
-        // a point on the near plane lands at depth 0 and on the far plane at depth 1 after the w divide. Depth
-        // maps onto [0, 1], which is why the near plane is row 2 alone.
+        // a point on the near plane lands at depth 0 and on the far plane at depth 1 after the w divide. Depth maps onto [0, 1], which is why the near plane is row 2 alone.
         f32x4 near_point = nya_matrix_times_vector(projection, (f32x4){ 0, 0, -0.1F, 1 });
         f32x4 far_point  = nya_matrix_times_vector(projection, (f32x4){ 0, 0, -100.0F, 1 });
 

@@ -31,8 +31,7 @@ s32 main(void) {
         (void)snprintf(strings[i], sizeof(strings[i]), "assets/tex/%u.png", i);
     }
 
-    // Sized once to hold every key below the load factor, so add is a pure insert and get is a pure
-    // probe — neither is really measuring the rehash, which has its own line.
+    // Sized once to hold every key below the load factor, so add is a pure insert and get is a pure probe — neither is really measuring the rehash, which has its own line.
     NYA_HMapᐸu64ˏu64ᐳ* map = nya_hmap_create_with_capacity(arena, u64, u64, KEYS * 2);
     for (u32 i = 0; i < KEYS; i++) nya_hmap_add(map, keys[i], (u64)i);
 
@@ -48,16 +47,14 @@ s32 main(void) {
         nya_bench_keep(found);
     });
 
-    // A miss walks the probe chain to an empty slot rather than stopping at a match, so it is the
-    // other half of the story a "does this exist" check pays.
+    // A miss walks the probe chain to an empty slot rather than stopping at a match, so it is the other half of the story a "does this exist" check pays.
     nya_bench("get, all absent", KEYS, {
         u32 misses = 0;
         for (u32 i = 0; i < KEYS; i++) misses += nya_hmap_get(map, ~keys[i]) == nullptr ? 1U : 0U;
         nya_bench_keep(misses);
     });
 
-    // Filling a table from empty into space it already has: the insert cost with the rehash factored
-    // out, since the clear keeps the capacity.
+    // Filling a table from empty into space it already has: the insert cost with the rehash factored out, since the clear keeps the capacity.
     nya_bench("clear + insert all", KEYS, {
         nya_hmap_clear(map);
         for (u32 i = 0; i < KEYS; i++) nya_hmap_add(map, keys[i], (u64)i);
@@ -66,8 +63,7 @@ s32 main(void) {
 
     if (nya_bench_end() != 0) return 1;
 
-    // The string-keyed twin: hash the bytes and strcmp on a collision, which is the config lookup and
-    // the asset-handle lookup both.
+    // The string-keyed twin: hash the bytes and strcmp on a collision, which is the config lookup and the asset-handle lookup both.
     NYA_Dictᐸu64ᐳ* dict = nya_dict_create_with_capacity(arena, u64, KEYS * 2);
     for (u32 i = 0; i < KEYS; i++) nya_dict_add(dict, strings[i], (u64)i);
 

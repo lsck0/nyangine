@@ -181,12 +181,10 @@ NYA_INTERNAL void ball_serve(NYA_Entity* ball, f32 toward_x) {
 
     ball->position = (f32x3){ 0.0F, 0.0F, 0.0F };
 
-    // A shallow diagonal rather than straight across, so the first bounce happens quickly and the
-    // walls are visibly doing something.
+    // A shallow diagonal rather than straight across, so the first bounce happens quickly and the walls are visibly doing something.
     ball->velocity = (f32x3){ toward_x * BALL_SPEED * 0.8F, BALL_SPEED * 0.6F, 0.0F };
 
-    // Teleported, not moved: without this the renderer interpolates from the old side of the court
-    // to the new one and the ball streaks across the screen on the serve frame.
+    // Teleported, not moved: without this the renderer interpolates from the old side of the court to the new one and the ball streaks across the screen on the serve frame.
     nya_entity_transform_snap(ball);
 }
 
@@ -215,8 +213,7 @@ NYA_INTERNAL void ball_update(f32 delta_time_s) {
 
         if (!overlaps_x || !overlaps_y) continue;
 
-        // Only when the ball is closing on the paddle. Without this a ball that clipped inside
-        // flips its velocity every tick and sticks to the face.
+        // Only when the ball is closing on the paddle. Without this a ball that clipped inside flips its velocity every tick and sticks to the face.
         b8 closing = (paddle->position.x < 0.0F) ? ball->velocity.x < 0.0F : ball->velocity.x > 0.0F;
         if (!closing) continue;
 
@@ -267,8 +264,7 @@ void pong_layer_on_create(NYA_Window* window) {
 void pong_layer_on_destroy(NYA_Window* window) {
     nya_unused(window);
 
-    // The world owns the entities and tears them down with itself; there is nothing of this
-    // layer's own to release. The pair exists so the day there is, callers already pair it.
+    // The world owns the entities and tears them down with itself; there is nothing of this layer's own to release. The pair exists so the day there is, callers already pair it.
 }
 
 void pong_layer_on_event(NYA_Window* window, NYA_Event* event) {
@@ -286,8 +282,7 @@ void pong_layer_on_event(NYA_Window* window, NYA_Event* event) {
 void pong_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(window);
 
-    // Only where the authority is. On a client this is false and the ball is whatever the last
-    // snapshot said, interpolated.
+    // Only where the authority is. On a client this is false and the ball is whatever the last snapshot said, interpolated.
     if (nya_net_server_running()) ball_update(delta_time_s);
 }
 
@@ -295,8 +290,7 @@ void pong_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 void pong_layer_on_render(NYA_Window* window) {
     nya_assert(window != nullptr);
 
-    // Smoothing between ticks, before anything is read: replicas are placed for this frame's time,
-    // not for the last tick's.
+    // Smoothing between ticks, before anything is read: replicas are placed for this frame's time, not for the last tick's.
     nya_net_client_interpolate((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns));
 
     f32 center_x = (f32)window->width * 0.5F;
@@ -312,8 +306,7 @@ void pong_layer_on_render(NYA_Window* window) {
     nya_render2d_rect_outline(window, center_x - COURT_HALF_WIDTH, center_y - COURT_HALF_HEIGHT, COURT_HALF_WIDTH * 2.0F, COURT_HALF_HEIGHT * 2.0F,
                               2.0F, NYA_COLOR_DARK_GRAY);
 
-    // nya_entity_render_position, not entity->position: the former is where the entity is *now*,
-    // between the last tick and the next, which is what a frame should draw.
+    // nya_entity_render_position, not entity->position: the former is where the entity is *now*, between the last tick and the next, which is what a frame should draw.
     nya_entity_foreach_kind (PONG_ENTITY_PADDLE, paddle) {
         f32x3 at = nya_entity_render_position(paddle);
 
@@ -382,8 +375,7 @@ NYA_INTERNAL void pong_net_start(void) {
         }
     }
 
-    // The local player joins its own server through a loopback transport, running exactly the
-    // client code a remote player runs.
+    // The local player joins its own server through a loopback transport, running exactly the client code a remote player runs.
     NYA_NetTransport* local = nullptr;
     NYA_EXPECT(nya_net_server_attach_local(&local), "while attaching the local player");
 
@@ -399,8 +391,7 @@ NYA_INTERNAL void pong_net_start(void) {
 s32 main(s32 argc, NYA_CString* argv) {
     nya_backtrace_init();
 
-    // --connect, --listen, --port, --name, --net-latency and the rest, parsed by the engine so
-    // every nyangine game takes the same flags. It never fails and never exits.
+    // --connect, --listen, --port, --name, --net-latency and the rest, parsed by the engine so every nyangine game takes the same flags. It never fails and never exits.
     NYA_NetLaunchConfig launch = nya_net_config_from_args(argc, argv);
 
     NYA_EXPECT(nya_app_init(.time_step_ns = nya_time_ms_to_ns(TICK_MS), .app_id = "pong"), "while starting the engine");

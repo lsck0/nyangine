@@ -36,8 +36,7 @@ s32 main(void) {
 
   const u32 paper = nya_terminal_ink(0.0F, 0.0F, 0.0F);
 
-  // TEST: a glyph is one cell, with its colour and its attributes, on the paper
-  //       that was already there
+  // TEST: a glyph is one cell, with its colour and its attributes, on the paper that was already there
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 

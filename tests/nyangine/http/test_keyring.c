@@ -53,8 +53,7 @@ s32 main(void) {
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
     NYA_EXPECT(nya_http_keyring_seal(&ring, "session", (const u8*)&who, sizeof(who), 3600, token, sizeof(token)));
 
-    // make the current key look a day old so a rotation is due, then rotate: a new key goes in front and
-    // the one that sealed the token stays as a previous key.
+    // make the current key look a day old so a rotation is due, then rotate: a new key goes in front and the one that sealed the token stays as a previous key.
     ring.keys[0].created_at_s -= NYA_HTTP_KEYRING_ROTATE_S + 1;
 
     nya_check(nya_http_keyring_rotate(&ring), "a due key is rolled");

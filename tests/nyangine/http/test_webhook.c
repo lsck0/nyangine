@@ -262,8 +262,7 @@ s32 main(void) {
 
         nya_check(nya_http_webhook_verify(&exchange, &impostor) == NYA_HTTP_WEBHOOK_REFUSED, "another key is refused");
 
-        // the timestamp is part of what was signed, so moving it breaks the signature rather than
-        // sliding the window.
+        // the timestamp is part of what was signed, so moving it breaks the signature rather than sliding the window.
         char ahead[32] = { 0 };
         (void)snprintf(ahead, sizeof(ahead), "%llu", (unsigned long long)(NOW_S + 10));
         (void)snprintf(request->headers[0].value, sizeof(request->headers[0].value), "%s", ahead);

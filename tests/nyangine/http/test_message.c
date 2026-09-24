@@ -261,9 +261,7 @@ s32 main(void) {
         nya_assert(!request->keep_alive, "and it closes afterwards, as 1.0 does");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a body on a verb that gives one no meaning is refused, not dropped.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a body on a verb that gives one no meaning is refused, not dropped. ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(
             refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST,
@@ -294,9 +292,7 @@ s32 main(void) {
         nya_assert(!nya_http_method_is_safe(NYA_HTTP_METHOD_DELETE));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a chunked body is dechunked before a handler ever sees it.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a chunked body is dechunked before a handler ever sees it. ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -312,9 +308,7 @@ s32 main(void) {
         nya_assert(consumed == strlen(text), "a chunked body consumes its framing too");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: two requests in one read, which is what pipelining looks like.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: two requests in one read, which is what pipelining looks like. ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -329,9 +323,7 @@ s32 main(void) {
         nya_assert(consumed == strlen(first), "the first request consumes exactly itself");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a request that has not finished arriving is not an error.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a request that has not finished arriving is not an error. ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -350,9 +342,7 @@ s32 main(void) {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a path cannot climb out of the root, however it is spelled.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a path cannot climb out of the root, however it is spelled. ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(refusal(arena, "GET /../etc/passwd HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
         nya_assert(refusal(arena, "GET /a/../b HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
@@ -378,9 +368,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(request->path, "/api/metrics"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: the target goes through base_url, so its rules are the server's rules.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: the target goes through base_url, so its rules are the server's rules. ─────────────────────────────────────────────────────────────────────────────
     {
         // an encoded '/' would move a segment boundary after the router's checks ran.
         nya_assert(refusal(arena, "GET /api/a%2Fb HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
@@ -408,9 +396,7 @@ s32 main(void) {
         nya_assert(value[0] == '\0');
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: the framing a smuggler wants is refused rather than preferred.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: the framing a smuggler wants is refused rather than preferred. ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(
             refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
@@ -431,9 +417,7 @@ s32 main(void) {
         nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: x\r\n Content-Length: 5\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: every bound refuses with the status that names it.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: every bound refuses with the status that names it. ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(
             refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 99999\r\n\r\n") == NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,
@@ -488,9 +472,7 @@ s32 main(void) {
         nya_unused(request);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a request line that is not one.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a request line that is not one. ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(refusal(arena, "BREW /coffee HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED);
         nya_assert(refusal(arena, "get /a HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED, "a method is case sensitive");
@@ -508,9 +490,7 @@ s32 main(void) {
         nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nBad Name: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: an HTTP/1.0 request, and what Connection does either way.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: an HTTP/1.0 request, and what Connection does either way. ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -526,9 +506,7 @@ s32 main(void) {
         nya_assert(!request->keep_alive);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a body with no Content-Type is not JSON, whatever it looks like.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a body with no Content-Type is not JSON, whatever it looks like. ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -560,9 +538,7 @@ s32 main(void) {
         nya_assert(request->media_type == NYA_HTTP_MEDIA_JSON);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: writing a response.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: writing a response. ─────────────────────────────────────────────────────────────────────────────
     {
         u8 body[64] = { 0 };
 
@@ -640,16 +616,9 @@ s32 main(void) {
         nya_assert(!nya_http_response_text(&response, "no", NYA_HTTP_MEDIA_TEXT).ok);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: application/nya as a body type, in both directions
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: application/nya as a body type, in both directions ─────────────────────────────────────────────────────────────────────────────
     {
-        /*
-         * The native format is what two nyangine programs talk in: it parses substantially faster
-         * than JSON and carries the same NYA_Object. JSON stays the answer for everyone else, which
-         * is the half worth testing hardest — an integration that has never heard of this engine
-         * must not be handed a body it cannot read.
-         */
+        /* The native format is what two nyangine programs talk in: it parses substantially faster than JSON and carries the same NYA_Object. JSON stays the answer for everyone else, which is the half worth testing hardest — an integration that has never heard of this engine must not be handed a body it cannot read. */
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
@@ -681,11 +650,7 @@ s32 main(void) {
         nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "one that names JSON gets JSON");
 
-        /*
-         * The two that decide whether this is safe to turn on. A browser sends the wildcard and has
-         * never heard of this format, and a caller with no Accept at all has said nothing — neither
-         * is a statement that the native format can be read.
-         */
+        /* The two that decide whether this is safe to turn on. A browser sends the wildcard and has never heard of this format, and a caller with no Accept at all has said nothing — neither is a statement that the native format can be read. */
         nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: */*\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "a wildcard is not a request for the native format");
 
@@ -695,9 +660,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: application/nya-binary, a DTO out and the same DTO back in.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: application/nya-binary, a DTO out and the same DTO back in. ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* asking   = nullptr;
         u64              consumed = 0;
@@ -748,9 +711,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: an address loses its host part, and anything else becomes "unknown".
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: an address loses its host part, and anything else becomes "unknown". ─────────────────────────────────────────────────────────────────────────────
     {
         static const NYA_ConstCString CASES[][2] = {
             { "203.0.113.7",             "203.0.113.0/24" },
@@ -783,9 +744,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a response with a request id says so in its head, and reset keeps it.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: a response with a request id says so in its head, and reset keeps it. ─────────────────────────────────────────────────────────────────────────────
     {
         u8 body[16] = { 0 };
 
@@ -803,12 +762,9 @@ s32 main(void) {
     }
 
 #ifdef NYA_HTTP_COMPRESSION
-    // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: response compression — negotiated, correct, and reversible.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────────── TEST: response compression — negotiated, correct, and reversible. ─────────────────────────────────────────────────────────────────────────────
     {
-        // A body that is text and above the threshold and has the repetition deflate lives on, so it
-        // both qualifies and actually shrinks. Kept in one place; every case below answers with it.
+        // A body that is text and above the threshold and has the repetition deflate lives on, so it both qualifies and actually shrinks. Kept in one place; every case below answers with it.
         u8 payload[512] = { 0 };
         for (u64 index = 0; index < sizeof(payload); index++) payload[index] = (u8)("nyangine compresses well "[index % 25]);
 

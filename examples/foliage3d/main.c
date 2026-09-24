@@ -122,15 +122,7 @@ NYA_INTERNAL Foliage* foliage(void) {
     return nya_world_user_data();
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * GEOMETRY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Small builders that append flat-shaded triangles to a caller's buffer. The colour's alpha is the sway
- * flexibility, so a base vertex gets 0 and a tip gets 1; the foliage vertex shader consumes it and never
- * lets it reach the fragment stage as opacity.
- */
+/* GEOMETRY Small builders that append flat-shaded triangles to a caller's buffer. The colour's alpha is the sway flexibility, so a base vertex gets 0 and a tip gets 1; the foliage vertex shader consumes it and never lets it reach the fragment stage as opacity. */
 
 /** One triangle, its normal taken from its winding, each corner carrying its own flexibility in alpha. */
 NYA_INTERNAL void plant_triangle(NYA_Vertex3D* vertices, u32* count, f32x3 a, f32x3 b, f32x3 c, f32x3 rgb, f32 flex_a, f32 flex_b,
@@ -204,8 +196,7 @@ NYA_INTERNAL u32 build_leaves(NYA_Vertex3D* vertices, NYA_RNG* rng) {
 
         f32x3 rgb = { 0.20F, 0.46F + (0.1F * cosf(angle)), 0.18F };
 
-        // high in the canopy and fully flexible, so these are what the flutter moves; the flex is nearly
-        // uniform across the small card, ramped a touch top-over-bottom.
+        // high in the canopy and fully flexible, so these are what the flutter moves; the flex is nearly uniform across the small card, ramped a touch top-over-bottom.
         plant_quad(vertices, &count, center - right - up, center + right - up, center + right + up, center - right + up, rgb, 0.8F, 1.0F);
     }
 
@@ -334,8 +325,7 @@ void foliage_layer_on_create(NYA_Window* window) {
     state->blades = nya_arena_alloc(nya_world()->allocator, GRASS_COUNT * sizeof(NYA_Render3DInstance));
     build_grass_field(state, rng);
 
-    // a static floor so the creature rolls rather than falls, and the creature itself: a dynamic sphere
-    // given a sideways shove, which the physics system steps every tick.
+    // a static floor so the creature rolls rather than falls, and the creature itself: a dynamic sphere given a sideways shove, which the physics system steps every tick.
     NYA_EntityHandle ground = nya_entity_spawn(.name = "ground", .type = ENTITY_GROUND, .position = { 0.0F, -0.5F, 0.0F });
     (void)nya_physics3d_body_attach(ground, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX,
                                     .size = { FIELD_REACH * 3.0F, 1.0F, FIELD_REACH * 3.0F }, .friction = 0.6F);
@@ -374,8 +364,7 @@ void foliage_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     state->frame_count++;
     if (state->max_frames > 0 && state->frame_count >= state->max_frames) nya_app_get()->should_quit = true;
 
-    // turn and strengthen the wind on a key press, then re-point the field. nya_wind_set leaves the
-    // field's clock alone, so the sway does not jump when the wind changes.
+    // turn and strengthen the wind on a key press, then re-point the field. nya_wind_set leaves the field's clock alone, so the sway does not jump when the wind changes.
     b8 changed = false;
 
     if (nya_input_key_pressed(NYA_KEY_LEFT)) { state->wind_azimuth -= WIND_TURN_STEP; changed = true; }
@@ -393,8 +382,7 @@ void foliage_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_wind_advance(&state->wind, delta_time_s);
     state->elapsed_s += delta_time_s;
 
-    // when the creature rolls off the far edge, set it back at the start with a fresh shove, so it keeps
-    // sweeping through the field. the physics system integrated its motion this tick already.
+    // when the creature rolls off the far edge, set it back at the start with a fresh shove, so it keeps sweeping through the field. the physics system integrated its motion this tick already.
     nya_entity_foreach_kind (ENTITY_CREATURE, creature) {
         f32x3 at = nya_entity_render_position(creature);
 
@@ -443,8 +431,7 @@ void foliage_layer_on_render(NYA_Window* window) {
     // the ground the field stands on.
     nya_render3d_plane(window, f32x3_zero, (f32x2){ FIELD_SIDE * FIELD_SPACING * 1.4F, FIELD_SIDE * FIELD_SPACING * 1.4F }, (NYA_Color){ 0.30F, 0.36F, 0.22F, 1.0F });
 
-    // the creature, and the disturber it presses into the foliage. fed here, after begin and before the
-    // plants, because disturbers are cleared at begin. this is where physics reaches the sway.
+    // the creature, and the disturber it presses into the foliage. fed here, after begin and before the plants, because disturbers are cleared at begin. this is where physics reaches the sway.
     nya_entity_foreach_kind (ENTITY_CREATURE, creature) {
         f32x3 at = nya_entity_render_position(creature);
 
@@ -453,9 +440,7 @@ void foliage_layer_on_render(NYA_Window* window) {
     }
 
     if (state->meshes_ready && state->instanced_scene) {
-        // the whole carpet in one instanced draw: one wind sample at its centre, shared by every blade, each
-        // swaying on its own phase (the shader takes it from the blade's world position). This is the density
-        // the per-plant path cannot reach — thousands of blades, one draw call.
+        // the whole carpet in one instanced draw: one wind sample at its centre, shared by every blade, each swaying on its own phase (the shader takes it from the blade's world position). This is the density the per-plant path cannot reach — thousands of blades, one draw call.
         NYA_Render3DFoliage look = nya_render3d_foliage_style(NYA_FOLIAGE_GRASS);
 
         look.wind = nya_wind_sample(&state->wind, f32x3_zero);
@@ -507,8 +492,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     state->wind = nya_wind_field((NYA_WindOptions){ .direction = { 1, 0, 0 }, .strength = state->wind_strength, .gustiness = state->wind_gustiness });
 
-    // a frame budget for a headless run: NYA_FOLIAGE_FRAMES=N draws N frames and quits, so CI can exercise
-    // both scenes under the sanitizers without a display. Zero (unset) runs until the window is closed.
+    // a frame budget for a headless run: NYA_FOLIAGE_FRAMES=N draws N frames and quits, so CI can exercise both scenes under the sanitizers without a display. Zero (unset) runs until the window is closed.
     NYA_ConstCString frames = getenv("NYA_FOLIAGE_FRAMES");
     if (frames != nullptr) state->max_frames = (u32)strtoul(frames, nullptr, 10);
 

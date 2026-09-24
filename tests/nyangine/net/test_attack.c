@@ -269,9 +269,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_attack");
   defer      nya_arena_destroy(arena);
 
-  // ═════════════════════════════════════════════════════════════════════════════
-  // TRANSPORT: what a raw socket can do to a listening server
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════════ TRANSPORT: what a raw socket can do to a listening server ═════════════════════════════════════════════════════════════════════════════
 
   u16               port   = 0;
   NYA_NetTransport* server = listen_server(arena, &port);
@@ -589,10 +587,7 @@ s32 main(void) {
 
   printf("TEST: random garbage never faults the transport\n");
   {
-    /*
-     * The catch-all. Every guard above was added because a specific shape got through; this looks for the
-     * shapes nobody thought of.
-     */
+    /* The catch-all. Every guard above was added because a specific shape got through; this looks for the shapes nobody thought of. */
     NYA_RNG             rng     = nya_rng_create(.seed = "A77ACC");
     NYA_RNGDistribution uniform = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = 0.0, .max = 255.0 } };
 
@@ -619,9 +614,7 @@ s32 main(void) {
   nya_os_socket_close(attacker.socket);
   nya_net_transport_destroy(server);
 
-  // ═════════════════════════════════════════════════════════════════════════════
-  // DECODERS: bytes somebody else chose
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════════ DECODERS: bytes somebody else chose ═════════════════════════════════════════════════════════════════════════════
 
   printf("TEST: every decoder refuses garbage without faulting\n");
   {
@@ -640,11 +633,7 @@ s32 main(void) {
 
       NYA_Arena* scratch = nya_arena_create(.name = "fuzz");
 
-      /*
-       * A decoder may succeed on random input, since some is valid and an empty snapshot is legal. It must
-       * not fault, read past the buffer, or allocate from a size it was handed. ASan and the arena
-       * accounting are the assertions; the counters only prove the parsers were reached.
-       */
+      /* A decoder may succeed on random input, since some is valid and an empty snapshot is legal. It must not fault, read past the buffer, or allocate from a size it was handed. ASan and the arena accounting are the assertions; the counters only prove the parsers were reached. */
       NYA_NetSnapshot snapshot = { 0 };
       if (nya_net_snapshot_decode(scratch, buffer, size, nullptr, &snapshot).ok) snapshot_ok++;
 
@@ -672,10 +661,7 @@ s32 main(void) {
 
   printf("TEST: a snapshot decoder fed a truncated valid payload refuses cleanly\n");
   {
-    /*
-     * Truncation specifically, because it is the shape a real network produces and the shape a
-     * bounds-checked reader gets wrong: a payload that is valid up to the point where it stops.
-     */
+    /* Truncation specifically, because it is the shape a real network produces and the shape a bounds-checked reader gets wrong: a payload that is valid up to the point where it stops. */
     NYA_NetEntityState entities[3] = {
       { .handle = { .index = 1, .generation = 1 }, .position = { 1.0F, 2.0F, 3.0F }, .scale = { 1.0F, 1.0F, 1.0F } },
       { .handle = { .index = 2, .generation = 1 }, .position = { 4.0F, 5.0F, 6.0F }, .scale = { 1.0F, 1.0F, 1.0F } },
@@ -695,8 +681,7 @@ s32 main(void) {
       if (!nya_net_snapshot_decode(arena, encoded->items, prefix, nullptr, &decoded).ok) refused++;
     }
 
-    // The whole thing still decodes, which is what says the refusals above were about the truncation
-    // rather than about the payload being wrong all along.
+    // The whole thing still decodes, which is what says the refusals above were about the truncation rather than about the payload being wrong all along.
     NYA_NetSnapshot decoded = { 0 };
     NYA_EXPECT(nya_net_snapshot_decode(arena, encoded->items, encoded->length, nullptr, &decoded));
     nya_assert(decoded.entity_count == 3);
@@ -706,15 +691,9 @@ s32 main(void) {
     nya_assert(refused == encoded->length, "some truncated prefix was accepted as a whole snapshot");
   }
 
-  // ═════════════════════════════════════════════════════════════════════════════
-  // SERVER: what a joined client can do with application messages
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════════ SERVER: what a joined client can do with application messages ═════════════════════════════════════════════════════════════════════════════
 
-  /*
-   * These go through a loopback pair rather than a socket, because the target is the *server's* message
-   * handling rather than the transport's framing. A loopback lets a payload be handed over exactly as
-   * written, which is what an attacker who has already joined effectively has.
-   */
+  /* These go through a loopback pair rather than a socket, because the target is the *server's* message handling rather than the transport's framing. A loopback lets a payload be handed over exactly as written, which is what an attacker who has already joined effectively has. */
   nya_system_callback_init();
 
   NYA_World* world = nya_world_create();
@@ -725,11 +704,7 @@ s32 main(void) {
 
   printf("TEST: an oversized HELLO is refused before it is parsed\n");
   {
-    /*
-     * HELLO is dispatched *before* the peer is accepted, so it is the one message an unauthenticated
-     * address puts in front of the nya parser. A reassembled reliable message can be hundreds of
-     * kilobytes; a HELLO has three fields.
-     */
+    /* HELLO is dispatched *before* the peer is accepted, so it is the one message an unauthenticated address puts in front of the nya parser. A reassembled reliable message can be hundreds of kilobytes; a HELLO has three fields. */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 
     NYA_NetTransport* hostile = nullptr;
@@ -761,17 +736,13 @@ s32 main(void) {
 
   printf("TEST: an impossible snapshot acknowledgement drops the peer\n");
   {
-    /*
-     * `acknowledged_tick` is a client chosen u64 and monotonic. Naming U64_MAX must not stop every future
-     * baseline from matching, which would send that peer a full snapshot every tick.
-     */
+    /* `acknowledged_tick` is a client chosen u64 and monotonic. Naming U64_MAX must not stop every future baseline from matching, which would send that peer a full snapshot every tick. */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 
     NYA_NetTransport* hostile = nullptr;
     NYA_EXPECT(nya_net_server_attach_local(&hostile));
 
-    // Join properly first: nothing but HELLO is accepted before that, so the ack would be ignored
-    // for the wrong reason.
+    // Join properly first: nothing but HELLO is accepted before that, so the ack would be ignored for the wrong reason.
     {
       NYA_String* hello_payload = nya_string_create(arena);
       nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
@@ -812,10 +783,7 @@ s32 main(void) {
 
   printf("TEST: a command from the far future does not wedge later commands\n");
   {
-    /*
-     * `tick` is client chosen. A command claiming U64_MAX must not make every later command stale while
-     * the repeat pass keeps applying the frozen one.
-     */
+    /* `tick` is client chosen. A command claiming U64_MAX must not make every later command stale while the repeat pass keeps applying the frozen one. */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 
     NYA_NetTransport* hostile = nullptr;
@@ -879,10 +847,7 @@ s32 main(void) {
 
   printf("TEST: a malformed command drops the peer\n");
   {
-    /*
-     * Unlike a game event, a command has a fixed encoding every well behaved client gets right, so a
-     * malformed one is a broken client or a probe and the peer is dropped.
-     */
+    /* Unlike a game event, a command has a fixed encoding every well behaved client gets right, so a malformed one is a broken client or a probe and the peer is dropped. */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 
     NYA_NetTransport* hostile = nullptr;
@@ -903,8 +868,7 @@ s32 main(void) {
     nya_system_sim_apply_commands();
     nya_assert(nya_net_server_peer_count() == 1);
 
-    // A count of 200 with nothing behind it. The decoder must refuse before writing past the caller's
-    // four-entry stack array.
+    // A count of 200 with nothing behind it. The decoder must refuse before writing past the caller's four-entry stack array.
     NYA_String* payload = nya_string_create(arena);
     nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
     _nya_net_write_varint(payload, 0);
@@ -1041,10 +1005,7 @@ s32 main(void) {
 
   printf("TEST: random application payloads never fault the server\n");
   {
-    /*
-     * The catch-all for the message layer, mirroring the transport one above. Every message kind reached
-     * with garbage behind it, including the kinds only valid in the other direction.
-     */
+    /* The catch-all for the message layer, mirroring the transport one above. Every message kind reached with garbage behind it, including the kinds only valid in the other direction. */
     NYA_RNG             rng     = nya_rng_create(.seed = "5E4E4E");
     NYA_RNGDistribution uniform = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = 0.0, .max = 255.0 } };
 

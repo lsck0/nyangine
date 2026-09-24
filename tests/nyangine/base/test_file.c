@@ -102,9 +102,7 @@ s32 main(void) {
     NYA_File closed = { 0 };
     nya_assert(nya_file_is_open(&closed) == false);
 
-    // An assertion, not a returned error. The fd API this replaced took a raw int and could only
-    // report a bad handle at runtime; NYA_File knows whether it was opened, so using an unopened
-    // one is a programming mistake and is treated as one.
+    // An assertion, not a returned error. The fd API this replaced took a raw int and could only report a bad handle at runtime; NYA_File knows whether it was opened, so using an unopened one is a programming mistake and is treated as one.
     nya_expect_crash((void)nya_file_write_string(&closed, "bad handle"));
     nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_ASSERT);
   }

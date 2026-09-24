@@ -56,8 +56,7 @@ static NYA_OsSocket connect_to(u16 port) {
 
   nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-  // a non-blocking connect is under way rather than done, and writability is how the host says it
-  // finished; loopback usually beats the first wait to it.
+  // a non-blocking connect is under way rather than done, and writability is how the host says it finished; loopback usually beats the first wait to it.
   NYA_OsSocketWait watched = { .socket = socket, .writable = true };
   u32              ready   = 0;
 
@@ -136,8 +135,7 @@ s32 main(void) {
 
         nya_assert(!nya_system_http_init((NYA_HttpConfig){ .port = 0 }).ok, "a server needs a port");
 
-        // a secret that is present and too short does not start a server that only fails later. Any port
-        // will do: the secret is refused before anything is bound.
+        // a secret that is present and too short does not start a server that only fails later. Any port will do: the secret is refused before anything is bound.
         nya_assert(!nya_system_http_init((NYA_HttpConfig){ .port = 8080, .secret = SECRET, .secret_size = 4 }).ok);
     }
 
@@ -284,11 +282,7 @@ s32 main(void) {
         nya_assert(exchange(client, nya_string_to_cstring(arena, off), answer, sizeof(answer)) > 0);
         nya_assert(!nya_system_accounting_is_enabled());
 
-        /*
-         * And the same token in the cookie a browser sends on its own, which is what a session is. The
-         * route is reached by it, which is the whole point; that a cross site caller cannot use it this
-         * way is the origin check's case further down, and SameSite=Strict on the cookie itself.
-         */
+        /* And the same token in the cookie a browser sends on its own, which is what a session is. The route is reached by it, which is the whole point; that a cross site caller cannot use it this way is the origin check's case further down, and SameSite=Strict on the cookie itself. */
         NYA_String* by_cookie = nya_string_sprintf(
             arena,
             "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
@@ -385,8 +379,7 @@ s32 main(void) {
 
         nya_assert(nya_http_server_connection_count() == 1);
 
-        // half a request, and then nothing. The head bound and the idle timeout both apply; this
-        // checks that the server is still answering other people in the meantime.
+        // half a request, and then nothing. The head bound and the idle timeout both apply; this checks that the server is still answering other people in the meantime.
         {
       u64 wrote = 0;
       nya_assert(nya_os_socket_send(silent, (const u8*)"GET /api", 8, &wrote) == NYA_OS_SOCKET_OK);

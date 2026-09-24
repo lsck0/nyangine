@@ -117,8 +117,7 @@ int main(void) {
         // the field drifts with time, so a later sample differs.
         nya_check(!same_vector(first, nya_force_at(&turb, probe, f32x3_zero, 9.0F)), "the stir animates over time");
 
-        // over a spread of points and times: bounded magnitude, and a divergence that stays near zero because the
-        // force is the curl of a potential. divergence is a central difference of the force itself.
+        // over a spread of points and times: bounded magnitude, and a divergence that stays near zero because the force is the curl of a potential. divergence is a central difference of the force itself.
         f32 max_magnitude = 0.0F;
         f32 max_divergence = 0.0F;
         f32 h = 0.05F;
@@ -243,8 +242,7 @@ int main(void) {
         nya_fluid_force_set(fluid, &swirl, 2.0F);
         for (u32 i = 0; i < 20; i++) nya_fluid_step(fluid, 0.05F);
 
-        // at a +x spoke the swirl about +y points to -z; at a +z spoke it points to +x. the projection keeps the
-        // rotation (it is already divergence-free), so the sign survives.
+        // at a +x spoke the swirl about +y points to -z; at a +z spoke it points to +x. the projection keeps the rotation (it is already divergence-free), so the sign survives.
         f32x3 east  = nya_fluid_velocity_at(fluid, (f32x3){ 12.0F, 8.0F, 8.0F });
         f32x3 north = nya_fluid_velocity_at(fluid, (f32x3){ 8.0F, 8.0F, 12.0F });
         printf("  fluid vortex: east=(%f,%f,%f) north=(%f,%f,%f)\n", (f64)east.x, (f64)east.y, (f64)east.z, (f64)north.x, (f64)north.y, (f64)north.z);

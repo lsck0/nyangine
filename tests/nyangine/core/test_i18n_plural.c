@@ -202,8 +202,7 @@ s32 main(void) {
 
     // TEST: a category the locale omits falls back to its other variant
     {
-        // Bytes that give only `other` for the plural key: Russian would want one/few/many, and every
-        // one of them must resolve to the single variant supplied rather than to a placeholder.
+        // Bytes that give only `other` for the plural key: Russian would want one/few/many, and every one of them must resolve to the single variant supplied rather than to a placeholder.
         static const char document[] = "{\n"
                                         "  \"hud_players\": { \"other\": \"%u ludzi\" }\n"
                                         "}\n";

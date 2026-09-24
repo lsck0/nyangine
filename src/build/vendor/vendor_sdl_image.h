@@ -27,16 +27,7 @@
     "-DSDLIMAGE_DEPS_SHARED=OFF",   \
     "-DSDLIMAGE_SAMPLES=OFF",       \
     "-DSDLIMAGE_INSTALL=OFF",       \
-    /*                                                                                             \
-     * What a game ships: PNG, JPEG, BMP, GIF, TGA, QOI and SVG, which the icons and sized vector    \
-     * loads use. All of them decode with stb_image or code inside SDL_image, so no codec library    \
-     * is linked; libpng would only add APNG. Nothing here saves an image.                           \
-     *                                                                                             \
-     * WebP was 0.75 MB and nothing loads it; turn it back on here if a game does. TIFF drags in     \
-     * libjbig, which is not vendored and exists on most systems only as a shared library. AVIF      \
-     * drags in aom and dav1d, which are enormous and need nasm. The rest are formats of old paint   \
-     * programs.                                                                                     \
-     */                                                                                            \
+    /* \ What a game ships: PNG, JPEG, BMP, GIF, TGA, QOI and SVG, which the icons and sized vector    \ loads use. All of them decode with stb_image or code inside SDL_image, so no codec library    \ is linked; libpng would only add APNG. Nothing here saves an image.                           \ \ WebP was 0.75 MB and nothing loads it; turn it back on here if a game does. TIFF drags in     \ libjbig, which is not vendored and exists on most systems only as a shared library. AVIF      \ drags in aom and dav1d, which are enormous and need nasm. The rest are formats of old paint   \ programs.                                                                                     \ */                                                                                            \
     "-DSDLIMAGE_BACKEND_STB=ON",    \
     "-DSDLIMAGE_PNG_LIBPNG=OFF",    \
     "-DSDLIMAGE_WEBP=OFF",          \

@@ -30,10 +30,7 @@ NYA_VendorRule vendor_lz4_linux_x86_64 = {
     .linker_flags = { LZ4_A_LIN, },
 
     .parts = {
-        // Cleaned first, as the Windows rule below does. lz4 builds in tree and its Makefile keys
-        // off the object files alone, so a tree left behind by the other target counts as up to
-        // date and gets relinked into an archive for the wrong platform. See vendor_lua.h, where
-        // the missing clean produced exactly that.
+        // Cleaned first, as the Windows rule below does. lz4 builds in tree and its Makefile keys off the object files alone, so a tree left behind by the other target counts as up to date and gets relinked into an archive for the wrong platform. See vendor_lua.h, where the missing clean produced exactly that.
         &(NYA_BuildRule){
             .name        = "vendor_lz4_linux_x86_64_clean",
             .policy      = NYA_BUILD_ONCE,
@@ -61,8 +58,7 @@ NYA_VendorRule vendor_lz4_linux_x86_64 = {
             .input_file  = LZ4_A,
             .output_file = LZ4_A_LIN,
 
-            // Copied, not moved: lz4 leaves lib/liblz4.a as a relative symlink into cachedObjs,
-            // so a move would succeed and leave a dangling link one directory up.
+            // Copied, not moved: lz4 leaves lib/liblz4.a as a relative symlink into cachedObjs, so a move would succeed and leave a dangling link one directory up.
             .post_build_hooks = { &hook_copy_file, },
         },
     },

@@ -51,9 +51,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: rotation actually rotates
-  //
-  // A quarter turn about +Y takes +X to -Z under the right hand rule.
+  // TEST: rotation actually rotates A quarter turn about +Y takes +X to -Z under the right hand rule.
   printf("TEST: rotation\n");
   {
     f32x3          y_axis = { 0.0F, 1.0F, 0.0F };
@@ -174,9 +172,7 @@ s32 main(void) {
     f32x3 v = { 1.0F, -2.0F, 0.5F };
     assert_vec_approx(nya_quaternion_rotate(back, v), nya_quaternion_rotate(q, v), "matrix round trip rotates the same");
 
-    // The 4x4 form is the 3x3 with a homogeneous row and column, so a point with w=1 comes back
-    // rotated with its w untouched. Checked through the API rather than by indexing, since
-    // f32_4x4 is a clang matrix type rather than a struct of rows.
+    // The 4x4 form is the 3x3 with a homogeneous row and column, so a point with w=1 comes back rotated with its w untouched. Checked through the API rather than by indexing, since f32_4x4 is a clang matrix type rather than a struct of rows.
     f32_4x4 m4        = nya_quaternion_to_matrix4(q);
     f32x4   point     = { v.x, v.y, v.z, 1.0F };
     f32x4   projected = nya_matrix_times_vector(m4, point);

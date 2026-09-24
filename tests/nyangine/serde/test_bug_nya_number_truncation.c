@@ -12,8 +12,7 @@ s32 main(void) {
   // TEST: a literal past the parser's scratch buffer is refused, not truncated
   printf("TEST: an over-long number in a .nya document\n");
   {
-    // 300 digits, comfortably past the 192 byte buffer. Written as an f64 field so the type is one
-    // the format actually carries.
+    // 300 digits, comfortably past the 192 byte buffer. Written as an f64 field so the type is one the format actually carries.
     NYA_String* digits = nya_string_create(arena);
     for (u32 i = 0; i < 300; i++) nya_string_push_back(digits, (u8)('1' + (i % 9)));
 
@@ -22,8 +21,7 @@ s32 main(void) {
 
     NYA_String* document = nya_serde_nya_serialize(arena, object, 0);
 
-    // splice the long literal where 1.0 was written, so the header, checksum line, field name and type stay
-    // exactly what the writer produces.
+    // splice the long literal where 1.0 was written, so the header, checksum line, field name and type stay exactly what the writer produces.
     NYA_String* patched = nya_string_clone(arena, document);
     nya_string_replace(patched, "0x1p+0", nya_string_to_cstring(arena, digits));
 
@@ -34,8 +32,7 @@ s32 main(void) {
     NYA_Object* parsed = nullptr;
     NYA_Error   error  = nya_serde_nya_deserialize(arena, patched->items, patched->length, NYA_SERDE_NO_CHECKSUM, &parsed);
 
-    // refusing the literal or carrying it exactly are both fine. Silently returning a different number is
-    // not.
+    // refusing the literal or carrying it exactly are both fine. Silently returning a different number is not.
     if (error.ok) {
       const NYA_Value* value = nya_object_get(parsed, "value");
       nya_assert(value != nullptr, "the document parsed but has no 'value'");

@@ -216,8 +216,7 @@ s32 main(void) {
         altered.bytes[40] ^= 0x01U;
         nya_assert(!nya_crypto_sign_verify(&public_key, message, sizeof(message), &altered), "an altered S was accepted");
 
-        // S + L is the same scalar mod L, so a verifier that skips the range check accepts it, and one
-        // signature gains a second spelling. RFC 8032 section 5.1.7 says to refuse it.
+        // S + L is the same scalar mod L, so a verifier that skips the range check accepts it, and one signature gains a second spelling. RFC 8032 section 5.1.7 says to refuse it.
         altered   = signature;
         u32 carry = 0;
         for (u32 i = 0; i < 32; i++) {
@@ -248,11 +247,7 @@ s32 main(void) {
         NYA_CryptoSignature nothing = { 0 };
         nya_assert(!nya_crypto_sign_verify(&zero, message, sizeof(message), &nothing), "a zero signature under a zero key was accepted");
 
-        /*
-         * Keys of small order, whichever sign bit they carry: y = 1 is the identity, y = 0 a point of order
-         * four and y = p - 1 one of order two. Under the identity, R = identity and S = 0 satisfy the
-         * equation for every message, so this is the forgery at its plainest.
-         */
+        /* Keys of small order, whichever sign bit they carry: y = 1 is the identity, y = 0 a point of order four and y = p - 1 one of order two. Under the identity, R = identity and S = 0 satisfy the equation for every message, so this is the forgery at its plainest. */
         NYA_ConstCString small_order[] = {
             "0100000000000000000000000000000000000000000000000000000000000000", "0100000000000000000000000000000000000000000000000000000000000080",
             "0000000000000000000000000000000000000000000000000000000000000080", "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",

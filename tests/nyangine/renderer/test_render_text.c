@@ -16,8 +16,7 @@ s32 main(void) {
     nya_assert(TTF_Init(), "TTF_Init failed: %s", SDL_GetError());
     defer TTF_Quit();
 
-    // Opened directly rather than through the asset system: this is a test of shaping, and the asset
-    // system would drag a whole app instance in to reach the same TTF_Font.
+    // Opened directly rather than through the asset system: this is a test of shaping, and the asset system would drag a whole app instance in to reach the same TTF_Font.
     TTF_Font* font = TTF_OpenFont(FACE, 24.0F);
     nya_assert(font != nullptr, "could not open " FACE ": %s", SDL_GetError());
     defer TTF_CloseFont(font);
@@ -36,18 +35,12 @@ s32 main(void) {
             nya_check(run.glyphs[i].x >= run.glyphs[i - 1].x, "glyph " FMTu32 " should not be left of the one before it", i);
         }
 
-        // Glyph *indices*, not codepoints. 'H' is 72 and no face puts it at index 72; the check that
-        // matters is that the two letters of "ll" share an index and 'H' does not.
+        // Glyph *indices*, not codepoints. 'H' is 72 and no face puts it at index 72; the check that matters is that the two letters of "ll" share an index and 'H' does not.
         nya_check(run.glyphs[2].glyph_index == run.glyphs[3].glyph_index, "the two l's should be the same glyph");
         nya_check(run.glyphs[0].glyph_index != run.glyphs[1].glyph_index, "H and e should not be");
     }
 
-    /*
-     * Kerning happens, which is why text is shaped.
-     *
-     * "AV" is the canonical kerned pair: the diagonals nest, so a kerning face draws them closer than the
-     * sum of their advances. Compared against "AH", since an absolute number would only pin Aldrich.
-     */
+    /* Kerning happens, which is why text is shaped. "AV" is the canonical kerned pair: the diagonals nest, so a kerning face draws them closer than the sum of their advances. Compared against "AH", since an absolute number would only pin Aldrich. */
     {
         f32x2 kerned   = nya_text_measure_font(font, "AV", 0);
         f32x2 unkerned = nya_text_measure_font(font, "AH", 0);

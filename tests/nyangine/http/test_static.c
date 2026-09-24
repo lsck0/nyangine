@@ -69,8 +69,7 @@ static NYA_OsSocket connect_to(u16 port) {
 
   nya_assert(connected == NYA_OS_SOCKET_OK || connected == NYA_OS_SOCKET_WOULD_BLOCK);
 
-  // a non-blocking connect is under way rather than done, and writability is how the host says it
-  // finished; loopback usually beats the first wait to it.
+  // a non-blocking connect is under way rather than done, and writability is how the host says it finished; loopback usually beats the first wait to it.
   NYA_OsSocketWait watched = { .socket = socket, .writable = true };
   u32              ready   = 0;
 
@@ -141,8 +140,7 @@ static u32 request_status(u16 port, NYA_ConstCString request) {
         status = status_of(answer);
     }
 
-    // a refusal answers with Connection: close, and the slot only comes back when the server next
-    // looks at the socket. The next connect needs it back.
+    // a refusal answers with Connection: close, and the slot only comes back when the server next looks at the socket. The next connect needs it back.
     for (u32 attempt = 0; attempt < 4; attempt++) {
         nya_system_http_tick();
         sleep_ms(2);
@@ -182,11 +180,7 @@ s32 main(void) {
     b8 sdl_ok = SDL_Init(0);
     nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-    /*
-     * The asset system, by hand: it registers an end-of-frame hook, so the callback and event
-     * registries come up first. nya_app_init wants a window and this test has none, exactly as the
-     * core tests that load assets find.
-     */
+    /* The asset system, by hand: it registers an end-of-frame hook, so the callback and event registries come up first. nya_app_init wants a window and this test has none, exactly as the core tests that load assets find. */
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     nya_system_callback_init();
@@ -198,10 +192,7 @@ s32 main(void) {
     nya_system_asset_init();
     defer nya_system_asset_deinit();
 
-    /*
-     * A tree of our own for the refusal half. It holds a real file, a symlink beside it and a
-     * directory, which are the three things a handle can name and only one of which is served.
-     */
+    /* A tree of our own for the refusal half. It holds a real file, a symlink beside it and a directory, which are the three things a handle can name and only one of which is served. */
     NYA_String* temp = nullptr;
     NYA_EXPECT(nya_filesystem_temp_directory(arena, &temp));
 
@@ -224,11 +215,7 @@ s32 main(void) {
 
     // TEST: a handle that is not a plain file under the root is refused, one spelling at a time.
     {
-        /*
-         * Each of these is one way of saying "somewhere else". They are refused before a byte is read,
-         * which is why the list is checked here rather than through a request: a request never reaches
-         * a file name at all, so this is the only surface a traversal could arrive on.
-         */
+        /* Each of these is one way of saying "somewhere else". They are refused before a byte is read, which is why the list is checked here rather than through a request: a request never reaches a file name at all, so this is the only surface a traversal could arrive on. */
         NYA_ConstCString REFUSED[] = {
             "../../etc/passwd",             // the plain climb
             "sub/../../etc/passwd",         // and the one that looks like it stays
@@ -274,9 +261,7 @@ s32 main(void) {
         }
     }
 
-    // TEST: a .wasm file mounts and is served as application/wasm, the CSR bundle's module. Its suffix
-    // is in the table (unlike page.exe above), so the browser gets the type WebAssembly.instantiateStreaming
-    // requires rather than a refusal.
+    // TEST: a .wasm file mounts and is served as application/wasm, the CSR bundle's module. Its suffix is in the table (unlike page.exe above), so the browser gets the type WebAssembly.instantiateStreaming requires rather than a refusal.
     {
         NYA_ConstCString   asset = scratch_path(arena, "app.wasm");
         NYA_HttpStaticFile file  = {
@@ -296,9 +281,7 @@ s32 main(void) {
         nya_http_static_unmount();
     }
 
-    // TEST: a .webmanifest mounts and is served as application/manifest+json, so a CSR bundle whose
-    // index.html carries <link rel="manifest"> is an installable PWA. A manifest served as
-    // application/json passes no installability check, which is why the suffix has its own media type.
+    // TEST: a .webmanifest mounts and is served as application/manifest+json, so a CSR bundle whose index.html carries <link rel="manifest"> is an installable PWA. A manifest served as application/json passes no installability check, which is why the suffix has its own media type.
     {
         NYA_ConstCString   asset = scratch_path(arena, "app.webmanifest");
         NYA_HttpStaticFile file  = {
@@ -389,10 +372,7 @@ s32 main(void) {
         nya_assert(nya_http_static_file_count() == 0, "unmounting empties the table");
     }
 
-    /*
-     * The serving half, against the bundle the example serves: the generated handles, the real files,
-     * and a real socket.
-     */
+    /* The serving half, against the bundle the example serves: the generated handles, the real files, and a real socket. */
     static const struct {
         NYA_AssetHandle  asset;
         NYA_ConstCString path;
@@ -454,8 +434,7 @@ s32 main(void) {
 
     // TEST: a caller that already has it gets 304 and no body, weak tags and "*" included.
     {
-        // what goes in front of our tag: nothing, the weak marker, and a list whose first entry is
-        // somebody else's. "*" says "whatever you have" and carries no tag at all.
+        // what goes in front of our tag: nothing, the weak marker, and a list whose first entry is somebody else's. "*" says "whatever you have" and carries no tag at all.
         NYA_ConstCString BEFORE[] = { "", "W/", "\"0000000000000000\", " };
 
         for (u64 index = 0; index <= nya_carray_length(BEFORE); index++) {
@@ -559,12 +538,7 @@ s32 main(void) {
 
     // TEST: every spelling of a climb is refused, and none of them is a 200.
     {
-        /*
-         * Split by who refuses it. The parser answers 400 for a target that is not one this server
-         * reads at all (http_message.c), and the router answers 404 for a path that is well formed and
-         * is simply not a route. Both are refusals; the point of listing them here is that neither is
-         * ever a 200 and neither reaches a file name, because there is no file name to reach.
-         */
+        /* Split by who refuses it. The parser answers 400 for a target that is not one this server reads at all (http_message.c), and the router answers 404 for a path that is well formed and is simply not a route. Both are refusals; the point of listing them here is that neither is ever a 200 and neither reaches a file name, because there is no file name to reach. */
         NYA_ConstCString MALFORMED[] = {
             "GET /../assets/web/app.css HTTP/1.1\r\nHost: x\r\n\r\n",       // a dot segment
             "GET /app.css/.. HTTP/1.1\r\nHost: x\r\n\r\n",                  // and a trailing one
@@ -608,8 +582,7 @@ s32 main(void) {
 
         exchange(socket, "GET /app.css HTTP/1.1\r\nHost: x\r\nRange: bytes=0-9\r\n\r\n", answer, sizeof(answer));
 
-        // ranges are not implemented and nothing advertises them, so the whole representation comes
-        // back: RFC 9110 says a server that does not support a Range ignores it.
+        // ranges are not implemented and nothing advertises them, so the whole representation comes back: RFC 9110 says a server that does not support a Range ignores it.
         nya_assert(status_of(answer) == 200, "got %s", answer);
         nya_assert(strstr(answer, "Accept-Ranges") == nullptr, "and nothing invited the client to ask");
         nya_assert(strstr(answer, "--ink") != nullptr, "the whole file came back");

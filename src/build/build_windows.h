@@ -47,9 +47,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_executable_windows = {
     .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
-    // The codegen every translation unit here reads. The launcher compiles src/main.c, which pulls in
-    // nyangine.c and therefore src/genyarated/reflection.c and strings.h, so it depends on them as the dll
-    // does. nya_build builds a shared dependency once per invocation, so naming it on both costs nothing.
+    // The codegen every translation unit here reads. The launcher compiles src/main.c, which pulls in nyangine.c and therefore src/genyarated/reflection.c and strings.h, so it depends on them as the dll does. nya_build builds a shared dependency once per invocation, so naming it on both costs nothing.
     .dependencies    = { &build_shaders, &index_assets, },
 };
 

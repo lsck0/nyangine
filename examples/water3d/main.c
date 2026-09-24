@@ -195,8 +195,7 @@ NYA_INTERNAL u32 build_river(NYA_Vertex3D* vertices) {
             f32x3 p11 = { x1, 0.0F, z1 };
             f32x3 p01 = { x0, 0.0F, z1 };
 
-            // shore weight in alpha: how close to the bank this vertex sits. rgb is unused (the colours come
-            // from the water uniform), so leave it white.
+            // shore weight in alpha: how close to the bank this vertex sits. rgb is unused (the colours come from the water uniform), so leave it white.
             f32 s0 = nya_clamp(fabsf(z0) / WATER_HALF, 0.0F, 1.0F);
             f32 s1 = nya_clamp(fabsf(z1) / WATER_HALF, 0.0F, 1.0F);
 
@@ -255,8 +254,7 @@ void water_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
     if (nya_input_key_pressed(NYA_KEY_ESCAPE)) nya_app_get()->should_quit = true;
 
-    // turn and speed the current on a key press, then re-point the field the chop reads. nya_wind_set leaves
-    // the field's clock alone, so the chop does not jump when the current changes.
+    // turn and speed the current on a key press, then re-point the field the chop reads. nya_wind_set leaves the field's clock alone, so the chop does not jump when the current changes.
     b8 changed = false;
 
     if (nya_input_key_pressed(NYA_KEY_LEFT)) { state->flow_azimuth -= FLOW_TURN_STEP; changed = true; }
@@ -332,14 +330,10 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         .refraction     = 0.55F,
         .foam           = 0.18F,
 
-        // true depth-difference shoreline foam: the foam follows where the riverbed sits close beneath the
-        // surface, so it wraps the banks and rings the boulders that rise near the waterline, instead of only
-        // the authored shore band. Needs the scene distance buffer the render texture carries (normals, below);
-        // drawn to the window it falls back to that band. Zero would keep the authored band alone.
+        // true depth-difference shoreline foam: the foam follows where the riverbed sits close beneath the surface, so it wraps the banks and rings the boulders that rise near the waterline, instead of only the authored shore band. Needs the scene distance buffer the render texture carries (normals, below); drawn to the window it falls back to that band. Zero would keep the authored band alone.
         .depth_foam     = 0.85F,
 
-        // a real planar reflection: the sky and sun glint mirror in the river, rendered from a camera mirrored
-        // about the surface into a bounded capture and Fresnel-blended in. Zero would keep the old flat tint.
+        // a real planar reflection: the sky and sun glint mirror in the river, rendered from a camera mirrored about the surface into a bounded capture and Fresnel-blended in. Zero would keep the old flat tint.
         .reflection     = 0.9F,
     };
 
@@ -357,14 +351,10 @@ void water_layer_on_render(NYA_Window* window) {
 
     Water* state = water();
 
-    // the scene target keeps its depth, both for the 3D pass and so the water refraction reads a resolved image,
-    // and its normal/distance buffer, which the water's depth-difference shoreline foam reads to tell how deep it
-    // sits over the bed drawn behind it.
+    // the scene target keeps its depth, both for the 3D pass and so the water refraction reads a resolved image, and its normal/distance buffer, which the water's depth-difference shoreline foam reads to tell how deep it sits over the bed drawn behind it.
     state->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED, .normals = true };
 
-    // through the chain (a render texture, so the refraction has something to sample); straight to the window
-    // only if the chain cannot be set up this frame, where the water falls back to its colour. Bloom is a scene
-    // feature nya_post_end runs itself, so there are no caller passes here.
+    // through the chain (a render texture, so the refraction has something to sample); straight to the window only if the chain cannot be set up this frame, where the water falls back to its colour. Bloom is a scene feature nya_post_end runs itself, so there are no caller passes here.
     if (nya_post_begin(window, &state->post)) {
         draw_scene(window);
         nya_post_end(window, &state->post, nullptr, 0);

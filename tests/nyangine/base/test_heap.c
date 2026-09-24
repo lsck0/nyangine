@@ -331,11 +331,7 @@ s32 main(void) {
 
   // TEST: the heap property survives arbitrary interleaved pushes and pops
   {
-    /*
-     * The cases above push a batch and drain it. This covers popping the last element to the root of a
-     * heap still being pushed into, as a job queue does, where an off-by-one in the child indices hides
-     * while the smallest element still pops first.
-     */
+    /* The cases above push a batch and drain it. This covers popping the last element to the root of a heap still being pushed into, as a job queue does, where an off-by-one in the child indices hides while the smallest element still pops first. */
     NYA_Heapᐸs32ᐳ* churn = nya_heap_create(arena, s32, compare_s32_asc);
     NYA_RNG        rng   = nya_rng_create(.seed = "5EED");
 
@@ -357,8 +353,7 @@ s32 main(void) {
       } else {
         s32 popped = nya_heap_pop(churn);
 
-        // The invariant that matters: a pop returns the smallest element currently held. Tracked
-        // independently of the heap so the assertion does not consult the thing under test.
+        // The invariant that matters: a pop returns the smallest element currently held. Tracked independently of the heap so the assertion does not consult the thing under test.
         nya_assert(popped == live_minimum, "step %u popped %d, expected the minimum %d", step, popped, live_minimum);
         live_count--;
 
@@ -373,8 +368,7 @@ s32 main(void) {
 
       nya_assert(churn->length == live_count, "step %u: heap holds " FMTu64 ", expected " FMTu64, step, churn->length, live_count);
 
-      // The structural invariant, checked in full rather than sampled: every parent orders before
-      // both of its children. A heap can pop correctly for a long time while quietly violating this.
+      // The structural invariant, checked in full rather than sampled: every parent orders before both of its children. A heap can pop correctly for a long time while quietly violating this.
       for (u64 parent = 0; parent < churn->length; parent++) {
         u64 left  = (2 * parent) + 1;
         u64 right = (2 * parent) + 2;

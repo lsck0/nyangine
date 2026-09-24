@@ -151,8 +151,7 @@ s32 main(void) {
     nya_check(laid.body_seen, "an open window runs its body");
     nya_check(laid.bounds.width == WIDTH, "and is as wide as it asked to be, got %f", (f64)laid.bounds.width);
 
-    // the bar the panel reserved, and the chrome in it: the hamburger at the left, then the chevron and the X from
-    // the right. Everything here is what nya_ui_window_begin places, written out so a move is caught.
+    // the bar the panel reserved, and the chrome in it: the hamburger at the left, then the chevron and the X from the right. Everything here is what nya_ui_window_begin places, written out so a move is caught.
     f32 bar_y  = laid.bounds.y + FRAME;
     f32 bar_to = laid.bounds.x + laid.bounds.width - FRAME;
 
@@ -206,8 +205,7 @@ s32 main(void) {
         // twice, so the open list is measured before it is clicked.
         for (u32 pass = 0; pass < 2; pass++) (void)scene(NYA_UI_PASS_DRAW);
 
-        // the list hangs from the bottom of the button; its first option is one frame and half an item into it,
-        // which is over the body's only widget.
+        // the list hangs from the bottom of the button; its first option is one frame and half an item into it, which is over the body's only widget.
         f32x2 first = { menu.x, bar_y + side + FRAME + (ITEM * 0.5F) };
 
         Scene picked = click_scene(first);
@@ -301,11 +299,7 @@ s32 main(void) {
 
     // TEST: the grip follows the pointer whatever corner the window is anchored to.
     {
-        /*
-         * An anchor that pins the right or bottom edge places the window from that edge, so growing it
-         * moves its origin outward — and the corner being dragged runs away from the pointer rather
-         * than following it. A window grows towards the pull, whichever corner it hangs from.
-         */
+        /* An anchor that pins the right or bottom edge places the window from that edge, so growing it moves its origin outward — and the corner being dragged runs away from the pointer rather than following it. A window grows towards the pull, whichever corner it hangs from. */
         anchor = NYA_UI_ANCHOR_BOTTOM_RIGHT;
         offset = (f32x2){ 120.0F, 120.0F };
         state  = (NYA_UIWindowState){ .open = true };
@@ -340,12 +334,7 @@ s32 main(void) {
 
     // TEST: folding a window anchored to the bottom leaves its title bar where it is.
     {
-        /*
-         * The same rule as growing: the origin moves by the anchor's share of every change in height,
-         * so a bottom anchored window would fold by walking its bar down the screen, out from under the
-         * chevron that folded it. Folded here by writing the flag, which is the other way it happens
-         * and the one that proves the correction is not the chevron's doing.
-         */
+        /* The same rule as growing: the origin moves by the anchor's share of every change in height, so a bottom anchored window would fold by walking its bar down the screen, out from under the chevron that folded it. Folded here by writing the flag, which is the other way it happens and the one that proves the correction is not the chevron's doing. */
         anchor = NYA_UI_ANCHOR_BOTTOM_LEFT;
         offset = (f32x2){ 40.0F, 40.0F };
         state  = (NYA_UIWindowState){ .open = true };

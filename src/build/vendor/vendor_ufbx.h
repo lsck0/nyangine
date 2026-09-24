@@ -67,8 +67,7 @@ NYA_VendorRule vendor_ufbx_linux_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name = "vendor_ufbx_linux_x86_64_directory",
-            // NYA_BUILD_ONCE, and a metarule: see the same rule in vendor_sqlvec.h, where the default
-            // policy meant the directory was created on every ./build.
+            // NYA_BUILD_ONCE, and a metarule: see the same rule in vendor_sqlvec.h, where the default policy meant the directory was created on every ./build.
             .policy      = NYA_BUILD_ONCE,
             .is_metarule = true,
             .output_file = UFBX_BUILD_LINUX_X86_64,
@@ -84,8 +83,7 @@ NYA_VendorRule vendor_ufbx_linux_x86_64 = {
 
             .command = {
                 .program   = VENDOR_CC,
-                // -fPIC because the game DLL links this too, and a non-PIC object in a shared library
-                // is a link error rather than something that shows up later.
+                // -fPIC because the game DLL links this too, and a non-PIC object in a shared library is a link error rather than something that shows up later.
                 .arguments = { VENDOR_CC_LAUNCHED, UFBX_CFLAGS, "-fPIC", UFBX_SOURCE, "-o", UFBX_O_LINUX_X86_64, },
             },
         },
@@ -100,9 +98,7 @@ NYA_VendorRule vendor_ufbx_linux_x86_64 = {
                 .arguments = { "rcs", UFBX_A_LINUX_X86_64, UFBX_O_LINUX_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
@@ -150,9 +146,7 @@ NYA_VendorRule vendor_ufbx_windows_x86_64 = {
                 .arguments = { "rcs", UFBX_A_WINDOWS_X86_64, UFBX_O_WINDOWS_X86_64, },
             },
 
-            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
-            // that gets renamed would linger inside it. Deleting it first makes the archive say only
-            // what was just compiled.
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that gets renamed would linger inside it. Deleting it first makes the archive say only what was just compiled.
             .pre_build_hooks = { &hook_remove_output_file, },
         },
     },

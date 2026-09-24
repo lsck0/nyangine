@@ -19,10 +19,7 @@ s32 main(void) {
     b8 sdl_ok = SDL_Init(0);
     nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-    /*
-     * Measuring resolves the face through the asset system, which is what makes a font a font rather
-     * than a path and a number.
-     */
+    /* Measuring resolves the face through the asset system, which is what makes a font a font rather than a path and a number. */
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
     nya_system_asset_init();
@@ -170,19 +167,13 @@ s32 main(void) {
         nya_font_clear();
     }
 
-    /*
-     * Real metrics and measurement, headless.
-     *
-     * Faces load asynchronously, so the first ask queues and answers zero, as callers expect. Pumped until
-     * it lands.
-     */
+    /* Real metrics and measurement, headless. Faces load asynchronously, so the first ask queues and answers zero, as callers expect. Pumped until it lands. */
     {
         NYA_Font ui = nya_font(FACE, 24.0F);
 
         f32 width = 0.0F;
         for (u32 attempt = 0; attempt < 8 && width <= 0.0F; attempt++) {
-            // The load is queued by the first ask and performed by the frame-ended hook, so a frame
-            // has to end between asking and being answered.
+            // The load is queued by the first ask and performed by the frame-ended hook, so a frame has to end between asking and being answered.
             width = nya_font_width(ui, "Hello");
             nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
         }
@@ -195,8 +186,7 @@ s32 main(void) {
         nya_check(metrics.descent > 0.0F, "and a descent reported positive");
         nya_check(fabsf(metrics.height - (metrics.ascent + metrics.descent)) < 0.001F, "height should be ascent plus descent");
 
-        // A longer string is wider, which is the cheapest check that this is measurement and not a
-        // constant. Two lines are taller than one, likewise.
+        // A longer string is wider, which is the cheapest check that this is measurement and not a constant. Two lines are taller than one, likewise.
         nya_check(nya_font_width(ui, "Hello there") > width, "a longer string should be wider");
         nya_check(nya_font_height(ui, "one\ntwo") > nya_font_height(ui, "one"), "two lines should be taller than one");
 

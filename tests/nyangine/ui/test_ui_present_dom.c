@@ -101,12 +101,10 @@ s32 main(void) {
     // TEST: escaping — a label cannot inject markup, in text OR attribute context.
     nya_check(!nya_string_contains(body, "<script>alert"), "a label's markup does not reach the page as markup");
     nya_check(nya_string_contains(body, "&lt;script&gt;alert(1)&lt;/script&gt;"), "it is escaped to text");
-    // The field's default text `ada"><b>` sits in a value="" attribute; a raw `"` would end the attribute
-    // and a raw `<b>` open a tag. Both must be entities, and no live `<b>` may appear anywhere.
+    // The field's default text `ada"><b>` sits in a value="" attribute; a raw `"` would end the attribute and a raw `<b>` open a tag. Both must be entities, and no live `<b>` may appear anywhere.
     nya_check(nya_string_contains(body, "ada&quot;&gt;&lt;b&gt;"), "the field value is escaped for the attribute context");
     nya_check(!nya_string_contains(body, "><b>"), "no attribute break-out reaches the page");
-    // The dropdown option `high contrast <x>` never selected, but the escaping of an option is still checked
-    // through the shown one below; the label's `<x>`-style attack is covered by the field and script cases.
+    // The dropdown option `high contrast <x>` never selected, but the escaping of an option is still checked through the shown one below; the label's `<x>`-style attack is covered by the field and script cases.
 
     // TEST: the interactive widgets are REAL, semantic form controls.
     nya_check(nya_string_contains(body, "<button") && nya_string_contains(body, "type=\"button\""), "a button is a real <button>");
@@ -140,8 +138,7 @@ s32 main(void) {
         nya_check(!nya_ui_dom_widget_kind(&dom, nya_ui_dom_count(&dom), &past), "an id past the pass resolves to nothing");
     }
 
-    // TEST: aria-pressed on a selectable, and a disabled control drops out of the
-    // tab order via the native `disabled` attribute rather than markup of its own.
+    // TEST: aria-pressed on a selectable, and a disabled control drops out of the tab order via the native `disabled` attribute rather than markup of its own.
     {
         controls(&window, NYA_UI_PASS_INPUT);
         nya_ui_dom_reset(&dom);
@@ -152,8 +149,7 @@ s32 main(void) {
         nya_check(nya_string_contains(b, "<button") && nya_string_contains(b, " disabled"), "a disabled control carries the native disabled attribute");
     }
 
-    // TEST: the document wraps the body in a valid, accessible page with a <form>
-    // whose submit is suppressed and a client that forwards events.
+    // TEST: the document wraps the body in a valid, accessible page with a <form> whose submit is suppressed and a client that forwards events.
     {
         // redraw the full form so the page has the whole control set again.
         form(&window, NYA_UI_PASS_INPUT);

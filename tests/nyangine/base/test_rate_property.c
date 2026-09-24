@@ -137,8 +137,7 @@ static b8 law_backoff_window_grows(NYA_Property* property) {
 
     u32 attempt = (u32)nya_property_draw_below(property, 20);
 
-    // 0.0001 rather than 0: a literal zero is read as "default", which is full jitter. This tiny value
-    // leaves the wait a hair below the window, so the window shows through.
+    // 0.0001 rather than 0: a literal zero is read as "default", which is full jitter. This tiny value leaves the wait a hair below the window, so the window shows through.
     u64 lower = nya_backoff_ms(attempt, .base_ms = base_ms, .cap_ms = cap_ms, .jitter = 0.0001);
     u64 upper = nya_backoff_ms(attempt + 1, .base_ms = base_ms, .cap_ms = cap_ms, .jitter = 0.0001);
 
@@ -202,9 +201,7 @@ static b8 law_told_moves_later_only(NYA_Property* property) {
 static b8 law_observed_lowers_only(NYA_Property* property) {
     NYA_Arena* arena = property->allocator;
 
-    // A crawling refill rate against a deep burst: the point of the law is that observed does not raise
-    // the count, and a fast rate would refill real tokens between takes and make the run's arithmetic
-    // about the wall clock rather than about observed.
+    // A crawling refill rate against a deep burst: the point of the law is that observed does not raise the count, and a fast rate would refill real tokens between takes and make the run's arithmetic about the wall clock rather than about observed.
     NYA_RateLimiter* limiter = nullptr;
     if (!_nya_rate_limiter_create(arena, &limiter, (NYA_RateLimiterOptions){ .per_second = 1.0, .burst = 100000.0 }).ok) return false;
 

@@ -58,10 +58,7 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_Arena* arena = nya_arena_create(.name = "fuzz_net_wire");
     defer      nya_arena_destroy(arena);
 
-    /*
-     * The peek first: it is what a client calls before deciding whether a snapshot is worth decoding,
-     * so it reads a header nobody has checked yet.
-     */
+    /* The peek first: it is what a client calls before deciding whether a snapshot is worth decoding, so it reads a header nobody has checked yet. */
     u64 tick = 0, baseline_tick = 0;
     (void)nya_net_snapshot_peek(data, size, &tick, &baseline_tick);
 
@@ -70,8 +67,7 @@ static void fuzz_once(const u8* data, u64 size) {
 
         if (!nya_net_snapshot_decode(arena, data, size, with_baseline ? &BASELINE : nullptr, &decoded).ok) continue;
 
-        // what the decoder promises its caller, which the rest of the client then relies on without
-        // checking again.
+        // what the decoder promises its caller, which the rest of the client then relies on without checking again.
         nya_assert(decoded.entity_count <= NYA_NET_MAX_REPLICATED, "a decoded snapshot holds more entities than can be replicated");
 
         for (u32 i = 0; i < decoded.entity_count; i++) {

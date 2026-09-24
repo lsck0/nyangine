@@ -238,8 +238,7 @@ s32 main(void) {
     u64 sequence = 1;
 
     for (u32 iteration = 0; iteration < 20000; iteration++) {
-      // a peer with known keys, so sealed noise gets past the tag and into the fragment parser. Rejoined whenever the
-      // noise gets it dropped, which is the transport doing its job.
+      // a peer with known keys, so sealed noise gets past the tag and into the fragment parser. Rejoined whenever the noise gets it dropped, which is the transport doing its job.
       if (slot >= NYA_NET_MAX_PEERS || !state->peers[slot].occupied) {
         if (slot < NYA_NET_MAX_PEERS) dropped++;
 

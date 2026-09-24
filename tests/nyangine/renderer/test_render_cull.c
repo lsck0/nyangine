@@ -231,10 +231,7 @@ s32 main(void) {
         nya_check(batch->frame_occluded == 2, "which counts as occluded, got %u", batch->frame_occluded);
     }
 
-    /*
-     * ── Both culls are switchable, and switching the frustum off takes the occlusion buffer with it: the buffer
-     *    only ever removes what the frustum kept, so there is nothing for it to answer about.
-     */
+    /* ── Both culls are switchable, and switching the frustum off takes the occlusion buffer with it: the buffer only ever removes what the frustum kept, so there is nothing for it to answer about. */
     {
         nya_memset(batch, 0, sizeof(*batch));
 
@@ -301,12 +298,7 @@ s32 main(void) {
         nya_check(_nya_render3d_pass_run(passes, 0, 6, 2, &first) == 0 && first == 6, "no run leaves the start at the end");
     }
 
-    /*
-     * ── Which stream a draw is recorded into. Alpha decides it, except under addition.
-     *
-     * A flame particle is born at exactly alpha one. Recorded as opaque it drew through the opaque pipeline and
-     * wrote depth, so every new particle punched a hole in the plume behind it for a tick: the fire flickered.
-     */
+    /* ── Which stream a draw is recorded into. Alpha decides it, except under addition. A flame particle is born at exactly alpha one. Recorded as opaque it drew through the opaque pipeline and wrote depth, so every new particle punched a hole in the plume behind it for a tick: the fire flickered. */
     {
         NYA_Color solid     = { 1.0F, 1.0F, 1.0F, 1.0F };
         NYA_Color faded     = { 1.0F, 1.0F, 1.0F, 0.5F };

@@ -154,8 +154,7 @@ s32 main(void) {
     // no display, ever: a session is a headless run of the real application.
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
 
-    // settings and saves load from the data directory, so a scratch one keeps the player's own out of
-    // this and keeps two runs of this test from seeing each other.
+    // settings and saves load from the data directory, so a scratch one keeps the player's own out of this and keeps two runs of this test from seeing each other.
     NYA_Arena*  scratch   = nya_arena_create(.name = "test_session_scratch");
     NYA_String* temp_root = nullptr;
     NYA_EXPECT(nya_filesystem_temp_directory(scratch, &temp_root));
@@ -172,8 +171,7 @@ s32 main(void) {
     NYA_EXPECT(nya_app_init(.headless = true, .app_id = "nyangine-test-session"));
     defer nya_app_deinit();
 
-    // the window synthetic input is addressed to. Headless, so nothing is drawn into it; what it is
-    // for is that window handling and the UI's hit testing see the same events a real run does.
+    // the window synthetic input is addressed to. Headless, so nothing is drawn into it; what it is for is that window handling and the UI's hit testing see the same events a real run does.
     NYA_WindowHandle window = nya_window_create("session", WINDOW_WIDTH, WINDOW_HEIGHT, NYA_WINDOW_NONE);
     nya_assert(nya_window_is_valid(window));
 
@@ -222,24 +220,19 @@ s32 main(void) {
         nya_assert(nya_input_mouse_wheel_scroll().y == 3.0F, "the wheel turned 3 and input saw %f", (f64)nya_input_mouse_wheel_scroll().y);
     }
 
-    // TEST: one seed, played twice, is one run. Without this nothing below means
-    // anything: a digest that moves between two identical runs measures the machine.
+    // TEST: one seed, played twice, is one run. Without this nothing below means anything: a digest that moves between two identical runs measures the machine.
     u64 first  = play(0xA11CE5EEDULL, FAST_TICKS, false);
     u64 second = play(0xA11CE5EEDULL, FAST_TICKS, false);
 
     nya_assert(first == second, "the same seed gave 0x%016llX and then 0x%016llX", (unsigned long long)first, (unsigned long long)second);
 
-    // TEST: a different seed is a different run, so the digest is reading the run and
-    // not something constant about the scenario.
+    // TEST: a different seed is a different run, so the digest is reading the run and not something constant about the scenario.
     {
         u64 other = play(0xB0B0B0B0ULL, FAST_TICKS, false);
         nya_assert(other != first, "two seeds gave the same digest 0x%016llX", (unsigned long long)other);
     }
 
-    // TEST: fast forward is the same run as real time, and enormously faster. This is
-    // the claim the whole facility rests on: the tick is a fixed timestep and every
-    // draw is hashed from (seed, tick, index), so the clock decides how often a tick
-    // happens and never what one does.
+    // TEST: fast forward is the same run as real time, and enormously faster. This is the claim the whole facility rests on: the tick is a fixed timestep and every draw is hashed from (seed, tick, index), so the clock decides how often a tick happens and never what one does.
     {
         u64 fast_started_ns = nya_clock_get_monotonic_ns();
         u64 fast            = play(0xFA57ULL, REAL_TICKS, false);

@@ -139,8 +139,7 @@ void nya_reflection_generate(void) {
 
     nya_memset(set.types, 0, sizeof(_NYA_ReflectTypeDecl) * NYA_REFLECT_MAX_TYPES);
 
-    // The engine tree first, so its types land in the first part of the set and a game type can never
-    // end up as a field of an engine type's description. See _NYA_ReflectSet.engine_type_count.
+    // The engine tree first, so its types land in the first part of the set and a game type can never end up as a field of an engine type's description. See _NYA_ReflectSet.engine_type_count.
     _nya_reflect_scan_tree(&set, NYA_REFLECT_ENGINE_DIRECTORY);
     set.engine_type_count = set.type_count;
 
@@ -173,14 +172,7 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_HEADER, engine_header), "while writing the generated engine reflection header");
 
-    // ── the engine server source ────────────────────────────────────────────────────────────────
-    //
-    // The server-safe half: the builtins and every engine type in a module a headless build compiles.
-    // Included from nyangine.c inside the NYA_SERVER seam, so a server binary has these descriptions
-    // without ever compiling the SDL-bound half below. The builtins live here rather than in the SDL
-    // source because both a full build and a headless one need them and a definition in each would be a
-    // duplicate symbol; a full build compiles this file too (the seam is true whenever SDL is present),
-    // so it is the one place they are defined. See docs/layering-core-split.md.
+    // ── the engine server source ──────────────────────────────────────────────────────────────── The server-safe half: the builtins and every engine type in a module a headless build compiles. Included from nyangine.c inside the NYA_SERVER seam, so a server binary has these descriptions without ever compiling the SDL-bound half below. The builtins live here rather than in the SDL source because both a full build and a headless one need them and a definition in each would be a duplicate symbol; a full build compiles this file too (the seam is true whenever SDL is present), so it is the one place they are defined. See docs/layering-core-split.md.
     NYA_String* server_source = nya_string_create(arena);
 
     nya_string_extend(server_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
@@ -196,8 +188,7 @@ void nya_reflection_generate(void) {
 
     _nya_reflect_emit_builtins(server_source);
 
-    // The unguarded server-safe types first, then the db-module ones behind NYA_MODULE_DB — the same flag
-    // their headers sit behind in nyangine.h, so a headless build without db still compiles this file.
+    // The unguarded server-safe types first, then the db-module ones behind NYA_MODULE_DB — the same flag their headers sit behind in nyangine.h, so a headless build without db still compiles this file.
     for (u32 i = 0; i < set.engine_type_count; i++) {
         if (_nya_reflect_is_sdl_bound(set.types[i].source_file) || _nya_reflect_is_db_module(set.types[i].source_file)) continue;
         _nya_reflect_emit_type(&set, server_source, &set.types[i], set.engine_type_count);
@@ -212,18 +203,12 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_SERVER_SOURCE, server_source), "while writing the generated server reflection source");
 
-    // ── the engine source ───────────────────────────────────────────────────────────────────────
-    //
-    // The SDL-bound half: the type descriptions that need the renderer, core, ui or physics graph to
-    // compile, plus the NYA_REFLECT_ENGINE_TYPES table over *every* engine type. The table names the
-    // server-safe symbols too, which is why this file needs them linked — a full build always compiles
-    // reflection_engine_server.c beside it (with the db module on), so they resolve.
+    // ── the engine source ─────────────────────────────────────────────────────────────────────── The SDL-bound half: the type descriptions that need the renderer, core, ui or physics graph to compile, plus the NYA_REFLECT_ENGINE_TYPES table over *every* engine type. The table names the server-safe symbols too, which is why this file needs them linked — a full build always compiles reflection_engine_server.c beside it (with the db module on), so they resolve.
     NYA_String* engine_source = nya_string_create(arena);
 
     nya_string_extend(engine_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(engine_source, "#include \"nyangine/nyangine.h\"\n\n");
-    // Its own header too, so every symbol below is declared before it is defined whatever order the
-    // unity build happens to reach this file in.
+    // Its own header too, so every symbol below is declared before it is defined whatever order the unity build happens to reach this file in.
     nya_string_extend(engine_source, "#include \"genyarated/reflection_engine.h\"\n\n");
     nya_string_extend(engine_source,
                       "/*\n"
@@ -309,9 +294,7 @@ void nya_reflection_generate(void) {
 /* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_reflect_is_sdl_bound(NYA_ConstCString source_file) {
-    // A whitelist of the modules that name SDL, the renderer or core, checked against the type's source
-    // path. Everything else under src/nyangine is the server-safe floor. The leading and trailing slashes
-    // keep this from matching a substring of some longer name.
+    // A whitelist of the modules that name SDL, the renderer or core, checked against the type's source path. Everything else under src/nyangine is the server-safe floor. The leading and trailing slashes keep this from matching a substring of some longer name.
     return strstr(source_file, "/core/") != nullptr || strstr(source_file, "/renderer/") != nullptr || strstr(source_file, "/ui/") != nullptr ||
            strstr(source_file, "/physics/") != nullptr || strstr(source_file, "/debug/") != nullptr || strstr(source_file, "/replicate/") != nullptr;
 }
@@ -337,8 +320,7 @@ b8 _nya_reflect_collect_sources(NYA_ConstCString path, const NYA_DirectoryEntry*
 
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
 
-    // Headers only. A declaration lives in a header by this codebase's convention, and scanning the
-    // .c files as well would double the work to find nothing.
+    // Headers only. A declaration lives in a header by this codebase's convention, and scanning the .c files as well would double the work to find nothing.
     if (!nya_string_ends_with(entry->name, ".h")) return true;
 
     // `path` is already the full path to this file, not the directory holding it. See _nya_asset_collect.
@@ -497,10 +479,7 @@ b8 _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name, u32 
 }
 
 void _nya_reflect_scan_tree(_NYA_ReflectSet* set, NYA_ConstCString directory) {
-    /*
-     * Sources are collected and sorted before any of them is read, so the generated file's order is
-     * the tree's rather than the filesystem's.
-     */
+    /* Sources are collected and sorted before any of them is read, so the generated file's order is the tree's rather than the filesystem's. */
     NYA_ArrayᐸNYA_Stringᐳ* sources = nya_array_create(set->arena, NYA_String);
 
     NYA_EXPECT(nya_filesystem_walk(set->arena, directory, _nya_reflect_collect_sources, sources));
@@ -558,8 +537,7 @@ void _nya_reflect_emit_builtins(NYA_String* out) {
                                   PRIMITIVES[i].primitive);
     }
 
-    // A string field is a pointer to characters the struct does not own, which NYA_Value already has
-    // a case for, so it is a primitive here rather than a pointer to one.
+    // A string field is a pointer to characters the struct does not own, which NYA_Value already has a case for, so it is a primitive here rather than a pointer to one.
     nya_string_extend(out,
                       "\nconst NYA_TypeReflection _NYA_REFLECT_string = { .name = \"string\", .kind = NYA_REFLECT_PRIMITIVE, "
                       ".size = sizeof(char*), .alignment = alignof(char*), .primitive = NYA_TYPE_STRING };\n\n");
@@ -583,8 +561,7 @@ void _nya_reflect_emit_builtins(NYA_String* out) {
 u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexer, u32 start, NYA_ConstCString path) {
     u32 index = start;
 
-    // A bitfield has no address, so there is no offsetof to emit and nothing that could describe it.
-    // Named rather than dropped in silence; see the limits block in base_reflection.h.
+    // A bitfield has no address, so there is no offsetof to emit and nothing that could describe it. Named rather than dropped in silence; see the limits block in base_reflection.h.
     for (u32 look = index; look < lexer->tokens->length; look++) {
         NYA_Token token = lexer->tokens->items[look];
 
@@ -642,8 +619,7 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
         char piece[NYA_REFLECT_MAX_NAME] = { 0 };
         _nya_reflect_token_copy(lexer, i, piece, sizeof(piece));
 
-        // `const`, `struct`, `enum` and `unsigned` are noise for our purposes: what is wanted is the
-        // spelling a reflection symbol is named after.
+        // `const`, `struct`, `enum` and `unsigned` are noise for our purposes: what is wanted is the spelling a reflection symbol is named after.
         if (nya_string_equals(piece, "const") || nya_string_equals(piece, "struct") || nya_string_equals(piece, "enum") ||
             nya_string_equals(piece, "union") || nya_string_equals(piece, "volatile")) {
             continue;
@@ -664,9 +640,7 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
 
         declarator_count++;
 
-        // `T *a, b;` gives a and b different types, and the star is bound to the declarator rather
-        // than to the base, which these tokens cannot tell apart from `T* a, b;`. Refused with a
-        // name rather than described wrongly; a struct written that way wants rewriting.
+        // `T *a, b;` gives a and b different types, and the star is bound to the declarator rather than to the base, which these tokens cannot tell apart from `T* a, b;`. Refused with a name rather than described wrongly; a struct written that way wants rewriting.
         if (pointer_depth > 0 && declarator_count > 1) {
             nya_log_warn("%s:%u: '%s' declares several names off one pointer type; only the first is described.", path,
                          token.line_number, decl->name);
@@ -680,9 +654,7 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
 
         index++;
 
-        // A star bound to this declarator rather than to the base type, as in `T *a, b;`.
-        // Not supported deliberately: it means a and b have different types, and a struct written
-        // that way is a struct that wants rewriting more than it wants reflecting.
+        // A star bound to this declarator rather than to the base type, as in `T *a, b;`. Not supported deliberately: it means a and b have different types, and a struct written that way is a struct that wants rewriting more than it wants reflecting.
 
         if (index < lexer->tokens->length && lexer->tokens->items[index].type == NYA_TOKEN_SYMBOL &&
             lexer->tokens->items[index].symbol == '[') {
@@ -842,14 +814,12 @@ u32 _nya_reflect_parse_variants(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lex
 void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
     NYA_String* contents = nya_string_create(set->arena);
 
-    // Loud rather than skipped: a header that cannot be read is a header whose annotations silently
-    // vanish, and the generated tables would simply be missing types with nothing to say why.
+    // Loud rather than skipped: a header that cannot be read is a header whose annotations silently vanish, and the generated tables would simply be missing types with nothing to say why.
     NYA_EXPECT(nya_file_read(path, contents), "while reading a header to scan for annotations");
 
     NYA_ConstCString source = nya_string_to_cstring(set->arena, contents);
 
-    // UTF-8 identifiers, because this codebase's derived container types mangle their names with
-    // non-ASCII brackets and a name that comes apart mid-scan would confuse the declarator search.
+    // UTF-8 identifiers, because this codebase's derived container types mangle their names with non-ASCII brackets and a name that comes apart mid-scan would confuse the declarator search.
     NYA_Lexer lexer = nya_lexer_create(source, NYA_LEXER_UTF8_IDENTS);
     nya_lexer_run(&lexer);
 
@@ -868,8 +838,7 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
 
         u32 cursor = index + 1;
 
-        // Any further comment lines between the annotation and the declaration are skipped, so the
-        // marker may sit at the top of a long doc block rather than immediately above the type.
+        // Any further comment lines between the annotation and the declaration are skipped, so the marker may sit at the top of a long doc block rather than immediately above the type.
         while (cursor < lexer.tokens->length && lexer.tokens->items[cursor].type == NYA_TOKEN_COMMENT) cursor++;
 
         b8 is_typedef = _nya_reflect_token_is(&lexer, cursor, "typedef");
@@ -917,8 +886,7 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
         if (decl.kind == _NYA_REFLECT_DECL_ENUM) {
             cursor = _nya_reflect_parse_variants(&decl, &lexer, cursor, path);
         } else {
-            // Members until the closing brace. Comments between them are the per-field annotations,
-            // which the member parser looks back at rather than consuming here.
+            // Members until the closing brace. Comments between them are the per-field annotations, which the member parser looks back at rather than consuming here.
             while (cursor < lexer.tokens->length) {
                 NYA_Token token = lexer.tokens->items[cursor];
 
@@ -965,9 +933,7 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
             continue;
         }
 
-        // A key identifies a row, so a second one identifies nothing. Caught here rather than by the
-        // consumer, so the person who wrote the annotation is told while looking at the build output
-        // instead of at a database that refuses to open. See orm.h.
+        // A key identifies a row, so a second one identifies nothing. Caught here rather than by the consumer, so the person who wrote the annotation is told while looking at the build output instead of at a database that refuses to open. See orm.h.
         for (u32 first = 0, seen = 0; first < decl.field_count; first++) {
             if (!decl.fields[first].is_key) continue;
 
@@ -996,8 +962,7 @@ NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NY
         return buffer;
     }
 
-    // A pointer to characters is a string, which is a primitive here. Any other pointer is not
-    // followed; see nya_reflect_to_object.
+    // A pointer to characters is a string, which is a primitive here. Any other pointer is not followed; see nya_reflect_to_object.
     if (field->pointer_depth > 0) {
         if (nya_string_equals(field->type_spelling, "char")) return "_NYA_REFLECT_string";
 
@@ -1022,8 +987,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
         nya_string_extend_sprintf(out, "static const NYA_ReflectVariant _NYA_REFLECT_%s_VARIANTS[] = {\n", decl->name);
 
         for (u32 i = 0; i < decl->variant_count; i++) {
-            // The variant's own name is the expression: whatever the compiler decided it equals,
-            // including a shift the generator never evaluated.
+            // The variant's own name is the expression: whatever the compiler decided it equals, including a shift the generator never evaluated.
             nya_string_extend_sprintf(out, "    { .name = \"%s\", .value = (s64)(%s) },\n", decl->variants[i].name,
                                       decl->variants[i].name);
         }
@@ -1127,8 +1091,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
         emitted++;
     }
 
-    // A struct every one of whose fields was skipped still needs a valid array: a zero length one is
-    // not legal C, so a placeholder keeps the table well formed and the count honest at zero.
+    // A struct every one of whose fields was skipped still needs a valid array: a zero length one is not legal C, so a placeholder keeps the table well formed and the count honest at zero.
     if (emitted == 0) nya_string_extend(out, "    { .name = nullptr, .type = nullptr, .offset = 0 },\n");
 
     nya_string_extend(out, "};\n\n");

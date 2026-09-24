@@ -243,8 +243,7 @@ s32 main(void) {
     {
         nya_http_livereload_reset();
 
-        // The first fingerprint is recorded, not reloaded on: a page that just connected is not thrown
-        // out from under itself.
+        // The first fingerprint is recorded, not reloaded on: a page that just connected is not thrown out from under itself.
         nya_assert(!nya_http_livereload_signal(0x1111), "the first sight of a fingerprint is a baseline, not a reload");
 
         // The same number, again and again, is no change and no reload. A timer would have fired here.
@@ -273,8 +272,7 @@ s32 main(void) {
         u64 first = nya_http_static_fingerprint();
         nya_assert(first != 0, "a mounted bundle has a fingerprint");
 
-        // The same bytes mounted again hash to the same fingerprint: a rebuild that changed nothing is
-        // not a change, so a poll over it would not reload.
+        // The same bytes mounted again hash to the same fingerprint: a rebuild that changed nothing is not a change, so a poll over it would not reload.
         nya_http_static_unmount();
         mount_one(BYTES_A, BYTES_A_SIZE);
         nya_assert(nya_http_static_fingerprint() == first, "the same bytes are the same fingerprint");
@@ -327,8 +325,7 @@ s32 main(void) {
         nya_assert(nya_string_contains(snippet, "\"" NYA_HTTP_LIVERELOAD_MESSAGE "\""), "on the reload message and no other");
         nya_assert(nya_string_contains(snippet, "setTimeout"), "reconnecting on a bounded backoff, not a tight loop");
 
-        // Balanced braces and parens: a snippet with a stray one is a script that does not parse, and a
-        // page cannot fix what it is handed.
+        // Balanced braces and parens: a snippet with a stray one is a script that does not parse, and a page cannot fix what it is handed.
         s32 braces = 0;
         s32 parens = 0;
         for (u64 i = 0; js[i] != '\0'; i++) {
@@ -369,8 +366,7 @@ s32 main(void) {
         client_open(&page, arena, port, NYA_HTTP_LIVERELOAD_PATH);
         defer client_destroy(&page);
 
-        // The first signal records the baseline and pushes nothing, so the page is not reloaded the moment
-        // it connected.
+        // The first signal records the baseline and pushes nothing, so the page is not reloaded the moment it connected.
         nya_assert(!nya_http_livereload_signal(0xA1), "the first signal is a baseline");
         client_settle(&page);
         nya_assert(page.texts == 0, "a baseline is not a push");

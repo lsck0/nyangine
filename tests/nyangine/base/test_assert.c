@@ -23,9 +23,7 @@ s32 main(void) {
   // TEST: nya_expect_crash - catches panics
   nya_expect_crash(nya_log_panic("Test panic"));
 
-  // TEST: nya_expect_crash - fails when no panic occurs
-  // We can't test this directly without causing a test failure,
-  // but we verify the mechanism works with a known panic above.
+  // TEST: nya_expect_crash - fails when no panic occurs We can't test this directly without causing a test failure, but we verify the mechanism works with a known panic above.
 
   // TEST: nya_todo, nya_unimplemented, nya_unreachable all panic
   nya_expect_crash(nya_todo());

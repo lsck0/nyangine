@@ -84,8 +84,7 @@ s32 main(void) {
         nya_assert(!note_so_from_dto(&empty, 1, 1, nullptr).ok, "a null destination is refused");
     }
 
-    // TEST: the DTO's reflection drives the wire and has no owner; the Model's reflection, which drives
-    // the ORM, keeps it. A field reaches the wire only when a DTO names it.
+    // TEST: the DTO's reflection drives the wire and has no owner; the Model's reflection, which drives the ORM, keeps it. A field reaches the wire only when a DTO names it.
     {
         NoteDtoV1 dto = { .id = 5, .written_at_s = 10 };
         (void)snprintf(dto.text, sizeof(dto.text), "%s", "seen");

@@ -181,11 +181,7 @@ NYA_INTERNAL Pinball* pinball(void) {
 
 /* TABLE SPACE */
 
-/*
- * The playfield lies in the xz plane with -z up the table, and the whole thing is then tilted about
- * x so the far end is higher. Everything bolted to the table is placed in that flat space and
- * rotated through the two functions below, which is why nothing here has to think about the slope.
- */
+/* The playfield lies in the xz plane with -z up the table, and the whole thing is then tilted about x so the far end is higher. Everything bolted to the table is placed in that flat space and rotated through the two functions below, which is why nothing here has to think about the slope. */
 
 /** The tilt, as a rotation about the x axis. */
 NYA_INTERNAL NYA_Quaternion table_rotation(void) {
@@ -247,8 +243,7 @@ NYA_INTERNAL void flipper_pose(const Flipper* flipper, OUT f32x3* out_position, 
     nya_assert(out_position != nullptr);
     nya_assert(out_rotation != nullptr);
 
-    // About the table's own up axis, before the tilt: the flipper sweeps across the playfield, not
-    // through it.
+    // About the table's own up axis, before the tilt: the flipper sweeps across the playfield, not through it.
     NYA_Quaternion swing = nya_quaternion_from_axis_angle((f32x3){ 0.0F, 1.0F, 0.0F }, flipper->angle * flipper->swing);
 
     // The body's origin is its centre, so it sits half a length out along the arm from the pivot.
@@ -280,8 +275,7 @@ NYA_INTERNAL void flipper_create(Flipper* flipper, f32 pivot_x, f32 swing) {
         .rotation = rotation,
     );
 
-    // Kinematic: it moves where it is told and pushes the ball without the ball pushing back, which
-    // is what a solenoid driven flipper is.
+    // Kinematic: it moves where it is told and pushes the ball without the ball pushing back, which is what a solenoid driven flipper is.
     b8 attached = nya_physics3d_body_attach(flipper->entity,
         .type        = NYA_PHYSICS_BODY_KINEMATIC,
         .shape       = NYA_PHYSICS3D_SHAPE_BOX,
@@ -299,8 +293,7 @@ NYA_INTERNAL void ball_serve(void) {
 
     f32x3 at = table_point((f32x3){ SERVE_X, BALL_RADIUS + 0.02F, SERVE_Z });
 
-    // Teleport, not a write to position: the solver owns a body's transform, and moving the entity
-    // behind its back leaves the two disagreeing until the next contact.
+    // Teleport, not a write to position: the solver owns a body's transform, and moving the entity behind its back leaves the two disagreeing until the next contact.
     nya_physics3d_teleport(ball, at, (NYA_Quaternion){ 0.0F, 0.0F, 0.0F, 1.0F });
     nya_physics3d_velocity_set(ball, (f32x3){ 0.0F, 0.0F, 0.0F });
     nya_physics3d_angular_velocity_set(ball, (f32x3){ 0.0F, 0.0F, 0.0F });
@@ -322,8 +315,7 @@ void pinball_layer_on_create(NYA_Window* window) {
     nya_input_action_bind(PINBALL_ACTION_RIGHT_FLIPPER, NYA_KEY_RIGHT);
     nya_input_action_bind(PINBALL_ACTION_SERVE, NYA_KEY_SPACE);
 
-    // Queued, not loaded: the asset system resolves it at the end of the frame. Predecoded because
-    // it is short and played often, and decoding at the moment of an impact is when a hitch shows.
+    // Queued, not loaded: the asset system resolves it at the end of the frame. Predecoded because it is short and played often, and decoding at the moment of an impact is when a hitch shows.
     NYA_Error sound = nya_asset_load((NYA_AssetLoadParameters){
         .type     = NYA_ASSET_TYPE_SOUND,
         .handle   = NYA_ASSET_SOUNDS_HIT_WAV,
@@ -390,8 +382,7 @@ void pinball_layer_on_create(NYA_Window* window) {
 void pinball_layer_on_destroy(NYA_Window* window) {
     nya_unused(window);
 
-    // The world owns the entities and their bodies, and tears both down with itself. The pair
-    // exists so callers already pair it the day this has something of its own to release.
+    // The world owns the entities and their bodies, and tears both down with itself. The pair exists so callers already pair it the day this has something of its own to release.
 }
 
 void pinball_layer_on_event(NYA_Window* window, NYA_Event* event) {
@@ -426,8 +417,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
         const f32 target = held[i] ? FLIPPER_RAISED_RADIANS : FLIPPER_REST_RADIANS;
         const f32 step   = FLIPPER_SPEED * delta_time_s;
 
-        // Toward the target at a fixed rate rather than snapping: the speed of the sweep is what
-        // throws the ball, and a snap would move through it without ever touching it.
+        // Toward the target at a fixed rate rather than snapping: the speed of the sweep is what throws the ball, and a snap would move through it without ever touching it.
         const f32 was  = flipper->angle;
         f32       next = was;
         if (next < target) next = nya_min(next + step, target);
@@ -457,16 +447,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
         flipper->settled = false;
 
-        /*
-         * Driven by its velocity rather than by nya_physics3d_teleport, which sets the transform
-         * without a sweep and so leaves the solver reading a body that never moved: the ball would
-         * be pushed out from inside the flipper rather than thrown by it. Given a velocity instead,
-         * the solver steps the flipper itself and the contact carries that velocity into the ball,
-         * which is the whole of what a flipper does.
-         *
-         * Layers tick after the solver and with the same fixed delta, so a velocity set here is
-         * exactly one step of integration away from the pose it was measured against.
-         */
+        /* Driven by its velocity rather than by nya_physics3d_teleport, which sets the transform without a sweep and so leaves the solver reading a body that never moved: the ball would be pushed out from inside the flipper rather than thrown by it. Given a velocity instead, the solver steps the flipper itself and the contact carries that velocity into the ball, which is the whole of what a flipper does. Layers tick after the solver and with the same fixed delta, so a velocity set here is exactly one step of integration away from the pose it was measured against. */
         nya_physics3d_velocity_set(entity, (to_position - from_position) / delta_time_s);
 
         // The swing is about the table's own up axis, which the tilt has carried off vertical.
@@ -497,8 +478,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
             (void)nya_audio_play_sound_varied(NYA_ASSET_SOUNDS_HIT_WAV, gain);
         }
 
-        // A bumper answers a contact with a push along the normal, which is what makes it a bumper
-        // rather than a bollard. Restitution alone cannot add energy.
+        // A bumper answers a contact with a push along the normal, which is what makes it a bumper rather than a bollard. Restitution alone cannot add energy.
         if (other->type == PINBALL_ENTITY_BUMPER) {
             f32x3 away = nya_vector_normalize((f32x3){
                 ball->position.x - other->position.x,
@@ -556,8 +536,7 @@ void pinball_layer_on_render(NYA_Window* window) {
         .intensity = 1.0F,
     });
 
-    // nya_entity_render_position and _rotation, not the entity's own: a frame can land between two
-    // ticks, and these are where the body is at this frame's time.
+    // nya_entity_render_position and _rotation, not the entity's own: a frame can land between two ticks, and these are where the body is at this frame's time.
     nya_entity_foreach (entity) {
         if (entity->type == PINBALL_ENTITY_NONE) continue;
 

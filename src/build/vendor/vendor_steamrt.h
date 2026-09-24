@@ -79,11 +79,7 @@ NYA_VendorRule vendor_steamrt_sysroot = {
                 .arguments         = { "-c", "echo '" STEAMRT_SYSROOT_SHA256 "  " STEAMRT_SYSROOT_ARCHIVE "' | sha256sum --check --quiet", },
             },
         },
-        /*
-         * Only what a build reads: headers, the 64 bit libraries and pkg-config files, gcc 10's startup files, and the
-         * wayland-scanner matching sniper's libwayland. 1.2 GB unpacked instead of 3.7. Not SDL, which the SDK carries
-         * too: cmake searches the sysroot before a prefix path, so the SDL libraries would build against it.
-         */
+        /* Only what a build reads: headers, the 64 bit libraries and pkg-config files, gcc 10's startup files, and the wayland-scanner matching sniper's libwayland. 1.2 GB unpacked instead of 3.7. Not SDL, which the SDK carries too: cmake searches the sysroot before a prefix path, so the SDL libraries would build against it. */
         &(NYA_BuildRule){
             .name        = "vendor_steamrt_sysroot_unpack",
             .policy      = NYA_BUILD_ONCE,
@@ -166,10 +162,7 @@ NYA_INTERNAL _NYA_SteamrtVendor _NYA_STEAMRT_VENDORS[] = {
     { .linux = &vendor_libbacktrace_linux_x86_64, .steamrt = &vendor_libbacktrace_steamrt_x86_64 },
     { .linux = &vendor_box2d_linux_x86_64, .steamrt = &vendor_box2d_steamrt_x86_64 },
     { .linux = &vendor_box3d_linux_x86_64, .steamrt = &vendor_box3d_steamrt_x86_64 },
-    /*
-     * GnuTLS from the runtime instead of OpenSSL: sniper has no OpenSSL 3, and a static 1.1 would freeze its security
-     * fixes into the game, while the runtime's GnuTLS is Valve's to patch. The CA paths are Debian's, which sniper is.
-     */
+    /* GnuTLS from the runtime instead of OpenSSL: sniper has no OpenSSL 3, and a static 1.1 would freeze its security fixes into the game, while the runtime's GnuTLS is Valve's to patch. The CA paths are Debian's, which sniper is. */
     {
         .linux        = &vendor_curl_linux_x86_64,
         .steamrt      = &vendor_curl_steamrt_x86_64,
@@ -242,16 +235,14 @@ NYA_INTERNAL NYA_BuildRule* _nya_steamrt_derive_part(const NYA_BuildRule* linux,
         while (environment < NYA_COMMAND_MAX_ENV_VARS && part->command.environment[environment] != nullptr) environment++;
         nya_assert(environment + 2 < NYA_COMMAND_MAX_ENV_VARS);
 
-        // pkg-config ignores CMAKE_SYSROOT, and the host's .pc files describe newer libraries than sniper has. Set on
-        // the build too, which reconfigures when a CMakeLists.txt changed.
+        // pkg-config ignores CMAKE_SYSROOT, and the host's .pc files describe newer libraries than sniper has. Set on the build too, which reconfigures when a CMakeLists.txt changed.
         part->command.environment[environment++] = (NYA_CString)_nya_steamrt_format("PKG_CONFIG_SYSROOT_DIR=%SYSROOT%", sysroot);
         part->command.environment[environment++] =
             (NYA_CString)_nya_steamrt_format("PKG_CONFIG_LIBDIR=%SYSROOT%/usr/lib/x86_64-linux-gnu/pkgconfig:%SYSROOT%/usr/share/pkgconfig", sysroot);
     }
 
     if (configures_cmake) {
-        // clang and ninja from the host, not the SDK's clang 11. lld, because GNU ld resolves a shared library's own
-        // dependencies against the host and fails every configure check that links X11.
+        // clang and ninja from the host, not the SDK's clang 11. lld, because GNU ld resolves a shared library's own dependencies against the host and fails every configure check that links X11.
         NYA_ConstCString toolchain[] = {
             "-DCMAKE_C_COMPILER=" CC,
             "-DCMAKE_CXX_COMPILER=" CC "++",

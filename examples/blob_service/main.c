@@ -94,11 +94,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * As web_server explains: this server opens no window and runs no frame loop, so the only SDL it touches
- * is the one call that brings the library's base state up for the systems below to hang off. The guard
- * buys the seam for the day the engine grows a headless build; it does not yet buy a headless binary.
- */
+/* As web_server explains: this server opens no window and runs no frame loop, so the only SDL it touches is the one call that brings the library's base state up for the systems below to hang off. The guard buys the seam for the day the engine grows a headless build; it does not yet buy a headless binary. */
 #ifndef NYA_NO_SDL
 #include "SDL3/SDL_init.h"
 #endif
@@ -173,9 +169,7 @@ NYA_INTERNAL void stop(int signal_number) {
 NYA_INTERNAL NYA_JobOutcome index_job(const NYA_QueuedJob* job, void* context) {
     NYA_ConstCString db_path = (NYA_ConstCString)context;
 
-    // The payload is the id's bytes, not necessarily terminated, so copy it into a bounded buffer before
-    // it meets a parser that wants a C string. A payload the wrong length is a bug in whoever enqueued
-    // it, never something a retry mends, so it dead-letters.
+    // The payload is the id's bytes, not necessarily terminated, so copy it into a bounded buffer before it meets a parser that wants a C string. A payload the wrong length is a bug in whoever enqueued it, never something a retry mends, so it dead-letters.
     if (job->payload_size != NYA_BLOB_ID_LENGTH) {
         nya_log_warn("index: a job carried a %llu byte payload, not a blob id; dead-lettering it.", (unsigned long long)job->payload_size);
         return NYA_JOB_OUTCOME_FAIL;
@@ -190,9 +184,7 @@ NYA_INTERNAL NYA_JobOutcome index_job(const NYA_QueuedJob* job, void* context) {
         return NYA_JOB_OUTCOME_FAIL;
     }
 
-    // A connection, a store over it, and an arena to hold both and the bytes read — all scratch for this
-    // one run. The defers unwind in reverse, so the store closes, then the connection, then the arena
-    // goes, whichever way this returns.
+    // A connection, a store over it, and an arena to hold both and the bytes read — all scratch for this one run. The defers unwind in reverse, so the store closes, then the connection, then the arena goes, whichever way this returns.
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "index_job");
     defer     nya_arena_destroy_on_stack(&scratch);
 
@@ -203,9 +195,7 @@ NYA_INTERNAL NYA_JobOutcome index_job(const NYA_QueuedJob* job, void* context) {
     }
     defer nya_sql_close(connection);
 
-    // Wait on a lock rather than failing the instant the upload handler holds one. Under WAL a read does
-    // not block a writer, but the open above may still meet one; a couple of seconds is far past any
-    // write this program does.
+    // Wait on a lock rather than failing the instant the upload handler holds one. Under WAL a read does not block a writer, but the open above may still meet one; a couple of seconds is far past any write this program does.
     NYA_SqlResult ignored = { 0 };
     (void)nya_sql_query(connection, &scratch, "PRAGMA busy_timeout = 2000", nullptr, 0, &ignored);
 
@@ -221,16 +211,13 @@ NYA_INTERNAL NYA_JobOutcome index_job(const NYA_QueuedJob* job, void* context) {
 
     NYA_Error read = nya_blob_get(store, id, &scratch, &bytes, &size);
 
-    // NOT_FOUND or CORRUPT is not worth retrying: the object will not reappear and a flipped bit will not
-    // unflip. Either dead-letters, which is exactly the state a corrupt object should be parked in.
+    // NOT_FOUND or CORRUPT is not worth retrying: the object will not reappear and a flipped bit will not unflip. Either dead-letters, which is exactly the state a corrupt object should be parked in.
     if (!read.ok) {
         nya_log_warn("index: %s could not be read (%s); dead-lettering the job.", hex, (NYA_ConstCString)read.message);
         return NYA_JOB_OUTCOME_FAIL;
     }
 
-    // The stand-in for real work. A thumbnail service would decode `bytes` here and store a smaller
-    // object; a search service would tokenize it. All this one needs to show is that the worker reached
-    // the verified bytes on its own thread — so it names a "thumbnail" sized off the object and stops.
+    // The stand-in for real work. A thumbnail service would decode `bytes` here and store a smaller object; a search service would tokenize it. All this one needs to show is that the worker reached the verified bytes on its own thread — so it names a "thumbnail" sized off the object and stops.
     u64 thumb = size < 64 ? size : 64;
 
     nya_log_info("index: %s is %llu bytes, attempt %u — indexed (thumbnail stub %llu bytes).", hex, (unsigned long long)size, job->attempts,
@@ -253,9 +240,7 @@ NYA_INTERNAL NYA_JobOutcome index_job(const NYA_QueuedJob* job, void* context) {
 NYA_INTERNAL NYA_Error ingest(const u8* bytes, u64 size, OUT NYA_BlobId* out_id) {
     NYA_TRY(nya_blob_put(BLOBS, bytes, size, out_id));
 
-    // The job carries the content-address and nothing else; the worker reads the bytes back from it.
-    // unique_key is that same address, so blob dedup and job dedup are the one decision: while an index
-    // for these bytes is outstanding, a second upload of them does not enqueue a second one.
+    // The job carries the content-address and nothing else; the worker reads the bytes back from it. unique_key is that same address, so blob dedup and job dedup are the one decision: while an index for these bytes is outstanding, a second upload of them does not enqueue a second one.
     s64 job_id = 0;
     NYA_TRY(nya_job_enqueue(JOBS, INDEX_JOB_KIND, (const u8*)out_id->hex, NYA_BLOB_ID_LENGTH, &job_id, .unique_key = out_id->hex));
 
@@ -273,21 +258,15 @@ NYA_INTERNAL NYA_Error ingest(const u8* bytes, u64 size, OUT NYA_BlobId* out_id)
  * `/jobs` route shows them running.
  * */
 NYA_INTERNAL NYA_HttpStatus upload_post(NYA_HttpExchange* exchange) {
-    // GUARD: a real deployment resolves the session cookie to a user here and refuses an anonymous
-    // upload, then records a `blob id -> owner` row below so `/blob` can check ownership. This example
-    // has no accounts, so it stores for anyone; see the access note in this file's block.
+    // GUARD: a real deployment resolves the session cookie to a user here and refuses an anonymous upload, then records a `blob id -> owner` row below so `/blob` can check ownership. This example has no accounts, so it stores for anyone; see the access note in this file's block.
 
     const u8* body = exchange->request->body;
     u64       size = exchange->request->body_size;
 
-    // An empty upload is the caller's mistake, not a server fault. The store would accept a zero-length
-    // object happily — it has a valid id — but a file service answering "here is the hash of nothing" to
-    // a body-less POST is almost always a client that forgot its payload.
+    // An empty upload is the caller's mistake, not a server fault. The store would accept a zero-length object happily — it has a valid id — but a file service answering "here is the hash of nothing" to a body-less POST is almost always a client that forgot its payload.
     if (size == 0) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    // The body is bounded by NYA_HTTP_MAX_BODY_BYTES, so this stores small objects only. That is the HTTP
-    // request limit, not the store's: db_blob.h holds objects up to 128 MiB, and a service for files that
-    // big would take them in chunks rather than one body. This one takes what fits in a request.
+    // The body is bounded by NYA_HTTP_MAX_BODY_BYTES, so this stores small objects only. That is the HTTP request limit, not the store's: db_blob.h holds objects up to 128 MiB, and a service for files that big would take them in chunks rather than one body. This one takes what fits in a request.
     NYA_BlobId id = { 0 };
 
     NYA_Error stored = ingest(body, size, &id);
@@ -312,14 +291,12 @@ NYA_INTERNAL NYA_HttpStatus upload_post(NYA_HttpExchange* exchange) {
  * and refuses them if they no longer match the id, so a flipped bit on disk is a 500, never a served lie.
  * */
 NYA_INTERNAL NYA_HttpStatus blob_get(NYA_HttpExchange* exchange) {
-    // GUARD: a real deployment resolves the session here and checks that its user owns this id, answering
-    // 404 (not 403) when it does not — whether someone else's object exists is not this caller's business.
+    // GUARD: a real deployment resolves the session here and checks that its user owns this id, answering 404 (not 403) when it does not — whether someone else's object exists is not this caller's business.
 
     char hex[NYA_BLOB_ID_LENGTH + 1] = { 0 };
     b8   present                     = false;
 
-    // Asked of the target directly, so a repeated `id` or an over-long value is a 400 rather than being
-    // read as "no id". A missing id is a 400 too: there is no object to name.
+    // Asked of the target directly, so a repeated `id` or an over-long value is a 400 rather than being read as "no id". A missing id is a 400 too: there is no object to name.
     if (!nya_url_query_find(&exchange->request->target, "id", hex, sizeof(hex), &present).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
     if (!present) return NYA_HTTP_STATUS_BAD_REQUEST;
 
@@ -331,15 +308,11 @@ NYA_INTERNAL NYA_HttpStatus blob_get(NYA_HttpExchange* exchange) {
 
     NYA_Error read = nya_blob_get(BLOBS, id, exchange->arena, &bytes, &size);
 
-    // Absence is in the return, not the data: an id that names no object is a plain 404. A corrupt object
-    // — the stored bytes no longer hashing to their id — is a 500, because the server is at fault, not
-    // the request.
+    // Absence is in the return, not the data: an id that names no object is a plain 404. A corrupt object — the stored bytes no longer hashing to their id — is a 500, because the server is at fault, not the request.
     if (read.kind == NYA_ERROR_NOT_FOUND) return NYA_HTTP_STATUS_NOT_FOUND;
     if (!read.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    // The store keeps no content type — an id names bytes, not a file format — so the bytes go out as
-    // octet-stream, which with the server's global nosniff is the honest way to serve what we cannot
-    // name. NYA_HTTP_MEDIA_OTHER writes no Content-Type of its own, so this sets the one it wants.
+    // The store keeps no content type — an id names bytes, not a file format — so the bytes go out as octet-stream, which with the server's global nosniff is the honest way to serve what we cannot name. NYA_HTTP_MEDIA_OTHER writes no Content-Type of its own, so this sets the one it wants.
     if (!nya_http_response_bytes(exchange->response, bytes, size, NYA_HTTP_MEDIA_OTHER).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
     if (!nya_http_response_header(exchange->response, "Content-Type", "application/octet-stream").ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -386,8 +359,7 @@ NYA_INTERNAL const NYA_HttpRoute SERVICE_ROUTES[] = {
      .summary     = "Stores the request body and enqueues an index job",
      .description = "Answers with the content-address of the bytes and their size. Identical bytes return the same id and write no "
                         "second row. Every upload enqueues a background \"" INDEX_JOB_KIND "\" job; see /jobs.",
-     // FORBIDDEN is the cross-site check's: a POST is a write, so dispatch can refuse it 403, and a
-     // route's declared statuses cover its whole chain, not only what the handler itself returns.
+     // FORBIDDEN is the cross-site check's: a POST is a write, so dispatch can refuse it 403, and a route's declared statuses cover its whole chain, not only what the handler itself returns.
      .statuses    = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
@@ -492,9 +464,7 @@ NYA_INTERNAL void self_test_client(void* data) {
     nya_log_info("self-test: uploaded it again          -> %s  (%s)", id_b, strcmp(id_a, id_b) == 0 ? "same id: deduplicated" : "DIFFERENT ID");
     nya_log_info("self-test: uploaded a second document -> %s", id_c);
 
-    // Download the first object back. GET, since a download has no other verb; the id rides in the query
-    // the same way the server reads it. The server rehashes the bytes against the id before it answers,
-    // so a 200 with a body is a verified object, not merely a found one.
+    // Download the first object back. GET, since a download has no other verb; the id rides in the query the same way the server reads it. The server rehashes the bytes against the id before it answers, so a 200 with a body is a verified object, not merely a found one.
     char url[128] = { 0 };
     (void)snprintf(url, sizeof(url), "http://127.0.0.1:%u" BLOB_PATH "?id=%s", test->port, id_a);
 
@@ -524,9 +494,7 @@ s32 main(s32 argc, char** argv) {
         }
     }
 
-    // The frame budget for a headless run: NYA_BLOB_SERVICE_FRAMES=N runs the self-test and quits after
-    // at most N loop iterations, so CI can exercise the pipeline without a person. Zero (unset) serves
-    // until interrupted, the way an operator runs it.
+    // The frame budget for a headless run: NYA_BLOB_SERVICE_FRAMES=N runs the self-test and quits after at most N loop iterations, so CI can exercise the pipeline without a person. Zero (unset) serves until interrupted, the way an operator runs it.
     u32              max_frames = 0;
     NYA_ConstCString frames_env = getenv("NYA_BLOB_SERVICE_FRAMES");
     if (frames_env != nullptr) max_frames = (u32)strtoul(frames_env, nullptr, 10);
@@ -534,11 +502,7 @@ s32 main(s32 argc, char** argv) {
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
     (void)signal(SIGINT, stop);
 
-    /*
-     * No window, no renderer, no frame loop. What comes up is the callback and event registries the save
-     * and http systems hook into, the save root the database lives under, and then the database. See the
-     * web_server and accounts_api examples, whose startup this mirrors.
-     */
+    /* No window, no renderer, no frame loop. What comes up is the callback and event registries the save and http systems hook into, the save root the database lives under, and then the database. See the web_server and accounts_api examples, whose startup this mirrors. */
 #ifndef NYA_NO_SDL
     if (!SDL_Init(0)) {
         nya_log_error("SDL could not start: %s", SDL_GetError());
@@ -557,8 +521,7 @@ s32 main(s32 argc, char** argv) {
 
     NYA_Error saves = nya_system_save_init();
     if (!saves.ok) {
-        // Fatal here, as in web_server: a service whose whole job is to keep what it is sent cannot run
-        // with nowhere to keep it.
+        // Fatal here, as in web_server: a service whose whole job is to keep what it is sent cannot run with nowhere to keep it.
         nya_log_error("No save root, so there is nowhere to keep the objects: %s", (NYA_ConstCString)saves.message);
         return EXIT_FAILURE;
     }
@@ -574,13 +537,7 @@ s32 main(s32 argc, char** argv) {
     }
     defer nya_sql_close(DB);
 
-    /*
-     * WAL and a busy timeout on the main connection, so the workers and this thread share the file
-     * without tripping over each other: under WAL a reader (the index handler reading a blob) never
-     * blocks the writer (an upload), and the timeout makes the one writer-writer case — an upload while a
-     * worker claims a job — a short wait rather than an error. The file note says why every connection
-     * here is its own thread's; this is what makes the sharing between them safe.
-     */
+    /* WAL and a busy timeout on the main connection, so the workers and this thread share the file without tripping over each other: under WAL a reader (the index handler reading a blob) never blocks the writer (an upload), and the timeout makes the one writer-writer case — an upload while a worker claims a job — a short wait rather than an error. The file note says why every connection here is its own thread's; this is what makes the sharing between them safe. */
     NYA_Arena boot = nya_arena_create_on_stack(.name = "blob_service_pragma");
     defer     nya_arena_destroy_on_stack(&boot);
 
@@ -595,8 +552,7 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_jobs_open(DB_ARENA, DB, &JOBS, .busy_timeout_ms = BUSY_TIMEOUT_MS), "while opening the job queue");
     defer nya_jobs_close(JOBS);
 
-    // The absolute path the index handler opens its own connection to. Resolved once, here, where the
-    // save root is known; the handler is handed it as its context.
+    // The absolute path the index handler opens its own connection to. Resolved once, here, where the save root is known; the handler is handed it as its context.
     NYA_String* db_path = nya_save_path(DB_ARENA, DB_FILE);
     if (db_path == nullptr) {
         nya_log_error("Could not resolve the path of %s under the save root.", DB_FILE);
@@ -608,16 +564,13 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_jobworker_register(INDEX_JOB_KIND, index_job, (void*)DB_PATH), "while registering the index handler");
     defer nya_jobworker_unregister_all();
 
-    // Bring up the worker pool. A short poll interval so a newly-enqueued job is picked up promptly in the
-    // demo; the busy timeout is passed through to each worker's own connection. No key: the file is not
-    // encrypted (SQLCipher is not vendored — see db.h), so nothing goes in it that would matter if read.
+    // Bring up the worker pool. A short poll interval so a newly-enqueued job is picked up promptly in the demo; the busy timeout is passed through to each worker's own connection. No key: the file is not encrypted (SQLCipher is not vendored — see db.h), so nothing goes in it that would matter if read.
     NYA_JobWorkerPool* pool = nullptr;
     NYA_EXPECT(nya_jobworker_start(JOBS, WORKER_COUNT, &pool, .poll_interval_ms = 10, .busy_timeout_ms = BUSY_TIMEOUT_MS),
                "while starting the worker pool");
     defer nya_jobworker_stop(pool);
 
-    // The loudest log level, on purpose: this example is to be run and read, and a summary line would
-    // show none of what an upload does.
+    // The loudest log level, on purpose: this example is to be run and read, and a summary line would show none of what an upload does.
     nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_HEADERS, .address = NYA_HTTP_LOG_ADDRESS_NETWORK });
 
     NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){ .port = port, .workers = WORKER_COUNT }), "while starting the server");
@@ -634,12 +587,7 @@ s32 main(s32 argc, char** argv) {
                  nya_http_server_port());
     nya_log_info("%u workers running the \"" INDEX_JOB_KIND "\" queue, on their own connections to %s.", WORKER_COUNT, DB_PATH);
 
-    /*
-     * The self-test, when a frame budget asked for one. The client runs on its own thread — it talks to
-     * the server over the socket, and the server answers /upload and /blob on this loop, so the loop must
-     * keep ticking while the client waits. The loop stops once every object's index job has reached the
-     * done state, or the budget runs out, whichever is first.
-     */
+    /* The self-test, when a frame budget asked for one. The client runs on its own thread — it talks to the server over the socket, and the server answers /upload and /blob on this loop, so the loop must keep ticking while the client waits. The loop stops once every object's index job has reached the done state, or the budget runs out, whichever is first. */
     SelfTest    test          = { .port = nya_http_server_port() };
     NYA_Thread* client        = nullptr;
 
@@ -650,18 +598,14 @@ s32 main(s32 argc, char** argv) {
     u32 frame = 0;
 
     while (RUNNING) {
-        // Answers the exchanges whose routes asked for this thread, and drains the sockets. Returns
-        // rather than blocking, so the poll below runs every tick.
+        // Answers the exchanges whose routes asked for this thread, and drains the sockets. Returns rather than blocking, so the poll below runs every tick.
         nya_system_http_tick();
 
         if (max_frames > 0) {
             NYA_JobStats stats = { 0 };
             (void)nya_jobs_stats(JOBS, &stats);
 
-            // Done when the client has finished its uploads and downloads and the queue has drained: the
-            // objects' index jobs have all completed and none is left pending or in flight. A job that
-            // dead-lettered would show here too, and the count below would never be reached, so the
-            // budget is the backstop that still exits.
+            // Done when the client has finished its uploads and downloads and the queue has drained: the objects' index jobs have all completed and none is left pending or in flight. A job that dead-lettered would show here too, and the count below would never be reached, so the budget is the backstop that still exits.
             b8 client_done = client != nullptr && nya_thread_is_finished(client);
             b8 queue_idle  = stats.pending == 0 && stats.claimed == 0;
 
@@ -678,13 +622,11 @@ s32 main(s32 argc, char** argv) {
             }
         }
 
-        // A real sleep, so the loop does not spin a core; the os layer's own, since this loop is timing
-        // and nothing else.
+        // A real sleep, so the loop does not spin a core; the os layer's own, since this loop is timing and nothing else.
         nya_os_time_sleep_ms(TICK_SLEEP_MS);
     }
 
-    // Join the client before the defers tear the server down under it. It has long since finished in the
-    // done path; in the budget-ran-out path this waits for whatever it is still doing.
+    // Join the client before the defers tear the server down under it. It has long since finished in the done path; in the budget-ran-out path this waits for whatever it is still doing.
     if (client != nullptr) nya_thread_join(client);
 
     nya_log_info("Stopping after %llu requests.", (unsigned long long)nya_http_server_request_count());

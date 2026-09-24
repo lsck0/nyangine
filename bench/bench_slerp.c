@@ -120,8 +120,7 @@ s32 main(void) {
         nya_bench_keep(out[0].x);
     });
 
-    // Adjacent baked frames are a few degrees apart, which is the case the widened threshold targets
-    // and the one a pose sample actually hits.
+    // Adjacent baked frames are a few degrees apart, which is the case the widened threshold targets and the one a pose sample actually hits.
     static NYA_Quaternion near_a[COUNT];
     static NYA_Quaternion near_b[COUNT];
     for (u32 i = 0; i < COUNT; i++) {

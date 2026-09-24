@@ -260,10 +260,7 @@ s32 main(void) {
 
   // TEST: with no backend at all, every call answers rather than crashing
   {
-    /*
-     * The case every build without NYA_PLUGIN_STEAM is in, and the one a game on a machine with no
-     * Steam is in. A refusal is the right answer; a crash is not, and neither is a silent success.
-     */
+    /* The case every build without NYA_PLUGIN_STEAM is in, and the one a game on a machine with no Steam is in. A refusal is the right answer; a crash is not, and neither is a silent success. */
     nya_steam_backend_set(nullptr);
 
     nya_check(!nya_steam_achievement_get("nothing"), "an achievement with no client reads false");
@@ -373,11 +370,7 @@ s32 main(void) {
 
   // TEST: a lobby search reaches the client and its answer is read from the decoder
   {
-    /*
-     * The list is filled by the callback Steam sends when the search finishes, so the test sends it the
-     * way the client would, through nya_steam_on_callback. A zero id in the middle is a row Steam could
-     * not resolve and has to be skipped rather than shown as a lobby nobody can join.
-     */
+    /* The list is filled by the callback Steam sends when the search finishes, so the test sends it the way the client would, through nya_steam_on_callback. A zero id in the middle is a row Steam could not resolve and has to be skipped rather than shown as a lobby nobody can join. */
     NYA_EXPECT(nya_steam_lobby_list_request("mode", "coop", 3));
     nya_check(strcmp((const char*)fake.search_key, "mode") == 0 && strcmp((const char*)fake.search_value, "coop") == 0, "the filter reaches the client");
     nya_check(fake.search_limit == 3, "with its limit, got " FMTu32, fake.search_limit);

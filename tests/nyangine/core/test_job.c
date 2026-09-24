@@ -44,8 +44,7 @@ static int job_occupy(NYA_Job* job) {
 
   u32 now = atomic_fetch_add(&running_now, 1) + 1;
 
-  // Monotonic max. Compare exchange rather than a plain store, so two threads racing here cannot
-  // lose the higher of the two values.
+  // Monotonic max. Compare exchange rather than a plain store, so two threads racing here cannot lose the higher of the two values.
   u32 peak = atomic_load(&running_peak);
   while (now > peak) {
     if (atomic_compare_exchange_weak(&running_peak, &peak, now)) break;
@@ -68,8 +67,7 @@ s32 main(void) {
   b8 sdl_ok = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // The event system too: a finished job dispatches through it, and without it the scheduler
-  // pushes onto a null queue and faults inside core_event rather than anywhere near core_job.
+  // The event system too: a finished job dispatches through it, and without it the scheduler pushes onto a null queue and faults inside core_event rather than anywhere near core_job.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   NYA_EXPECT(nya_system_job_init());
@@ -88,8 +86,7 @@ s32 main(void) {
       .function = nya_callback(job_noop),
     });
 
-    // Waiting rather than sleeping: the point of the API is that a caller can block until the work
-    // is finished, and a sleep would make this test both slower and flakier.
+    // Waiting rather than sleeping: the point of the API is that a caller can block until the work is finished, and a sleep would make this test both slower and flakier.
     nya_job_wait(handle);
 
     nya_assert(atomic_load(&completed) == 1, "the job ran, got " FMTu32, atomic_load(&completed));
@@ -132,8 +129,7 @@ s32 main(void) {
       handles[i] = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_NORMAL, .function = nya_callback(job_noop) });
     }
 
-    // Waited on individually rather than sleeping for "long enough". More jobs than the concurrency
-    // limit, so this also exercises the queue draining as slots free up.
+    // Waited on individually rather than sleeping for "long enough". More jobs than the concurrency limit, so this also exercises the queue draining as slots free up.
     for (u32 i = 0; i < COUNT; i++) nya_job_wait(handles[i]);
 
     nya_assert(atomic_load(&completed) == COUNT, "expected " FMTu32 " jobs, got " FMTu32, (u32)COUNT, atomic_load(&completed));
@@ -176,9 +172,7 @@ s32 main(void) {
 
     nya_assert(atomic_load(&completed) == COUNT, "every job ran, got " FMTu32, atomic_load(&completed));
 
-    // A one sided assertion on purpose. Exceeding the limit is a real bug; not reaching it just
-    // means the machine scheduled them sequentially, which is allowed and happens on a single core
-    // CI box.
+    // A one sided assertion on purpose. Exceeding the limit is a real bug; not reaching it just means the machine scheduled them sequentially, which is allowed and happens on a single core CI box.
     u32 peak = atomic_load(&running_peak);
     nya_assert(peak <= limit, "%u jobs ran at once with a limit of %u", peak, limit);
     nya_assert(peak >= 1, "nothing ever ran");
@@ -194,8 +188,7 @@ s32 main(void) {
     nya_job_wait(handle);
     nya_assert(nya_job_is_done(handle));
 
-    // Waiting twice must not block forever waiting for something that already happened, which is
-    // the failure mode of a wait implemented as "block until signalled" with no completed state.
+    // Waiting twice must not block forever waiting for something that already happened, which is the failure mode of a wait implemented as "block until signalled" with no completed state.
     nya_job_wait(handle);
     nya_assert(nya_job_is_done(handle), "still done after a second wait");
 
@@ -204,10 +197,7 @@ s32 main(void) {
 
   // TEST: identical submissions get distinct handles
   {
-    /*
-     * Two submissions of the same function with the same arguments must get distinct handles. That is the
-     * ordinary case, and waiting on one handle must not return when a different identical job finishes.
-     */
+    /* Two submissions of the same function with the same arguments must get distinct handles. That is the ordinary case, and waiting on one handle must not return when a different identical job finishes. */
     enum { COUNT = 4 };
 
     atomic_store(&completed, 0);
@@ -248,8 +238,7 @@ s32 main(void) {
 
     atomic_store(&completed, 0);
 
-    // Per job storage, allocated here rather than inside the jobs: several run at once and the
-    // arena they would otherwise allocate from is not thread safe. See job_double.
+    // Per job storage, allocated here rather than inside the jobs: several run at once and the arena they would otherwise allocate from is not thread safe. See job_double.
     s32           inputs[COUNT];
     s32           results[COUNT]   = { 0 };
     void*         outputs[COUNT]   = { nullptr };
@@ -270,8 +259,7 @@ s32 main(void) {
       });
     }
 
-    // Read immediately after each wait, before the others are waited on, so a result that is only
-    // visible some time later fails here rather than being hidden by the waits that follow.
+    // Read immediately after each wait, before the others are waited on, so a result that is only visible some time later fails here rather than being hidden by the waits that follow.
     for (u32 i = 0; i < COUNT; i++) {
       nya_job_wait(handles[i]);
 
@@ -284,8 +272,7 @@ s32 main(void) {
 
   // TEST: an unknown handle is done rather than a hang
   {
-    // A handle from a previous run, or a zeroed struct field. Neither corresponds to queued work,
-    // so the honest answer is "there is nothing to wait for" rather than blocking forever.
+    // A handle from a previous run, or a zeroed struct field. Neither corresponds to queued work, so the honest answer is "there is nothing to wait for" rather than blocking forever.
     NYA_JobHandle never_submitted = 0;
     nya_assert(nya_job_is_done(never_submitted), "a handle that names no job is not pending");
     nya_job_wait(never_submitted);

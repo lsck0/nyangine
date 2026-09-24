@@ -255,8 +255,7 @@ s32 main(void) {
         nya_assert(destroyed_count == 2);
     }
 
-    // TEST: removals keep every other key findable. Linear probing without tombstones has to close the gap
-    // a removal leaves, so this churns a cache against a plain array of what should be there.
+    // TEST: removals keep every other key findable. Linear probing without tombstones has to close the gap a removal leaves, so this churns a cache against a plain array of what should be there.
     {
         enum { CAPACITY = 64, KEYS = 256, ROUNDS = 20000 };
 

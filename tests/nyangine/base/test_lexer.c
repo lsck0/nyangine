@@ -240,8 +240,7 @@ s32 main(void) {
     nya_assert(comment_lexer.tokens->items[0].type == NYA_TOKEN_IDENT);
     nya_assert(comment_lexer.tokens->items[1].type == NYA_TOKEN_COMMENT);
 
-    // The body only: the two slashes are the delimiter and are no more part of the comment than the
-    // quotes are part of a string literal.
+    // The body only: the two slashes are the delimiter and are no more part of the comment than the quotes are part of a string literal.
     nya_assert(token_text_is(&comment_lexer, 1, " note"), "line comment body");
     nya_assert(!comment_lexer.tokens->items[1].is_block_comment);
 
@@ -279,8 +278,7 @@ s32 main(void) {
     nya_lexer_destroy(&block_lexer);
   }
 
-  // A block comment is the only token that can span lines, so it is the only one that can put the
-  // line counter wrong for everything after it.
+  // A block comment is the only token that can span lines, so it is the only one that can put the line counter wrong for everything after it.
   {
     NYA_Lexer multiline_lexer = nya_lexer_create("a /* one\ntwo */ b");
     nya_lexer_run(&multiline_lexer);
@@ -293,8 +291,7 @@ s32 main(void) {
     nya_lexer_destroy(&multiline_lexer);
   }
 
-  // Unterminated, which a hand written header will eventually contain. The token is still emitted
-  // rather than everything before it being thrown away.
+  // Unterminated, which a hand written header will eventually contain. The token is still emitted rather than everything before it being thrown away.
   {
     NYA_Lexer unterminated_lexer = nya_lexer_create("a /* forever");
     nya_lexer_run(&unterminated_lexer);
@@ -307,9 +304,7 @@ s32 main(void) {
     nya_lexer_destroy(&unterminated_lexer);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: a slash that opens nothing is still a symbol
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────── TEST: a slash that opens nothing is still a symbol ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Lexer divide_lexer = nya_lexer_create("a / b");
     nya_lexer_run(&divide_lexer);

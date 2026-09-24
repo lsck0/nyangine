@@ -215,8 +215,7 @@ s32 main(void) {
     NYA_BlobId id      = { 0 };
     NYA_EXPECT(nya_blob_put(store, bytes, sizeof(bytes), &id));
 
-    // Flip the stored bytes out from under the store with raw SQL, leaving the id — the row's key —
-    // exactly as it was. This is a bit rot or a row edited around the store.
+    // Flip the stored bytes out from under the store with raw SQL, leaving the id — the row's key — exactly as it was. This is a bit rot or a row edited around the store.
     const u8     tampered[] = { 'f', 'o', 'r', 'g', 'e', 'd' };
     NYA_SqlValue update[]   = { nya_sql_blob(tampered, sizeof(tampered)), nya_sql_text(id.hex) };
     NYA_EXPECT(nya_sql_exec_bound(db, "UPDATE blobs SET data = ? WHERE id = ?", update, 2));
