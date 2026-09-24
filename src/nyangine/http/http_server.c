@@ -377,6 +377,17 @@ NYA_INTERNAL u32 _nya_http_workers_join(_NYA_HttpState* state) __attr_no_discard
  * ─────────────────────────────────────────────────────────
  */
 
+/**
+ * The address a config binds: what it named, or loopback when it named nothing. The default is
+ * 127.0.0.1 and not every interface, so a server nobody asked to be reachable off the box — a metrics
+ * endpoint above all — is not. Opting out is naming a public address on purpose. One place, so the
+ * default cannot drift between where it is chosen and where it is tested.
+ * */
+NYA_INTERNAL NYA_ConstCString _nya_http_bind_address(const NYA_HttpConfig* config) {
+    nya_assert(config != nullptr);
+    return config->address[0] != '\0' ? config->address : "127.0.0.1";
+}
+
 NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     if (_NYA_HTTP != nullptr) return nya_error(NYA_ERROR_ALREADY_EXISTS, "the HTTP server is already running");
 
@@ -413,7 +424,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
      * not. Resolved here and not on a thread: this is a start-up call rather than a frame, and a name
      * that will not resolve is a server that will not start either way.
      */
-    NYA_ConstCString requested = config.address[0] != '\0' ? config.address : "127.0.0.1";
+    NYA_ConstCString requested = _nya_http_bind_address(&config);
 
     NYA_OsAddress address = { 0 };
 
