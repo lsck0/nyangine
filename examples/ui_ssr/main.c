@@ -313,6 +313,41 @@ NYA_INTERNAL void inject_field_text(AppState* app, NYA_Rectf box, NYA_ConstCStri
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * EMBEDDING METADATA — so a link to this page unfurls on social media and chat apps
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * The social-media embedding metadata for this page. The URL fields are built into the caller's buffers from
+ * the port the server actually bound, so the canonical link and the oEmbed discovery URL point at this very
+ * process. The literals describe the demo; a real app would fill these from its content.
+ *
+ * The same value backs both the `<head>` tags (nya_ui_html_document_meta) and the `/oembed` answer
+ * (nya_ui_page_meta_oembed), which is the point of a single composable metadata value.
+ * */
+NYA_INTERNAL NYA_PageMeta page_meta(OUT char* canonical, u64 canonical_cap, OUT char* oembed, u64 oembed_cap) {
+    u16 port = nya_http_server_port();
+
+    (void)snprintf(canonical, canonical_cap, "http://127.0.0.1:%u/", port);
+    (void)snprintf(oembed, oembed_cap, "http://127.0.0.1:%u/oembed?url=http%%3A%%2F%%2F127.0.0.1%%3A%u%%2F", port, port);
+
+    return (NYA_PageMeta){
+        .title         = "nyangine · live",
+        .description   = "One immediate-mode UI component, served to a browser and live — Phoenix LiveView in C, no front-end.",
+        .canonical_url = canonical,
+        .image_url     = "https://raw.githubusercontent.com/nyangine/nyangine/master/docs/preview.png",
+        .image_alt     = "The nyangine live UI demo",
+        .site_name     = "nyangine",
+        .author_name   = "nyangine",
+        .type          = "website",
+        .twitter_card  = NYA_TWITTER_CARD_SUMMARY_LARGE_IMAGE,
+        .locale        = "en_US",
+        .oembed_url    = oembed,
+    };
+}
+
 /** The first load: the whole page, so a browser has the surface, the stylesheet and the client. */
 NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
     AppState app = app_from_cookie(exchange);
@@ -340,8 +375,14 @@ NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
 
     if (!nya_http_response_header(exchange->response, "Content-Security-Policy", policy).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
+    // The embedding metadata, so a link to this page unfurls with a title, blurb and image on social media
+    // and in chat apps, and carries the oEmbed discovery link. Every field is escaped into the head.
+    char canonical[64] = { 0 };
+    char oembed[160]   = { 0 };
+    NYA_PageMeta meta  = page_meta(canonical, sizeof(canonical), oembed, sizeof(oembed));
+
     static char page[NYA_UI_HTML_MAX + 8192];
-    u32         written = nya_ui_html_document(&HTML, page, sizeof(page), "nyangine · live", nonce);
+    u32         written = nya_ui_html_document_meta(&HTML, page, sizeof(page), "nyangine · live", nonce, &meta);
 
     if (written == 0) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -421,6 +462,31 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     return sent.ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
+/**
+ * `GET /oembed?url=…`: the structured metadata a consumer that found the discovery `<link>` fetches, as an
+ * oEmbed 1.0 JSON document. The `url` parameter is required and must be an http(s) URL — the same gate the
+ * head's URLs pass — so a `javascript:` or garbage `url` is a 400 rather than something echoed back. The
+ * document itself is built by the engine from the page's NYA_PageMeta and rendered as JSON through serde.
+ * */
+NYA_INTERNAL NYA_HttpStatus handle_oembed(NYA_HttpExchange* exchange) {
+    // The URL the consumer wants metadata for. A real provider matches it against the pages it serves; here
+    // one page is served, so a well-formed http(s) `url` is accepted and anything else is refused.
+    char url[512] = { 0 };
+    if (!nya_http_request_query_param(exchange->request, "url", url, sizeof(url))) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!nya_ui_page_meta_url_ok(url)) return NYA_HTTP_STATUS_BAD_REQUEST;
+
+    char         canonical[64] = { 0 };
+    char         oembed[160]   = { 0 };
+    NYA_PageMeta meta          = page_meta(canonical, sizeof(canonical), oembed, sizeof(oembed));
+
+    NYA_Object* document = nullptr;
+    if (!nya_ui_page_meta_oembed(exchange->arena, &meta, &document).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
+    NYA_Error sent = nya_http_response_json(exchange->response, exchange->arena, document);
+
+    return sent.ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ROUTES AND MAIN
@@ -433,6 +499,9 @@ NYA_INTERNAL const NYA_HttpRoute ROUTES[] = {
     { .method = NYA_HTTP_METHOD_POST, .path = "/event", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_event,
       .summary = "One interaction, answered with the new HTML",
       .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR } },
+    { .method = NYA_HTTP_METHOD_GET, .path = "/oembed", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_oembed,
+      .summary = "oEmbed metadata for a link to this page",
+      .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_INTERNAL_ERROR } },
 };
 
 NYA_INTERNAL const NYA_HttpRouter ROUTER = {
