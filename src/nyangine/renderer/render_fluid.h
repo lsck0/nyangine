@@ -253,6 +253,9 @@ typedef struct NYA_FluidEmitter       NYA_FluidEmitter;
 typedef struct NYA_FluidRenderOptions NYA_FluidRenderOptions;
 typedef struct NYA_Fluid              NYA_Fluid;
 
+/** A wind field the volume may drift on. Defined in render_wind.h; only ever held here by pointer. */
+typedef struct NYA_WindField          NYA_WindField;
+
 /** Which renderer a volume draws through, and how its grid is laid out in the world. */
 enum NYA_FluidSpace {
     /**
@@ -458,6 +461,18 @@ struct NYA_Fluid {
     /** Steps taken since creation, and how long the last one took. */
     u64 step_count;
     f32 step_time_s;
+
+    /**
+     * An optional wind field the volume drifts on, borrowed from the caller, and how strongly.
+     *
+     * Null is the default and means no wind — the step integrates exactly as before. Set it and each step adds a
+     * wind push to the velocity field (sampled at the volume's origin), so smoke and dust from a plume lean on the
+     * same air that moves the foliage, water and particles. `wind_time_s` is this volume's own field clock. The
+     * push is uniform across the grid — a stylized breeze, not a per-cell wind sampling; see nya_fluid_wind_set.
+     * */
+    const NYA_WindField* wind;
+    f32                  wind_influence;
+    f32                  wind_time_s;
 };
 
 /*
@@ -533,6 +548,14 @@ NYA_API void nya_fluid_obstacle_box_clear(NYA_Fluid* fluid, f32x3 min, f32x3 max
 
 /** Clears every obstacle in one pass, for a body that moved or a level that changed. */
 NYA_API void nya_fluid_obstacles_clear(NYA_Fluid* fluid);
+
+/**
+ * Makes the volume drift on `field`, at `influence` (world units per second of push per step, roughly). A null
+ * `field` turns it off, which is the default and the exact old behaviour. The field is borrowed — the caller owns
+ * it — so the volume, the particles and the foliage can all read one shared wind. The push is uniform (sampled at
+ * the volume's origin), a stylized breeze; a per-cell wind sampling is a follow-up.
+ * */
+NYA_API void nya_fluid_wind_set(NYA_Fluid* fluid, const NYA_WindField* field, f32 influence);
 
 /*
  * ─────────────────────────────────────────────────────────

@@ -303,6 +303,14 @@ NYA_FluidOptions nya_fluid_options(const NYA_Fluid* fluid) {
     return fluid->options;
 }
 
+void nya_fluid_wind_set(NYA_Fluid* fluid, const NYA_WindField* field, f32 influence) {
+    nya_assert(fluid != nullptr);
+
+    fluid->wind           = field;
+    fluid->wind_influence = influence;
+    // wind_time_s is left alone, so toggling the wind does not jump the field's phase.
+}
+
 /*
  * ─────────────────────────────────────────────────────────
  * THE STEP
@@ -327,6 +335,23 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
     f32 cell_size = fluid->options.cell_size;
 
     _nya_fluid_forces_add(fluid, step_s);
+
+    // The wind: a uniform push into the velocity field, sampled once at the volume's origin, so the plume leans on
+    // the same air the foliage and particles read. Added alongside the other body forces, before vorticity and the
+    // projection clean it up; the same whole-field loop the forces use, so the padded borders are handled downstream.
+    if (fluid->wind != nullptr) {
+        fluid->wind_time_s += step_s;
+
+        f32x3 w    = nya_wind_at(fluid->wind, fluid->options.origin, fluid->wind_time_s);
+        f32   push = fluid->wind_influence * step_s;
+
+        for (u32 i = 0; i < fluid->cell_count; i++) {
+            fluid->velocity_x[i] += w.x * push;
+            fluid->velocity_y[i] += w.y * push;
+            fluid->velocity_z[i] += w.z * push;
+        }
+    }
+
     _nya_fluid_vorticity_add(fluid, step_s);
 
     if (fluid->options.viscosity > 0.0F) {
