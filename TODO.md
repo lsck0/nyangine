@@ -33,9 +33,9 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 ---
 
-## In flight (2026-09-24)
+## Recently landed (2026-09-24, agent batch)
 
-Agents running (DONE: shipping-hardening `2c758ee8`, UI theme files `14e26f05`, planar water reflection `03999130`, web_frontend example `73368828`): signed plugins (Ed25519 over the plugin, pinned publisher keys, refuse-unsigned by default). Marked done in place as each lands.
+Shipping hardening (`2c758ee8`, RELRO+BIND_NOW+NX+fortify ELF-verified), UI theme `.nya` files (`14e26f05`), planar water sky-reflection (`03999130`), the `web_frontend` example (`73368828`, seventh example), signed plugins (`f4c21979`, Ed25519 + pinned keys, refuse-unsigned). Earlier same day: particles/fluid wind, weather rain/snow, instanced grass, textureGather web variant + depth/MSAA FBOs, reload-safe handlers, supervised restart, docs site, SSR write-back/styles, and the showcase-dark fix.
 
 ## Standing decisions
 
