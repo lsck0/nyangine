@@ -200,6 +200,16 @@ typedef struct NYA_Window NYA_Window;
 /** Longest registered font name a style can hold, terminator included. */
 #define NYA_UI_FONT_NAME_MAX 32
 
+/** Longest theme file path nya_ui_theme_load remembers for its watch, terminator included. */
+#define NYA_UI_THEME_PATH_MAX 256
+
+/**
+ * Where the engine's own default theme lives. A program that wants the built-in look editable copies this
+ * under `data/` (see the note on nya_ui_theme_load) and points nya_ui_theme_load at the copy; the shipped
+ * asset is the reference every field falls back to.
+ * */
+#define NYA_UI_THEME_DEFAULT_FILE "./assets/ui/theme.nya"
+
 /** Widgets whose transitions are remembered, by id modulo this. */
 #define NYA_UI_ANIMATIONS_MAX 64
 
@@ -1007,3 +1017,45 @@ NYA_API void nya_ui_style_pop(NYA_UI* ui);
 
 /** What sizes were multiplied by in `window`'s last pass, for drawing custom content at the same scale. */
 NYA_API f32 nya_ui_scale(const NYA_Window* window) __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * THEME FILES
+ * ─────────────────────────────────────────────────────────
+ *
+ * A theme is a NYA_UIStyle in a `.nya` file, loaded through reflection and validated like a settings
+ * file: every key that names no field, every value of the wrong type, and every number outside its
+ * range is reported by name and dropped, and the built-in NYA_UI_* default is kept in its place. So a
+ * hand edited theme can never leave the UI in a half-broken state; the worst a bad line costs is that
+ * one field.
+ *
+ * The feature is opt in. A program that never calls nya_ui_theme_load has exactly the built-in style it
+ * always had; nothing here runs on its own.
+ *
+ * The engine ships its default theme at NYA_UI_THEME_DEFAULT_FILE. To let a player restyle the UI, copy
+ * that file under the writable `data/` directory and point nya_ui_theme_load at the copy:
+ *
+ * ```c
+ * // once, after the window exists
+ * (void)nya_ui_theme_load(window, "./data/theme.nya");
+ * ```
+ *
+ * Under a hot reload build the file is then watched: an edit saved to it re-applies to the window within
+ * one asset stat interval, the same way nya_config_watch follows engine.nya. Without hot reload compiled
+ * in this loads once and does not watch, exactly as the config and i18n paths degrade.
+ */
+
+/**
+ * Loads `path` as a NYA_UIStyle theme and applies it to `window`, then — under NYA_ASSET_HOT_RELOAD —
+ * watches the file and re-applies every edit. Every field the file omits, spells wrong, or puts out of
+ * range keeps its built-in default, each reported by name. A second call on the same window re-points
+ * the watch at the new path.
+ *
+ * Fails only when the file cannot be read or does not parse; a file that parses always applies, because
+ * a single bad field is dropped rather than failing the whole load. On failure `window`'s style is left
+ * exactly as it was.
+ * */
+NYA_API NYA_Error nya_ui_theme_load(NYA_Window* window, NYA_ConstCString path) __attr_no_discard;
+
+/** Stops watching `window`'s theme file, if one was loaded, and leaves the current style in place. */
+NYA_API void nya_ui_theme_clear(NYA_Window* window);

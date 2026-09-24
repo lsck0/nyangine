@@ -1,0 +1,84 @@
+// The engine's default UI theme: a NYA_UIStyle written out field by field. Loaded through reflection
+// by nya_ui_theme_load and validated like a settings file — every key that names no field, value of
+// the wrong type, or number out of range is reported by name and dropped back to the built-in default,
+// so a bad edit costs one field, never the whole look. See src/nyangine/ui/ui.h.
+//
+// This file is the reference. To restyle the UI, copy it under the writable data/ directory and point
+// the program at the copy:
+//
+//     cp assets/ui/theme.nya data/theme.nya      # then edit data/theme.nya
+//     nya_ui_theme_load(window, "./data/theme.nya");
+//
+// In a hot reload build the running program picks up every save within one asset stat interval. A
+// program that never calls nya_ui_theme_load keeps the built-in style and never reads this file.
+//
+// Sizes are in pixels at scale 1; colours are r g b a, each channel 0 to 1. The checksum in the header
+// is not checked on load (NYA_SERDE_NO_CHECKSUM): this file is meant to be hand edited.
+nya 2 0
+{
+    // Empty uses nya_font_default's face for the body and small text, and the body's face for titles.
+    // A registered font name (see nya_font_register) picks another.
+    font: string "";
+    title_font: string "";
+
+    // The typography scale: labels and widgets, secondary text, and titles.
+    body_size: f32 18.0;
+    small_size: f32 14.0;
+    title_size: f32 30.0;
+
+    // Multiplies every size. Zero reads as 1. follow_display_scale also folds in the OS scale on HiDPI.
+    scale: f32 1.0;
+    follow_display_scale: b8 false;
+
+    // The window's inset, a panel's inner padding, the gap between children, and the corner radius.
+    margin: f32 16.0;
+    padding: f32 8.0;
+    spacing: f32 6.0;
+    radius: f32 4.0;
+
+    // Outline, shadow depth and focus pop are off by default; the focus bar is three pixels wide.
+    outline: f32 0.0;
+    depth: f32 0.0;
+    pop: f32 0.0;
+    focus_bar: f32 3.0;
+
+    // Zero lets a widget's height follow its text's line height plus padding.
+    item_height: f32 0.0;
+
+    // What a label does with text too wide for it: VISIBLE, WRAP or SHRINK.
+    overflow: string "NYA_UI_OVERFLOW_VISIBLE";
+
+    // Focus and press fades, and how long a panel takes to slide in. Zero is instant. easing is the curve both follow.
+    transition_s: f32 0.08;
+    appear_s: f32 0.15;
+    easing: string "NYA_EASE_CUBIC_OUT";
+
+    // The dark scrim behind a modal panel, the panel body, outlines and shadows, and empty tracks.
+    scrim: object { r: f32 0.0; g: f32 0.0; b: f32 0.0; a: f32 0.45; };
+    panel: object { r: f32 0.10; g: f32 0.11; b: f32 0.13; a: f32 0.92; };
+    ink: object { r: f32 0.05; g: f32 0.05; b: f32 0.06; a: f32 1.0; };
+    track: object { r: f32 0.06; g: f32 0.07; b: f32 0.08; a: f32 1.0; };
+
+    // The focus mark and the filled part of sliders and toggles, and secondary label text.
+    accent: object { r: f32 0.33; g: f32 0.60; b: f32 0.90; a: f32 1.0; };
+    text_dim: object { r: f32 0.58; g: f32 0.60; b: f32 0.64; a: f32 1.0; };
+
+    // Widget bodies, one colour per state.
+    button: object {
+        normal: object { r: f32 0.16; g: f32 0.17; b: f32 0.20; a: f32 1.0; };
+        focused: object { r: f32 0.20; g: f32 0.25; b: f32 0.32; a: f32 1.0; };
+        pressed: object { r: f32 0.13; g: f32 0.17; b: f32 0.23; a: f32 1.0; };
+        disabled: object { r: f32 0.13; g: f32 0.14; b: f32 0.16; a: f32 1.0; };
+    };
+
+    // The text on widgets and in labels, one colour per state.
+    text: object {
+        normal: object { r: f32 0.90; g: f32 0.91; b: f32 0.93; a: f32 1.0; };
+        focused: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; };
+        pressed: object { r: f32 0.82; g: f32 0.86; b: f32 0.94; a: f32 1.0; };
+        disabled: object { r: f32 0.44; g: f32 0.45; b: f32 0.48; a: f32 1.0; };
+    };
+
+    // Nine-slice skins are left out, so every shape is flat, which is the built-in look. Name a texture
+    // in panel_skin/button_skin/track_skin/knob_skin to cut the chrome from a sheet instead; see NYA_UISkin.
+}

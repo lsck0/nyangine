@@ -254,6 +254,23 @@ struct NYA_UI {
      * */
     u64 pass_current;
     u64 pass_previous;
+
+#ifdef NYA_ASSET_HOT_RELOAD
+    /**
+     * The theme file nya_ui_theme_load last pointed this window at, and where its watch stands. The path
+     * is also the asset handle it is registered under. See nya_ui_theme_load; this mirrors one
+     * NYA_ConfigWatch, held per window rather than in a shared table because a theme is applied to the
+     * window that loaded it.
+     * */
+    char theme_path[NYA_UI_THEME_PATH_MAX];
+    b8   theme_active;
+
+    /** The modification time the last successful theme load resolved from, advanced only on success. */
+    u64 theme_modification_time;
+
+    /** Uptime at which a dead theme asset may next be re-armed. Mirrors NYA_ConfigWatch.next_recovery_ns. */
+    u64 theme_next_recovery_ns;
+#endif // NYA_ASSET_HOT_RELOAD
 };
 
 /** What a press is read from: an action, or a raw key when the action is NONE. */
@@ -418,6 +435,19 @@ typedef struct {
 NYA_INTERNAL NYA_UI* _nya_ui_context(const NYA_Window* window);
 
 NYA_INTERNAL NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style);
+
+/**
+ * Reads `path`, validates it against NYA_UIStyle (keys, types and ranges), and writes the resolved
+ * result into `context`'s style. Every problem is reported by name and dropped to the built-in default.
+ * Fails only when the file cannot be read or parsed, leaving the style untouched; see nya_ui_theme_load.
+ * */
+NYA_INTERNAL NYA_Error _nya_ui_theme_apply(NYA_UI* context, NYA_ConstCString path);
+
+#ifdef NYA_ASSET_HOT_RELOAD
+/** The frame-ended hook that re-applies each window's theme file when it changes. Mirrors _nya_config_watch_tick. */
+// NOLINTNEXTLINE(misc-use-internal-linkage)
+void _nya_ui_theme_tick(NYA_Event* event);
+#endif // NYA_ASSET_HOT_RELOAD
 
 /** The explicit scale, or the window's height against the reference height, at least the display's scale, in steps. */
 NYA_INTERNAL f32 _nya_ui_scale_derive(const NYA_Window* window, const NYA_UIStyle* style);

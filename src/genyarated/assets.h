@@ -74,6 +74,7 @@
 #define NYA_ASSET_TEXTURES_DECALS_PNG                    "./assets/textures/decals.png"
 #define NYA_ASSET_TEXTURES_PUFF_PNG                      "./assets/textures/puff.png"
 #define NYA_ASSET_UI_SHEET_PNG                           "./assets/ui/sheet.png"
+#define NYA_ASSET_UI_THEME_NYA                           "./assets/ui/theme.nya"
 #define NYA_ASSET_WEB_APP_CSS                            "./assets/web/app.css"
 #define NYA_ASSET_WEB_APP_JS                             "./assets/web/app.js"
 #define NYA_ASSET_WEB_INDEX_HTML                         "./assets/web/index.html"
