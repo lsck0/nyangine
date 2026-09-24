@@ -1,6 +1,13 @@
 #include "build/build.h"
 
 /*
+ * The headless-server switch, defined in cli.c, which is compiled after this file in the unity build.
+ * When it is set an example is built to ship rather than to run — see the two rules example_runner
+ * chooses between.
+ */
+extern NYA_ArgParameter server_flag;
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -65,6 +72,14 @@ void example_runner(NYA_ArgCommand* command) {
     NYA_String* build_name = nya_string_sprintf(arena, "build_example:%s", name);
     NYA_String* run_name   = nya_string_sprintf(arena, "run_example:%s", name);
 
+    // No server target on Windows: the deploy target is a Linux container, and the shipping flags and
+    // the vendor subset below are the Linux ones. On a Windows host --server falls back to a normal run.
+#if OS_WINDOWS
+    b8 server = false;
+#else
+    b8 server = server_flag.value.as_b8;
+#endif
+
     NYA_BuildRule build_example = {
         .name        = nya_string_to_cstring(arena, build_name),
         .policy      = NYA_BUILD_ALWAYS,
@@ -103,6 +118,63 @@ void example_runner(NYA_ArgCommand* command) {
         // game's own debug DLL depends on, and both are cached, so this is nearly free.
         .dependencies    = { &build_shaders, &index_assets, },
     };
+
+#if !OS_WINDOWS
+    /*
+     * The shipping build of the same example, for --server: the artifact a container image copies. The
+     * differences from the run build above are all about what a server needs and a laptop does not —
+     * the release mode rather than debug (optimized, LTO'd, no sanitizers, no hot-reload entry point),
+     * the asset blob baked in so the binary carries its own web bundle and reads no files beside it
+     * (NYA_ASSET_PREFER_BLOB, which FLAGS_RELEASE turns on and which is why the dependency is
+     * bundle_assets, the rule that writes the blob, rather than the index alone), the linker's dead-code
+     * collection and the Linux hardening the game's release link uses, and finally -s to strip the debug
+     * info, which is what keeps the copied binary small. It still links the full project vendors, not
+     * the server subset: the example compiles the whole engine graph — core, http and crypto are behind
+     * NYA_NO_SDL today — so a genuinely minimal link waits on that wall; see the deploy README.
+     */
+    NYA_BuildRule build_server_example = {
+        .name        = nya_string_to_cstring(arena, build_name),
+        .policy      = NYA_BUILD_ALWAYS,
+        .output_file = binary_cstr,
+
+        .command = {
+            .program   = CC,
+            .arguments = {
+                source_cstr,
+                "-o", binary_cstr,
+                CFLAGS,
+                WARNINGS,
+                INCLUDE_PATHS,
+                FLAGS_PLUGINS,
+                LINKER_FLAGS,
+                FLAGS_RELEASE,
+                FLAGS_RELEASE_LINK,
+                FLAGS_RELEASE_LINK_LINUX_X86_64,
+                FLAGS_LINUX_X86_64,
+                // Strip: the debug info FLAGS_RELEASE keeps for a symbolized crash trace is the largest
+                // thing in the binary, and a container ships bytes, not a debugger. Safe here because
+                // this example carries no integrity hash to invalidate; see hook_insert_integrity_hash.
+                "-s",
+            },
+        },
+
+        .pre_build_hooks = { &hook_add_version_flag, },
+        .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+        // bundle_assets, not the index alone: a release reads the web bundle out of the baked blob, so
+        // the blob has to have been written. It pulls in the shaders and the index on its own.
+        .dependencies    = { &bundle_assets, },
+    };
+
+    if (server) {
+        // Built, not run: a server image is made from the binary, and running it here would block the
+        // build on a process that only stops on a signal.
+        NYA_EXPECT(nya_build(&build_server_example), "while building example '%s' to ship", name);
+
+        nya_log_info("Built %s to ship: release, stripped, its assets baked in. Run it with --address 0.0.0.0 --port 8000.", binary_cstr);
+
+        return;
+    }
+#endif
 
     NYA_BuildRule run_example = {
         .name        = nya_string_to_cstring(arena, run_name),

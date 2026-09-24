@@ -69,6 +69,30 @@
     &vendor_sqlvec_windows_x86_64, &vendor_sqlite_windows_x86_64,  &vendor_ufbx_windows_x86_64,     \
     &vendor_monocypher_windows_x86_64
 
+/**
+ * A headless server's subset of the Linux project vendors: everything a web app links and nothing a
+ * window does. A server has no renderer, no physics and no model loader, so SDL and its three
+ * companions, box2d, box3d and ufbx drop out, and — since they are only ever compiled to feed a
+ * renderer — so does shadercross, which is why this list is spliced without SHADERCROSS_HOST_VENDOR.
+ * What is left is storage (sqlite and its two extensions), the network client (curl over the system
+ * OpenSSL), the hashing a session and a plugin signature need (monocypher), compression (lz4),
+ * symbolized crash traces (libbacktrace) and the scripting runtime (lua).
+ *
+ * Same left-to-right link order as NYA_PROJECT_VENDORS_LINUX_X86_64, which the archives require:
+ * sqlean and sqlvec are searched before libsqlite3, which they call into, and curl before the
+ * `-lssl`/`-lcrypto` its TLS resolves against.
+ *
+ * A caveat the deploy story leans on: this is the vendor set a headless server *links*, and `./build
+ * --server` builds exactly it and skips the rest. The web_server example is not yet a headless binary
+ * — core, http and crypto sit behind NYA_NO_SDL in nyangine.h, so the example still compiles the full
+ * engine graph and links the full set. This list is the target that seam is being cut toward, and the
+ * thing the server bootstrap needs the day it is; see examples/web_server/deploy/README.md.
+ * */
+#define NYA_SERVER_VENDORS_LINUX_X86_64                                                            \
+    &vendor_libbacktrace_linux_x86_64, &vendor_curl_linux_x86_64,   &vendor_lua_linux_x86_64,      \
+    &vendor_lz4_linux_x86_64,          &vendor_sqlean_linux_x86_64, &vendor_sqlvec_linux_x86_64,   \
+    &vendor_sqlite_linux_x86_64,       &vendor_monocypher_linux_x86_64, &vendor_openssl_linux_x86_64
+
 // clang-format on
 
 /*
@@ -92,6 +116,24 @@ NYA_VendorRule* NYA_VENDORS_WINDOWS_X86_64[] = {
     SHADERCROSS_HOST_VENDOR
     nullptr,
 };
+
+/**
+ * The headless server target: the minimal subset, and nothing to cross-compile to Windows, since the
+ * deploy target is a Linux container. `./build --server` builds this in place of NYA_VENDORS, so a
+ * server build never compiles SDL, box2d, box3d, ufbx or shadercross — the point of the flag.
+ *
+ * sqlite is named first for the same build-order reason NYA_VENDORS gives: sqlean and sqlvec compile
+ * against sqlite3.h, which sqlite's configure generates, so it has to have run once before them.
+ * Listing it twice is free — its parts are ONCE and nya_build memoizes within an invocation. Linux
+ * only, and so guarded like the openssl rule it names.
+ * */
+#if !OS_WINDOWS
+NYA_VendorRule* NYA_VENDORS_SERVER_LINUX_X86_64[] = {
+    &vendor_sqlite_linux_x86_64,
+    NYA_SERVER_VENDORS_LINUX_X86_64,
+    nullptr,
+};
+#endif
 
 /**
  * The vendors for every target this host builds, built before any rule runs (even `./build stats`) so

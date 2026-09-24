@@ -82,9 +82,19 @@ s32 main(s32 argc, NYA_CString argv[]) {
     // Every vendor, before anything else runs. From here on no rule has to care whether what it
     // links against exists yet. Vendor parts are NYA_BUILD_ONCE, so this is nearly free once the
     // artifacts are on disk.
+    //
+    // --server narrows this to the subset a web app links: no SDL, box2d, box3d, ufbx or shadercross,
+    // so a container image is not paying to compile a renderer's dependencies it will never open. On a
+    // Windows host there is no server target, so the flag falls through to the full list rather than
+    // pretend one exists; see NYA_VENDORS_SERVER_LINUX_X86_64.
     nya_vendor_detect_nprocs();
     nya_vendor_detect_compiler_cache();
-    NYA_EXPECT(nya_vendor_build_all(NYA_VENDORS), "while building vendor dependencies");
+#if !OS_WINDOWS
+    NYA_VendorRule** vendors = server_flag.value.as_b8 ? NYA_VENDORS_SERVER_LINUX_X86_64 : NYA_VENDORS;
+#else
+    NYA_VendorRule** vendors = NYA_VENDORS;
+#endif
+    NYA_EXPECT(nya_vendor_build_all(vendors), "while building vendor dependencies");
 
     NYA_Error run_result = nya_args_run_command(command);
     if (!run_result.ok) {

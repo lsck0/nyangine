@@ -358,6 +358,20 @@ NYA_INTERNAL NYA_ArgParameter help_flag = {
     .description = "Show this message.",
 };
 
+/*
+ * The headless-server switch, read in two places from the one flag: build.c brings up only
+ * NYA_VENDORS_SERVER_LINUX_X86_64 instead of every vendor, so a server build never compiles SDL,
+ * box2d, box3d, ufbx or shadercross; and `run example` builds the example as a shipping artifact —
+ * release flags, dead code collected, the binary stripped — and does not run it, which is what a
+ * container image is built from. Declared extern in example.c, which is compiled before this file.
+ */
+NYA_ArgParameter server_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "server",
+    .description = "Build for a headless server: only the vendors a web app links, and examples built to ship rather than to run.",
+};
+
 NYA_INTERNAL NYA_ArgParameter dist_target = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     // Several in one run, because a run is the unit a checksum is consistent over: each invocation
@@ -738,6 +752,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &skip_self_rebuild_flag,
             &regenerate_flag,
             &help_flag,
+            &server_flag,
         },
         .subcommands = {
             &run,
