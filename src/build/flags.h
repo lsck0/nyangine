@@ -47,6 +47,28 @@
 #define BINARY_SOURCE_PATH "./src/main.c"
 #define DLL_SOURCE_PATH    "./src/gnyame/gnyame.c"
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * APPS
+ * ─────────────────────────────────────────────────────────
+ *
+ * A project builds many app binaries, not one. src/main.c is a generic host — it loads a DLL and
+ * reloads it on change, and picks which by its own name (argv[0]), see dll_path_from_executable — so
+ * every app is one more DLL beside that host and a host relinked under the app's name. gnyame is the
+ * default app, built from PROJECT_NAME above and the rules that shipped; the list here is the rest.
+ *
+ * Each app is a name and the DLL translation unit it is built from. The artifact names fall out of the
+ * name the same way gnyame's fall out of PROJECT_NAME: `<name>.debug` is the host and `<name>.debug.so`
+ * the DLL it loads. To add an app, add its two macros here, a set of debug rules in on_linux/build_linux.h
+ * modelled on gnyame-cli's, and a `run`/`build` subcommand in cli.c naming them. Release, Windows and
+ * Steam still build the default app from PROJECT_NAME; a second shipped app extends those the same way.
+ */
+#define APP_GNYAME_CLI_NAME       "gnyame-cli"
+#define APP_GNYAME_CLI_DLL_SOURCE "./src/gnyame_cli/gnyame_cli.c"
+
+#define LINUX_X86_64_GNYAME_CLI_DEBUG_BINARY APP_GNYAME_CLI_NAME ".debug"
+#define LINUX_X86_64_GNYAME_CLI_DEBUG_DLL    APP_GNYAME_CLI_NAME ".debug.so"
+
 #define LINUX_X86_64_DEBUG_BINARY   PROJECT_NAME ".debug"
 #define LINUX_X86_64_DEBUG_DLL      PROJECT_NAME ".debug.so"
 #define LINUX_X86_64_DEV_BINARY     PROJECT_NAME ".dev"

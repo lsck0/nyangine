@@ -82,6 +82,25 @@ NYA_INTERNAL NYA_BuildRule run_debug = {
 };
 
 /**
+ * The second app, gnyame-cli, run under the same host with hot reload. Debug: sanitized, hot reloading,
+ * slow, exactly like run_debug — the difference is only which DLL the host loads, chosen by the binary's
+ * name. See build_gnyame_cli_debug_linux. Linux only, where the second app's rules live.
+ * */
+#if !OS_WINDOWS
+NYA_INTERNAL NYA_BuildRule run_gnyame_cli_debug = {
+    .name   = "run_gnyame_cli_debug",
+    .policy = NYA_BUILD_ALWAYS,
+
+    .command = {
+        .program     = "./" LINUX_X86_64_GNYAME_CLI_DEBUG_BINARY,
+        .environment = { SANITIZER_ENVIRONMENT, },
+    },
+
+    .dependencies = { &build_gnyame_cli_debug_linux, },
+};
+#endif
+
+/**
  * The release build under perf. The profile worth acting on.
  *
  * Inlining and tail calls attribute some frames to the surviving function, and vanished symbols show up

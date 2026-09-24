@@ -80,6 +80,13 @@ void check_runner(NYA_ArgCommand* command) {
          .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_PLUGINS, FLAGS_DEBUG, FLAGS_TERMINAL },
          .uses_vendors = true,
          },
+        {
+         // The second app's DLL, so a project's other app binaries are analysed too, not just gnyame.
+         // Same flag set as gnyame's DLL root above.
+         .source       = APP_GNYAME_CLI_DLL_SOURCE,
+         .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_PLUGINS, FLAGS_DEBUG },
+         .uses_vendors = true,
+         },
     };
 
     NYA_ArrayᐸNYA_BuildRulePointerᐳ* rules = nya_array_create(nya_arena_global, NYA_BuildRulePointer);

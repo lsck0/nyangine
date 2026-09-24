@@ -477,6 +477,16 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .description = "Run the release build.",
             .build_rule  = &run_release,
         },
+#if !OS_WINDOWS
+        // The second app, to show a project runs more than one binary. Same host, same hot reload; the
+        // host loads gnyame-cli.debug.so because the binary it runs is named gnyame-cli.debug. `run debug`
+        // above is still the default app, gnyame. See build_gnyame_cli_debug_linux.
+        &(NYA_ArgCommand){
+            .name        = "gnyame-cli",
+            .description = "Build and run the gnyame-cli app under the host with hot reload. Sanitized, like `run debug`.",
+            .build_rule  = &run_gnyame_cli_debug,
+        },
+#endif
         &(NYA_ArgCommand){
             .name        = "example",
             .description = "Build and run one example from examples/, e.g. ./build run example hello_world",
@@ -537,6 +547,13 @@ NYA_INTERNAL NYA_ArgCommand build = {
             .name        = "debug-dll-linux",
             .description = "Build the linux debug dll.",
             .build_rule  = &build_project_debug_dll_linux,
+        },
+        // The second app: its debug host (gnyame's host relinked under gnyame-cli's name) and its dll.
+        // The default app's rules above are unchanged. See build_gnyame_cli_debug_linux.
+        &(NYA_ArgCommand){
+            .name        = "gnyame-cli",
+            .description = "Build the gnyame-cli app: its debug host and dll.",
+            .build_rule  = &build_gnyame_cli_debug_linux,
         },
 #endif
         &(NYA_ArgCommand){

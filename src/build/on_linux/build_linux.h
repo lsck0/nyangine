@@ -128,6 +128,108 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_linux = {
     .dependencies    = { &build_project_debug_executable_linux, &build_project_debug_dll_linux, },
 };
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * A SECOND APP: gnyame-cli
+ * ─────────────────────────────────────────────────────────
+ *
+ * The proof that the host is app-agnostic and a project builds more than one binary. gnyame-cli is a
+ * second DLL beside the same host, and its host is that host relinked under gnyame-cli's name so it
+ * loads gnyame-cli.debug.so instead of gnyame.debug.so — the executable is byte-for-byte gnyame's, so
+ * this reuses the compiled main.c object rather than compiling it again. Only the DLL is new source.
+ *
+ * Debug only: it is here to show selection and hot reload work for a non-default app, and the debug
+ * path is where hot reload lives. A developer or shipped gnyame-cli follows the same shape as gnyame's
+ * dev/release rules above; nothing about the host or the contract changes.
+ */
+
+#define LINUX_X86_64_GNYAME_CLI_DEBUG_DLL_OBJECT OBJECT_DIRECTORY "/" LINUX_X86_64_GNYAME_CLI_DEBUG_DLL OBJECT_SUFFIX
+
+// The host, under gnyame-cli's name. Same object as gnyame's debug host (src/main.c is the generic host
+// that picks its app by argv[0]), linked to a second output name. Depends on the compile that gnyame's
+// host already runs, so nothing here recompiles main.c.
+NYA_INTERNAL NYA_BuildRule build_gnyame_cli_debug_executable_linux = {
+    .name   = "build_gnyame_cli_debug_executable_linux",
+    .policy = NYA_BUILD_ALWAYS,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            LINUX_X86_64_DEBUG_OBJECT,
+            "-o", LINUX_X86_64_GNYAME_CLI_DEBUG_BINARY,
+            CFLAGS,
+            LINKER_FLAGS,
+            FLAGS_SANITIZE,
+            FLAGS_DEBUG,
+            FLAGS_DEBUG_LINUX_X86_64,
+            FLAGS_LINUX_X86_64,
+        },
+    },
+
+    .vendors      = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+    .vendor_flags = NYA_BUILD_VENDOR_FLAGS_LINK,
+    .dependencies = { &compile_project_debug_executable_linux, },
+};
+
+NYA_INTERNAL NYA_BuildRule compile_gnyame_cli_debug_dll_linux = {
+    .name        = "compile_gnyame_cli_debug_dll_linux",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = LINUX_X86_64_GNYAME_CLI_DEBUG_DLL_OBJECT,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            APP_GNYAME_CLI_DLL_SOURCE,
+            "-c", "-o", LINUX_X86_64_GNYAME_CLI_DEBUG_DLL_OBJECT,
+            CFLAGS,
+            WARNINGS,
+            INCLUDE_PATHS,
+            FLAGS_PLUGINS,
+            FLAGS_SANITIZE,
+            FLAGS_DEBUG,
+            FLAGS_DLL_COMPILE,
+        },
+    },
+
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+    .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
+    // The same codegen every DLL here reads: it includes nyangine.h, which pulls the generated engine
+    // reflection header, so the passes that write src/genyarated run first.
+    .dependencies    = { &build_shaders, &index_assets, },
+};
+
+NYA_INTERNAL NYA_BuildRule build_gnyame_cli_debug_dll_linux = {
+    .name   = "build_gnyame_cli_debug_dll_linux",
+    .policy = NYA_BUILD_ALWAYS,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            LINUX_X86_64_GNYAME_CLI_DEBUG_DLL_OBJECT,
+            "-o", LINUX_X86_64_GNYAME_CLI_DEBUG_DLL,
+            CFLAGS,
+            LINKER_FLAGS,
+            FLAGS_SANITIZE,
+            FLAGS_DEBUG,
+            FLAGS_DEBUG_LINUX_X86_64,
+            FLAGS_DLL_COMPILE,
+            FLAGS_DLL_LINK,
+            FLAGS_LINUX_X86_64,
+        },
+    },
+
+    .vendors      = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+    .vendor_flags = NYA_BUILD_VENDOR_FLAGS_LINK,
+    .dependencies = { &compile_gnyame_cli_debug_dll_linux, },
+};
+
+NYA_INTERNAL NYA_BuildRule build_gnyame_cli_debug_linux = {
+    .name         = "build_gnyame_cli_debug_linux",
+    .is_metarule  = true,
+    .dependencies = { &build_gnyame_cli_debug_executable_linux, &build_gnyame_cli_debug_dll_linux, },
+};
+
 NYA_INTERNAL NYA_BuildRule compile_project_linux_x86_64 = {
     .name        = "compile_project_linux_x86_64",
     .policy      = NYA_BUILD_ALWAYS,
