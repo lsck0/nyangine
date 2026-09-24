@@ -79,6 +79,15 @@ NYA_INTERNAL b8 _nya_render3d_refraction_capture(NYA_Window* window);
  * */
 NYA_INTERNAL b8 _nya_render3d_reflection_capture(NYA_Window* window, f32 plane_y);
 
+/**
+ * Resolves the scene distance buffer so the water surface can sample how deep it sits over the bed drawn behind
+ * it, for the depth-difference shoreline foam. False when the target carries no such buffer (drawn to the window,
+ * or a render texture created without normals), in which case the surface falls back to the authored shore band.
+ * Mirrors the refraction and reflection captures: suspends the pass, resolves, resumes. The resolved buffer is
+ * the renderer's normal buffer (NYA_RENDER3D_NORMAL_FORMAT), whose alpha is the camera distance the water reads.
+ * */
+NYA_INTERNAL b8 _nya_render3d_distance_capture(NYA_Window* window);
+
 /** The registered mesh for `handle`, or null. */
 NYA_INTERNAL NYA_Render3DRegisteredMesh* _nya_render3d_registered(NYA_Render3DBatch* batch, NYA_ConstCString handle) __attr_no_discard;
 
@@ -1569,6 +1578,14 @@ void nya_render3d_water(NYA_Window* window, NYA_ConstCString handle, f32x3 posit
     // the surface then keeps its flat Fresnel tint. See _nya_render3d_reflection_capture.
     frag->reflection = reflections ? nya_clamp(water.reflection, 0.0F, 1.0F) : 0.0F;
 
+    // the depth-difference shore foam: how much the true water depth over the bed drives the shore band, and the
+    // world depth it fades over. has_depth is filled at draw time, once it is known whether the target carries a
+    // scene distance buffer to measure against; without one the surface falls back to the authored shore band.
+    frag->depth_strength = nya_clamp(water.depth_foam, 0.0F, 1.0F);
+    frag->depth_shore    = NYA_RENDER3D_WATER_DEPTH_SHORE;
+    frag->has_depth      = 0.0F;
+    frag->depth_pad      = 0.0F;
+
     _nya_render3d_passes_prepare(window);
 
     f32x3 bounds_min = f32x3_zero;
@@ -2944,6 +2961,14 @@ void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* seg
      */
     b8 reflect = frag.reflection > 0.0F && segment->water_reflect && _nya_render3d_reflection_capture(window, segment->water_plane_y);
 
+    /*
+     * The distance capture: the scene distance buffer resolved so the surface can read how deep it sits over the
+     * bed drawn behind it, for the honest depth-difference shoreline foam. Like the two above it needs a render
+     * texture, and one carrying the normal/distance buffer; without it the surface falls back to the authored
+     * shore band. See _nya_render3d_distance_capture.
+     */
+    b8 depth_foam = frag.depth_strength > 0.0F && _nya_render3d_distance_capture(window);
+
     SDL_GPUSampler* linear = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
 
     // the capture, or the always-valid shadow placeholder as a stand-in the shader ignores when has_refraction is zero.
@@ -2951,6 +2976,9 @@ void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* seg
 
     // likewise the reflection, or the same placeholder the shader ignores when the reflection blend is zero.
     SDL_GPUTexture* reflection = reflect ? batch->reflection_capture : _nya_render3d_shadow_map(batch);
+
+    // and the scene distance buffer, or the same placeholder the shader ignores when has_depth is zero.
+    SDL_GPUTexture* distance = depth_foam ? render->draw_batch.target_normal : _nya_render3d_shadow_map(batch);
 
     if (refract) {
         frag.texel_x        = batch->refraction_width > 0 ? 1.0F / (f32)batch->refraction_width : 0.0F;
@@ -2962,10 +2990,15 @@ void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* seg
     // placeholder as a reflection.
     if (!reflect) frag.reflection = 0.0F;
 
+    // the distance capture could not run: zero the flag so the shader keeps the authored shore band and never
+    // reads the placeholder as a scene distance.
+    frag.has_depth = depth_foam ? 1.0F : 0.0F;
+
     // the shader turns SV_POSITION into a screen uv with scene_params.xy (one target texel). The refraction sets
-    // it from its full-size capture; when only the reflection runs there is no such capture, so fill it from the
-    // target itself, or the mirrored sky would be sampled at uv zero.
-    if (reflect && !refract) {
+    // it from its full-size capture; when only the reflection or the distance foam runs there is no such capture,
+    // so fill it from the target itself (both the reflection capture and the distance buffer are sampled at the
+    // fragment's screen uv), or they would be sampled at uv zero.
+    if ((reflect || depth_foam) && !refract) {
         NYA_Render2DBatch* draw_target = &render->draw_batch;
 
         frag.texel_x = draw_target->target_width > 0 ? 1.0F / (f32)draw_target->target_width : 0.0F;
@@ -2988,16 +3021,18 @@ void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* seg
     SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
     SDL_PushGPUFragmentUniformData(render->render_commands, 1, &frag, sizeof(frag));
 
-    // the captured scene at t0 and the mirrored sky at t1 — the two samplers water declares (it reads no shadow
-    // map). Both are always bound; the shader ignores whichever of has_refraction / reflection is zero.
+    // the captured scene at t0, the mirrored sky at t1, and the scene distance at t2 — the three samplers water
+    // declares (it reads no shadow map). All are always bound; the shader ignores whichever of has_refraction,
+    // reflection or has_depth is zero, where the binding is the always-valid shadow-map placeholder.
     SDL_BindGPUFragmentSamplers(
         render->render_pass,
         0,
         (SDL_GPUTextureSamplerBinding[]){
             { .texture = scene, .sampler = linear },
             { .texture = reflection, .sampler = linear },
+            { .texture = distance, .sampler = linear },
         },
-        2
+        3
     );
 
     SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
@@ -3227,6 +3262,36 @@ b8 _nya_render3d_reflection_capture(NYA_Window* window, f32 plane_y) {
 
     SDL_EndGPURenderPass(pass);
 
+    _nya_render2d_pass_resume(window);
+
+    return true;
+}
+
+b8 _nya_render3d_distance_capture(NYA_Window* window) {
+    nya_trace_scope(NYA_TRACE_TRANSPARENT);
+
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render2DBatch*      target = &render->draw_batch;
+
+    if (nya_app_get()->render_system.gpu_device == nullptr) return false;
+
+    /*
+     * Only a render texture created with normals carries the scene distance. The normal buffer is stored
+     * multisampled during the frame and resolved once at capture points like this one; without a multisampled
+     * companion the resolved buffer is also the live attachment the resumed pass writes to, which cannot be
+     * sampled safely, so the surface falls back to the authored shore band there too.
+     */
+    if (!target->target_is_texture) return false;
+    if (target->target_normal == nullptr || target->target_normal_msaa == nullptr) return false;
+    if (!target->target_normal_written) return false;
+
+    /*
+     * The resolve is its own render pass, so the scene pass is suspended around it — the same bracket the
+     * refraction blit and the reflection draw use. The resolved buffer holds the opaque scene drawn so far; the
+     * water has not written its own normals yet, so its alpha is the bed's camera distance behind the surface.
+     */
+    _nya_render2d_pass_suspend(window);
+    _nya_render2d_normals_resolve(window);
     _nya_render2d_pass_resume(window);
 
     return true;

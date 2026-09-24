@@ -3,8 +3,10 @@
  *
  * A flowing river surface. One water draw path (nya_render3d_water) lays travelling waves over a registered
  * strip mesh, refracts the riverbed captured behind it, blends deep channel to shallow bank, and foams the
- * banks and wave crests. The one analytic wind field (render_wind.h) that drives the foliage example drives
- * the water's chop here too, so water, foliage and particles all read one wind.
+ * shoreline from the true water depth over the bed (the scene distance buffer the render texture carries) so
+ * the foam wraps the banks and rings the submerged boulders, plus the wave crests. The one analytic wind field
+ * (render_wind.h) that drives the foliage example drives the water's chop here too, so water, foliage and
+ * particles all read one wind.
  *
  * ```
  * ./build run example water3d
@@ -346,6 +348,12 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         .refraction     = 0.55F,
         .foam           = 0.18F,
 
+        // true depth-difference shoreline foam: the foam follows where the riverbed sits close beneath the
+        // surface, so it wraps the banks and rings the boulders that rise near the waterline, instead of only
+        // the authored shore band. Needs the scene distance buffer the render texture carries (normals, below);
+        // drawn to the window it falls back to that band. Zero would keep the authored band alone.
+        .depth_foam     = 0.85F,
+
         // a real planar reflection: the sky and sun glint mirror in the river, rendered from a camera mirrored
         // about the surface into a bounded capture and Fresnel-blended in. Zero would keep the old flat tint.
         .reflection     = 0.9F,
@@ -365,8 +373,10 @@ void water_layer_on_render(NYA_Window* window) {
 
     Water* state = water();
 
-    // the scene target keeps its depth, both for the 3D pass and so the water refraction reads a resolved image.
-    state->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
+    // the scene target keeps its depth, both for the 3D pass and so the water refraction reads a resolved image,
+    // and its normal/distance buffer, which the water's depth-difference shoreline foam reads to tell how deep it
+    // sits over the bed drawn behind it.
+    state->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED, .normals = true };
 
     // through the chain (a render texture, so the refraction has something to sample); straight to the window
     // only if the chain cannot be set up this frame, where the water falls back to its colour. Bloom is a scene

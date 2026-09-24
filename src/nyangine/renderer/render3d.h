@@ -157,6 +157,13 @@ typedef struct NYA_Render3DInstance NYA_Render3DInstance;
  * */
 #define NYA_RENDER3D_WATER_RIPPLE_CYCLE 6.0F
 
+/**
+ * The world-space water depth over which the depth-difference shoreline foam fades, from full at the waterline
+ * to none this far down: how far the view ray may travel through water to the bed drawn behind it and still
+ * count as shore. A stylized band a little under a metre. See NYA_Render3DWater.depth_foam and water.frag.hlsl.
+ * */
+#define NYA_RENDER3D_WATER_DEPTH_SHORE 0.75F
+
 /*
  * Additive pass. Emission such as fire and glow has to brighten toward white rather than average like alpha
  * blending. Addition is commutative, so this pass needs no sorting.
@@ -768,6 +775,17 @@ struct NYA_Render3DWater {
 
     /** How wide the foam band along the banks is, as a fraction of the shore weight, in [0, 1]. Zero is a thin default. */
     f32 foam;
+
+    /**
+     * How strongly shoreline foam is driven by the true water depth over the bed rather than the authored shore
+     * weight, in [0, 1]: zero (the default) foams from the mesh's vertex-alpha shore band alone, any positive value
+     * foams wherever the water is shallow — where the scene drawn behind the surface sits close beneath it, so the
+     * foam wraps the banks *and* rings any obstacle that rises near the surface, and its scale follows the real
+     * geometry. The depth is read from the scene distance buffer the renderer records only for a render texture
+     * created with NYA_RenderTextureOptions.normals; drawn to the window, or to a target without that buffer, the
+     * surface falls back to the authored shore band. The value scales how much the depth foam replaces it.
+     * */
+    f32 depth_foam;
 
     /**
      * Whether the surface mirrors a real planar reflection of the sky instead of the flat Fresnel tint, in

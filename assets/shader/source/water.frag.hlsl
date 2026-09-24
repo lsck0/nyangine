@@ -19,9 +19,12 @@
 //    sun glint mirror in the water. Off, it falls back to the flat reflection tint the caller set — the cheap
 //    stand-in that shipped first. Reflecting scene geometry (terrain, meshes) is the remaining roadmap-1104 step.
 //
-//  - Foam: a soft band where the surface meets the banks (the shore weight approaches one — a stand-in for a
-//    true depth-difference shoreline, which needs a depth capture the colour capture does not carry) plus a
-//    little along the wave crests. TODO: capture scene depth alongside colour for a real shoreline band.
+//  - Foam: a soft band where the surface meets the banks plus a little along the wave crests. The shore band is
+//    driven by the true water depth over the bed where the scene distance buffer is live (t2, depth.z): the foam
+//    follows where the drawn bed sits close beneath the surface, so it wraps the banks and rings any submerged
+//    obstacle that rises near the waterline. Drawn to the window, or to a target without that buffer, it falls
+//    back to the authored shore weight the mesh carries in its vertex-colour alpha — the honest depth version
+//    with a stand-in for when there is nothing to measure against.
 //
 // ## ESSL-300 safe
 //
@@ -45,6 +48,17 @@ SamplerState scene_sampler : register(s0, space2);
  * */
 Texture2D reflection_tex : register(t1, space2);
 SamplerState reflection_sampler : register(s1, space2);
+
+/*
+ * The scene distance buffer at t2: the camera distance to whatever opaque surface was drawn behind the water,
+ * in the buffer's alpha (the renderer's normal buffer, NYA_RENDER3D_NORMAL_FORMAT, resolved just before the
+ * surface draws). Compared with this fragment's own camera distance it gives how much water the view ray
+ * crosses to reach the bed, which foams the shoreline honestly: the foam follows where the bed is close beneath
+ * the surface, banks and submerged obstacles alike. Read only when depth.z (has_depth) is one — a render
+ * texture created with normals; otherwise it holds a placeholder and the surface foams from the authored band.
+ * */
+Texture2D scene_distance : register(t2, space2);
+SamplerState scene_distance_sampler : register(s2, space2);
 
 // a second fragment block at b1, so the lit pipelines without water state do not carry its size. Matches
 // NYA_ShaderWaterFragUniform in uniforms.h.
@@ -70,6 +84,11 @@ cbuffer WaterUniform : register(b1, space3) {
   // ripple spatial scale, ripple normal strength, ripple travel speed, and the planar-reflection blend (w):
   // zero keeps the flat Fresnel tint below, positive samples the mirrored-sky reflection at t1 and blends it in.
   float4 ripple;
+
+  // depth-difference shoreline foam: how much the true water depth drives the shore foam (x, 0 keeps the
+  // authored band), the world depth over which it fades from full at the waterline to none (y), 1 when the
+  // scene distance buffer at t2 is live (z), and one float of padding (w).
+  float4 depth;
 };
 
 struct FragInput {
@@ -199,12 +218,28 @@ Mesh3DOutput main(FragInput input) {
   float3 flat_surface = colour * ambient;
   colour = colour + max(lit - flat_surface, 0.0);
 
-  // foam: a soft band at the banks (shore weight near one) plus the wave crests, shimmered by the ripples so
-  // the foam line is not a clean arc. `foam.x` is the band width, `foam.y` the crest threshold, `foam.z` its softness.
+  // foam: a soft band at the banks plus the wave crests, shimmered by the ripples so the foam line is not a
+  // clean arc. `foam.x` is the band width, `foam.y` the crest threshold, `foam.z` its softness.
   float shore_band = smoothstep(1.0 - max(foam.x, 1e-3), 1.0, shore);
+
+  // the true depth-difference shore band, where the scene distance buffer is live: how far the view ray travels
+  // through water to reach the bed drawn behind this fragment (both distances are from the camera, so their
+  // difference is the water it crosses), foamed where that is shallow. A bed distance of zero is the cleared
+  // buffer — nothing was drawn behind, open water — so it never foams there. depth.x blends this over the
+  // authored band, depth.y is the depth at which the foam fades out.
+  float surface_distance = length(camera_position - input.world_position);
+  float bed_distance     = scene_distance.Sample(scene_distance_sampler, screen_uv).a;
+  float water_depth      = bed_distance - surface_distance;
+  float depth_shore      = (depth.z > 0.5 && bed_distance > surface_distance)
+                             ? (1.0 - smoothstep(0.0, max(depth.y, 1e-3), water_depth))
+                             : 0.0;
+
+  // the shore term: the depth-driven band where it is available and asked for, the authored band otherwise.
+  float shore_foam = lerp(shore_band, max(shore_band, depth_shore), saturate(depth.x) * depth.z);
+
   float crest_foam = smoothstep(foam.y, foam.y + max(foam.z, 1e-3), crest);
   float shimmer    = 0.6 + (0.4 * sin((p.x + p.y) * 2.0 + (time * 3.0)));
-  float foam_mask  = saturate(max(shore_band, crest_foam) * shimmer);
+  float foam_mask  = saturate(max(shore_foam, crest_foam) * shimmer);
 
   colour = lerp(colour, WATER_FOAM_COLOUR, foam_mask);
 

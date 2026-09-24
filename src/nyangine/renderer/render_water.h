@@ -33,11 +33,11 @@
 
 /**
  * The most a wave lifts the surface, as a multiple of its amplitude: the octave weights nya_water_wave_height
- * sums (0.6 + 0.4 for the two along-flow octaves, 0.35 for the cross chop). The renderer pads a water
- * surface's cull radius by this times the amplitude so a lifted crest does not pop out at a screen edge, and
- * the test bounds the height by it.
+ * sums (0.55 + 0.35 for the two along-flow octaves, plus 0.28 for the long cross swell and 0.22 for the short
+ * cross chop). The renderer pads a water surface's cull radius by this times the amplitude so a lifted crest
+ * does not pop out at a screen edge, and the test bounds the height by it.
  * */
-#define NYA_WATER_WAVE_PEAK 1.35F
+#define NYA_WATER_WAVE_PEAK 1.40F
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

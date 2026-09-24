@@ -8,7 +8,7 @@
 // ## The waves, mirrored from render_water.c
 //
 // The height is the same summed sines nya_water_wave_height computes on the CPU (two octaves along the
-// current plus one chop across it), so the renderer's cull-radius padding and the determinism test describe
+// current plus a long swell and a short chop across it), so the renderer's cull-radius padding and the determinism test describe
 // the surface this actually draws. The normal is the analytic gradient of that height, so lighting and the
 // Fresnel term track the real slope rather than a flat plane. A little Gerstner-style horizontal pinch along
 // the flow sharpens the crests. The wind field (render_wind.h) optionally drives the chop: its horizontal
@@ -56,12 +56,14 @@ struct VertOutput {
   float2 shore_crest : TEXCOORD2;
 };
 
-/** The two along-flow octave weights and the cross chop, matching _NYA_WATER_OCTAVE and _NYA_WATER_CHOP. */
-static const float2 WATER_OCTAVE = float2(0.60, 0.40);
-static const float WATER_CHOP = 0.35;
+/** The two along-flow octave weights, the long cross swell and the short cross chop, matching _NYA_WATER_OCTAVE,
+ *  _NYA_WATER_SWELL and _NYA_WATER_CHOP in render_water.c. */
+static const float2 WATER_OCTAVE = float2(0.55, 0.35);
+static const float WATER_SWELL = 0.28;
+static const float WATER_CHOP = 0.22;
 
 /** Their sum, NYA_WATER_WAVE_PEAK: the most the height reaches as a multiple of amplitude, for the crest normalise. */
-static const float WATER_WAVE_PEAK = 1.35;
+static const float WATER_WAVE_PEAK = 1.40;
 
 VertOutput main(VertInput input) {
   VertOutput output;
@@ -96,16 +98,17 @@ VertOutput main(VertInput input) {
   float along = dot(world.xz, flow);
   float side  = dot(world.xz, across);
 
-  // two along-flow octaves and one cross chop, exactly the phases render_water.c sums.
+  // two along-flow octaves, a long cross swell and a short cross chop, exactly the phases render_water.c sums.
   float a0 = (along * frequency) + (time * speed);
   float a1 = (along * frequency * 1.7) + (time * speed * 1.3) + 1.3;
-  float a2 = (side * frequency * 0.8) + (time * speed * 1.9);
+  float a2 = (side * frequency * 0.5) + (time * speed * 0.7) + 2.1;
+  float a3 = (side * frequency * 1.3) + (time * speed * 1.9);
 
-  float height = amp * ((WATER_OCTAVE.x * sin(a0)) + (WATER_OCTAVE.y * sin(a1)) + (WATER_CHOP * sin(a2)));
+  float height = amp * ((WATER_OCTAVE.x * sin(a0)) + (WATER_OCTAVE.y * sin(a1)) + (WATER_SWELL * sin(a2)) + (WATER_CHOP * sin(a3)));
 
   // the analytic slope of that height, so the normal is the real surface slope, not the flat plane's.
   float dalong = amp * ((WATER_OCTAVE.x * frequency * cos(a0)) + (WATER_OCTAVE.y * frequency * 1.7 * cos(a1)));
-  float dside  = amp * (WATER_CHOP * frequency * 0.8 * cos(a2));
+  float dside  = amp * ((WATER_SWELL * frequency * 0.5 * cos(a2)) + (WATER_CHOP * frequency * 1.3 * cos(a3)));
 
   // chain the along/side derivatives back onto world x and z (along = world.xz . flow, side = world.xz . across).
   float dhdx = (dalong * flow.x) + (dside * across.x);

@@ -10,17 +10,21 @@
 NYA_INTERNAL f32 _nya_water_fract(f32 value) __attr_no_discard;
 
 /*
- * The along-flow octave weights and the cross-chop weight, summing to NYA_WATER_WAVE_PEAK. Two octaves along
- * the current plus one across it: enough that the surface does not read as a single travelling sine, few
- * enough to stay cheap in a vertex stage. The multipliers on frequency and speed are deliberately not whole
- * ratios, so the sum does not visibly repeat. The water vertex shader mirrors these exactly.
+ * The along-flow octave weights and the two cross weights, summing to NYA_WATER_WAVE_PEAK. Two octaves along
+ * the current, a long rolling swell across it, and a short chop across it: four bands, enough that the surface
+ * reads as a heightfield of waves rather than a single travelling sine, few enough to stay cheap in a vertex
+ * stage. The multipliers on frequency and speed are deliberately not whole ratios, so the sum does not visibly
+ * repeat. The water vertex shader mirrors these exactly.
  */
 
-/** The two along-flow octaves. Sum to one before the cross chop is added. */
-NYA_INTERNAL const f32 _NYA_WATER_OCTAVE[2] = { 0.60F, 0.40F };
+/** The two along-flow octaves, the second shorter and faster. */
+NYA_INTERNAL const f32 _NYA_WATER_OCTAVE[2] = { 0.55F, 0.35F };
 
-/** The cross-flow chop, perpendicular to the current, at a shorter wavelength and a faster travel. */
-#define _NYA_WATER_CHOP 0.35F
+/** The long cross swell, perpendicular to the current, at a longer wavelength and a slow travel. */
+#define _NYA_WATER_SWELL 0.28F
+
+/** The short cross chop, perpendicular to the current, at a shorter wavelength and a faster travel. */
+#define _NYA_WATER_CHOP 0.22F
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -65,11 +69,15 @@ f32 nya_water_wave_height(f32x2 xz, f32 time, f32x2 flow_direction, f32 amplitud
 
     f32 height = (_NYA_WATER_OCTAVE[0] * sinf(phase_0)) + (_NYA_WATER_OCTAVE[1] * sinf(phase_1));
 
-    // the cross chop, shorter still, so the surface is not a set of parallel ridges.
-    f32 phase_2 = (side * frequency * 0.8F) + (time * speed * 1.9F);
-    height += _NYA_WATER_CHOP * sinf(phase_2);
+    // a long rolling swell across the current, so the channel heaves rather than only rippling along the flow.
+    f32 phase_2 = (side * frequency * 0.5F) + (time * speed * 0.7F) + 2.1F;
+    height += _NYA_WATER_SWELL * sinf(phase_2);
 
-    // the octave and chop weights sum to NYA_WATER_WAVE_PEAK, so this is bounded by amplitude times it.
+    // the short cross chop, shorter still, so the surface is not a set of parallel ridges.
+    f32 phase_3 = (side * frequency * 1.3F) + (time * speed * 1.9F);
+    height += _NYA_WATER_CHOP * sinf(phase_3);
+
+    // the octave, swell and chop weights sum to NYA_WATER_WAVE_PEAK, so this is bounded by amplitude times it.
     return amplitude * height;
 }
 

@@ -575,7 +575,15 @@ struct NYA_ShaderWaterFragUniform {
      * the mirrored-sky reflection capture at the fragment's screen position and Fresnel-blends it in.
      * */
     f32 ripple_scale, ripple_strength, ripple_speed, reflection;
+
+    /**
+     * The depth-difference shoreline foam: how much the true water depth over the bed drives the shore foam (0
+     * keeps the authored shore band), the world-space depth over which that foam fades from full at the waterline
+     * to none, 1 when the scene distance buffer is live (0 falls back to the authored band), and one float of
+     * padding. See scene_distance in water.frag.hlsl.
+     * */
+    f32 depth_strength, depth_shore, has_depth, depth_pad;
 };
 
-static_assert(sizeof(struct NYA_ShaderWaterFragUniform) == 112,
-              "seven float4 rows, matching the WaterUniform cbuffer in water.frag.hlsl");
+static_assert(sizeof(struct NYA_ShaderWaterFragUniform) == 128,
+              "eight float4 rows, matching the WaterUniform cbuffer in water.frag.hlsl");
