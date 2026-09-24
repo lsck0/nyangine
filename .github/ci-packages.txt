@@ -9,6 +9,7 @@ gettext-base
 git-lfs
 libasound2-dev
 libaudio-dev
+libbrotli-dev
 libclang-rt-22-dev
 libdbus-1-dev
 libdecor-0-dev
@@ -47,4 +48,5 @@ ninja-build
 osslsigncode
 pkg-config
 zip
+zlib1g-dev
 zsh
