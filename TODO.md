@@ -1177,17 +1177,21 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   the stored status+body (`Idempotency-Replayed: true`), handler NOT re-run; in-flight ⇒ 409; same key, different
   body ⇒ 422; malformed key ⇒ 400. Added `NYA_HTTP_STATUS_CONFLICT`. Caller: a `web_server` notes route; test
   `test_idempotency` (injected clock) green under ASan+LSan+UBSan.
-- `[ ]` **Reconnect-with-backoff + health routes** — the net/websocket clients reconnect on drop using
-  `nya_backoff_ms` (full jitter) and, once reconnected, resubscribe; plus liveness/readiness routes on the HTTP
-  server (a real handler behind the existing `health` route-tag concept), readiness gated on the breaker/db state.
+- `[x]` **Reconnect-with-backoff + health routes (landed `4e36c14`)** — `base_reconnect` (a composable value
+  type with an injected clock, delay drawn from `nya_backoff_ms` full jitter; opt-in `NYA_ReconnectPolicy`) wired
+  into the curl WS client (new `NYA_WEBSOCKET_STATE_RECONNECTING`, re-dial + re-report OPEN on recovery).
+  `http_health`: `GET /healthz` (liveness, always 200) + `GET /readyz` (readiness, 200/503) over a bounded
+  registry of named checks, with a `base_circuit` tie-in (OPEN ⇒ not-ready); `web_server` wires a real db check.
+  Tests `test_reconnect`, `test_health`.
 - `[ ]` **Self-healing beyond fail-fast** — optional supervised restart/re-exec on a fatal (the crash reporter
   currently reports but does not relaunch), behind an opt-in so a crash loop cannot hide.
-- `[ ]` **Callback-backed HTTP route handlers (user, 2026-09-24)** — `NYA_HttpRoute.handler` is a raw fn pointer
-  registered once, so a code hot-reload dangles it and a running web server's handlers do NOT hot-swap. Add
-  `NYA_CallbackHandle handler_callback` set via `.handler_callback = nya_callback(fn)`; dispatch resolves it with
-  `nya_callback_get` at the two invoke sites + `nya_http_router_check`. `update_callback_pointers` then re-points
-  it on reload, so handler code swaps live. Raw pointer in release, named handle in dev. See [[code-hot-reload]].
-  Queued behind the resilience-#3 agent (both touch `http_router`).
+- `[x]` **Callback-backed HTTP route handlers (landed `4a2f5fa`)** — `NYA_HttpRoute.handler_callback` /
+  `handler_identified_callback` carry a `nya_callback` token; the router resolves it every dispatch through a
+  resolver a program installs with `nya_http_router_resolvers_set`, so a reloaded DLL's handler runs live and a
+  raw pointer no longer dangles. Layering-correct: http (rank 6) holds only the opaque `u64`; the program (which
+  may use core's callback registry, rank 7) composes the resolution in — one seam, not an HTTP reload mechanism.
+  Checker enforces exactly one of pointer or token. `test_router_callback` proves the swap. Follow-up: install a
+  `nya_callback_get`-based resolver + convert `web_server`'s routes to demonstrate end-to-end.
 
 ### Docs deployment (user, 2026-09-24)
 
