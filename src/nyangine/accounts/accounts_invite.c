@@ -9,11 +9,7 @@
 #include "nyangine/db/db_orm.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** SHA-256 of a canonical invite, as lower case hex. The same shape as the session and recovery hashes. */
 NYA_INTERNAL void _nya_account_invite_hash(NYA_ConstCString canonical, OUT char* out_hex, u64 capacity);
@@ -24,11 +20,7 @@ NYA_INTERNAL b8 _nya_account_invite_canonical(NYA_ConstCString code, OUT char* o
 /** The live invite for this canonical code, or false when there is no unused, unexpired one. */
 NYA_INTERNAL b8 _nya_account_invite_find_live(NYA_Arena* arena, NYA_ConstCString canonical, u64 now_s, OUT NYA_AccountInvite* out_invite) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_account_invite_issue(NYA_Arena* arena, u64 created_by, u64 ttl_s, char* out_code, u64 capacity) {
     nya_assert(arena != nullptr && out_code != nullptr && capacity > 0);
@@ -99,8 +91,7 @@ NYA_Error nya_account_register(
     if (policy == NYA_ACCOUNT_REGISTRATION_INVITE) {
         char canonical[24] = { 0 };
 
-        // An invite that is not even shaped like one is refused before the account is touched, and says
-        // so: whoever is registering may know their code was bad.
+        // An invite not even shaped like one is refused before the account is touched, and says so.
         if (invite == nullptr || !_nya_account_invite_canonical(invite, canonical, sizeof(canonical))) {
             return nya_error(NYA_ERROR_PERMISSION_DENIED, "that invite code is not valid");
         }
@@ -112,8 +103,7 @@ NYA_Error nya_account_register(
         spend = true;
     }
 
-    // The account first. Only once it is really made is the invite spent, so a taken username or a short
-    // password leaves the code for another try rather than burning it.
+    // Account first: the invite is spent only once the account is really made, so a failed create leaves the code for another try.
     NYA_AccountUser user = { 0 };
     NYA_TRY(nya_account_create(arena, username, password, &user));
 
@@ -124,8 +114,7 @@ NYA_Error nya_account_register(
         NYA_Error updated = nya_orm_update(_NYA_ACCOUNTS.invites, &live);
 
         if (!updated.ok) {
-            // The account exists but the invite could not be marked: undo the account rather than leave
-            // a member who came in on a code that still reads as unused.
+            // Invite couldn't be marked: undo the account rather than leave a member on a code that still reads unused.
             (void)nya_account_destroy(arena, user.id);
             return updated;
         }
@@ -201,11 +190,7 @@ NYA_Error nya_account_invite_prune(NYA_Arena* arena, u64 keep_for_s, u32* out_re
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_account_invite_hash(NYA_ConstCString canonical, char* out_hex, u64 capacity) {
     nya_assert(out_hex != nullptr && capacity > ((u64)NYA_CRYPTO_SHA256_BYTES * 2));

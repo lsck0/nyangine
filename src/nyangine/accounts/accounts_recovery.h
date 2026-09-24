@@ -60,11 +60,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Codes made in one set. Ten, which is what every service that does this settles on. */
 #define NYA_ACCOUNTS_RECOVERY_CODE_COUNT 10
@@ -75,11 +71,7 @@
 /** Bytes of entropy behind one code. Five, as two groups of base32: enough that guessing is hopeless. */
 #define NYA_ACCOUNTS_RECOVERY_CODE_BYTES 5
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_AccountRecoveryCode NYA_AccountRecoveryCode;
 
@@ -101,11 +93,7 @@ struct NYA_AccountRecoveryCode {
     u64 created_at_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Makes a fresh set of recovery codes for an account, and answers them once.

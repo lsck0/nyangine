@@ -7,11 +7,7 @@
 #include "nyangine/base/base_clock.h"
 #include "nyangine/db/db_orm.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Whether a subject is one this will store: present, short enough, printable, and not an email. */
 NYA_INTERNAL b8 _nya_account_subject_is_valid(NYA_ConstCString subject) __attr_no_discard;
@@ -26,11 +22,7 @@ NYA_INTERNAL NYA_Error _nya_account_identity_username(
     NYA_Arena* arena, NYA_ConstCString provider, NYA_ConstCString subject, OUT char* out_username, u64 capacity
 ) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_account_identity_link(NYA_Arena* arena, u64 account_id, NYA_ConstCString provider, NYA_ConstCString subject, NYA_ConstCString display) {
     nya_assert(arena != nullptr);
@@ -46,16 +38,14 @@ NYA_Error nya_account_identity_link(NYA_Arena* arena, u64 account_id, NYA_ConstC
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "that is not a provider subject; see accounts_identity.h on why an email is refused");
     }
 
-    // The account has to be there: a row pointing at nothing would be a way in to an account that
-    // does not exist, which is the sort of thing that later becomes somebody else's account.
+    // The account must exist: a row pointing at nothing is a way into an account that later becomes somebody else's.
     NYA_AccountUser user = { 0 };
     NYA_TRY(nya_account_find_by_id(arena, account_id, &user));
 
     NYA_AccountIdentity existing = { 0 };
 
     if (_nya_account_identity_find(arena, folded, subject, &existing)) {
-        // Somebody else's. Refused rather than moved: one Steam id being two accounts is exactly what
-        // this table is for, and quietly re-pointing it would be an account takeover with no evidence.
+        // Somebody else's: refused, not moved — quietly re-pointing it would be an account takeover with no evidence.
         if (existing.account_id != account_id) return nya_error(NYA_ERROR_ALREADY_EXISTS, "that %s account is linked to somebody else", folded);
 
         // Theirs already: the display name is the only thing that can have changed.
@@ -72,8 +62,7 @@ NYA_Error nya_account_identity_link(NYA_Arena* arena, u64 account_id, NYA_ConstC
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "an account holds at most %d identities", NYA_ACCOUNTS_MAX_IDENTITIES_PER_USER);
     }
 
-    // One provider once per account: a second Steam id on one account is a person with two Steam
-    // accounts asking this table to answer "which one are you" and getting whichever row sorts first.
+    // One provider once per account: a second id for the same provider makes "which one are you" ambiguous.
     NYA_AccountIdentity* rows  = nullptr;
     u32                  count = 0;
 
@@ -104,11 +93,7 @@ NYA_Error nya_account_identity_unlink(NYA_Arena* arena, u64 account_id, NYA_Cons
     char folded[NYA_ACCOUNTS_MAX_PROVIDER] = { 0 };
     if (!nya_account_provider_normalize(provider, folded, sizeof(folded))) return nya_error(NYA_ERROR_NOT_FOUND, "no such login");
 
-    /*
-     * The last way in stays. An account with no password and one identity, unlinked, is an account
-     * nobody can ever reach again — holding whatever that person owns, and with no way to prove it was
-     * theirs. Refused here rather than left to every caller to remember.
-     */
+    // The last way in stays: unlinking an account's only identity (with no password) would strand it forever.
     u32 ways_in = 0;
     NYA_TRY(nya_account_identity_count(arena, account_id, &ways_in));
 
@@ -275,11 +260,7 @@ b8 nya_account_provider_normalize(NYA_ConstCString provider, char* out_normalize
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_account_subject_is_valid(NYA_ConstCString subject) {
     if (subject == nullptr || subject[0] == '\0') return false;
@@ -292,8 +273,7 @@ b8 _nya_account_subject_is_valid(NYA_ConstCString subject) {
 
         if (character < 0x20 || character == 0x7F) return false;
 
-        // An email address is refused outright, for the reason the header gives: it is re-assigned, and
-        // a key that is re-assigned turns one person's account into another person's.
+        // An email is refused: it gets re-assigned, and a re-assigned key turns one person's account into another's.
         if (character == '@') return false;
     }
 
@@ -321,11 +301,7 @@ b8 _nya_account_identity_find(NYA_Arena* arena, NYA_ConstCString provider, NYA_C
 }
 
 NYA_Error _nya_account_identity_username(NYA_Arena* arena, NYA_ConstCString provider, NYA_ConstCString subject, char* out_username, u64 capacity) {
-    /*
-     * The provider and the last of the subject, which reads as something rather than as a number:
-     * `steam_0000000000`. The whole subject is not used because a username is shown to other people
-     * and a provider id is not something to put on a scoreboard.
-     */
+    // Provider plus the tail of the subject (`steam_0000000000`); the full id is not used since a username is public.
     u64 length = strlen(subject);
     u64 tail   = length > 10 ? length - 10 : 0;
 

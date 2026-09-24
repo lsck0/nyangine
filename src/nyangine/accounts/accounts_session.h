@@ -47,11 +47,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Bytes a session token takes as text, terminator included.
@@ -91,11 +87,7 @@
 /** Sessions one user may hold at once. Past it the oldest is ended, so a login always works. */
 #define NYA_ACCOUNTS_MAX_SESSIONS_PER_USER 16
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_AccountSession NYA_AccountSession;
 
@@ -146,11 +138,7 @@ struct NYA_AccountSession {
     char token[NYA_ACCOUNTS_TOKEN_TEXT_BYTES]; // @skip @redact
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Opens a session for a user and answers it, with the token filled in.

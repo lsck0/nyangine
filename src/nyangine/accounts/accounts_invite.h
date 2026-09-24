@@ -53,11 +53,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of an invite code as text, terminator included: `XXXXX-XXXXX-XXXXX-XXXXX` and its NUL. */
 #define NYA_ACCOUNTS_INVITE_CODE_TEXT 24
@@ -65,11 +61,7 @@
 /** Bytes of entropy behind an invite. Ten, wider than a recovery code: an invite is pasted, not typed. */
 #define NYA_ACCOUNTS_INVITE_CODE_BYTES 10
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** What a program allows. One of these, from its own config; see the header. */
 typedef enum {
@@ -108,11 +100,7 @@ struct NYA_AccountInvite {
     u64 used_at_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Makes an invite code good for `ttl_s` seconds, attributed to `created_by`, and answers it once.

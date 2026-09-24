@@ -11,11 +11,7 @@
 #include "nyangine/db/db_orm.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** SHA-256 of a token, as lower case hex: what a row stores and what a lookup searches. */
 NYA_INTERNAL void _nya_account_session_hash(NYA_ConstCString token, OUT char* out_hex, u64 capacity);
@@ -26,11 +22,7 @@ NYA_INTERNAL b8 _nya_account_session_is_live(const NYA_AccountSession* session, 
 /** Ends the oldest sessions of a user until at most `keep` live ones are left. */
 NYA_INTERNAL NYA_Error _nya_account_session_trim(NYA_Arena* arena, u64 user_id, u32 keep) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_account_session_issue(NYA_Arena* arena, u64 user_id, NYA_ConstCString address, NYA_ConstCString agent, NYA_AccountSession* out_session) {
     nya_assert(arena != nullptr && out_session != nullptr);
@@ -39,8 +31,7 @@ NYA_Error nya_account_session_issue(NYA_Arena* arena, u64 user_id, NYA_ConstCStr
 
     if (!nya_accounts_is_open()) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
 
-    // The user has to be there and has to be allowed in: a session for a disabled account would be a
-    // way around nya_account_disable.
+    // The user must exist and be allowed in: a session for a disabled account would bypass nya_account_disable.
     NYA_AccountUser user = { 0 };
     NYA_TRY(nya_account_find_by_id(arena, user_id, &user));
 
@@ -88,8 +79,7 @@ NYA_Error nya_account_session_validate(NYA_Arena* arena, NYA_ConstCString token,
 
     if (!nya_accounts_is_open()) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
 
-    // One refusal for every way this fails, as accounts.h describes: which of them happened is what
-    // somebody feeding tokens in wants to learn.
+    // One refusal for every way this fails (accounts.h): which one happened is what a token-feeder wants to learn.
     NYA_Error refused = nya_error(NYA_ERROR_PERMISSION_DENIED, "that session is not valid");
 
     if (token == nullptr || token[0] == '\0') return refused;
@@ -112,17 +102,12 @@ NYA_Error nya_account_session_validate(NYA_Arena* arena, NYA_ConstCString token,
 
     if (!_nya_account_session_is_live(&session, now_s)) return refused;
 
-    // The user is read on every validation rather than cached, so disabling an account ends what it
-    // can do on the next request rather than on the next login.
+    // The user is re-read on every validation, not cached, so disabling an account takes effect next request, not next login.
     NYA_AccountUser user = { 0 };
     if (!nya_account_find_by_id(arena, session.user_id, &user).ok) return refused;
     if (user.disabled) return refused;
 
-    /*
-     * The idle expiry moves out, bounded by the absolute one: a session in use stays alive, and one
-     * that is not stops on its own. Written once a minute at most — a row write on every request of
-     * a busy server would be the session table doing more work than the request.
-     */
+    // Idle expiry slides forward, bounded by the absolute one; written at most once a minute so a busy server isn't all row writes.
     u64 pushed = now_s + NYA_ACCOUNTS_SESSION_IDLE_S;
     u64 ceiling = session.created_at_s + NYA_ACCOUNTS_SESSION_ABSOLUTE_S;
 
@@ -159,12 +144,7 @@ NYA_Error nya_account_session_rotate(NYA_Arena* arena, NYA_ConstCString token, N
 
     u64 now_s = nya_clock_get_timestamp_s();
 
-    /*
-     * The token presented, tried as a *retired* one first. A token that a session has already rotated
-     * away from means two parties hold this session's tokens, which only happens when one was stolen:
-     * the honest client moved on to a newer token, so whoever still has this old one is not it — or is,
-     * and there is no telling which. Either way the session dies, taking both copies with it.
-     */
+    // Tried as a *retired* token first: a rotated-away token in two hands means theft, so the session dies, taking both copies.
     void* retired = nullptr;
     u32   retired_count = 0;
 
@@ -198,8 +178,7 @@ NYA_Error nya_account_session_rotate(NYA_Arena* arena, NYA_ConstCString token, N
     NYA_AccountUser user = { 0 };
     if (!nya_account_find_by_id(arena, session.user_id, &user).ok || user.disabled) return refused;
 
-    // The token that came in is retired; a fresh one is minted for the same row. A replay of the old
-    // token from here on lands in the retired branch above and takes the session down.
+    // The incoming token is retired and a fresh one minted for the row; a later replay lands in the retired branch and kills the session.
     (void)snprintf(session.previous_hash, sizeof(session.previous_hash), "%s", session.token_hash);
 
     u8 secret[NYA_ACCOUNTS_TOKEN_BYTES] = { 0 };
@@ -329,8 +308,7 @@ NYA_Error nya_account_session_prune(NYA_Arena* arena, u64 keep_for_s, u32* out_r
     void* rows  = nullptr;
     u32   count = 0;
 
-    // Expired before the cutoff, or revoked and last used before it: a revoked row has no expiry that
-    // moved, so its last use is the only date it has.
+    // Expired before the cutoff, or revoked and last used before it: a revoked row's last use is the only date it has.
     NYA_TRY(nya_orm_select(_NYA_ACCOUNTS.sessions, 
         arena,
         "WHERE (expires_at_s <= ?) OR (revoked = 1 AND used_at_s <= ?)",
@@ -361,11 +339,7 @@ NYA_Error nya_account_session_sweep(NYA_Arena* arena, u32* out_ended, u32* out_r
 
     u64 now_s = nya_clock_get_timestamp_s();
 
-    /*
-     * First, the abandoned: a session unused past the idle window is invalid by its expiry already, but
-     * the row still reads as live. Revoked here so a list stops calling it a session, which is what the
-     * reference's "closed as abandoned after 30 days" trigger did.
-     */
+    // First the abandoned: a session idle past the window is already invalid but still reads live, so revoke it so lists stop counting it.
     u64 idle_cutoff = now_s > NYA_ACCOUNTS_SESSION_IDLE_S ? now_s - NYA_ACCOUNTS_SESSION_IDLE_S : 0;
 
     void* abandoned = nullptr;
@@ -385,11 +359,7 @@ NYA_Error nya_account_session_sweep(NYA_Arena* arena, u32* out_ended, u32* out_r
         *out_ended += 1;
     }
 
-    /*
-     * Then the bound on how many dead rows a user keeps. Ordered oldest first, every revoked row past
-     * the newest NYA_ACCOUNTS_SESSION_KEEP_REVOKED for its user is deleted — so a person with years of
-     * logins carries a list that stops growing rather than one that never forgets.
-     */
+    // Then bound how many dead rows a user keeps: past the newest NYA_ACCOUNTS_SESSION_KEEP_REVOKED, oldest revoked rows are deleted.
     void* revoked = nullptr;
     u32   revoked_count = 0;
 
@@ -403,8 +373,7 @@ NYA_Error nya_account_session_sweep(NYA_Arena* arena, u32* out_ended, u32* out_r
     for (u32 index = 0; index < revoked_count; index++) {
         const NYA_AccountSession* session = nya_orm_at(_NYA_ACCOUNTS.sessions, revoked, index);
 
-        // The rows arrive grouped by user, newest first within each; the counter resets at each user, so
-        // "kept" is how many of this user's revoked rows have already been seen this group.
+        // Rows arrive grouped by user, newest first; "kept" resets per user and counts this user's revoked rows seen so far.
         if (session->user_id != current_user) {
             current_user = session->user_id;
             kept         = 0;
@@ -422,11 +391,7 @@ NYA_Error nya_account_session_sweep(NYA_Arena* arena, u32* out_ended, u32* out_r
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_account_session_hash(NYA_ConstCString token, char* out_hex, u64 capacity) {
     nya_assert(out_hex != nullptr && capacity > ((u64)NYA_CRYPTO_SHA256_BYTES * 2));
@@ -448,8 +413,7 @@ b8 _nya_account_session_is_live(const NYA_AccountSession* session, u64 now_s) {
     if (session->revoked) return false;
     if (now_s >= session->expires_at_s) return false;
 
-    // The absolute bound is checked against the start rather than against the stored expiry, so a
-    // clock that went backwards or a row that was written by an older build cannot extend it.
+    // Absolute bound checked against the start, not the stored expiry, so a backwards clock or old-build row can't extend it.
     if (now_s >= session->created_at_s + NYA_ACCOUNTS_SESSION_ABSOLUTE_S) return false;
 
     return true;

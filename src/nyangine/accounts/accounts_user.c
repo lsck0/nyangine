@@ -19,19 +19,9 @@
 #include "nyangine/db/db_orm.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
-/**
- * The two tables, open for as long as this module is.
- *
- * A singleton rather than a handle a caller passes: there is one set of accounts in a process, the
- * same way there is one system registry, and a second one would be a second answer to "who is logged
- * in" — which is the question this exists to answer once.
- * */
+/** The two tables, open for as long as the module is: a singleton, since a process has one set of accounts and so one answer to "who is logged in". */
 typedef struct {
     NYA_Arena*    arena;
     NYA_Database* database;
@@ -50,38 +40,21 @@ typedef struct {
 
 NYA_INTERNAL _NYA_AccountsState _NYA_ACCOUNTS = { 0 };
 
-/**
- * A hash of nothing, verified against when a username does not exist.
- *
- * The cost of a login must not say whether the account is there, and the only way to mean that is to
- * do the work either way. Built once at open from a password nobody has.
- * */
+/** A hash of nothing, verified against when a username doesn't exist so a login costs the same either way; built once at open from a password nobody has. */
 NYA_INTERNAL char _NYA_ACCOUNTS_ABSENT[NYA_ACCOUNTS_MAX_HASH] = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Hashes `password` into the encoded form described in the header, salt and parameters included. */
 NYA_INTERNAL NYA_Error _nya_account_password_encode(NYA_ConstCString password, OUT char* out_encoded, u64 capacity) __attr_no_discard;
 
-/**
- * Whether `password` made `encoded`. False for anything that is not that, including an encoded string
- * this cannot parse — an unreadable hash is not a password that matches.
- * */
+/** Whether `password` made `encoded`; false for anything else, including an unparseable hash. */
 NYA_INTERNAL b8 _nya_account_password_verify(NYA_ConstCString password, NYA_ConstCString encoded) __attr_no_discard;
 
 /** The cost an encoded hash was made with. False when it is not one this understands. */
 NYA_INTERNAL b8 _nya_account_password_cost(NYA_ConstCString encoded, OUT u32* out_memory_kib, OUT u32* out_passes, OUT u32* out_lanes) __attr_no_discard;
 
-/**
- * Reads the decimal number at `*cursor` up to `terminator`, moving the cursor past it.
- *
- * False for anything that is not one, an empty one, or one past what a u32 holds — which is how a
- * cost that would overflow is refused rather than wrapped.
- * */
+/** Reads the decimal at `*cursor` up to `terminator`, advancing it; false for a non-number, empty, or one past what a u32 holds (so an overflowing cost is refused). */
 NYA_INTERNAL b8 _nya_account_number(const char** cursor, char terminator, OUT u32* out_value) __attr_no_discard;
 
 /** Whether a password is inside the length bounds, said as the error a caller shows. */
@@ -94,11 +67,7 @@ NYA_INTERNAL NYA_Error _nya_account_create(NYA_Arena* arena, NYA_ConstCString us
 /** The one refusal a login has. Always the same words, whatever actually went wrong. */
 NYA_INTERNAL NYA_Error _nya_account_refused(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
     nya_assert(arena != nullptr);
@@ -133,11 +102,7 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountAudit), "account_audit", &_NYA_ACCOUNTS.audit));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.audit));
 
-    /*
-     * The hash a login verifies against when the username is not there. Made from bytes nobody will
-     * ever type, so it can never match, and made *here* so that the first failed login for a name
-     * that does not exist costs exactly what a real one does rather than one hash more.
-     */
+    // The hash a login verifies against when the username is absent: made from bytes nobody types (never matches), built here so a first failed login costs the same as a real one.
     u8 nobody[32] = { 0 };
     if (!nya_os_random_bytes(nobody, sizeof(nobody))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
 
@@ -200,8 +165,7 @@ NYA_Error _nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_C
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a username is one to %d characters with no control characters in it", NYA_ACCOUNTS_MAX_USERNAME - 1);
     }
 
-    // The normalised form is what uniqueness is decided on, so this is the question a caller's own
-    // "is that name taken" has to ask too; see nya_account_username_normalize.
+    // Uniqueness is decided on the normalised form, so a caller's own "is that name taken" must ask the same; see nya_account_username_normalize.
     NYA_AccountUser existing = { 0 };
     if (nya_account_find(arena, username, &existing).ok) return nya_error(NYA_ERROR_ALREADY_EXISTS, "that username is taken");
 
@@ -211,8 +175,7 @@ NYA_Error _nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_C
     (void)snprintf(user.normalized, sizeof(user.normalized), "%s", normalized);
     (void)snprintf(user.display, sizeof(user.display), "%s", username);
 
-    // Null is an account with no password at all, which is what an account made from a Steam or a
-    // Discord login is: the column stays empty and _nya_account_password_verify refuses an empty hash.
+    // Null means no password at all (a Steam/Discord account): the column stays empty and _nya_account_password_verify refuses an empty hash.
     if (password != nullptr) NYA_TRY(_nya_account_password_encode(password, user.password, sizeof(user.password)));
 
     user.created_at_s          = nya_clock_get_timestamp_s();
@@ -274,29 +237,19 @@ NYA_Error nya_account_authenticate(
 
     if (!_NYA_ACCOUNTS.open) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
 
-    /*
-     * Before the hash, not after it. Argon2id is 30 ms of this process, and an attacker who can spend
-     * that whenever they like has a denial of service whether or not they ever guess a password. See
-     * accounts_throttle.h for what this leaks by refusing cheaply, and why that is the right trade.
-     */
+    // Before the hash, not after: Argon2id is ~30 ms an attacker could spend at will (a DoS); see accounts_throttle.h on what refusing cheaply leaks and why it's the right trade.
     u32 wait_s = 0;
     if (nya_account_throttle_check(username, address, &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT) return _nya_account_refused();
 
     NYA_AccountUser user  = { 0 };
     NYA_Error       found = nya_account_find(arena, username, &user);
 
-    /*
-     * The verification happens whether or not the account exists, against a hash nothing can match.
-     * Argon2id is deliberately expensive, so skipping it for an unknown name would make "no such
-     * user" measurably faster than "wrong password" — which is a list of every username on the
-     * service, available to anybody with a stopwatch.
-     */
+    // Verify runs whether or not the account exists, against an unmatchable hash: else "no such user" is measurably faster than "wrong password" — a username oracle for anyone with a stopwatch.
     NYA_ConstCString encoded = found.ok ? user.password : _NYA_ACCOUNTS_ABSENT;
 
     b8 matched = _nya_account_password_verify(password, encoded);
 
-    // A disabled account is refused in the same words for the same reason: whether an account exists
-    // and whether it is allowed in are both things an attacker would like to know.
+    // A disabled account is refused in the same words: whether an account exists and whether it's allowed in are both things an attacker wants to know.
     if (!found.ok || !matched || user.disabled) {
         nya_account_throttle_fail(username, address);
         return _nya_account_refused();
@@ -315,8 +268,7 @@ NYA_Error nya_account_password_change(NYA_Arena* arena, u64 id, NYA_ConstCString
     NYA_AccountUser user = { 0 };
     NYA_TRY(nya_account_find_by_id(arena, id, &user));
 
-    // The current password first: a session that has been taken over must not be able to change the
-    // password and lock the owner out of their own account.
+    // The current password first: a taken-over session must not be able to change the password and lock the owner out.
     if (!_nya_account_password_verify(current, user.password)) return _nya_account_refused();
 
     return nya_account_password_reset(arena, id, replacement);
@@ -336,10 +288,7 @@ NYA_Error nya_account_password_reset(NYA_Arena* arena, u64 id, NYA_ConstCString 
 
     NYA_TRY(nya_orm_update(_NYA_ACCOUNTS.users, &user));
 
-    /*
-     * Every session ends. Somebody changing a password is usually somebody who thinks a session is
-     * not theirs any more, and leaving the old ones alive would answer that worry with nothing.
-     */
+    // Every session ends: someone changing a password usually suspects a session isn't theirs, so leaving the old ones alive would answer that with nothing.
     u32 ended = 0;
     NYA_TRY(nya_account_session_revoke_all(arena, id, &ended));
 
@@ -363,8 +312,7 @@ b8 nya_account_password_needs_rehash(const NYA_AccountUser* user) {
 
 /** Wraps an object as an array element's value, since the export's lists are arrays of objects. */
 NYA_INTERNAL NYA_Value _nya_account_export_row(NYA_Arena* arena, const NYA_TypeReflection* type, const void* row) {
-    // Redacted, because this is the person's own copy of their data and a hash or a token in it is not
-    // theirs to keep any more than it was the database's to hand out; see the @redact fields.
+    // Redacted: this is the person's own data, and a hash or token in it isn't theirs to keep; see the @redact fields.
     NYA_Object* object = nya_reflect_to_object_redacted(arena, type, row);
 
     return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *object };
@@ -382,8 +330,7 @@ NYA_Error nya_account_export(NYA_Arena* arena, u64 id, NYA_Object** out_object) 
 
     NYA_Object* document = nya_object_create(arena);
 
-    // The account itself, redacted: everything the row holds except the password hash, which is not the
-    // person's password and is no use to them.
+    // The account itself, redacted: everything except the password hash, which isn't the person's password and is no use to them.
     nya_object_add(document, "account", _nya_account_export_row(arena, nya_reflect_of(NYA_AccountUser), &user));
 
     // Every linked provider.
@@ -400,8 +347,7 @@ NYA_Error nya_account_export(NYA_Arena* arena, u64 id, NYA_Object** out_object) 
         nya_object_add(document, "identities", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *list });
     }
 
-    // Every session, its token hash redacted and its token never stored: the metadata a person is shown
-    // — where from, what agent, when — is what they get, not a way to resume anything.
+    // Every session, token hash redacted and token never stored: the shown metadata (where from, what agent, when), not a way to resume anything.
     {
         NYA_AccountSession* rows  = nullptr;
         u32                 count = 0;
@@ -415,8 +361,7 @@ NYA_Error nya_account_export(NYA_Arena* arena, u64 id, NYA_Object** out_object) 
         nya_object_add(document, "sessions", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *list });
     }
 
-    // The count of unused recovery codes, never the codes: those are secrets this issued, not data about
-    // the person, and printing them into an export would be handing every one of them out again.
+    // The count of unused recovery codes, never the codes: those are secrets this issued, and printing them would hand them out again.
     {
         u32 remaining = 0;
         NYA_TRY(nya_account_recovery_remaining(arena, id, &remaining));
@@ -435,13 +380,11 @@ NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) {
     NYA_AccountUser user = { 0 };
     NYA_TRY(nya_account_find_by_id(arena, id, &user));
 
-    // The sessions go first: a session row whose user is gone would be a session nothing can revoke,
-    // and one whose token still validated against a user that is not there.
+    // Sessions first: a session row whose user is gone couldn't be revoked and would still validate against a missing user.
     u32 removed = 0;
     NYA_TRY(nya_account_session_purge(arena, id, &removed));
 
-    // and every way in, which would otherwise point at an account that is not there and would one day
-    // point at whoever is given that row id next.
+    // and every identity, which would otherwise point at a missing account and one day at whoever gets that row id next.
     NYA_AccountIdentity* identities = nullptr;
     u32                  linked     = 0;
 
@@ -464,8 +407,7 @@ NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) {
 
     nya_crypto_wipe(user.password, sizeof(user.password));
 
-    // Written before the row goes, so the entry exists; the subject id it names now resolves to no
-    // account, which is the tombstone the header describes.
+    // Written before the row goes, so the entry exists; its subject id now resolves to no account — the tombstone the header describes.
     nya_account_audit_record(arena, 0, id, NYA_ACCOUNT_ACTION_DELETED, "");
 
     return nya_orm_delete(_NYA_ACCOUNTS.users, nya_sql_s64((s64)id));
@@ -481,15 +423,13 @@ NYA_Error nya_account_disabled_set(NYA_Arena* arena, u64 id, b8 disabled) {
 
     NYA_TRY(nya_orm_update(_NYA_ACCOUNTS.users, &user));
 
-    // Disabling ends what is already open; enabling does not bring anything back, because a session
-    // that was ended is ended.
+    // Disabling ends what's open; enabling brings nothing back, because an ended session stays ended.
     if (disabled) {
         u32 ended = 0;
         NYA_TRY(nya_account_session_revoke_all(arena, id, &ended));
     }
 
-    // The actor is the caller's to know; this records that it happened, and the route that called it
-    // records who by passing itself to nya_account_audit_record when it has a richer story to tell.
+    // This records that it happened; a route with a richer story records who by passing itself to nya_account_audit_record.
     nya_account_audit_record(arena, 0, id, disabled ? NYA_ACCOUNT_ACTION_DISABLED : NYA_ACCOUNT_ACTION_ENABLED, "");
 
     return NYA_OK;
@@ -543,16 +483,10 @@ b8 nya_account_username_normalize(NYA_ConstCString username, char* out_normalize
     for (u64 index = 0; index < length; index++) {
         u8 character = (u8)username[index];
 
-        // A control character in a username is a username that prints as something else in a log, a
-        // terminal or a list. There is no legitimate one.
+        // A control character in a username prints as something else in a log, terminal or list; there is no legitimate one.
         if (character < 0x20 || character == 0x7F) return false;
 
-        /*
-         * Case folded, which is the whole of the normalisation for now. The look-alike folding the
-         * header describes — the confusable sets of Unicode's UTS #39 — needs a table this module
-         * does not carry yet, so what is here is the ASCII half, and a name in another script is
-         * unique against itself but not yet against its look-alikes.
-         */
+        // Case folded only for now; the confusable-folding (UTS #39) the header describes needs a table not carried yet, so a non-ASCII name is unique against itself but not its look-alikes.
         if (character >= 'A' && character <= 'Z') character = (u8)(character - 'A' + 'a');
 
         out_normalized[index] = (char)character;
@@ -563,11 +497,7 @@ b8 nya_account_username_normalize(NYA_ConstCString username, char* out_normalize
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_account_password_encode(NYA_ConstCString password, char* out_encoded, u64 capacity) {
     out_encoded[0] = '\0';
@@ -575,8 +505,7 @@ NYA_Error _nya_account_password_encode(NYA_ConstCString password, char* out_enco
     u8 salt[NYA_CRYPTO_ARGON2ID_SALT_BYTES] = { 0 };
     if (!nya_os_random_bytes(salt, sizeof(salt))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
 
-    // A scratch arena of its own, destroyed here: the work area is nineteen mebibytes, and an arena
-    // that lives for the program would keep the region rather than hand it back. See crypto_kdf.h.
+    // Its own scratch arena, destroyed here: the 19 MiB work area would otherwise be kept for the program's life. See crypto_kdf.h.
     NYA_Arena* scratch = nya_arena_create(.name = "accounts_argon2id");
     defer nya_arena_destroy(scratch);
 
@@ -599,8 +528,7 @@ NYA_Error _nya_account_password_encode(NYA_ConstCString password, char* out_enco
         return nya_error(NYA_ERROR_NOT_OK, "the hash could not be encoded");
     }
 
-    // The form everybody else writes, so a database this wrote is readable by something that is not
-    // this; see the header.
+    // The standard encoded form, so a database this wrote is readable by something that isn't this; see the header.
     s32 written = snprintf(out_encoded, capacity, "$argon2id$v=19$m=%u,t=%u,p=%u$%s$%s", NYA_ACCOUNTS_ARGON2ID_MEMORY_KIB,
                            NYA_ACCOUNTS_ARGON2ID_PASSES, NYA_ACCOUNTS_ARGON2ID_LANES, salt_text, hash_text);
 
@@ -669,16 +597,14 @@ b8 _nya_account_password_cost(NYA_ConstCString encoded, u32* out_memory_kib, u32
 
     if (encoded == nullptr) return false;
 
-    // Only this algorithm and this version: a hash that says anything else was not made here, and
-    // guessing at what it meant is how a verifier comes to accept something it should not.
+    // Only this algorithm and version: a hash saying anything else wasn't made here, and guessing is how a verifier accepts what it shouldn't.
     if (strncmp(encoded, "$argon2id$v=19$m=", 17) != 0) return false;
 
     u32 memory_kib = 0;
     u32 passes     = 0;
     u32 lanes      = 0;
 
-    // Parsed by hand rather than by sscanf, which cannot say whether a number was too big for the
-    // type it wrote into: a cost this misread is a cost this would then hash at.
+    // Parsed by hand, not sscanf, which can't tell if a number overflowed its type: a misread cost is a cost this would then hash at.
     const char* cursor = encoded + strlen("$argon2id$v=19$m=");
 
     if (!_nya_account_number(&cursor, ',', &memory_kib)) return false;
@@ -743,7 +669,6 @@ NYA_Error _nya_account_password_check(NYA_ConstCString password) {
 }
 
 NYA_Error _nya_account_refused(void) {
-    // One sentence for every way a login fails. See accounts.h: which of them happened is exactly
-    // what an attacker is asking, and the answer is the same either way.
+    // One sentence for every way a login fails (accounts.h): which one happened is exactly what an attacker asks, and the answer is the same.
     return nya_error(NYA_ERROR_PERMISSION_DENIED, "that username and password do not match an account");
 }

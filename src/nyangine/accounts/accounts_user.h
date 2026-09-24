@@ -46,11 +46,7 @@
 #include "nyangine/db/db_sql.h"
 #include "nyangine/permission/permission.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Bytes a username may take, terminator included.
@@ -84,25 +80,12 @@
  * */
 #define NYA_ACCOUNTS_MAX_PASSWORD 1024
 
-/*
- * The cost of one password hash. crypto_kdf.h measured these; they are repeated here rather than
- * taken from there because *this* is where raising them is a decision with a migration attached, and
- * because every hash stores the parameters it was made with, so the two can differ without anything
- * breaking.
- *
- * Nineteen mebibytes and two passes is RFC 9106's second recommended setting, the one for a server
- * that also has other work to do. It is about 30 ms on a 2020 desktop core, which is slow enough to
- * make a stolen database expensive and fast enough that a login does not feel like one.
- */
+// Argon2id cost: RFC 9106's second setting (19 MiB, 2 passes, ~30 ms) — repeated here because raising it is a migration decision, and each hash stores its own parameters.
 #define NYA_ACCOUNTS_ARGON2ID_MEMORY_KIB (19 * 1024)
 #define NYA_ACCOUNTS_ARGON2ID_PASSES     2
 #define NYA_ACCOUNTS_ARGON2ID_LANES      1
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_AccountUser NYA_AccountUser;
 
@@ -160,11 +143,7 @@ struct NYA_AccountUser {
     b8 disabled;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Opens the accounts tables in `database`, creating or migrating them.
@@ -180,11 +159,7 @@ NYA_API void nya_accounts_close(void);
 /** Whether the tables are open, which is what every call below needs and what a facade would ask. */
 NYA_API b8 nya_accounts_is_open(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ACCOUNTS
- * ─────────────────────────────────────────────────────────
- */
+// ACCOUNTS
 
 /**
  * Creates an account and answers it, with its id filled in.

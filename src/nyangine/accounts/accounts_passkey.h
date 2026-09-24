@@ -78,11 +78,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of entropy behind a challenge. Thirty-two, the size WebAuthn recommends and a session token uses. */
 #define NYA_ACCOUNTS_PASSKEY_CHALLENGE_BYTES 32
@@ -145,11 +141,7 @@
 #define NYA_ACCOUNTS_PASSKEY_COSE_ALG_EDDSA (-8)
 #define NYA_ACCOUNTS_PASSKEY_COSE_ALG_ES256 (-7)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_AccountPasskey          NYA_AccountPasskey;
 typedef struct NYA_AccountPasskeyChallenge NYA_AccountPasskeyChallenge;
@@ -253,11 +245,7 @@ struct NYA_AccountPasskeyAssertion {
     u64       signature_size;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Mints a registration challenge for a user and answers it.

@@ -63,11 +63,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes a provider name takes, terminator included. `steam`, `discord`, `accounts.google.com`. */
 #define NYA_ACCOUNTS_MAX_PROVIDER 40
@@ -83,11 +79,7 @@
 /** Identities one account may hold. Enough for every provider a program is likely to offer, twice. */
 #define NYA_ACCOUNTS_MAX_IDENTITIES_PER_USER 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_AccountIdentity NYA_AccountIdentity;
 
@@ -118,11 +110,7 @@ struct NYA_AccountIdentity {
     u64 used_at_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Records that this provider's `subject` is this account.

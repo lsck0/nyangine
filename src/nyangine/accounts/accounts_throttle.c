@@ -7,11 +7,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_hash.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** Which counter an entry is, so an address and a username of the same text cannot share a slot. */
 typedef enum {
@@ -19,13 +15,7 @@ typedef enum {
     _NYA_ACCOUNT_THROTTLE_USERNAME,
 } _NYA_AccountThrottleKind;
 
-/**
- * One counter.
- *
- * Keyed by a hash rather than by the text: the table holds addresses and usernames, and keeping either
- * in memory for an hour so a rate limiter can compare strings is keeping it for no reason. A collision
- * makes two keys share a wait, which is the same wait, and costs nobody anything an attacker can aim.
- * */
+/** One counter, keyed by a hash of the text not the text itself: addresses/usernames aren't kept in memory, and a collision just shares a (harmless) wait. */
 typedef struct {
     u64 key;
 
@@ -37,12 +27,7 @@ typedef struct {
 typedef struct {
     _NYA_AccountThrottleEntry entries[NYA_ACCOUNTS_THROTTLE_ENTRIES];
 
-    /**
-     * Where a key goes when the table is full and everything in it is still waiting.
-     *
-     * One entry, overwritten by whoever lands on it, so a full table under attack still answers rather
-     * than allocating or refusing to count. See _nya_account_throttle_entry.
-     * */
+    /** Where a key goes when the table is full and everything is still waiting: one entry, overwritten by whoever lands on it, so a full table still answers. See _nya_account_throttle_entry. */
     _NYA_AccountThrottleEntry overflow;
 
     u32 count;
@@ -51,11 +36,7 @@ typedef struct {
 
 NYA_INTERNAL _NYA_AccountThrottleTable _NYA_ACCOUNT_THROTTLE = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The key a piece of text has as a counter of this kind, or zero when there is nothing to key on. */
 NYA_INTERNAL u64 _nya_account_throttle_key(NYA_ConstCString text, _NYA_AccountThrottleKind kind) __attr_no_discard;
@@ -69,11 +50,7 @@ NYA_INTERNAL _NYA_AccountThrottleEntry* _nya_account_throttle_find(u64 key) __at
 /** The wait `failures` wrong answers have earned, in seconds. Doubling, and bounded. */
 NYA_INTERNAL u64 _nya_account_throttle_wait_s(u32 failures) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_AccountThrottleVerdict nya_account_throttle_check(NYA_ConstCString username, NYA_ConstCString address, u32* out_wait_s) {
     nya_assert(out_wait_s != nullptr);
@@ -125,11 +102,7 @@ void nya_account_throttle_fail(NYA_ConstCString username, NYA_ConstCString addre
 
         _NYA_AccountThrottleEntry* entry = _nya_account_throttle_entry(keys[index], now_s);
 
-        /*
-         * A counter that has sat quiet for longer than it would ever have waited starts again. Somebody
-         * who mistyped a password last month is not somebody mid-way through a word list, and a count
-         * that only ever went up would eventually give an honest person a five minute wait.
-         */
+        // A counter quiet longer than it would ever wait starts fresh: a month-old mistype is not a word list, and a monotonic count would eventually punish honest people.
         if (entry->failures > 0 && now_s > entry->last_failure_s + NYA_ACCOUNTS_THROTTLE_FORGET_S) entry->failures = 0;
 
         if (entry->failures < NYA_ACCOUNTS_THROTTLE_FREE_ATTEMPTS + 32) entry->failures++;
@@ -170,11 +143,7 @@ u32 nya_account_throttle_count(void) {
     return _NYA_ACCOUNT_THROTTLE.count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u64 _nya_account_throttle_key(NYA_ConstCString text, _NYA_AccountThrottleKind kind) {
     if (text == nullptr || text[0] == '\0') return 0;
@@ -217,11 +186,7 @@ _NYA_AccountThrottleEntry* _nya_account_throttle_entry(u64 key, u64 now_s) {
         return fresh;
     }
 
-    /*
-     * A full table gives up the entry whose wait ended longest ago. Somebody inventing usernames can
-     * make this happen, and all it buys them is that the counter they pushed out starts again — where
-     * refusing to track anything new would let them push every real counter out of the way.
-     */
+    // A full table evicts the entry whose wait ended longest ago; all an attacker gains is that pushed-out counter restarting, not blocking real counters.
     _NYA_AccountThrottleEntry* stalest = &_NYA_ACCOUNT_THROTTLE.entries[0];
 
     for (u32 index = 1; index < NYA_ACCOUNTS_THROTTLE_ENTRIES; index++) {
@@ -230,8 +195,7 @@ _NYA_AccountThrottleEntry* _nya_account_throttle_entry(u64 key, u64 now_s) {
         }
     }
 
-    // Unless everything in it is still waiting, in which case the newcomer waits the longest wait there
-    // is rather than taking somebody's slot: under a real attack nothing is given up.
+    // Unless everything is still waiting: the newcomer waits the longest wait rather than taking a slot, so a real attack gives up nothing.
     if (stalest->next_attempt_s > now_s) {
         _NYA_AccountThrottleEntry* overflow = &_NYA_ACCOUNT_THROTTLE.overflow;
 

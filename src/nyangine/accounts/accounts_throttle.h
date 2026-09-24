@@ -50,11 +50,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Failures tracked at once, addresses and usernames together.
@@ -77,11 +73,7 @@
 /** How long an entry with no failures in it is kept before its slot may be taken. */
 #define NYA_ACCOUNTS_THROTTLE_FORGET_S 3600
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** What a check answers. */
 typedef enum {
@@ -92,11 +84,7 @@ typedef enum {
     NYA_ACCOUNT_THROTTLE_WAIT,
 } NYA_AccountThrottleVerdict;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Whether this username and this address may try a password right now, and how long is left if not.

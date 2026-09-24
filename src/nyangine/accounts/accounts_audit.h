@@ -50,20 +50,12 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of the free-text reason an entry carries, terminator included. */
 #define NYA_ACCOUNTS_AUDIT_REASON_MAX 200
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /**
  * What was done. A fixed set so a screen can translate and group them, stored as its number.
@@ -121,11 +113,7 @@ struct NYA_AccountAudit {
     char reason[NYA_ACCOUNTS_AUDIT_REASON_MAX];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Writes one entry. Best-effort by design: it logs and swallows its own failure rather than returning one.

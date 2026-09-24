@@ -7,11 +7,7 @@
 #include "nyangine/base/base_logging.h"
 #include "nyangine/db/db_orm.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 NYA_INTERNAL NYA_ConstCString _NYA_ACCOUNT_ACTION_NAMES[NYA_ACCOUNT_ACTION_COUNT] = {
     [NYA_ACCOUNT_ACTION_NONE]              = "none",
@@ -26,11 +22,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_ACCOUNT_ACTION_NAMES[NYA_ACCOUNT_ACTION_COUNT
     [NYA_ACCOUNT_ACTION_DELETED]           = "deleted",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_account_audit_record(NYA_Arena* arena, u64 actor_id, u64 subject_id, NYA_AccountAction action, NYA_ConstCString reason) {
     nya_assert(arena != nullptr);
@@ -48,8 +40,7 @@ void nya_account_audit_record(NYA_Arena* arena, u64 actor_id, u64 subject_id, NY
 
     NYA_Error written = nya_orm_insert(_NYA_ACCOUNTS.audit, &entry);
 
-    // Logged and swallowed, for the reason the header gives: recording that a thing happened must never
-    // be able to stop the thing from happening, or the audit becomes the way to disable enforcement.
+    // Logged and swallowed: recording that a thing happened must never be able to stop it happening.
     if (!written.ok) {
         nya_log_error(
             "An account audit entry could not be written (actor %llu, subject %llu, action %s): %s",

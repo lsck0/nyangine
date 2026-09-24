@@ -15,14 +15,7 @@
 #include "nyangine/serde/serde_cbor.h"
 #include "nyangine/serde/serde_json.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * The fixed layout of an authenticator data structure (WebAuthn §6.1), which is what makes a bounds check
- * a matter of comparing against a constant rather than trusting a length in the bytes themselves.
- */
+// CONSTANTS — the fixed authenticator-data layout (WebAuthn §6.1), so bounds checks compare against constants.
 
 /** Bytes of the RP id hash at the front of every authenticator data: a SHA-256, so 32. */
 #define _NYA_PASSKEY_RP_ID_HASH_BYTES 32
@@ -53,33 +46,17 @@
 #define _NYA_PASSKEY_COSE_KTY_EC2     2
 #define _NYA_PASSKEY_COSE_CRV_ED25519 6
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The string value at `key`, or null when it is absent or not a string. Used to read clientDataJSON fields. */
 NYA_INTERNAL NYA_ConstCString _nya_passkey_json_string(const NYA_Object* object, NYA_ConstCString key) __attr_no_discard;
 
-/**
- * Parses the fixed head of an authenticator data: whether the user-present flag is set, and the counter.
- *
- * Checks the length is at least the header and that the RP id hash is SHA-256 of `rp_id`, so the anti-
- * phishing check and the bounds check are the same read. False for a buffer too short to hold a header or
- * a hash that does not match; the caller reads the attested credential data, if any, past the header.
- * */
+/** Parses the fixed head of authenticator data (user-present flag, counter); checks length >= header and that the RP id hash is SHA-256 of `rp_id` (anti-phishing and bounds in one read). */
 NYA_INTERNAL b8 _nya_passkey_authenticator_head(
     const u8* authenticator_data, u64 size, NYA_ConstCString rp_id, OUT b8* out_user_present, OUT b8* out_attested, OUT u32* out_sign_count
 ) __attr_no_discard;
 
-/**
- * Reads the Ed25519 public key out of a COSE_Key map, refusing anything that is not one.
- *
- * NYA_ERROR_NOT_SUPPORTED for an ES256 key — named by its algorithm or its EC2 key type — so it is refused
- * rather than mis-read. NYA_ERROR_PARSE for a malformed map or a key that is not a well-formed Ed25519 one.
- * On success `out_public_key` holds the 32 raw key bytes and `out_algorithm` the COSE algorithm.
- * */
+/** Reads the Ed25519 public key from a COSE_Key map: NYA_ERROR_NOT_SUPPORTED for ES256 (refused, not mis-read), NYA_ERROR_PARSE for a malformed or non-Ed25519 key; on success fills the 32 key bytes and the algorithm. */
 NYA_INTERNAL NYA_Error _nya_passkey_cose_ed25519(
     const u8* cose, u64 size, OUT u8 out_public_key[NYA_ACCOUNTS_PASSKEY_PUBLIC_KEY_BYTES], OUT s64* out_algorithm
 ) __attr_no_discard;
@@ -88,24 +65,14 @@ NYA_INTERNAL NYA_Error _nya_passkey_cose_ed25519(
 NYA_INTERNAL NYA_Error _nya_passkey_challenge_begin(NYA_Arena* arena, u64 user_id, s64 purpose, OUT NYA_AccountPasskeyChallenge* out_challenge)
     __attr_no_discard;
 
-/**
- * Looks up and *spends* the challenge a clientDataJSON carries, answering whether it was a live one.
- *
- * The row is deleted the moment it is found, spent or expired alike, so a challenge works once; the return
- * says whether the one found was still inside its expiry. A challenge bound to another user or another
- * purpose is simply not found.
- * */
+/** Looks up and *spends* the challenge a clientDataJSON carries, returning whether it was live; the row is deleted on find (spent or expired), so a challenge works once, and a wrong user/purpose isn't found. */
 NYA_INTERNAL NYA_Error _nya_passkey_challenge_spend(NYA_Arena* arena, u64 user_id, s64 purpose, NYA_ConstCString challenge, OUT b8* out_live)
     __attr_no_discard;
 
 /** Ends the oldest credentials of a user until at most `keep` are left, so enrolling a new one always fits. */
 NYA_INTERNAL NYA_Error _nya_passkey_trim(NYA_Arena* arena, u64 user_id, u32 keep) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_account_passkey_register_begin(NYA_Arena* arena, u64 user_id, NYA_AccountPasskeyChallenge* out_challenge) {
     nya_assert(arena != nullptr && out_challenge != nullptr);
@@ -128,8 +95,7 @@ NYA_Error nya_account_passkey_register_finish(NYA_Arena* arena, u64 user_id, con
 
     if (request->rp_id == nullptr || request->origin == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a passkey registration needs an rp id and an origin");
 
-    // The bytes are untrusted and bounded before anything is parsed, so a hostile response cannot make the
-    // server work without limit; a null or empty body is a malformed one.
+    // The bytes are untrusted and bounded before parsing, so a hostile response can't make the server work without limit; null/empty is malformed.
     if (request->client_data_json == nullptr || request->client_data_json_size == 0 || request->client_data_json_size > NYA_ACCOUNTS_PASSKEY_MAX_INPUT_BYTES)
         return nya_error(NYA_ERROR_PARSE, "the clientDataJSON is missing or too large");
 
@@ -154,8 +120,7 @@ NYA_Error nya_account_passkey_register_finish(NYA_Arena* arena, u64 user_id, con
     if (origin == nullptr || !nya_string_equals(origin, request->origin)) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the origin does not match the relying party");
     if (challenge == nullptr) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the clientDataJSON carries no challenge");
 
-    // The challenge is spent whatever happens next, so a response cannot be replayed even if a later check
-    // fails: a live one that matched is required to go on.
+    // The challenge is spent whatever happens next, so a response can't be replayed even if a later check fails; a live match is required to go on.
     b8 live = false;
     NYA_TRY(_nya_passkey_challenge_spend(arena, user_id, NYA_ACCOUNTS_PASSKEY_PURPOSE_REGISTER, challenge, &live));
     if (!live) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the challenge is not one this server is waiting on");
@@ -178,8 +143,7 @@ NYA_Error nya_account_passkey_register_finish(NYA_Arena* arena, u64 user_id, con
         if (key_size == strlen("authData") && memcmp(key, "authData", key_size) == 0) {
             if (!nya_cbor_read_bytes(&attestation, &authenticator_data, &authenticator_size)) return nya_error(NYA_ERROR_PARSE, "authData is not a byte string");
         } else {
-            // fmt, attStmt and anything else are stepped over: this accepts the "none" attestation passkeys use,
-            // and does not verify an attestation statement, which would need a certificate chain this has no reason to trust for a second factor.
+            // fmt, attStmt and the rest are stepped over: this accepts "none" attestation and doesn't verify an attestation statement, which would need a cert chain not worth trusting for a second factor.
             if (!nya_cbor_skip(&attestation)) return nya_error(NYA_ERROR_PARSE, "the attestation object is malformed");
         }
     }
@@ -197,8 +161,7 @@ NYA_Error nya_account_passkey_register_finish(NYA_Arena* arena, u64 user_id, con
     if (!user_present) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the authenticator reports no user was present");
     if (!attested) return nya_error(NYA_ERROR_PARSE, "the authenticator data carries no attested credential");
 
-    // The attested credential data follows the header: an AAGUID, a two-byte credential id length, the
-    // credential id, then the COSE public key. Every read is checked against the remaining length first.
+    // Attested credential data follows the header: AAGUID, a 2-byte credential id length, the id, then the COSE key; every read is checked against the remaining length.
     u64 cursor = _NYA_PASSKEY_HEADER_BYTES + _NYA_PASSKEY_AAGUID_BYTES;
     if (cursor + 2 > authenticator_size) return nya_error(NYA_ERROR_PARSE, "the attested credential data is truncated");
 
@@ -317,8 +280,7 @@ NYA_Error nya_account_passkey_assert_finish(NYA_Arena* arena, u64 user_id, const
     NYA_CryptoSha256Digest client_hash = { 0 };
     nya_crypto_sha256(request->client_data_json, request->client_data_json_size, &client_hash);
 
-    // The bound above keeps the authenticator data under NYA_ACCOUNTS_PASSKEY_MAX_INPUT_BYTES, so the signed
-    // message fits a fixed buffer and there is nothing to allocate.
+    // The bound above keeps authenticator data under NYA_ACCOUNTS_PASSKEY_MAX_INPUT_BYTES, so the signed message fits a fixed buffer with nothing to allocate.
     u8  message[NYA_ACCOUNTS_PASSKEY_MAX_INPUT_BYTES + NYA_CRYPTO_SHA256_BYTES] = { 0 };
     u64 message_size                                                            = request->authenticator_data_size + NYA_CRYPTO_SHA256_BYTES;
 
@@ -330,9 +292,7 @@ NYA_Error nya_account_passkey_assert_finish(NYA_Arena* arena, u64 user_id, const
 
     if (!nya_crypto_sign_verify(&public_key, message, message_size, &signature)) return refused;
 
-    // ── the counter must climb, or this is a cloned authenticator ──
-    // A counter of zero on both sides is an authenticator that does not keep one, which WebAuthn allows;
-    // anything else that did not increase is a replay or a clone, and it ends the assertion.
+    // The counter must climb, or this is a cloned authenticator: zero on both sides means it keeps none (WebAuthn allows it); anything else not increasing is a replay/clone and ends the assertion.
     s64 received = (s64)sign_count;
     if (!(received == 0 && credential.sign_count == 0) && received <= credential.sign_count) return refused;
 
@@ -422,11 +382,7 @@ NYA_Error nya_account_passkey_challenge_prune(NYA_Arena* arena, u64 keep_for_s, 
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_ConstCString _nya_passkey_json_string(const NYA_Object* object, NYA_ConstCString key) {
     if (object == nullptr) return nullptr;
@@ -445,8 +401,7 @@ b8 _nya_passkey_authenticator_head(const u8* authenticator_data, u64 size, NYA_C
     // The header has to be there whole before any byte of it is read.
     if (authenticator_data == nullptr || size < _NYA_PASSKEY_HEADER_BYTES) return false;
 
-    // Anti-phishing: the RP id hash the authenticator signed has to be the SHA-256 of this server's RP id,
-    // so a signature made for another site's RP id does not verify as this one's.
+    // Anti-phishing: the RP id hash the authenticator signed must be SHA-256 of this server's RP id, so a signature for another site's RP id doesn't verify here.
     NYA_CryptoSha256Digest expected = { 0 };
     nya_crypto_sha256((const u8*)rp_id, rp_id != nullptr ? strlen(rp_id) : 0, &expected);
 
@@ -497,14 +452,12 @@ NYA_Error _nya_passkey_cose_ed25519(const u8* cose, u64 size, u8 out_public_key[
         } else if (label == _NYA_PASSKEY_COSE_LABEL_X) {
             if (!nya_cbor_read_bytes(&reader, &x, &x_size)) return nya_error(NYA_ERROR_PARSE, "the COSE public value is malformed");
         } else {
-            // A -3 (the y coordinate) or any other label: stepped over. An EC2 key carries a -3; it is caught
-            // below by its algorithm and key type, so there is nothing to do with the value itself here.
+            // A -3 (y coordinate) or any other label: stepped over. An EC2 key's -3 is caught below by its algorithm and key type, so nothing to do with the value here.
             if (!nya_cbor_skip(&reader)) return nya_error(NYA_ERROR_PARSE, "the COSE key is malformed");
         }
     }
 
-    // ES256 is refused by name — its algorithm or its key type — rather than mis-read, since there is no
-    // P-256 verifier here to check it with. This is the clean refusal the header promises.
+    // ES256 is refused by name (its algorithm or key type), not mis-read, since there's no P-256 verifier here; the clean refusal the header promises.
     if ((have_alg && alg == NYA_ACCOUNTS_PASSKEY_COSE_ALG_ES256) || (have_kty && kty == _NYA_PASSKEY_COSE_KTY_EC2))
         return nya_error(NYA_ERROR_NOT_SUPPORTED, "ES256 (COSE -7) passkeys need a P-256 verifier this build does not vendor");
 
@@ -529,8 +482,7 @@ NYA_Error _nya_passkey_challenge_begin(NYA_Arena* arena, u64 user_id, s64 purpos
     NYA_TRY(nya_account_find_by_id(arena, user_id, &user));
     if (user.disabled) return nya_error(NYA_ERROR_PERMISSION_DENIED, "that account is disabled");
 
-    // A new challenge of this purpose supersedes an outstanding one, so a user never accumulates them and
-    // there is only ever the one to spend.
+    // A new challenge of this purpose supersedes an outstanding one, so a user never accumulates them and there's only ever one to spend.
     void* existing = nullptr;
     u32   had      = 0;
     NYA_TRY(nya_orm_select(

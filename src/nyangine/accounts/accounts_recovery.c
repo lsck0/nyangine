@@ -10,28 +10,15 @@
 #include "nyangine/db/db_orm.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** SHA-256 of a canonical code, as lower case hex. Shares its shape with the session token hash. */
 NYA_INTERNAL void _nya_account_recovery_hash(NYA_ConstCString canonical, OUT char* out_hex, u64 capacity);
 
-/**
- * The canonical form of a typed code: upper case, base32 alphabet only, dashes and spaces dropped.
- *
- * What both storing and matching hash, so `xxxx-xxxx`, `XXXXXXXX` and `xxxx xxxx` are one code. False
- * when what is left is not exactly the length a code is, which is a typo rather than a code.
- * */
+/** The canonical form of a typed code: upper case, base32 only, dashes/spaces dropped; false when the result isn't a code's length. */
 NYA_INTERNAL b8 _nya_account_recovery_canonical(NYA_ConstCString code, OUT char* out, u64 capacity) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_account_recovery_generate(
     NYA_Arena* arena, u64 account_id, char out_codes[NYA_ACCOUNTS_RECOVERY_CODE_COUNT][NYA_ACCOUNTS_RECOVERY_CODE_TEXT], u32* out_count
@@ -44,8 +31,7 @@ NYA_Error nya_account_recovery_generate(
 
     if (!nya_accounts_is_open()) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
 
-    // The account has to be there: a set of codes for an account that does not exist is a set of codes
-    // that later lets somebody into whoever is given that id next.
+    // The account must exist: codes for a nonexistent account later let somebody into whoever gets that id next.
     NYA_AccountUser user = { 0 };
     NYA_TRY(nya_account_find_by_id(arena, account_id, &user));
 
@@ -76,12 +62,10 @@ NYA_Error nya_account_recovery_generate(
 
         nya_crypto_wipe(bytes, sizeof(bytes));
 
-        // The trailing '=' padding base32 adds for a partial group is stripped: 5 bytes is a whole
-        // group, but the encoder writes to its own rule, so the canonical form is the pad-free prefix.
+        // Strip base32's trailing '=' padding: the canonical form is the pad-free prefix.
         while (length > 0 && canonical[length - 1] == '=') canonical[--length] = '\0';
 
-        // Shown to the person grouped in the middle, which is only easier to read: the dash is dropped
-        // again on the way back in, so `XXXX-XXXX` and `XXXXXXXX` are the same code.
+        // Shown grouped with a dash for readability; the dash is dropped on the way in, so `XXXX-XXXX` == `XXXXXXXX`.
         (void)snprintf(out_codes[index], NYA_ACCOUNTS_RECOVERY_CODE_TEXT, "%.4s-%.4s", canonical, canonical + 4);
 
         NYA_AccountRecoveryCode stored = { 0 };
@@ -121,8 +105,7 @@ NYA_Error nya_account_recovery_consume(NYA_Arena* arena, NYA_ConstCString userna
     char canonical[16] = { 0 };
     b8   is_a_code     = _nya_account_recovery_canonical(code, canonical, sizeof(canonical));
 
-    // Whether or not the account exists, and whether or not the code is even shaped like one, the same
-    // hash-and-lookup happens, so a wrong username and a wrong code cost the same and say the same.
+    // Same hash-and-lookup whether or not the account exists or the code is well-shaped, so all failures cost and say the same.
     char hex[72] = { 0 };
     if (is_a_code) _nya_account_recovery_hash(canonical, hex, sizeof(hex));
 
@@ -178,11 +161,7 @@ NYA_Error nya_account_recovery_remaining(NYA_Arena* arena, u64 account_id, u32* 
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_account_recovery_hash(NYA_ConstCString canonical, char* out_hex, u64 capacity) {
     nya_assert(out_hex != nullptr && capacity > ((u64)NYA_CRYPTO_SHA256_BYTES * 2));
@@ -212,8 +191,7 @@ b8 _nya_account_recovery_canonical(NYA_ConstCString code, char* out, u64 capacit
 
         if (character >= 'a' && character <= 'z') character = (u8)(character - 'a' + 'A');
 
-        // The base32 alphabet, and nothing else: a dash, a space or a stray character is dropped rather
-        // than making the code fail to match, since a person reads these off paper.
+        // The base32 alphabet only: dashes, spaces and stray characters are dropped since a person reads these off paper.
         b8 is_base32 = (character >= 'A' && character <= 'Z') || (character >= '2' && character <= '7');
 
         if (!is_base32) continue;
