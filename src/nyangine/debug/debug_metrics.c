@@ -1,4 +1,6 @@
+#include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_assert.h"
@@ -26,8 +28,58 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_arenas_query(NYA_HttpExchange* exc
 NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_systems_query(NYA_HttpExchange* exchange);
 NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_accounting_put(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity);
 
+NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_prometheus_get(NYA_HttpExchange* exchange);
+
 /** Copies `text` into a row's fixed name, truncating rather than refusing: a long name is not an error. */
 NYA_INTERNAL void _nya_http_metrics_name(OUT char* destination, u64 capacity, NYA_ConstCString text);
+
+/*
+ * ── the Prometheus render ──
+ *
+ * A bounded appender over a fixed buffer, and the two transforms a scrape body needs made safe. Every
+ * put is all-or-nothing: a put that would pass `capacity` writes nothing and raises `overflow`, so a
+ * caller that snapshots `size` before a sample and restores it on overflow always leaves valid text
+ * cut at a line, never a half-written one.
+ */
+typedef struct _NYA_PromBuffer _NYA_PromBuffer;
+struct _NYA_PromBuffer {
+    char* data;
+    u64   capacity; /**< bytes of `data`, the terminator's byte included */
+    u64   size;     /**< bytes written, the terminator not counted; `data[size]` is always '\0' */
+    b8    overflow; /**< set once a put did not fit, and left every earlier byte alone */
+};
+
+/** Appends `text` whole, or nothing and raises `overflow`. Keeps `data` null terminated either way. */
+NYA_INTERNAL void _nya_prom_put(_NYA_PromBuffer* buffer, NYA_ConstCString text);
+
+/** Appends a `u64` in base ten. */
+NYA_INTERNAL void _nya_prom_put_u64(_NYA_PromBuffer* buffer, u64 value);
+
+/** Appends a finite `f64` as a Prometheus sample value; a non-finite one is written as `0`. */
+NYA_INTERNAL void _nya_prom_put_f64(_NYA_PromBuffer* buffer, f64 value);
+
+/**
+ * Appends `text` as the inside of a label value: a backslash, a double quote and a newline become the
+ * two-character escapes the format defines, so a name carrying any of them cannot end the line early
+ * or open a second one. Everything else is a byte the format leaves alone.
+ * */
+NYA_INTERNAL void _nya_prom_put_label_value(_NYA_PromBuffer* buffer, NYA_ConstCString text);
+
+/**
+ * Copies `text` into `out`, keeping only `[a-zA-Z_:][a-zA-Z0-9_:]*`: any other byte becomes '_', a
+ * leading digit is prefixed by one, and an empty result is a lone '_'. A valid Prometheus name, always.
+ * */
+NYA_INTERNAL void _nya_prom_name(OUT char* out, u64 capacity, NYA_ConstCString text);
+
+/** Writes the `# HELP` and `# TYPE …  gauge` pair for one metric family, sanitizing `name` into `out`. */
+NYA_INTERNAL void _nya_prom_family(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, OUT char* out, u64 capacity);
+
+/** One `metric{label="value"} number` line for a `u64`, rolling back whole on overflow. Returns overflow. */
+NYA_INTERNAL b8 _nya_prom_labeled_u64(_NYA_PromBuffer* buffer, NYA_ConstCString metric, NYA_ConstCString label, NYA_ConstCString value, u64 number);
+
+/** A whole family — `# HELP`, `# TYPE`, one bare `metric number` line — for a scalar, on overflow rolled back. */
+NYA_INTERNAL void _nya_prom_scalar_u64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, u64 number);
+NYA_INTERNAL void _nya_prom_scalar_f64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, f64 number);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -107,6 +159,24 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
                                 NYA_HTTP_STATUS_UNSUPPORTED_MEDIA,
                                 NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
+    {
+     /*
+      * GET rather than QUERY, and off `/api`: a Prometheus scrape is a parameterless GET of `/metrics`,
+      * and answering it anywhere else or under any other verb is asking every collector in the world to
+      * be reconfigured. AFFINITY_MAIN for the same reason as its neighbours — it reads the registries the
+      * frame writes. No `response_type`: the body is the text exposition format, not a reflected DTO, so
+      * the OpenAPI walk lists the route and its statuses and leaves the schema out.
+      */
+     .method      = NYA_HTTP_METHOD_GET,
+     .path        = NYA_HTTP_METRICS_PROMETHEUS_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
+     .handler     = _nya_http_metrics_prometheus_get,
+     .summary     = "The ceilings, the gauges and the frame counters, for a Prometheus scrape",
+     .description = "The same numbers as QUERY /api/metrics and its ceilings, rendered as the Prometheus text exposition "
+                       "format. A bounded read of what the program already keeps; it measures nothing.",
+     .statuses    = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
 };
 
 NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_METRICS_ROUTER = {
@@ -123,6 +193,74 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_METRICS_ROUTER = {
 
 const NYA_HttpRouter* nya_http_metrics_router(void) {
     return &_NYA_HTTP_METRICS_ROUTER;
+}
+
+u64 nya_http_metrics_prometheus(char* out, u64 capacity) {
+    nya_assert(out != nullptr);
+    nya_assert(capacity > 0);
+
+    _NYA_PromBuffer buffer = { .data = out, .capacity = capacity, .size = 0, .overflow = false };
+    out[0]                 = '\0';
+
+    /*
+     * The frame counters first, each its own single-sample family. Read through the app instance rather
+     * than nya_app_get for the reason _nya_http_metrics_query gives: a headless tool may scrape before
+     * there is an app, and "is there an app" is a question this endpoint answers rather than asserts on.
+     * The times go out in seconds, which is the base unit the Prometheus conventions ask for, and every
+     * f64 is guarded finite on the way out.
+     */
+    if (_NYA_APP_INSTANCE.initialized) {
+        const NYA_FrameStats* frame = &_NYA_APP_INSTANCE.frame_stats;
+
+        _nya_prom_scalar_f64(&buffer, "nyangine_uptime_seconds", "Seconds since nya_app_init.", (f64)frame->uptime_ns / 1.0e9);
+        _nya_prom_scalar_f64(&buffer, "nyangine_frames_per_second", "Frames per second over the last frame.", (f64)frame->fps);
+        _nya_prom_scalar_f64(&buffer, "nyangine_frame_delta_seconds", "Seconds the last frame represented.", (f64)frame->delta_time_s);
+        _nya_prom_scalar_f64(&buffer, "nyangine_frame_work_seconds", "Seconds of work in the last frame before the limiter slept.",
+                             (f64)frame->work_ns / 1.0e9);
+        _nya_prom_scalar_f64(&buffer, "nyangine_frame_sleep_seconds", "Seconds the limiter slept to hold the frame rate.",
+                             (f64)frame->sleep_ns / 1.0e9);
+        _nya_prom_scalar_f64(&buffer, "nyangine_frame_elapsed_seconds", "Seconds from one frame's start to the next.",
+                             (f64)frame->elapsed_ns / 1.0e9);
+    }
+
+    _nya_prom_scalar_u64(&buffer, "nyangine_http_connections", "Connections the HTTP server is holding.", nya_http_server_connection_count());
+    _nya_prom_scalar_u64(&buffer, "nyangine_http_requests", "Requests the HTTP server has answered since it started.", nya_http_server_request_count());
+    _nya_prom_scalar_u64(&buffer, "nyangine_metrics_accounting_enabled", "1 while the system registry is timing each system, else 0.",
+                         nya_system_accounting_is_enabled() ? 1U : 0U);
+
+    /*
+     * The ceiling registry, as two families rather than one metric per ceiling: a fixed name with the
+     * registrant's name in a `ceiling` label is what a query like `nyangine_ceiling_live / on(ceiling)
+     * nyangine_ceiling_capacity` is written against, and it keeps a registrant's string out of the
+     * metric name where a collector would reject the odd ones. The two families are emitted in their
+     * own passes because the exposition format wants every sample of a family grouped under its one
+     * `# TYPE` line.
+     */
+    u32 ceilings = nya_ceiling_count();
+
+    char metric[128];
+    char label[64];
+    _nya_prom_family(&buffer, "nyangine_ceiling_live", "Entries live in a registered fixed-capacity array.", metric, sizeof(metric));
+    _nya_prom_name(label, sizeof(label), "ceiling");
+    for (u32 index = 0; index < ceilings; index++) {
+        if (_nya_prom_labeled_u64(&buffer, metric, label, nya_ceiling_name_at(index), nya_ceiling_live_at(index))) break;
+    }
+
+    _nya_prom_family(&buffer, "nyangine_ceiling_capacity", "The fixed capacity of a registered array.", metric, sizeof(metric));
+    for (u32 index = 0; index < ceilings; index++) {
+        if (_nya_prom_labeled_u64(&buffer, metric, label, nya_ceiling_name_at(index), nya_ceiling_capacity_at(index))) break;
+    }
+
+    /* The gauge registry: a running byte count each, the registrant's name in a `gauge` label. */
+    u32 gauges = nya_gauge_count();
+
+    _nya_prom_family(&buffer, "nyangine_gauge_bytes", "A registered running byte count.", metric, sizeof(metric));
+    _nya_prom_name(label, sizeof(label), "gauge");
+    for (u32 index = 0; index < gauges; index++) {
+        if (_nya_prom_labeled_u64(&buffer, metric, label, nya_gauge_name_at(index), nya_gauge_bytes_at(index))) break;
+    }
+
+    return buffer.size;
 }
 
 /*
@@ -322,4 +460,190 @@ void _nya_http_metrics_name(char* destination, u64 capacity, NYA_ConstCString te
     nya_assert(capacity > 0);
 
     (void)snprintf(destination, capacity, "%s", text != nullptr ? text : "");
+}
+
+NYA_HttpStatus _nya_http_metrics_prometheus_get(NYA_HttpExchange* exchange) {
+    /*
+     * From the exchange arena rather than the stack: the render buffer is thirty-two kilobytes and a
+     * handler runs on the frame's stack, which is the reason the ceilings DTO handler allocates too.
+     */
+    char* text = nya_arena_alloc(exchange->arena, NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES);
+    if (text == nullptr) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
+    u64 size = nya_http_metrics_prometheus(text, NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES);
+
+    /*
+     * NYA_HTTP_MEDIA_NONE, then the Content-Type by hand: the exposition format's type carries a
+     * `version` parameter (`text/plain; version=0.0.4`) that names the format rather than a charset, and
+     * there is no media type in the enum that spells it. Writing it as a header is how a handler sets a
+     * Content-Type the shared table does not know, and it is the only extra header this route adds.
+     */
+    if (!nya_http_response_bytes(exchange->response, (const u8*)text, size, NYA_HTTP_MEDIA_NONE).ok) {
+        return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    }
+
+    if (!nya_http_response_header(exchange->response, "Content-Type", NYA_HTTP_METRICS_PROMETHEUS_CONTENT_TYPE).ok) {
+        return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    }
+
+    return NYA_HTTP_STATUS_OK;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE PROMETHEUS APPENDER
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+void _nya_prom_put(_NYA_PromBuffer* buffer, NYA_ConstCString text) {
+    nya_assert(buffer != nullptr);
+    nya_assert(text != nullptr);
+
+    if (buffer->overflow) return;
+
+    u64 length = strlen(text);
+
+    // All-or-nothing, with a byte kept for the terminator: a put that would not fit leaves every byte
+    // written so far alone, which is what lets a caller roll a whole sample back to a line boundary.
+    if (buffer->size + length + 1 > buffer->capacity) {
+        buffer->overflow = true;
+        return;
+    }
+
+    memcpy(buffer->data + buffer->size, text, length);
+    buffer->size += length;
+    buffer->data[buffer->size] = '\0';
+}
+
+void _nya_prom_put_u64(_NYA_PromBuffer* buffer, u64 value) {
+    char digits[24];
+    (void)snprintf(digits, sizeof(digits), "%llu", (unsigned long long)value);
+    _nya_prom_put(buffer, digits);
+}
+
+void _nya_prom_put_f64(_NYA_PromBuffer* buffer, f64 value) {
+    // A non-finite value is not a number Prometheus should be told; the format has spellings for the
+    // infinities, but a metric that goes NaN is a bug upstream, and a scrape is not the place to argue
+    // it, so it reads as zero. Finite values print with enough digits to round-trip a float.
+    char number[32];
+    (void)snprintf(number, sizeof(number), "%.10g", isfinite(value) ? value : 0.0);
+    _nya_prom_put(buffer, number);
+}
+
+void _nya_prom_put_label_value(_NYA_PromBuffer* buffer, NYA_ConstCString text) {
+    if (text == nullptr) return;
+
+    for (u64 index = 0; text[index] != '\0'; index++) {
+        switch (text[index]) {
+            case '\\': _nya_prom_put(buffer, "\\\\"); break;
+            case '"' : _nya_prom_put(buffer, "\\\""); break;
+            case '\n': _nya_prom_put(buffer, "\\n"); break;
+            default  : {
+                char one[2] = { text[index], '\0' };
+                _nya_prom_put(buffer, one);
+            } break;
+        }
+    }
+}
+
+void _nya_prom_name(char* out, u64 capacity, NYA_ConstCString text) {
+    nya_assert(out != nullptr);
+    nya_assert(capacity > 0);
+
+    u64 written = 0;
+
+    for (u64 index = 0; text != nullptr && text[index] != '\0'; index++) {
+        char character = text[index];
+
+        b8 head  = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '_' || character == ':';
+        b8 digit = character >= '0' && character <= '9';
+
+        // A name's first byte may not be a digit, so a leading digit is kept behind a '_' rather than
+        // dropped. Every byte outside the charset, wherever it sits, becomes '_'.
+        if (written == 0 && digit) {
+            if (written + 2 >= capacity) break;
+            out[written++] = '_';
+            out[written++] = character;
+            continue;
+        }
+
+        if (written + 1 >= capacity) break;
+        out[written++] = (head || digit) ? character : '_';
+    }
+
+    // Never empty: an empty name is not a name the format accepts, and a registrant is allowed a name
+    // that sanitizes to nothing.
+    if (written == 0 && capacity > 1) out[written++] = '_';
+
+    out[written] = '\0';
+}
+
+void _nya_prom_family(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, char* out, u64 capacity) {
+    _nya_prom_name(out, capacity, name);
+
+    // HELP text escapes a backslash and a newline; a double quote is left alone, unlike a label value.
+    // The help strings here are plain, so this is a guard rather than a transform. TYPE is always gauge:
+    // every number here is a level read now, not a monotonic total.
+    _nya_prom_put(buffer, "# HELP ");
+    _nya_prom_put(buffer, out);
+    _nya_prom_put(buffer, " ");
+    _nya_prom_put(buffer, help != nullptr ? help : "");
+    _nya_prom_put(buffer, "\n# TYPE ");
+    _nya_prom_put(buffer, out);
+    _nya_prom_put(buffer, " gauge\n");
+}
+
+b8 _nya_prom_labeled_u64(_NYA_PromBuffer* buffer, NYA_ConstCString metric, NYA_ConstCString label, NYA_ConstCString value, u64 number) {
+    // Snapshot before the line so an overflow midway through leaves the buffer cut at the previous line
+    // rather than on a half-written sample.
+    u64 mark = buffer->size;
+
+    _nya_prom_put(buffer, metric);
+    _nya_prom_put(buffer, "{");
+    _nya_prom_put(buffer, label);
+    _nya_prom_put(buffer, "=\"");
+    _nya_prom_put_label_value(buffer, value);
+    _nya_prom_put(buffer, "\"} ");
+    _nya_prom_put_u64(buffer, number);
+    _nya_prom_put(buffer, "\n");
+
+    if (buffer->overflow) {
+        buffer->size       = mark;
+        buffer->data[mark] = '\0';
+        return true;
+    }
+
+    return false;
+}
+
+void _nya_prom_scalar_u64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, u64 number) {
+    u64  mark = buffer->size;
+    char metric[128];
+
+    _nya_prom_family(buffer, name, help, metric, sizeof(metric));
+    _nya_prom_put(buffer, metric);
+    _nya_prom_put(buffer, " ");
+    _nya_prom_put_u64(buffer, number);
+    _nya_prom_put(buffer, "\n");
+
+    if (buffer->overflow) {
+        buffer->size       = mark;
+        buffer->data[mark] = '\0';
+    }
+}
+
+void _nya_prom_scalar_f64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, f64 number) {
+    u64  mark = buffer->size;
+    char metric[128];
+
+    _nya_prom_family(buffer, name, help, metric, sizeof(metric));
+    _nya_prom_put(buffer, metric);
+    _nya_prom_put(buffer, " ");
+    _nya_prom_put_f64(buffer, number);
+    _nya_prom_put(buffer, "\n");
+
+    if (buffer->overflow) {
+        buffer->size       = mark;
+        buffer->data[mark] = '\0';
+    }
 }

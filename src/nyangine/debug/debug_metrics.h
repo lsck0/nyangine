@@ -14,7 +14,23 @@
  * QUERY /api/metrics/arenas       every live arena: used, reserved, fragmentation
  * QUERY /api/metrics/systems      per owner: how many systems, what they cost, what they hold
  * PUT   /api/metrics/accounting   turns the registry's per system timing on and off
+ * GET   /metrics                  the same numbers in the Prometheus text exposition format
  * ```
+ *
+ * ── the scrape endpoint ──
+ *
+ * The routes above answer a page this program draws; `GET /metrics` answers a Prometheus server that
+ * scrapes. It renders the same ceilings, the same gauge registry and the same frame counters as the
+ * text exposition format — `# HELP`, `# TYPE gauge`, one `name{label="value"} number` sample a line —
+ * which every Prometheus-compatible collector already reads. A GET with no parameters, because that is
+ * the only request a scraper makes, and off the `/api` prefix because `/metrics` is the path the whole
+ * ecosystem defaults to.
+ *
+ * It is bounded like the rest of this file, and it does not trust a name. A ceiling or gauge name is a
+ * registrant's string, so it is carried as an escaped label value and never spliced into a metric
+ * name; the fixed metric and label names are held to Prometheus's `[a-zA-Z_:][a-zA-Z0-9_:]*`. A name
+ * that arrived with a quote, a newline or a brace in it cannot end a line early, and cannot forge a
+ * second sample — nya_http_metrics_prometheus is where both of those are made true.
  *
  * ```sh
  * curl -X QUERY http://127.0.0.1:7777/api/metrics
@@ -78,6 +94,12 @@
 #define NYA_HTTP_METRICS_SYSTEMS_PATH    "/api/metrics/systems"
 #define NYA_HTTP_METRICS_ACCOUNTING_PATH "/api/metrics/accounting"
 
+/** The scrape endpoint. Off `/api` on purpose: `/metrics` is the path a Prometheus job defaults to. */
+#define NYA_HTTP_METRICS_PROMETHEUS_PATH "/metrics"
+
+/** The Content-Type a Prometheus text body carries. The version is the format's, not this program's. */
+#define NYA_HTTP_METRICS_PROMETHEUS_CONTENT_TYPE "text/plain; version=0.0.4"
+
 /**
  * Rows one list answer carries.
  *
@@ -89,6 +111,16 @@
 
 /** Longest name in a row, terminator included. Matches what the ceiling and arena registries hold. */
 #define NYA_HTTP_METRICS_MAX_NAME 64
+
+/**
+ * Bytes the Prometheus render may produce, terminator included.
+ *
+ * The worst case is every ceiling and every gauge with a name that is all escapable characters, plus
+ * the frame counters and every family's two header lines. Well inside the response buffer; a render
+ * that would pass it is truncated at a sample boundary rather than growing, because a scrape body is
+ * something a bounded server answers on one buffer and not a stream.
+ * */
+#define NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES 32768
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -234,3 +266,18 @@ struct NYA_HttpAccountingDto {
 
 /** Static storage, so it outlives any mount and needs no lifetime from the caller. */
 NYA_API const NYA_HttpRouter* nya_http_metrics_router(void) __attr_no_discard;
+
+/**
+ * Renders the ceiling registry, the gauge registry and the frame counters into `out` as the Prometheus
+ * text exposition format, null terminated, and returns how many bytes were written before the
+ * terminator.
+ *
+ * The whole render is one read of numbers the program already keeps: it counts nothing and allocates
+ * nothing, exactly like the QUERY handlers. It is bounded by `capacity` and by the registries' own
+ * fixed sizes both, so a full registry renders a full body and never a growing one; a render that
+ * would overrun `capacity` stops on a sample boundary, leaving valid text rather than a half-written
+ * line. Metric and label names go out held to `[a-zA-Z_:][a-zA-Z0-9_:]*`, and a registrant's name
+ * goes out as an escaped label value, so no name a subsystem chose can spell a line a collector would
+ * reject. Split out from the handler so a test can render without a socket or an exchange.
+ * */
+NYA_API u64 nya_http_metrics_prometheus(OUT char* out, u64 capacity);
