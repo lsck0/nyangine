@@ -81,11 +81,7 @@
 #include "nyangine/http/http_router.h"
 #include "nyangine/plugins/curl/request.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** Where the bot API lives. Overridable per client, which is what a test points at itself. */
 #define NYA_TELEGRAM_URL "https://api.telegram.org"
@@ -138,11 +134,7 @@
 /** The header a webhook's secret arrives in. */
 #define NYA_TELEGRAM_SECRET_HEADER "X-Telegram-Bot-Api-Secret-Token"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_TelegramUpdateKind NYA_TelegramUpdateKind;
 typedef enum NYA_TelegramCallKind   NYA_TelegramCallKind;
@@ -258,11 +250,7 @@ struct NYA_TelegramResult {
     NYA_Error error;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Makes a client. Nothing is sent and nothing is asked for until the first poll.

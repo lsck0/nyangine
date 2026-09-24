@@ -7,11 +7,7 @@
 #include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/plugins/telegram_bot/telegram.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 
 /** One queued call, held until it has been sent or has run out of attempts. */
 typedef struct {
@@ -63,11 +59,7 @@ struct NYA_Telegram {
     u64 next_id;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** The default transport: nya_request_perform, and the monotonic clock. */
 NYA_INTERNAL NYA_Error _nya_telegram_perform(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) __attr_no_discard;
@@ -97,11 +89,7 @@ NYA_INTERNAL NYA_Error _nya_telegram_call(NYA_Telegram* bot, NYA_ConstCString me
 /** The seconds a 429 asked for, from the body Telegram answers with or the header it sometimes adds. */
 NYA_INTERNAL u64 _nya_telegram_retry_after_ms(const NYA_Response* response) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_telegram_create(NYA_Arena* arena, NYA_TelegramOptions options, NYA_Telegram** out_bot) {
     nya_assert(arena != nullptr && out_bot != nullptr);
@@ -113,8 +101,7 @@ NYA_Error nya_telegram_create(NYA_Arena* arena, NYA_TelegramOptions options, NYA
 
     u64 timeout_ms = options.timeout_ms > 0 ? options.timeout_ms : NYA_REQUEST_DEFAULT_TIMEOUT_MS;
 
-    // A poll the transfer gives up on before the server answers would never see an update and would
-    // look exactly like a quiet chat, so the pair is refused here rather than puzzled over later.
+    // A poll the transfer gives up on before the server answers would look exactly like a quiet chat, so the pair is refused here rather than puzzled over later.
     if ((u64)options.poll_timeout_s * 1000 >= timeout_ms) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "poll_timeout_s must leave the transfer time to answer; raise timeout_ms");
     }
@@ -155,8 +142,7 @@ void nya_telegram_destroy(NYA_Telegram* bot) {
 b8 nya_telegram_poll(NYA_Telegram* bot, NYA_TelegramUpdate* out_update) {
     nya_assert(bot != nullptr && out_update != nullptr);
 
-    // What came back last time, one at a time. The offset moves as each is handed over rather than
-    // when the batch arrived: an update nobody has seen is an update Telegram must keep. See the header.
+    // What came back last time, one at a time; the offset moves as each is handed over, so an unseen update is one Telegram must keep. See the header.
     if (bot->update_read < bot->update_count) {
         *out_update = bot->updates[bot->update_read];
 
@@ -252,8 +238,7 @@ b8 nya_telegram_result_poll(NYA_Telegram* bot, NYA_TelegramResult* out_result) {
 
     if (now_ms < bot->cooldown_until_ms) return false;
 
-    // The front one, and only the front one: a bot's calls are a conversation, and answering the
-    // second question first because the first is waiting out a backoff reads as a broken bot.
+    // The front one only: a bot's calls are a conversation, and answering the second first because the first is backing off reads as broken.
     _NYA_TelegramCall call = bot->queue[0];
 
     if (now_ms < call.ready_at_ms) return false;
@@ -342,8 +327,7 @@ b8 nya_telegram_webhook_verify(const NYA_HttpExchange* exchange, NYA_ConstCStrin
 
     u64 expected = strlen(secret);
 
-    // The length is compared first and the bytes in constant time: a secret of a different length is
-    // not this bot's secret, and how long it is was never the part worth hiding.
+    // Length first, then the bytes in constant time: a different-length secret is not this bot's, and its length was never the part worth hiding.
     if (strlen(sent) != expected) return false;
 
     return nya_crypto_equals((const u8*)sent, (const u8*)secret, expected);
@@ -370,8 +354,7 @@ b8 nya_telegram_update_read(const NYA_Object* object, NYA_TelegramUpdate* out_up
 
         _nya_telegram_copy(out_update->callback_id, sizeof(out_update->callback_id), _nya_telegram_string_at(query, "id"));
 
-        // The data the button carried, which is what a bot switches on. Telegram calls the visible
-        // label something else entirely and never sends it back.
+        // The data the button carried, which is what a bot switches on; Telegram names the visible label separately and never sends it back.
         _nya_telegram_copy(out_update->text, sizeof(out_update->text), _nya_telegram_string_at(query, "data"));
 
         const NYA_Object* from = _nya_telegram_object_at(query, "from");
@@ -395,8 +378,7 @@ b8 nya_telegram_update_read(const NYA_Object* object, NYA_TelegramUpdate* out_up
     const NYA_Object* carried = message != nullptr ? message : edited;
 
     if (carried == nullptr) {
-        // Modelled as far as its id, which is all the offset needs. A poll or a chat member change is
-        // still an update Telegram will send again until it is acknowledged.
+        // Modelled as far as its id, which is all the offset needs; a poll or chat member change is still resent until acknowledged.
         out_update->kind = NYA_TELEGRAM_UPDATE_OTHER;
         return true;
     }
@@ -418,11 +400,7 @@ b8 nya_telegram_update_read(const NYA_Object* object, NYA_TelegramUpdate* out_up
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_telegram_perform(void* user, NYA_Arena* arena, NYA_Request request, NYA_Response* out_response) {
     (void)user;
