@@ -21,6 +21,8 @@
 #include "nyangine/core/core_gamepad.c"
 #include "nyangine/core/core_input.c"
 #include "nyangine/core/core_job.c"
+// After core_job.c and core_callback.c: it fans work onto the job pool and rides its tasks on a callback.
+#include "nyangine/core/core_taskgroup.c"
 #include "nyangine/core/core_keys.c"
 #include "nyangine/core/core_save.c"
 // After core_save.c and core_world.c's header: a scene is a world written through the save root.

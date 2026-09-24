@@ -30,6 +30,7 @@
 #include "nyangine/core/core_skeleton_layer.h"
 #include "nyangine/core/core_skeleton_blend.h"
 #include "nyangine/core/core_system.h"
+#include "nyangine/core/core_taskgroup.h"
 #include "nyangine/core/core_tilemap.h"
 #include "nyangine/core/core_nav.h"
 #include "nyangine/core/core_plugin.h"
