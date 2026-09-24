@@ -116,6 +116,7 @@
 #include "nyangine/ui/ui_present_shape.c"
 #include "nyangine/ui/ui_present_cell.c"
 #include "nyangine/ui/ui_present_html.c"
+#include "nyangine/ui/ui_present_dom.c"
 #include "nyangine/ui/ui_draw.c"
 #include "nyangine/ui/ui_input.c"
 #include "nyangine/ui/ui_layout.c"
