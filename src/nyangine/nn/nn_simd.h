@@ -13,9 +13,7 @@
 #define _NYA_NN_SIMD 0
 #endif
 
-/*
- * Fused multiply-add, or the two instructions it replaces.
- */
+// Fused multiply-add, or the two instructions it replaces.
 #if _NYA_NN_SIMD && defined(__FMA__)
 #define _nya_nn_fmadd(a, b, c) _mm256_fmadd_ps(a, b, c)
 #elif _NYA_NN_SIMD
@@ -42,9 +40,7 @@ __attr_allow_unused NYA_INTERNAL inline f32 nya_nn_simd_dot(const f32* a, const 
     f32 total = 0.0F;
 
 #if _NYA_NN_SIMD
-    // Four accumulators rather than one: an FMA has a latency of four or five cycles and a
-    // throughput of two per cycle, so a single dependent chain runs at a fraction of the issue rate.
-    // Four independent chains keep the units fed and cost nothing but registers.
+    // Four accumulators, not one: one dependent FMA chain stalls on latency (4-5 cycles vs 2/cycle throughput), so four independent chains keep the units fed.
     __m256 acc0 = _mm256_setzero_ps();
     __m256 acc1 = _mm256_setzero_ps();
     __m256 acc2 = _mm256_setzero_ps();

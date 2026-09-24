@@ -71,11 +71,7 @@ struct NYA_NNOptimizerConfig {
     f32 gradient_clip;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 NYA_API NYA_NNOptimizer* nya_nn_optimizer_sgd(NYA_Arena* arena, NYA_NNOptimizerConfig config) __attr_no_discard;
 NYA_API NYA_NNOptimizer* nya_nn_optimizer_adam(NYA_Arena* arena, NYA_NNOptimizerConfig config) __attr_no_discard;

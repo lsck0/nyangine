@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_NNLayer* nya_nn_layer_linear(NYA_Arena* arena, NYA_RNG* rng, u32 in_features, u32 out_features) {
     nya_assert(arena != nullptr);
@@ -16,8 +12,7 @@ NYA_NNLayer* nya_nn_layer_linear(NYA_Arena* arena, NYA_RNG* rng, u32 in_features
     *layer = (NYA_NNLayer){
         .kind = NYA_NN_LAYER_LINEAR,
 
-        // [in, out] rather than [out, in]: the forward pass is x * W with x as [batch, in], so this
-        // orientation makes the matmul a straight row-major walk with no transpose anywhere.
+        // [in, out] not [out, in]: the forward pass x * W with x as [batch, in] makes the matmul a straight row-major walk, no transpose.
         .weight = nya_nn_tensor_create(arena, NYA_NN_SHAPE(in_features, out_features), true),
         .bias   = nya_nn_tensor_create(arena, NYA_NN_SHAPE(out_features), true),
     };
@@ -110,8 +105,7 @@ u32 nya_nn_sequential_parameters(NYA_NNSequential* sequential, NYA_NNTensor** ou
 }
 
 void nya_nn_sequential_copy_parameters(NYA_NNSequential* destination, const NYA_NNSequential* source) {
-    // A hard copy is soft update with tau = 1, so there is one implementation of the loop and no way
-    // for the two to disagree about which direction they copy in.
+    // A hard copy is a soft update with tau = 1, so one loop serves both and they cannot disagree on which direction they copy in.
     nya_nn_sequential_soft_update(destination, source, 1.0F);
 }
 

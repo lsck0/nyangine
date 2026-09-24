@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 struct NYA_Neat {
     NYA_NeatConfig config;
@@ -12,9 +8,7 @@ struct NYA_Neat {
     /** Owns the context, the config's copy of the seed, and the best network snapshot. */
     NYA_Arena* allocator;
 
-    /*
-     * Two generation arenas, used alternately.
-     */
+    // Two generation arenas, used alternately.
     NYA_Arena* generation_allocators[2];
     u32        generation_allocator_index;
 
@@ -122,17 +116,9 @@ NYA_INTERNAL f64 _nya_nn_neat_distance(const NYA_Neat* neat, const NYA_NeatNetwo
 /** Fills anything the caller left at zero with the paper's value. */
 NYA_INTERNAL void _nya_nn_neat_apply_config_defaults(NYA_NeatConfig* config);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * ACTIVATION
- * ─────────────────────────────────────────────────────────
- */
+// ACTIVATION
 
 f64 nya_nn_neat_sigmoid(f64 value) {
     return 1.0 / (1.0 + exp(-4.9 * value));
@@ -150,11 +136,7 @@ f64 nya_nn_neat_relu(f64 value) {
     return value > 0.0 ? value : 0.0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * NETWORK
- * ─────────────────────────────────────────────────────────
- */
+// NETWORK
 
 NYA_NeatNetwork* nya_nn_neat_network_create(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
@@ -267,8 +249,7 @@ void nya_nn_neat_network_set_sensor(NYA_NeatNetwork* network, NYA_ConstCString l
     nya_assert(label != nullptr);
 
     nya_array_foreach (network->nodes, node) {
-        // the kind is checked as well as the label, or a label shared by a sensor and an output sets whichever
-        // comes first.
+        // The kind is checked as well as the label, or a label shared by a sensor and an output sets whichever comes first.
         if (node->kind != NYA_NEAT_NODE_SENSOR) continue;
         if (node->label == nullptr || strcmp(node->label, label) != 0) continue;
 
@@ -293,11 +274,7 @@ f64 nya_nn_neat_network_get_output(NYA_NeatNetwork* network, NYA_ConstCString la
     nya_log_panic("no output named '%s'", label);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SAVING AND LOADING
- * ─────────────────────────────────────────────────────────
- */
+// SAVING AND LOADING
 
 /* A number read back from a value of any numeric type. */
 NYA_INTERNAL b8 _nya_nn_neat_value_u32(const NYA_Value* value, OUT u32* out) {
@@ -312,8 +289,7 @@ NYA_INTERNAL b8 _nya_nn_neat_value_u32(const NYA_Value* value, OUT u32* out) {
         case NYA_TYPE_S16: *out = (u32)value->as_s16; return true;
         case NYA_TYPE_S32: *out = (u32)value->as_s32; return true;
 
-        // what the JSON reader produces for whole numbers. negatives are refused, since every u32 here is an index
-        // or a count.
+        // What the JSON reader produces for whole numbers; negatives are refused since every u32 here is an index or a count.
         case NYA_TYPE_S64:
             if (value->as_s64 < 0) return false;
             *out = (u32)value->as_s64;
@@ -529,11 +505,7 @@ NYA_Error nya_nn_neat_network_load(
     return nya_nn_neat_network_from_object(arena, object, activation_function, out_network);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * EVOLUTION
- * ─────────────────────────────────────────────────────────
- */
+// EVOLUTION
 
 NYA_Neat* nya_nn_neat_create(NYA_NeatConfig config) {
     nya_assert(config.seed != nullptr, "NEAT needs a seed network to start from");
@@ -622,11 +594,7 @@ NYA_NeatNetwork* nya_nn_neat_best(NYA_Neat* neat) {
     return neat->best;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_nn_neat_apply_config_defaults(NYA_NeatConfig* config) {
     /* Zero means unset, and the defaults below are the paper's. */
@@ -658,10 +626,7 @@ void _nya_nn_neat_apply_config_defaults(NYA_NeatConfig* config) {
     if (config->generations_per_second <= 0.0F) config->generations_per_second = 10.0F;
     if (config->max_steps_per_frame == 0) config->max_steps_per_frame = 1;
 
-    /*
-     * The threshold controller is off unless a target species count is named; its bounds are filled in when it
-     * is. Otherwise compatibility_threshold never moves.
-     */
+    // The threshold controller is off unless a target species count is named; otherwise compatibility_threshold never moves.
     if (config->compatibility_threshold_adjust == 0.0) config->compatibility_threshold_adjust = 0.3;
     if (config->compatibility_threshold_min == 0.0) config->compatibility_threshold_min = 0.5;
     if (config->compatibility_threshold_max == 0.0) config->compatibility_threshold_max = 20.0;
@@ -677,8 +642,7 @@ f64 _nya_nn_neat_uniform(NYA_RNG* rng, f64 min, f64 max) {
 u32 _nya_nn_neat_index(NYA_RNG* rng, u32 count) {
     if (count == 0) return 0;
 
-    // the open upper bound: sampling [0, count] and rounding would underweight the last element and sometimes
-    // pick one past the end.
+    // The open upper bound: sampling [0, count] and rounding would underweight the last element and sometimes pick one past the end.
     u32 index = (u32)_nya_nn_neat_uniform(rng, 0.0, (f64)count);
     return index >= count ? count - 1 : index;
 }
@@ -723,8 +687,7 @@ void _nya_nn_neat_mutate_weights(NYA_Neat* neat, NYA_NeatNetwork* network) {
             continue;
         }
 
-        // perturbation is a chance: most weights are left alone each generation so a good one is not walked away
-        // from.
+        // Perturbation is a chance: most weights are left alone each generation so a good one is not walked away from.
         if (!nya_rng_gen_bool(neat->rng, (f32)neat->config.mutation_weight_perturbation_chance)) continue;
 
         f64 max_change      = neat->config.mutation_weight_perturbation_percent_max;
@@ -780,8 +743,7 @@ void _nya_nn_neat_mutate_add_connection(NYA_Neat* neat, NYA_NeatNetwork* network
 void _nya_nn_neat_mutate_add_node(NYA_Neat* neat, NYA_NeatNetwork* network) {
     if (network->connections->length == 0) return;
 
-    // a split costs one node and two connections, so both ceilings need room, or the genome keeps a disabled
-    // gene with no replacement.
+    // A split costs one node and two connections, so both ceilings need room or the genome keeps a disabled gene with no replacement.
     if (network->nodes->length >= NYA_NEAT_MAX_NODES) return;
     if (network->connections->length + 2 > NYA_NEAT_MAX_CONNECTIONS) return;
 
@@ -932,18 +894,13 @@ f64 _nya_nn_neat_distance(const NYA_Neat* neat, const NYA_NeatNetwork* a, const 
     f64 n = (f64)nya_max(a_count, b_count);
     if (n < 20.0) n = 1.0;
 
-    // no shared genes: the average weight difference would be NaN, and NaN compares false against every
-    // threshold, putting unrelated genomes in one species.
+    // No shared genes: the average weight difference is NaN, which compares false against every threshold, lumping unrelated genomes into one species.
     f64 average_weight_delta = matching > 0.0 ? weight_deltas / matching : 0.0;
 
     return ((c1 * excess) / n) + ((c2 * disjoint) / n) + (c3 * average_weight_delta);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE GENERATION
- * ─────────────────────────────────────────────────────────
- */
+// THE GENERATION
 
 u32 nya_nn_neat_step_for(NYA_Neat* neat, f32 delta_time_s) {
     nya_assert(neat != nullptr);
@@ -963,10 +920,7 @@ u32 nya_nn_neat_step_for(NYA_Neat* neat, f32 delta_time_s) {
         neat->step_accumulator -= (f32)steps;
     }
 
-    /*
-     * The count limits how many generations, not how long they take. Evaluation cost grows with the population's
-     * connections; see max_step_milliseconds.
-     */
+    // The count limits how many generations, not how long they take; evaluation cost grows with connections (see max_step_milliseconds).
     u64 started_ns  = nya_clock_get_monotonic_ns();
     u64 budget_ns   = (u64)(neat->config.max_step_milliseconds * 1'000'000.0);
     u32 steps_taken = 0;
@@ -1101,10 +1055,7 @@ void _nya_nn_neat_phase_evaluate(NYA_Neat* neat, _NYA_NeatGeneration* generation
 void _nya_nn_neat_phase_share(NYA_Neat* neat, _NYA_NeatGeneration* generation) {
     nya_unused(generation);
 
-    /*
-     * Fitness divided by species size, so a large species cannot out-vote a small one. This protects a new
-     * topology while it is tuned.
-     */
+    // Fitness divided by species size, so a large species cannot out-vote a small one; this protects a new topology while it is tuned.
     nya_array_foreach (neat->species, species) {
         f64 species_max    = -INFINITY;
         f64 adjusted_total = 0.0;
@@ -1131,10 +1082,7 @@ void _nya_nn_neat_phase_share(NYA_Neat* neat, _NYA_NeatGeneration* generation) {
 void _nya_nn_neat_phase_cull(NYA_Neat* neat, _NYA_NeatGeneration* generation) {
     NYA_NeatConfig* config = &neat->config;
 
-    /*
-     * A species that has not improved for a long time gets no offspring. When the whole population stalls, all
-     * but the two best species go, narrowing to the most promising lines.
-     */
+    // A long-stagnant species gets no offspring; when the whole population stalls, all but the two best species go.
     generation->population_stagnant = neat->generations_without_improvement > config->population_stagnation_threshold;
 
     if (generation->population_stagnant && neat->species->length > 2) {
@@ -1203,8 +1151,7 @@ NYA_NeatSpecies _nya_nn_neat_breed_species(NYA_Neat* neat, _NYA_NeatGeneration* 
         .fitness_max                     = species->fitness_max,
         .generations_without_improvement = species->generations_without_improvement,
 
-        // the representative is from the previous generation, so members are measured against where the species
-        // was, not where it drifts.
+        // The representative is from the previous generation, so members are measured against where the species was, not where it drifts.
         .representative                  = species->representative,
     };
 
@@ -1236,8 +1183,7 @@ NYA_NeatSpecies _nya_nn_neat_breed_species(NYA_Neat* neat, _NYA_NeatGeneration* 
         if (nya_rng_gen_bool(neat->rng, (f32)config->mutation_add_connection_chance)) _nya_nn_neat_mutate_add_connection(neat, child);
         if (nya_rng_gen_bool(neat->rng, (f32)config->mutation_add_node_chance)) _nya_nn_neat_mutate_add_node(neat, child);
 
-        // restores the sort order distance and crossover rely on; a mutation can reuse an innovation number minted
-        // earlier this generation.
+        // Restores the sort order distance and crossover rely on; a mutation can reuse an innovation number minted earlier this generation.
         _nya_nn_neat_sort_connections(child);
 
         nya_array_push_back(offspring_species.members, *child);
@@ -1249,10 +1195,7 @@ NYA_NeatSpecies _nya_nn_neat_breed_species(NYA_Neat* neat, _NYA_NeatGeneration* 
 void _nya_nn_neat_phase_respeciate(NYA_Neat* neat, _NYA_NeatGeneration* generation) {
     NYA_NeatConfig* config = &neat->config;
 
-    /*
-     * Children are placed against the frozen representatives, so one that mutated away founds or joins another
-     * species.
-     */
+    // Children are placed against the frozen representatives, so one that mutated away founds or joins another species.
     generation->respeciated = nya_array_create(generation->next_arena, NYA_NeatSpecies);
 
     nya_array_foreach (generation->next_species, species) {

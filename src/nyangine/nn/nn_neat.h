@@ -24,11 +24,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The most nodes one genome may grow to.
@@ -49,11 +45,7 @@
 #define NYA_NEAT_ELITISM_MIN_SPECIES_SIZE 5
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_NeatNode       NYA_NeatNode;
 typedef struct NYA_NeatConnection NYA_NeatConnection;
@@ -210,38 +202,24 @@ struct NYA_NeatConfig {
     /** Hex seed for the RNG, so a run can be reproduced. Null picks a random one. */
     NYA_ConstCString rng_seed;
 
-    /*
-     * Speciation
-     *
-     * Distance is c1·E/N + c2·D/N + c3·W̄: excess genes, disjoint genes, and the average weight
-     * difference of shared genes. Two genomes are one species when it is below the threshold.
-     */
+    // Speciation: distance c1·E/N + c2·D/N + c3·W̄ (excess, disjoint, avg shared-weight diff); one species when below the threshold.
     f64 compatibility_threshold;
     f64 compatibility_coefficient_excess;
     f64 compatibility_coefficient_disjoint;
     f64 compatibility_coefficient_weight;
 
-    /*
-     * ── Weight mutation ──
-     */
+    // ── Weight mutation ──
     f64 weight_range_min;
     f64 weight_range_max;
     f64 mutation_weight_perturbation_chance;
     f64 mutation_weight_perturbation_percent_max;
     f64 mutation_weight_reroll_chance;
 
-    /*
-     * Structural mutation
-     *
-     * Rarer than weight mutation, and adding a node rarer still. A new node is two new connections and an
-     * immediate fitness drop, so a population that adds them freely never settles long enough to tune.
-     */
+    // Structural mutation: rarer than weight mutation, adding a node rarer still, since a new node drops fitness and stops the population settling.
     f64 mutation_add_connection_chance;
     f64 mutation_add_node_chance;
 
-    /*
-     * ── Reproduction ──
-     */
+    // ── Reproduction ──
     f64 crossover_chance;
 
     /** The fraction of a species allowed to breed, best first. The rest are dead ends. */
@@ -250,11 +228,7 @@ struct NYA_NeatConfig {
     /** A gene disabled in either parent has this chance of coming back on in the child. */
     f64 crossover_revive_disabled_chance;
 
-    /*
-     * ── Pacing ──
-     *
-     * Only nya_nn_neat_step_for reads these; nya_nn_neat_step always runs exactly one generation.
-     */
+    // Pacing: only nya_nn_neat_step_for reads these; nya_nn_neat_step always runs exactly one generation.
 
     /**
      * Generations per second, for nya_nn_neat_step_for.
@@ -289,9 +263,7 @@ struct NYA_NeatConfig {
     /** The same, for the whole population: everything but the best two species is culled. */
     u32 population_stagnation_threshold;
 
-    /*
-     * ── Observation ──
-     */
+    // ── Observation ──
 
     /** Called after each phase of every generation. Null by default, and then free. */
     NYA_NeatObserverFunction observer;
@@ -303,17 +275,9 @@ struct NYA_NeatConfig {
 /** A human readable name for a phase, for a log line or an overlay. */
 NYA_API NYA_ConstCString nya_nn_neat_phase_name(NYA_NeatPhase phase) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * NETWORK
- * ─────────────────────────────────────────────────────────
- */
+// NETWORK
 
 /** An empty network. Push the sensors and outputs it should have, then hand it over as a seed. */
 NYA_API NYA_NeatNetwork* nya_nn_neat_network_create(NYA_Arena* arena) __attr_no_discard;
@@ -341,16 +305,9 @@ NYA_API void nya_nn_neat_network_set_sensor(NYA_NeatNetwork* network, NYA_ConstC
 /** Reads an output by name. Asserts when no output has that label. */
 NYA_API f64 nya_nn_neat_network_get_output(NYA_NeatNetwork* network, NYA_ConstCString label) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * SAVING AND LOADING
- * ─────────────────────────────────────────────────────────
- */
+// SAVING AND LOADING
 
-/*
- * A genome round trips through NYA_Object, so serde writes it and it can go over the curl plugin or
- * into a sqlite column with no extra code.
- */
+// A genome round-trips through NYA_Object, so serde writes it straight over the curl plugin or into a sqlite column.
 
 /**
  * Converts a genome into a plain object: topology, weights, innovation numbers and labels.
@@ -372,11 +329,7 @@ NYA_API NYA_Error nya_nn_neat_network_load(
     NYA_Arena* arena, NYA_ConstCString path, NYA_NeatActivationFunction activation_function, OUT NYA_NeatNetwork** out_network
 ) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ACTIVATION
- * ─────────────────────────────────────────────────────────
- */
+// ACTIVATION
 
 /**
  * The steepened sigmoid the paper uses: 1 / (1 + e^(-4.9x)).
@@ -394,11 +347,7 @@ NYA_API f64 nya_nn_neat_tanh(f64 value) __attr_no_discard;
 /** Rectified linear. Cheap, unbounded above; watch for outputs running away. */
 NYA_API f64 nya_nn_neat_relu(f64 value) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * EVOLUTION
- * ─────────────────────────────────────────────────────────
- */
+// EVOLUTION
 
 /**
  * Creates a population seeded from `config.seed`, with everything unset filled in from the paper.

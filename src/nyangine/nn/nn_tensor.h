@@ -25,11 +25,7 @@ typedef struct NYA_NNTensor NYA_NNTensor;
 typedef struct NYA_NNGraph  NYA_NNGraph;
 typedef enum NYA_NNOp       NYA_NNOp;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Dimensions a tensor may have. Four covers [batch, channels, height, width] if it ever matters. */
 #define NYA_NN_TENSOR_MAX_DIMS 4
@@ -44,11 +40,7 @@ typedef enum NYA_NNOp       NYA_NNOp;
 /** Builds a shape literal. `NYA_NN_SHAPE(8, 4)` is a rank 2 shape of 8 rows by 4 columns. */
 #define NYA_NN_SHAPE(...) ((NYA_NNShape){ .dims = { __VA_ARGS__ }, .rank = nya_carray_length(((u32[]){ __VA_ARGS__ })) })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_NNShape {
     u32 dims[NYA_NN_TENSOR_MAX_DIMS];
@@ -116,9 +108,7 @@ struct NYA_NNTensor {
 
     b8 requires_grad;
 
-    /*
-     * ── Autograd ──
-     */
+    // ── Autograd ──
 
     NYA_NNOp      op;
     NYA_NNTensor* inputs[2];
@@ -130,11 +120,7 @@ struct NYA_NNTensor {
     const u32* indices;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Creates a graph: a scratch arena for activations plus the tape recording them.
@@ -162,9 +148,7 @@ NYA_API u64 nya_nn_graph_memory_usage_bytes(const NYA_NNGraph* graph) __attr_no_
 NYA_API void nya_nn_graph_grad_begin(NYA_NNGraph* graph);
 NYA_API void nya_nn_graph_grad_end(NYA_NNGraph* graph);
 
-/*
- * ── Creation ──
- */
+// ── Creation ──
 
 /** A tensor of zeros against `arena`. Use for parameters, which outlive the graph. */
 NYA_API NYA_NNTensor* nya_nn_tensor_create(NYA_Arena* arena, NYA_NNShape shape, b8 requires_grad) __attr_no_discard;
@@ -175,9 +159,7 @@ NYA_API NYA_NNTensor* nya_nn_tensor_zeros(NYA_NNGraph* graph, NYA_NNShape shape)
 /** The same, filled from `values`, which is copied. `values` must hold the shape's element count. */
 NYA_API NYA_NNTensor* nya_nn_tensor_from(NYA_NNGraph* graph, NYA_NNShape shape, const f32* values) __attr_no_discard;
 
-/*
- * ── Leaves ──
- */
+// ── Leaves ──
 
 NYA_API void nya_nn_tensor_fill(NYA_NNTensor* tensor, f32 value);
 NYA_API void nya_nn_tensor_fill_uniform(NYA_NNTensor* tensor, NYA_RNG* rng, f32 min, f32 max);
@@ -210,11 +192,7 @@ NYA_API u32 nya_nn_tensor_argmax_row(const NYA_NNTensor* tensor, u32 row) __attr
 /** Largest element in `row`. */
 NYA_API f32 nya_nn_tensor_max_row(const NYA_NNTensor* tensor, u32 row) __attr_no_discard;
 
-/*
- * ── Ops ──
- *
- * Each records onto the graph's tape and returns a tensor the graph owns.
- */
+// Ops: each records onto the graph's tape and returns a tensor the graph owns.
 
 NYA_API NYA_NNTensor* nya_nn_add(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* b) __attr_no_discard;
 NYA_API NYA_NNTensor* nya_nn_sub(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* b) __attr_no_discard;
@@ -244,9 +222,7 @@ NYA_API NYA_NNTensor* nya_nn_mse(NYA_NNGraph* graph, NYA_NNTensor* prediction, N
 /** Huber loss with the given delta. See NYA_NN_OP_HUBER for why DQN wants this over MSE. */
 NYA_API NYA_NNTensor* nya_nn_huber(NYA_NNGraph* graph, NYA_NNTensor* prediction, NYA_NNTensor* target, f32 delta) __attr_no_discard;
 
-/*
- * ── Backward ──
- */
+// ── Backward ──
 
 /** The op's name, for an error message or a graph dump. */
 NYA_API NYA_ConstCString nya_nn_op_name(NYA_NNOp op) __attr_no_discard;

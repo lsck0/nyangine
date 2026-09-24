@@ -75,12 +75,7 @@ struct NYA_NNDQNConfig {
     /** Gradients clipped to this before the update. Zero means 10. Negative disables it. */
     f32 gradient_clip;
 
-    /*
-     * ── Exploration ──
-     *
-     * Epsilon-greedy: act at random with probability epsilon, greedily otherwise. Epsilon falls from
-     * `exploration_start` to `exploration_end` over `exploration_steps` gradient steps.
-     */
+    // Exploration: epsilon-greedy, epsilon falling from `exploration_start` to `exploration_end` over `exploration_steps` gradient steps.
 
     /** Zero means 1: start by acting entirely at random. */
     f32 exploration_start;
@@ -91,18 +86,14 @@ struct NYA_NNDQNConfig {
     /** Zero means 10000. */
     u32 exploration_steps;
 
-    /*
-     * ── Target network ──
-     */
+    // ── Target network ──
 
     /**
      * Fraction of the online network mixed into the target each step. Zero means 0.005.
      * */
     f32 target_tau;
 
-    /*
-     * ── Pacing ──
-     */
+    // ── Pacing ──
 
     /** Gradient steps per second, for nya_nn_dqn_train_for. Zero means 30. */
     f32 train_steps_per_second;
@@ -129,11 +120,7 @@ struct NYA_NNDQNConfig {
     b8 disable_double_q;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Builds the agent: two networks, an optimizer, and a replay buffer. */
 NYA_API NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) __attr_no_discard;
@@ -168,9 +155,7 @@ NYA_API f32 nya_nn_dqn_train_step(NYA_NNDQN* dqn);
  * */
 NYA_API f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s);
 
-/*
- * ── Inspection ──
- */
+// ── Inspection ──
 
 NYA_API u64 nya_nn_dqn_train_step_count(const NYA_NNDQN* dqn) __attr_no_discard;
 NYA_API u32 nya_nn_dqn_replay_count(const NYA_NNDQN* dqn) __attr_no_discard;

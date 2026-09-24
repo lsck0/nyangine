@@ -1,19 +1,11 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Gradient steps the reported average loss covers. Long enough to be steady, short enough to move. */
 #define _NYA_NN_DQN_LOSS_HISTORY 64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 struct NYA_NNDQN {
     NYA_NNDQNConfig config;
@@ -28,12 +20,7 @@ struct NYA_NNDQN {
     NYA_NNOptimizer* optimizer;
     NYA_NNGraph*     graph;
 
-    /*
-     * Replay
-     *
-     * One flat block per field. A batch reads one field across scattered rows, so this touches fewer
-     * cache lines, and copying into a batch tensor is a memcpy per row.
-     */
+    // Replay: one flat block per field, so a batch reads one field across rows touching fewer cache lines (a memcpy per row).
 
     f32* states;       /** capacity * state_size */
     f32* next_states;  /** capacity * state_size */
@@ -47,11 +34,7 @@ struct NYA_NNDQN {
     /** Transitions stored, saturating at capacity. Distinguishes "empty slot" from "a zero reward". */
     u32 replay_count;
 
-    /*
-     * Scratch, reused every gradient step
-     *
-     * Owned, so a training step allocates nothing after the first. See nn_tensor.h.
-     */
+    // Scratch, reused every gradient step: owned, so a training step allocates nothing after the first. See nn_tensor.h.
 
     u32* batch_indices;
     f32* batch_states;
@@ -59,9 +42,7 @@ struct NYA_NNDQN {
     u32* batch_actions;
     f32* batch_targets;
 
-    /*
-     * ── Bookkeeping ──
-     */
+    // ── Bookkeeping ──
 
     u64 train_step_count;
 
@@ -73,11 +54,7 @@ struct NYA_NNDQN {
     u32 loss_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Fills anything the caller left at zero with a default. */
 NYA_INTERNAL void _nya_nn_dqn_apply_config_defaults(NYA_NNDQNConfig* config);
@@ -92,11 +69,7 @@ NYA_INTERNAL u32 _nya_nn_dqn_index(NYA_NNDQN* dqn, u32 bound) __attr_no_discard;
 /** Builds the batch's regression targets from the replay sample. The Q-learning update itself. */
 NYA_INTERNAL void _nya_nn_dqn_build_targets(NYA_NNDQN* dqn);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) {
     nya_assert(arena != nullptr);
@@ -113,9 +86,7 @@ NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) {
     // sized for a batch through the hidden stack twice: the online and target passes share the tape.
     dqn->graph = nya_nn_graph_create(arena);
 
-    /*
-     * Two networks of identical architecture, then synchronised.
-     */
+    // Two networks of identical architecture, then synchronised.
     dqn->online = nya_nn_sequential_create(arena);
     _nya_nn_dqn_build_sequential(dqn, dqn->online);
 
@@ -124,8 +95,7 @@ NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) {
 
     nya_nn_sequential_copy_parameters(dqn->target, dqn->online);
 
-    // The target network is never trained directly, so it is not registered with the optimizer. Only
-    // the soft update moves it.
+    // The target network is never trained directly, so it is not registered with the optimizer; only the soft update moves it.
     dqn->optimizer = nya_nn_optimizer_adam(
         arena,
         (NYA_NNOptimizerConfig){ .learning_rate = config.learning_rate, .gradient_clip = config.gradient_clip > 0.0F ? config.gradient_clip : 0.0F }
@@ -155,8 +125,7 @@ u32 nya_nn_dqn_act(NYA_NNDQN* dqn, const f32* state) {
     nya_assert(dqn != nullptr);
     nya_assert(state != nullptr);
 
-    // rolled before consulting the network, so exploring costs no forward pass. Early on almost every
-    // step explores.
+    // Rolled before consulting the network, so exploring costs no forward pass; early on almost every step explores.
     if (nya_rng_gen_bool(dqn->rng, nya_nn_dqn_exploration(dqn))) return _nya_nn_dqn_index(dqn, dqn->config.action_count);
 
     return nya_nn_dqn_act_greedy(dqn, state);
@@ -187,9 +156,7 @@ void nya_nn_dqn_observe(NYA_NNDQN* dqn, const f32* state, u32 action, f32 reward
 
     nya_memcpy(&dqn->states[(u64)slot * state_size], state, (u64)state_size * sizeof(f32));
 
-    // A terminal transition has no next state to bootstrap from, so what is stored there is never
-    // read. Zeroed anyway rather than left as whatever the previous occupant held, so a bug that
-    // does read it produces something repeatable instead of stale values from an old episode.
+    // A terminal transition's next state is never read; zeroed anyway so a bug that reads it gets something repeatable, not stale episode values.
     if (terminal || next_state == nullptr) nya_memset(&dqn->next_states[(u64)slot * state_size], 0, (u64)state_size * sizeof(f32));
     else nya_memcpy(&dqn->next_states[(u64)slot * state_size], next_state, (u64)state_size * sizeof(f32));
 
@@ -210,9 +177,7 @@ f32 nya_nn_dqn_train_step(NYA_NNDQN* dqn) {
     u32 batch      = dqn->config.batch_size;
     u32 state_size = dqn->config.state_size;
 
-    /*
-     * Sampled with replacement.
-     */
+    // Sampled with replacement.
     for (u32 i = 0; i < batch; i++) {
         u32 index = _nya_nn_dqn_index(dqn, dqn->replay_count);
 
@@ -227,9 +192,7 @@ f32 nya_nn_dqn_train_step(NYA_NNDQN* dqn) {
 
     _nya_nn_dqn_build_targets(dqn);
 
-    /*
-     * The online pass, which is the only part that records a tape.
-     */
+    // The online pass, which is the only part that records a tape.
     nya_nn_optimizer_zero_grad(dqn->optimizer);
 
     NYA_NNTensor* states     = nya_nn_tensor_from(dqn->graph, NYA_NN_SHAPE(batch, state_size), dqn->batch_states);
@@ -252,8 +215,7 @@ f32 nya_nn_dqn_train_step(NYA_NNDQN* dqn) {
     dqn->loss_cursor                    = (dqn->loss_cursor + 1) % _NYA_NN_DQN_LOSS_HISTORY;
     if (dqn->loss_count < _NYA_NN_DQN_LOSS_HISTORY) dqn->loss_count++;
 
-    // Reset here rather than at the top of the next step, so nothing the step produced is still
-    // reachable once it returns.
+    // Reset here rather than at the top of the next step, so nothing this step produced is still reachable once it returns.
     nya_nn_graph_reset(dqn->graph);
 
     return loss_value;
@@ -264,9 +226,7 @@ f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s) {
 
     if (delta_time_s <= 0.0F) return 0.0F;
 
-    /*
-     * A rate and a debt, not a per-frame count.
-     */
+    // A rate and a debt, not a per-frame count.
     dqn->train_step_debt += delta_time_s * dqn->config.train_steps_per_second;
 
     u32 steps = (u32)dqn->train_step_debt;
@@ -280,9 +240,7 @@ f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s) {
         dqn->train_step_debt -= (f32)steps;
     }
 
-    /*
-     * The step count bounds how many, this bounds how long. See NYA_NNDQNConfig.max_step_milliseconds.
-     */
+    // The step count bounds how many, this bounds how long. See NYA_NNDQNConfig.max_step_milliseconds.
     u64 started_ns = nya_clock_get_monotonic_ns();
     u64 budget_ns  = (u64)(dqn->config.max_step_milliseconds * 1'000'000.0);
 
@@ -292,9 +250,7 @@ f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s) {
 
         if (budget_ns == 0) continue;
         if (nya_clock_get_monotonic_ns() - started_ns >= budget_ns) {
-            // The unrun steps are dropped rather than carried. Carrying them would make every later
-            // frame run at the cap until the debt drained, which is the catch-up spiral the cap
-            // above already refuses for the same reason.
+            // Unrun steps are dropped, not carried: carrying them would run every later frame at the cap until the debt drained (the catch-up spiral).
             dqn->train_step_debt = 0.0F;
             break;
         }
@@ -318,8 +274,7 @@ u32 nya_nn_dqn_replay_count(const NYA_NNDQN* dqn) {
 f32 nya_nn_dqn_exploration(const NYA_NNDQN* dqn) {
     nya_assert(dqn != nullptr);
 
-    // Linear in gradient steps, not in frames or transitions: it is training that makes the greedy
-    // action worth trusting, so that is what exploration should decay against.
+    // Linear in gradient steps, not frames or transitions: training is what makes the greedy action trustworthy, so decay against that.
     f32 progress = dqn->config.exploration_steps > 0 ? (f32)dqn->train_step_count / (f32)dqn->config.exploration_steps : 1.0F;
     progress     = nya_clamp(progress, 0.0F, 1.0F);
 
@@ -343,11 +298,7 @@ NYA_NNSequential* nya_nn_dqn_network(NYA_NNDQN* dqn) {
     return dqn->online;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_nn_dqn_apply_config_defaults(NYA_NNDQNConfig* config) {
     if (config->replay_capacity == 0) config->replay_capacity = 10000;
@@ -413,9 +364,7 @@ void _nya_nn_dqn_build_sequential(NYA_NNDQN* dqn, NYA_NNSequential* sequential) 
 }
 
 NYA_NNTensor* _nya_nn_dqn_evaluate(NYA_NNDQN* dqn, const f32* state) {
-    /*
-     * Acting does not need a backward pass, so it records nothing.
-     */
+    // Acting does not need a backward pass, so it records nothing.
     nya_nn_graph_reset(dqn->graph);
     nya_nn_graph_grad_begin(dqn->graph);
 
@@ -424,9 +373,7 @@ NYA_NNTensor* _nya_nn_dqn_evaluate(NYA_NNDQN* dqn, const f32* state) {
 
     nya_nn_graph_grad_end(dqn->graph);
 
-    // Still live: the caller reads it before anything resets the graph again. Every entry point that
-    // returns one of these consumes it immediately, which is why this is safe and why it is not
-    // exposed outside this file.
+    // Still live: the caller reads it before the graph resets again, and every entry point consumes it immediately, so it stays file-local.
     return values;
 }
 
@@ -441,25 +388,21 @@ void _nya_nn_dqn_build_targets(NYA_NNDQN* dqn) {
     u32 state_size   = dqn->config.state_size;
     u32 action_count = dqn->config.action_count;
 
-    /*
-     * The whole target computation is outside the tape.
-     */
+    // The whole target computation is outside the tape.
     nya_nn_graph_grad_begin(dqn->graph);
 
     NYA_NNTensor* next_states = nya_nn_tensor_from(dqn->graph, NYA_NN_SHAPE(batch, state_size), dqn->batch_next_states);
 
     NYA_NNTensor* target_values = nya_nn_sequential_forward(dqn->target, dqn->graph, next_states);
 
-    // Only needed for double Q-learning, which chooses with the online network and evaluates with
-    // the target one. Plain DQN does both with the target network and skips this pass entirely.
+    // Only needed for double Q-learning (choose with the online network, evaluate with the target); plain DQN uses the target for both and skips this.
     NYA_NNTensor* online_values = dqn->config.disable_double_q ? nullptr : nya_nn_sequential_forward(dqn->online, dqn->graph, next_states);
 
     for (u32 i = 0; i < batch; i++) {
         u32 index  = dqn->batch_indices[i];
         f32 reward = dqn->rewards[index];
 
-        // A terminal transition has no future: its value is exactly the reward. Bootstrapping past
-        // the end of an episode is the other classic way to make values diverge.
+        // A terminal transition has no future: its value is exactly the reward, and bootstrapping past an episode end is a classic way to make values diverge.
         if (dqn->terminals[index]) {
             dqn->batch_targets[i] = reward;
             continue;
@@ -468,9 +411,7 @@ void _nya_nn_dqn_build_targets(NYA_NNDQN* dqn) {
         f32 next_value = 0.0F;
 
         if (online_values != nullptr) {
-            // Chosen by the online network, valued by the target network. The two disagree about
-            // which action is best exactly where the estimate is noisy, and that disagreement is
-            // what cancels the upward bias of taking a max over noise.
+            // Chosen by the online network, valued by the target: their disagreement where estimates are noisy cancels the upward bias of a max over noise.
             u32 best = nya_nn_tensor_argmax_row(online_values, i);
             next_value = nya_nn_tensor_at(target_values, i, best);
         } else {

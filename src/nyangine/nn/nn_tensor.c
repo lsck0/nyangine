@@ -2,11 +2,7 @@
 
 #include "nyangine/nn/nn_simd.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 struct NYA_NNGraph {
     /**
@@ -22,11 +18,7 @@ struct NYA_NNGraph {
     u32 no_grad_depth;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Allocates a tensor and its buffers from `arena`. The one place a tensor comes into existence. */
 NYA_INTERNAL NYA_NNTensor* _nya_nn_tensor_alloc(NYA_Arena* arena, NYA_NNShape shape, b8 requires_grad) __attr_no_discard;
@@ -45,11 +37,7 @@ NYA_INTERNAL b8 _nya_nn_shape_equals(const NYA_NNTensor* a, const NYA_NNTensor* 
 /** Propagates one tape node's gradient into its inputs. */
 NYA_INTERNAL void _nya_nn_backward_node(NYA_NNTensor* tensor);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_NNGraph* nya_nn_graph_create(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
@@ -57,8 +45,7 @@ NYA_NNGraph* nya_nn_graph_create(NYA_Arena* arena) {
     NYA_NNGraph* graph = nya_arena_alloc(arena, sizeof(NYA_NNGraph));
     *graph             = (NYA_NNGraph){ 0 };
 
-    // Sized for activations, which are small and short lived: a batch of a few hundred rows through
-    // a few layers. It grows if a network needs more, in steps of this rather than of the default.
+    // Sized for activations (small, short-lived: a batch of a few hundred rows through a few layers); grows in steps of this if a network needs more.
     graph->allocator = nya_arena_create(.name = "nn_graph", .region_size = nya_mebyte_to_byte(4));
 
     return graph;
@@ -106,8 +93,7 @@ NYA_NNTensor* nya_nn_tensor_create(NYA_Arena* arena, NYA_NNShape shape, b8 requi
 NYA_NNTensor* nya_nn_tensor_zeros(NYA_NNGraph* graph, NYA_NNShape shape) {
     nya_assert(graph != nullptr);
 
-    // No gradient: an input or a target is data, and nothing wants dloss/dinput. A parameter is made
-    // with nya_nn_tensor_create against a persistent arena instead.
+    // No gradient: an input or target is data and nothing wants dloss/dinput; a parameter uses nya_nn_tensor_create against a persistent arena instead.
     return _nya_nn_tensor_alloc(graph->allocator, shape, false);
 }
 
@@ -139,8 +125,7 @@ void nya_nn_tensor_fill_uniform(NYA_NNTensor* tensor, NYA_RNG* rng, f32 min, f32
 void nya_nn_tensor_fill_kaiming(NYA_NNTensor* tensor, NYA_RNG* rng, u32 fan_in) {
     nya_assert(tensor != nullptr);
 
-    // A zero fan would divide by zero, and a layer with no inputs is a caller bug rather than
-    // something to silently produce nonsense for.
+    // A zero fan would divide by zero, and a layer with no inputs is a caller bug, not something to silently produce nonsense for.
     if (fan_in == 0) fan_in = 1;
 
     f32 bound = sqrtf(6.0F / (f32)fan_in);
@@ -207,9 +192,7 @@ f32 nya_nn_tensor_max_row(const NYA_NNTensor* tensor, u32 row) {
     return nya_nn_tensor_at(tensor, row, nya_nn_tensor_argmax_row(tensor, row));
 }
 
-/*
- * ── Ops ──
- */
+// ── Ops ──
 
 NYA_NNTensor* nya_nn_add(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* b) {
     nya_assert(_nya_nn_shape_equals(a, b), "nya_nn_add on mismatched shapes");
@@ -354,8 +337,7 @@ NYA_NNTensor* nya_nn_mse(NYA_NNGraph* graph, NYA_NNTensor* prediction, NYA_NNTen
 NYA_NNTensor* nya_nn_huber(NYA_NNGraph* graph, NYA_NNTensor* prediction, NYA_NNTensor* target, f32 delta) {
     nya_assert(_nya_nn_shape_equals(prediction, target), "nya_nn_huber on mismatched shapes");
 
-    // A non-positive delta makes the loss linear everywhere with a zero-width quadratic region,
-    // which is not a useful configuration and is always a mistake rather than an intent.
+    // A non-positive delta makes the loss linear everywhere with a zero-width quadratic region, which is always a mistake rather than an intent.
     if (delta <= 0.0F) delta = 1.0F;
 
     NYA_NNTensor* out = _nya_nn_op(graph, NYA_NN_SHAPE(1), NYA_NN_OP_HUBER, prediction, target);
@@ -366,8 +348,7 @@ NYA_NNTensor* nya_nn_huber(NYA_NNGraph* graph, NYA_NNTensor* prediction, NYA_NNT
         f32 difference = prediction->data[i] - target->data[i];
         f32 magnitude  = fabsf(difference);
 
-        // quadratic within delta, linear past it. Value and slope match at the boundary, so the loss is
-        // smooth.
+        // Quadratic within delta, linear past it; value and slope match at the boundary, so the loss is smooth.
         total += magnitude <= delta ? 0.5F * difference * difference : delta * (magnitude - (0.5F * delta));
     }
 
@@ -417,9 +398,7 @@ b8 nya_nn_tensor_is_finite(const NYA_NNTensor* tensor) {
 NYA_NNTensor* nya_nn_graph_find_non_finite(const NYA_NNGraph* graph) {
     nya_assert(graph != nullptr);
 
-    // Forward order, so the tensor returned is the earliest offender rather than merely an offender.
-    // Every later one is a consequence of it, and reporting a consequence sends the search downstream
-    // of the cause.
+    // Forward order, so the tensor returned is the earliest offender rather than a consequence of it, which would send the search downstream of the cause.
     for (u32 i = 0; i < graph->tape_count; i++) {
         if (!nya_nn_tensor_is_finite(graph->tape[i])) return graph->tape[i];
     }
@@ -433,17 +412,13 @@ void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss) {
     nya_assert(loss->count == 1, "nya_nn_backward wants a single element loss, got %u", loss->count);
     nya_assert(loss->grad != nullptr, "nya_nn_backward on a loss with no gradient; was it built under grad_begin?");
 
-    /*
-     * Every activation gradient on the tape is cleared before the sweep.
-     */
+    // Every activation gradient on the tape is cleared before the sweep.
     for (u32 i = 0; i < graph->tape_count; i++) nya_nn_tensor_zero_grad(graph->tape[i]);
 
     // After the clear, or it would be cleared too. dloss/dloss.
     loss->grad[0] = 1.0F;
 
-    /*
-     * Reverse tape order, which is a valid topological order by construction.
-     */
+    // Reverse tape order, which is a valid topological order by construction.
     for (u32 i = graph->tape_count; i > 0; i--) {
         NYA_NNTensor* tensor = graph->tape[i - 1];
 
@@ -454,11 +429,7 @@ void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_NNTensor* _nya_nn_tensor_alloc(NYA_Arena* arena, NYA_NNShape shape, b8 requires_grad) {
     nya_assert(shape.rank > 0 && shape.rank <= NYA_NN_TENSOR_MAX_DIMS, "a tensor needs 1 to %d dimensions, got %u", NYA_NN_TENSOR_MAX_DIMS, shape.rank);
@@ -474,8 +445,7 @@ NYA_NNTensor* _nya_nn_tensor_alloc(NYA_Arena* arena, NYA_NNShape shape, b8 requi
 
     for (u32 i = 0; i < shape.rank; i++) tensor->shape[i] = shape.dims[i];
 
-    // Zeroed, because matmul accumulates into its output and every other op would otherwise start
-    // from whatever the arena last held.
+    // Zeroed, because matmul accumulates into its output and every other op would otherwise start from whatever the arena last held.
     tensor->data = nya_arena_alloc(arena, (u64)count * sizeof(f32));
     nya_memset(tensor->data, 0, (u64)count * sizeof(f32));
 
@@ -491,9 +461,7 @@ NYA_NNTensor* _nya_nn_op(NYA_NNGraph* graph, NYA_NNShape shape, NYA_NNOp op, NYA
     nya_assert(graph != nullptr);
     nya_assert(a != nullptr);
 
-    /*
-     * A result needs a gradient exactly when one of its inputs does, and not when grad is off.
-     */
+    // A result needs a gradient exactly when one of its inputs does, and not when grad is off.
     b8 requires_grad = graph->no_grad_depth == 0 && ((a != nullptr && a->requires_grad) || (b != nullptr && b->requires_grad));
 
     NYA_NNTensor* out = _nya_nn_tensor_alloc(graph->allocator, shape, requires_grad);
@@ -540,8 +508,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
     NYA_NNTensor* a = tensor->inputs[0];
     NYA_NNTensor* b = tensor->inputs[1];
 
-    // Written once here rather than at every branch: an input that wants no gradient is skipped, and
-    // every rule below is free to assume the buffer exists.
+    // Written once here rather than at every branch: an input wanting no gradient is skipped, and every rule below can assume the buffer exists.
     b8 grad_a = a != nullptr && a->grad != nullptr;
     b8 grad_b = b != nullptr && b->grad != nullptr;
 
@@ -557,8 +524,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
         } break;
 
         case NYA_NN_OP_MUL: {
-            // each side's gradient is scaled by the other side's value, so both forward values must still be
-            // alive. The graph arena is reset only after backward.
+            // Each side's gradient is scaled by the other's value, so both forward values must still be alive; the graph arena resets only after backward.
             for (u32 i = 0; i < tensor->count; i++) {
                 if (grad_a) a->grad[i] += tensor->grad[i] * b->data[i];
                 if (grad_b) b->grad[i] += tensor->grad[i] * a->data[i];
@@ -574,8 +540,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             u32 k = a->shape[1];
             u32 n = b->shape[1];
 
-            // dA = dOut * B^T, dB = A^T * dOut. Loops in forward memory order instead of materialising a
-            // transpose, because backward must not allocate from the graph arena it is reading.
+            // dA = dOut * B^T, dB = A^T * dOut, in forward memory order rather than a materialised transpose (backward must not allocate from the arena it reads).
             for (u32 i = 0; i < m; i++) {
                 const f32* out_row = &tensor->grad[(u64)i * n];
 
@@ -597,9 +562,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
 
                 if (grad_a) nya_nn_simd_axpy(&a->grad[(u64)i * columns], 1.0F, row, columns);
 
-                // Summed down the batch: the same bias element contributed to every row, so its
-                // gradient is the total of what came back from all of them. Accumulating whole rows
-                // into b->grad is that same sum, one row at a time instead of one element at a time.
+                // Summed down the batch: one bias element feeds every row, so its gradient is the total over rows; accumulating whole rows into b->grad is that sum.
                 if (grad_b) nya_nn_simd_axpy(b->grad, 1.0F, row, columns);
             }
         } break;
@@ -607,8 +570,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
         case NYA_NN_OP_RELU: {
             if (!grad_a) break;
 
-            // Zero exactly at zero. The derivative is undefined there and either choice is defensible;
-            // this one keeps a dead unit dead rather than reviving it on a boundary case.
+            // Zero exactly at zero: the derivative is undefined there, and this choice keeps a dead unit dead rather than reviving it.
             nya_nn_simd_relu_backward(a->grad, a->data, tensor->grad, tensor->count);
         } break;
 
@@ -625,8 +587,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             u32 rows    = a->shape[0];
             u32 columns = a->shape[1];
 
-            // Only the selected column of each row receives anything. Every other action's value is
-            // untouched by this loss, which is the semantics DQN needs.
+            // Only the selected column of each row receives anything; every other action's value is untouched, which is the semantics DQN needs.
             for (u32 i = 0; i < rows; i++) a->grad[(i * columns) + tensor->indices[i]] += tensor->grad[i];
         } break;
 
@@ -651,8 +612,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
 
                 if (grad_a) a->grad[i] += gradient;
 
-                // the target usually needs no gradient. If the network produced it, as a bootstrapped target before
-                // detaching, the sign flips.
+                // The target usually needs no gradient; if the network produced it (a bootstrapped target before detaching), the sign flips.
                 if (grad_b) b->grad[i] -= gradient;
             }
         } break;
@@ -664,8 +624,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             for (u32 i = 0; i < a->count; i++) {
                 f32 difference = a->data[i] - b->data[i];
 
-                // The clamp *is* the point: past delta the gradient stops growing with the error, so
-                // one catastrophic target cannot dominate the batch.
+                // The clamp is the point: past delta the gradient stops growing with the error, so one catastrophic target cannot dominate the batch.
                 f32 slope = nya_clamp(difference, -delta, delta);
 
                 if (grad_a) a->grad[i] += tensor->grad[0] * scale * slope;
