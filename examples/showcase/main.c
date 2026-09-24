@@ -893,8 +893,10 @@ void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
 /** Which way the sun's light travels. Kept in one place so the sky disc, the shading and the shafts agree. */
 NYA_INTERNAL f32x3 sun_travel(void) {
-    // low and coming from over the far end of the valley, so the beams rake across the water and through the trees.
-    return nya_vector_normalize((f32x3){ -0.55F, -0.42F, 0.16F });
+    // Low and coming from over the down-valley (-x) end, the way the fly-through opens looking: the light-shaft
+    // pass only gathers when the sun faces the camera, so a sun the eye starts turned toward greets the view with
+    // beams from the first frame and rakes them across the water and through the trees as the orbit swings past it.
+    return nya_vector_normalize((f32x3){ 0.55F, -0.42F, -0.16F });
 }
 
 /** Draws one plant of a given style at a bank position, sampling the one wind field at its base. */
