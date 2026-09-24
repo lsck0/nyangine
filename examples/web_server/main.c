@@ -43,6 +43,11 @@
  * curl -i localhost:47800/readyz            # readiness: 200 when the db answers and its breaker is closed, else 503
  * curl localhost:47800/docs                 # the generated page
  * curl localhost:47800/openapi.json         # the document it is generated from
+ * curl localhost:47800/sitemap.xml          # the pages worth crawling
+ * curl localhost:47800/feed.xml             # the feed, RSS 2.0
+ * curl localhost:47800/atom.xml             # the same, Atom 1.0
+ * curl localhost:47800/robots.txt           # the crawl rules, pointing at the sitemap
+ * curl localhost:47800/llms.txt             # the LLM guide, use restricted
  * curl -X QUERY localhost:47800/api/metrics -d '{}'
  * websocat ws://127.0.0.1:47800/ws/notes    # the stream: a snapshot a second, and one per write
  * ```
@@ -1168,6 +1173,73 @@ NYA_INTERNAL s32 verify_mirror(NYA_ConstCString base_url, NYA_ConstCString pin_b
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE DISCOVERABILITY SURFACE
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * The four well-known documents a crawler and an LLM look for: a sitemap, a feed in both dialects, a
+ * robots.txt and an llms.txt. Each is built once here from data this program supplies and served as
+ * static bytes through the http_doc registry; see http_sitemap.h and its siblings.
+ *
+ * The URLs are written against a canonical site rather than the loopback the example binds, because a
+ * sitemap's locs and a feed's links are absolute URLs a crawler is meant to fetch, and 127.0.0.1 is not
+ * one. A real deployment substitutes its own origin here.
+ */
+#define SITE_URL "https://example.com"
+
+/** Builds and mounts the four documents. Merge nya_http_doc_router() after to bring them online. */
+NYA_INTERNAL NYA_Error mount_discovery(void) {
+    // The sitemap: the pages worth crawling. The API routes are QUERY/POST reads and writes, not pages,
+    // so they are not here.
+    const NYA_HttpSitemapUrl sitemap_urls[] = {
+        { .loc = SITE_URL "/", .changefreq = NYA_HTTP_SITEMAP_DAILY, .priority = 1.0F, .has_priority = true },
+        { .loc = SITE_URL "/docs", .changefreq = NYA_HTTP_SITEMAP_WEEKLY },
+    };
+    NYA_TRY(nya_http_sitemap_mount((NYA_HttpSitemapConfig){ .urls = sitemap_urls, .count = nya_carray_length(sitemap_urls) }));
+
+    // The feed, RSS at /feed.xml and Atom at /atom.xml from one set of items. The description carries an
+    // '&', which comes out as an entity — the escaping the feed builders run on every value.
+    const NYA_HttpFeedItem feed_items[] = {
+        { .title         = "The notes API is live",
+          .link          = SITE_URL "/docs",
+          .description   = "Read, write & remove notes over HTTP.",
+          .published     = nya_instant_now(),
+          .has_published = true },
+    };
+    NYA_TRY(nya_http_feed_mount((NYA_HttpFeedConfig){
+        .title       = "nyangine web_server",
+        .link        = SITE_URL "/",
+        .description = "The example server's feed",
+        .self_link   = SITE_URL NYA_HTTP_FEED_PATH,
+        .updated     = nya_instant_now(),
+        .has_updated = true,
+        .items       = feed_items,
+        .count       = nya_carray_length(feed_items),
+    }));
+
+    // robots.txt: keep the API and the probes out of a crawler's index, and point it at the sitemap.
+    const NYA_ConstCString    robots_disallow[] = { "/api/", "/healthz", "/readyz" };
+    const NYA_HttpRobotsGroup robots_groups[]   = {
+        { .user_agent = "*", .disallow = robots_disallow, .disallow_count = nya_carray_length(robots_disallow) },
+    };
+    NYA_TRY(nya_http_robots_mount((NYA_HttpRobotsConfig){
+        .groups = robots_groups, .count = nya_carray_length(robots_groups), .sitemap = SITE_URL NYA_HTTP_SITEMAP_PATH }));
+
+    // llms.txt, the strict preset: the document states up front that its content is not for training, then
+    // points a model at the docs it may read.
+    const NYA_HttpLlmsLink llms_links[] = {
+        { .title = "Generated API docs", .url = SITE_URL "/docs", .note = "the routes, from the same table the server dispatches" },
+        { .title = "OpenAPI document", .url = SITE_URL "/openapi.json", .note = "the machine-readable schema" },
+    };
+    const NYA_HttpLlmsSection llms_sections[] = { { .heading = "Documentation", .links = llms_links, .link_count = nya_carray_length(llms_links) } };
+
+    return nya_http_llms_mount_strict((NYA_HttpLlmsConfig){
+        .name = "nyangine web_server", .summary = "An example HTTP server built on nyangine.", .sections = llms_sections, .section_count = nya_carray_length(llms_sections) });
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE PROGRAM
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -1497,6 +1569,17 @@ s32 main(s32 argc, char** argv) {
     defer nya_http_server_unmerge(nya_http_openapi_router());
 
     /*
+     * The discoverability surface: /sitemap.xml, /feed.xml and /atom.xml, /robots.txt and /llms.txt. Built
+     * once from this program's own data and served as static bytes; clear frees them on the way out, after
+     * the routes are unmerged. See http_sitemap.h and its siblings.
+     */
+    NYA_EXPECT(mount_discovery(), "while building the discoverability documents");
+    defer nya_http_doc_clear();
+
+    NYA_EXPECT(nya_http_server_merge(nya_http_doc_router()), "while merging the discoverability documents");
+    defer nya_http_server_unmerge(nya_http_doc_router());
+
+    /*
      * The page. The three files are read and hashed once here; merging puts the routes that built on
      * the server, which is the same two steps every other resource here takes. The scratch arena is
      * only alive for the read, because the mount keeps a copy of its own.
@@ -1553,6 +1636,7 @@ s32 main(s32 argc, char** argv) {
                  nya_http_server_port());
     nya_log_info("Liveness at " NYA_HTTP_HEALTHZ_PATH " and readiness at " NYA_HTTP_READYZ_PATH " — %u readiness checks registered.",
                  nya_http_health_check_count());
+    nya_log_info("Discoverable at " NYA_HTTP_SITEMAP_PATH ", " NYA_HTTP_FEED_PATH ", " NYA_HTTP_FEED_ATOM_PATH ", " NYA_HTTP_ROBOTS_PATH " and " NYA_HTTP_LLMS_PATH ".");
     nya_log_info("Logging at level %d, addresses as %d: a code posted to " OTP_VERIFY_PATH " is logged as \"" NYA_REFLECT_REDACTED "\".",
                  (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
     nya_log_info("Serving a signed mirror attestation at " NYA_HTTP_ATTESTATION_PATH " for origin %s. Verify a mirror with --verify-mirror <url> --origin-key <key>.",
