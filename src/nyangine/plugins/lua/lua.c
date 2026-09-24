@@ -7,11 +7,7 @@
 #include "lua.h"
 #include "lualib.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 /** One function a game bound in. Held in the VM so the trampoline can find it by index. */
 typedef struct {
@@ -40,11 +36,7 @@ struct NYA_LuaVM {
     u32             binding_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── INTERNALS ─────────────────────────────────────
 
 /**
  * A NUL-terminated copy of `text` in `arena`.
@@ -123,10 +115,7 @@ void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
         case NYA_TYPE_B32: lua_pushboolean(state, value->as_b32 != 0); break;
         case NYA_TYPE_B64: lua_pushboolean(state, value->as_b64 != 0); break;
 
-        /*
-         * Every number becomes a Lua double. Integers past 2^53 lose low bits, since LuaJIT (Lua 5.1) has one number
-         * type; entity handles cross as a table of two u32s for that reason.
-         */
+        // Every number becomes a Lua double, so integers past 2^53 lose low bits (LuaJIT has one number type); entity handles cross as two u32s for that reason.
         case NYA_TYPE_U8: lua_pushnumber(state, (lua_Number)value->as_u8); break;
         case NYA_TYPE_U16: lua_pushnumber(state, (lua_Number)value->as_u16); break;
         case NYA_TYPE_U32: lua_pushnumber(state, (lua_Number)value->as_u32); break;
@@ -267,10 +256,7 @@ void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT
             lua_pushnil(state);
 
             while (lua_next(state, absolute) != 0) {
-                /*
-                 * The key must be a string before `lua_tostring` touches it: converting a number key in place changes the key
-                 * on the stack, and lua_next then loops forever.
-                 */
+                // The key must already be a string before `lua_tostring` touches it: converting a number key in place changes the stack key and lua_next loops forever.
                 if (lua_type(state, -2) == LUA_TSTRING) {
                     NYA_CString key = _nya_lua_clone_cstring(arena, lua_tostring(state, -2));
 
@@ -287,8 +273,7 @@ void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT
         } break;
 
         default:
-            // functions, userdata, threads and cdata have no NYA_Value form, and passing a pointer out is what this boundary
-            // prevents.
+            // functions, userdata, threads and cdata have no NYA_Value form, and passing a pointer out is what this boundary prevents.
             *out = (NYA_Value){ .type = NYA_TYPE_NULL };
             break;
     }
@@ -331,11 +316,7 @@ int _nya_lua_trampoline(lua_State* state) {
     return (int)results;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM** out_vm) {
     nya_assert(arena != nullptr && out_vm != nullptr);
@@ -350,12 +331,7 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
         luaL_openlibs(state);
 
         if (options.restricted) {
-            /*
-             * Removed after luaL_openlibs rather than opened selectively, since LuaJIT opens them in one call.
-             *
-             * Not a sandbox: `ffi` alone can call any function in the process, so it has to go, but a script handed a
-             * binding can still do whatever that binding allows.
-             */
+            // Removed after luaL_openlibs, since LuaJIT opens them in one call. Not a sandbox: `ffi` alone can call any function, but a bound script can do whatever its binding allows.
             NYA_ConstCString removed[] = { "io", "os", "package", "ffi", "debug" };
 
             for (u32 i = 0; i < nya_carray_length(removed); i++) {
@@ -373,8 +349,7 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
 
     *out_vm = vm;
 
-    // registered against the first VM created, which in practice lives as long as its world. guarded so tests
-    // creating many VMs do not add duplicates.
+    // Registered against the first VM, which in practice lives as long as its world; guarded so tests creating many VMs do not add duplicates.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("lua_bindings", NYA_LUA_MAX_BINDINGS, &vm->binding_count);
@@ -546,8 +521,7 @@ void nya_lua_register_path(NYA_LuaVM* vm, NYA_ConstCString path, NYA_LuaFn fn, v
 
     lua_State* state = vm->state;
 
-    // How many parent tables are stacked, so the error paths below know what to pop. The last segment
-    // is the field name and is never pushed as a table.
+    // How many parent tables are stacked, so the error paths know what to pop; the last segment is the field name, never pushed as a table.
     s32 depth = 0;
 
     NYA_ConstCString cursor = path;
@@ -572,8 +546,7 @@ void nya_lua_register_path(NYA_LuaVM* vm, NYA_ConstCString path, NYA_LuaFn fn, v
         if (depth == 0) lua_getglobal(state, segment);
         else lua_getfield(state, -1, segment);
 
-        // Reused where it already exists, so two passes over the same prefix (the engine table and
-        // then a plugin's own) extend one table rather than replacing the first with the second.
+        // Reused where it exists, so two passes over the same prefix (the engine table, then a plugin's) extend one table rather than replacing it.
         if (!lua_istable(state, -1)) {
             lua_pop(state, 1);
             lua_newtable(state);

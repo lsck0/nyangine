@@ -3,11 +3,7 @@
  * */
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── INTERNALS ─────────────────────────────────────
 
 /** An argument as a number, or `fallback` when it is absent or not one. */
 NYA_INTERNAL f64 _nya_lua_argument_number(const NYA_LuaCall* call, u32 index, f64 fallback) {
@@ -15,8 +11,7 @@ NYA_INTERNAL f64 _nya_lua_argument_number(const NYA_LuaCall* call, u32 index, f6
 
     const NYA_Value* value = &call->arguments[index];
 
-    // Only F64 and S64 are ever produced by the reader, but a value can also arrive from
-    // nya_lua_global_set, and a caller building one by hand may reasonably use any width.
+    // The reader only produces F64 and S64, but a value can arrive from nya_lua_global_set or be built by hand at any width.
     switch (value->type) {
         case NYA_TYPE_F64: return value->as_f64;
         case NYA_TYPE_F32: return (f64)value->as_f32;
@@ -48,8 +43,7 @@ NYA_INTERNAL b8 _nya_lua_argument_boolean(const NYA_LuaCall* call, u32 index, b8
         case NYA_TYPE_B32: return value->as_b32 != 0;
         case NYA_TYPE_B64: return value->as_b64 != 0;
 
-        // Lua's own rule: everything but nil and false is true, so a number or a string passed where a
-        // flag was wanted is true rather than a silent false.
+        // Lua's rule: everything but nil and false is true, so a number or string passed where a flag was wanted is true, not a silent false.
         case NYA_TYPE_NULL:
         case NYA_TYPE_VOID: return false;
 
@@ -103,9 +97,7 @@ NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle 
 }
 
 /*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BINDINGS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ───────────────────────────────────── BINDINGS ─────────────────────────────────────
  *
  * Almost all of them are generated. src/build/pp/luabind.c reads the `@lua` annotations in the engine
  * headers and writes src/genyarated/lua_bindings.c: one marshalling function per annotated declaration
@@ -180,9 +172,7 @@ NYA_INTERNAL void nya_lua_binding_time(NYA_LuaCall* call) {
  * @lua_manual(nya.entity.spawn, ENTITIES, options: table, -> table)
  * */
 NYA_INTERNAL void nya_lua_binding_spawn(NYA_LuaCall* call) {
-    /*
-     * A table, not positional arguments.
-     */
+    // A table, not positional arguments.
     NYA_EntityHandle handle = nya_entity_spawn(
         .name     = _nya_lua_field_string(call, 0, "name"),
         .type     = (u32)_nya_lua_field_number(call, 0, "type", 0.0),
@@ -259,17 +249,12 @@ NYA_INTERNAL const _NYA_LuaBindingEntry _NYA_LUA_MANUAL_BINDINGS[] = {
 // After the helpers it calls and the _NYA_LuaBindingEntry it fills in, and never edited by hand.
 #include "genyarated/lua_bindings.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 /** Registers one table's worth, skipping whatever `permissions` does not cover. */
 NYA_INTERNAL void _nya_lua_open_table(NYA_LuaVM* vm, const _NYA_LuaBindingEntry* bindings, u32 count, NYA_PluginPermission permissions) {
     for (u32 i = 0; i < count; i++) {
-        // The whole of the permission check. A binding that does not pass it is never registered, so the
-        // name it would have had does not exist in this VM; see nya_lua_open_engine_permitted's contract.
+        // The whole permission check: a binding that fails it is never registered, so its name does not exist in this VM. See nya_lua_open_engine_permitted.
         if (((u64)bindings[i].permission & ~(u64)permissions) != 0) continue;
 
         nya_lua_register_path(vm, bindings[i].path, bindings[i].fn, nullptr);
@@ -277,8 +262,7 @@ NYA_INTERNAL void _nya_lua_open_table(NYA_LuaVM* vm, const _NYA_LuaBindingEntry*
 }
 
 void nya_lua_open_engine(NYA_LuaVM* vm) {
-    // Everything, for a VM the host itself owns: the permission model is about plugins, and the game's
-    // own scripting is the game's own code.
+    // Everything, for a VM the host owns: the permission model is about plugins, and the game's own scripting is its own code.
     nya_lua_open_engine_permitted(vm, (NYA_PluginPermission)~0ULL);
 }
 
@@ -287,7 +271,6 @@ void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissio
 
     _nya_lua_open_table(vm, _NYA_LUA_GENERATED_BINDINGS, nya_carray_length(_NYA_LUA_GENERATED_BINDINGS), permissions);
 
-    // Second, so a hand written binding wins where a path is in both tables. There is none today, and
-    // the one that eventually is will be a generated call somebody had to wrap.
+    // Second, so a hand-written binding wins where a path is in both tables; there is none today.
     _nya_lua_open_table(vm, _NYA_LUA_MANUAL_BINDINGS, nya_carray_length(_NYA_LUA_MANUAL_BINDINGS), permissions);
 }

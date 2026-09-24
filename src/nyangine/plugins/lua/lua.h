@@ -40,11 +40,7 @@
 #include "nyangine/base/base_object.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /**
  * Arguments one call may pass, and values one may return.
@@ -58,23 +54,13 @@
 #define NYA_LUA_MAX_DEPTH 32
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_LuaVM      NYA_LuaVM;
 typedef struct NYA_LuaOptions NYA_LuaOptions;
 typedef struct NYA_LuaCall    NYA_LuaCall;
 
-/*
- * Forward declared rather than included from core_plugin.h, where it is defined: this module is
- * compiled into builds that have no core at all (see plugins.h), and a header may not depend on one
- * that is not always there. The fixed underlying type is what makes the forward declaration legal
- * and lets the calls below take one by value, and it comes before the typedef because a bare
- * `typedef enum X X;` declares X with no underlying type and the definition would then disagree.
- */
+// Forward declared, not included from core_plugin.h, since this module builds without a core (see plugins.h); the fixed underlying type makes the declaration legal and must precede the typedef.
 enum NYA_PluginPermission : u64;
 typedef enum NYA_PluginPermission NYA_PluginPermission;
 
@@ -127,17 +113,9 @@ struct NYA_LuaOptions {
     b8 engine_api;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFECYCLE
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFECYCLE ─────────────────────────────────────
 
 /**
  * Creates a VM. `arena` owns the wrapper; LuaJIT owns its heap (see the memory note above). nya_lua_destroy is
@@ -148,11 +126,7 @@ NYA_API NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT N
 /** Closes the VM and everything in it. Harmless on null. */
 NYA_API void nya_lua_destroy(NYA_LuaVM* vm);
 
-/*
- * ─────────────────────────────────────────────────────────
- * RUNNING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── RUNNING ─────────────────────────────────────
 
 /**
  * Compiles and runs `code`. `chunk_name` is what appears in an error message; null becomes "chunk".
@@ -179,11 +153,7 @@ NYA_API NYA_Error nya_lua_call(
 /** Whether a global of this name exists and is a function. What to ask before calling an optional hook. */
 NYA_API b8 nya_lua_has_function(NYA_LuaVM* vm, NYA_ConstCString name) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * VALUES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── VALUES ─────────────────────────────────────
 
 /** Reads a global into an NYA_Value allocated from `arena`. A table becomes an object or an array. */
 NYA_API NYA_Error nya_lua_global_get(NYA_LuaVM* vm, NYA_Arena* arena, NYA_ConstCString name, OUT NYA_Value* out_value) __attr_no_discard;
@@ -199,11 +169,7 @@ NYA_API NYA_Value nya_lua_boolean(b8 value) __attr_no_discard;
 NYA_API NYA_Value nya_lua_string(NYA_ConstCString value) __attr_no_discard;
 NYA_API NYA_Value nya_lua_nil(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * BINDING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── BINDING ─────────────────────────────────────
 
 /**
  * Makes `fn` callable from Lua as a global named `name`.
@@ -257,11 +223,7 @@ NYA_API void nya_lua_open_engine(NYA_LuaVM* vm);
  * */
 NYA_API void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissions);
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTROSPECTION
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── INTROSPECTION ─────────────────────────────────────
 
 /** Bytes LuaJIT currently has allocated. For an overlay, and for noticing a script that leaks. */
 NYA_API u64 nya_lua_memory_bytes(const NYA_LuaVM* vm) __attr_no_discard;
