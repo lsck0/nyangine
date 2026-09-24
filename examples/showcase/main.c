@@ -966,34 +966,39 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
     f32x3 sun = sun_travel();
 
     // the sky behind everything, its sun aligned with the directional light and the shafts.
+    // a golden-hour sky: a deep blue overhead warming to a gold band at the horizon the low sun sits in, so the
+    // whole valley reads as late-afternoon light rather than a flat grey day.
     nya_render3d_sky_draw(window, (NYA_Render3DSky){
-                                      .zenith        = { 0.20F, 0.34F, 0.58F, 1.0F },
-                                      .horizon       = { 0.62F, 0.66F, 0.66F, 1.0F },
-                                      .ground        = { 0.14F, 0.14F, 0.15F, 1.0F },
+                                      .zenith        = { 0.16F, 0.32F, 0.60F, 1.0F },
+                                      .horizon       = { 0.92F, 0.74F, 0.50F, 1.0F },
+                                      .ground        = { 0.16F, 0.15F, 0.13F, 1.0F },
                                       .sun_direction = -sun,
-                                      .sun_color     = { 1.0F, 0.86F, 0.62F, 1.0F },
-                                      .sun_intensity = 1.5F,
-                                      .sun_angle     = 0.04F,
+                                      .sun_color     = { 1.0F, 0.80F, 0.52F, 1.0F },
+                                      .sun_intensity = 1.9F,
+                                      .sun_angle     = 0.05F,
                                   });
 
-    // the one warm sun, low so the shadows are long and the beams rake.
+    // the one warm sun, low so the shadows rake long across the valley; the ambient is tinted sky-blue above and
+    // warm-earth below (a hemispheric fill), so shaded slopes stay coloured instead of going muddy black.
     nya_render3d_light_set(window, (NYA_Render3DLight){
                                        .direction = sun,
-                                       .color     = { 1.0F, 0.94F, 0.82F, 1.0F },
-                                       .ambient   = 0.38F,
-                                       .intensity = 1.05F,
-                                       .sky       = { 0.46F, 0.56F, 0.72F, 1.0F },
-                                       .ground    = { 0.28F, 0.26F, 0.20F, 1.0F },
+                                       .color     = { 1.0F, 0.87F, 0.66F, 1.0F },
+                                       .ambient   = 0.45F,
+                                       .intensity = 1.25F,
+                                       .sky       = { 0.44F, 0.55F, 0.74F, 1.0F },
+                                       .ground    = { 0.32F, 0.27F, 0.20F, 1.0F },
                                    });
 
     // distance and height fog with aerial perspective: the depth cue a flat-shaded valley otherwise lacks, and
     // what lets the far tiles recede into the sky's hue as the LOD coarsens them.
+    // fog in the sky's warm horizon hue, tinted toward the sun, so the far hills recede into a golden haze rather
+    // than a grey wall — the depth cue a flat-shaded valley needs, matched to the light.
     nya_render3d_fog_set(window, (NYA_Render3DFog){
-                                     .color          = { 0.60F, 0.65F, 0.70F, 1.0F },
-                                     .density        = 0.006F,
-                                     .height_falloff = 0.05F,
-                                     .sun_amount     = 0.40F,
-                                     .aerial         = 0.70F,
+                                     .color          = { 0.86F, 0.72F, 0.54F, 1.0F },
+                                     .density        = 0.0055F,
+                                     .height_falloff = 0.06F,
+                                     .sun_amount     = 0.55F,
+                                     .aerial         = 0.72F,
                                  });
 
     if (!state->meshes_ready) {
@@ -1095,8 +1100,8 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         .wave_amplitude = 0.14F,
         .wave_frequency = 0.5F,
         .choppiness     = 0.4F,
-        .deep_color     = { 0.03F, 0.12F, 0.18F, 0.90F },
-        .shallow_color  = { 0.12F, 0.36F, 0.42F, 0.35F },
+        .deep_color     = { 0.04F, 0.16F, 0.24F, 0.90F },
+        .shallow_color  = { 0.18F, 0.46F, 0.50F, 0.35F },
         .opacity        = 0.82F,
         .refraction     = 0.6F,
         .foam           = 0.12F,
