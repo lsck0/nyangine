@@ -38,6 +38,26 @@
  * POST /api/totp/confirm   one code turns the pending factor on
  * ```
  *
+ * And, when the config names a WebAuthn relying party, the passwordless factor — a passkey as a *primary*
+ * login, not only a second step:
+ *
+ * ```
+ * POST /api/passkey/register/begin   the creation options and a challenge; signed in it adds a device,
+ *                                    signed out it opens a passwordless account under an OPEN policy
+ * POST /api/passkey/register/finish  stores the credential, and on the signed-out path logs the new account in
+ * POST /api/passkey/login/begin      an assertion challenge and the account's credentials, for a username
+ * POST /api/passkey/login/finish     verifies the assertion and sets the session cookie — no password
+ * ```
+ *
+ * ── passwordless is primary, not a second factor ──
+ *
+ * A password and a passkey are two ways to prove the same account, and neither is required to have the
+ * other: an account may be created with a passkey and never hold a password, and one that holds a password
+ * may add a passkey and log in with either. The passkey login route sets the same `__Host-session` cookie
+ * the password route does, with the same flags, so what a request may do afterwards does not depend on
+ * which factor opened the session. The passkey routes only mount when the config carries a relying party
+ * (`passkey_rp_id` and `passkey_origin`); a server that wants only passwords sets neither and gets neither.
+ *
  * ── where it sits ──
  *
  * In the http module, not the accounts one, because it depends on both and http is the layer that may:
@@ -106,6 +126,12 @@
 #define NYA_HTTP_ACCOUNTS_TOTP_ENROL_PATH   "/api/totp/enrol"
 #define NYA_HTTP_ACCOUNTS_TOTP_CONFIRM_PATH "/api/totp/confirm"
 
+/** The passkey paths, mounted only when the config names a relying party. Exported for the same reason as the rest. */
+#define NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_BEGIN_PATH  "/api/passkey/register/begin"
+#define NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_FINISH_PATH "/api/passkey/register/finish"
+#define NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_BEGIN_PATH     "/api/passkey/login/begin"
+#define NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_FINISH_PATH    "/api/passkey/login/finish"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -162,6 +188,20 @@ struct NYA_HttpAccountsConfig {
      * The `__Host-` prefix, `HttpOnly` and `Secure` are not on this struct because they are not negotiable.
      * */
     NYA_HttpSameSite session_same_site;
+
+    /**
+     * The WebAuthn relying party the passkey routes check every credential against: the RP id — the
+     * effective domain, e.g. "example.com" — and the exact origin, e.g. "https://example.com".
+     *
+     * Optional and paired. Set both and the four `/api/passkey/…` routes mount, so a passkey is a primary
+     * way to log in; set neither and they do not mount at all, which is what a program that wants only
+     * passwords leaves them as. Setting one without the other is refused, because a relying party that is
+     * half configured is one whose origin or RP id check could not run. These are fixed configuration, not
+     * read off a request header, so a forged `Host` or `Origin` cannot move the check they anchor — it is
+     * the anti-phishing binding accounts_passkey.h relies on, and a caller does not get to weaken it.
+     * */
+    NYA_ConstCString passkey_rp_id;
+    NYA_ConstCString passkey_origin;
 };
 
 /*
