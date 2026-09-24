@@ -82,6 +82,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_save_database_open", "lives in the caller's arena and goes with it; AGENTS.md's decision is that this needs no destroy" },
     { "nya_terrain2d_create", "lives in the caller's arena and goes with it; AGENTS.md's decision is that this needs no destroy" },
     { "nya_terrain3d_create", "lives in the caller's arena and goes with it; AGENTS.md's decision is that this needs no destroy" },
+    { "nya_weather_create", "lives in the caller's arena and goes with it; AGENTS.md's decision is that this needs no destroy" },
     { "nya_net_client_attach", "registered for the life of the run; nothing removes one yet" },
     { "nya_nn_optimizer_add", "registered for the life of the run; nothing removes one yet" },
     { "nya_nn_sequential_push", "registered for the life of the run; nothing removes one yet" },

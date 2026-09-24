@@ -78,6 +78,9 @@
 #include "nyangine/renderer/render2d_haze.c"
 // After both renderers: particles draw through whichever the system is set to.
 #include "nyangine/renderer/render_particles.c"
+// after render_particles.c: weather emits and draws through the particle system, and its mode mapping is
+// pure CPU math a headless test steps without a GPU.
+#include "nyangine/renderer/render_weather.c"
 // After both renderers, for the reason particles are: a 2D volume draws through render2d and a 3D one
 // through render3d, and the solver itself is CPU only, so a headless test steps and draws it.
 #include "nyangine/renderer/render_fluid.c"

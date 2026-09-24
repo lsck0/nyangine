@@ -53,6 +53,9 @@
 // draw path reads it, so it comes before renderer.h.
 #include "nyangine/renderer/render_water.h"
 #include "nyangine/renderer/render_particles.h"
+// after render_particles.h and render_wind.h, both of which it is a thin skin over: rain and snow are
+// particles carried by the shared wind field. Pure CPU math for the mode mapping, so a headless test reaches it.
+#include "nyangine/renderer/render_weather.h"
 // before renderer.h, which stores a window's NYA_FluidRenderOptions by value.
 #include "nyangine/renderer/render_fluid.h"
 #include "nyangine/debug/debug.h"
