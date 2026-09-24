@@ -39,6 +39,8 @@ extern const NYA_TypeReflection _NYA_REFLECT_f32x4;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountAudit;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountInvite;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskey;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskeyChallenge;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountRecoveryCode;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser;
@@ -111,6 +113,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostMotionBlur;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Render2DHaze;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIOverflow;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateColors;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UISkin;
@@ -118,6 +121,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in genyarated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 80
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 83
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];
