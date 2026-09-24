@@ -223,6 +223,24 @@ NYA_INTERNAL NYA_ArgParameter test_files = {
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, .directory = "tests", .glob = "*.c", },
 };
 
+NYA_INTERNAL NYA_ArgParameter coverage_fail_under = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    // S64, not F64: a percentage floor is expressed in whole points, and the parser takes B8, S64,
+    // F64 and STRING. The measured coverage is compared as a real, so a run at 44.9% still fails a
+    // floor of 45.
+    .value.type    = NYA_TYPE_S64,
+    .name          = "fail-under",
+    .description   = "Exit non-zero if total line coverage of src/nyangine is below this percent.",
+    .default_value = { .type = NYA_TYPE_S64, .as_s64 = COVERAGE_DEFAULT_FAIL_UNDER },
+};
+
+NYA_INTERNAL NYA_ArgParameter coverage_html_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "html",
+    .description = "Also write an annotated HTML listing under " COVERAGE_HTML_DIRECTORY " (gitignored).",
+};
+
 NYA_INTERNAL NYA_ArgParameter example_name = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .value.type  = NYA_TYPE_STRING,
@@ -495,12 +513,6 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .handler     = &agent_runner,
             .parameters  = { &agent_kind, &agent_seed, &agent_episodes, &agent_ticks, &agent_verbose_flag, },
         },
-        &(NYA_ArgCommand){
-            .name        = "coverage",
-            .description = "Build and run the tests instrumented, then report line coverage of src/nyangine.",
-            .handler     = &coverage_runner,
-            .parameters  = { &test_files, },
-        },
     },
 };
 
@@ -648,6 +660,13 @@ NYA_INTERNAL NYA_ArgCommand typos = {
     .handler     = &typos_runner,
 };
 
+NYA_INTERNAL NYA_ArgCommand coverage = {
+    .name        = "coverage",
+    .description = "Build and run the tests instrumented, report line coverage of src/nyangine, and gate on --fail-under.",
+    .handler     = &coverage_runner,
+    .parameters  = { &test_files, &coverage_fail_under, &coverage_html_flag, },
+};
+
 NYA_INTERNAL NYA_ArgCommand dist = {
     .name        = "dist",
     .description = "Stage the distributions under dist/: one directory per target, plus the archives a release publishes.",
@@ -766,6 +785,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &dist,
             &check,
             &typos,
+            &coverage,
             &changelog,
             &sbom,
             &version,

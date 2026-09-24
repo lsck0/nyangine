@@ -20,7 +20,7 @@
  *   fuzz.c       `./build run fuzz`
  *   agent.c      `./build run agent`
  *   simulation.c `./build run simulation`
- *   test.c       `./build run test` and `./build run coverage`
+ *   test.c       `./build run test` and `./build coverage`
  * */
 #pragma once
 
@@ -115,7 +115,9 @@ u32 lint_run(void);
 void test_runner(NYA_ArgCommand* command);
 
 /**
- * The same, with the tests compiled under source based coverage instrumentation.
+ * The same, with the tests compiled under source based coverage instrumentation: it merges the
+ * profiles, reports per-file and total line coverage of src/nyangine, and exits non-zero when the
+ * total is below --fail-under. Skips with a notice when the llvm coverage tools are not installed.
  * */
 void coverage_runner(NYA_ArgCommand* command);
 

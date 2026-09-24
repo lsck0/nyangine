@@ -35,6 +35,22 @@ nya_derive_dict(b8);
 #define TEST_VENDORS NYA_PROJECT_VENDORS_LINUX_X86_64
 #endif
 
+/**
+ * The llvm tools a coverage run needs after the instrumented binaries have run: one merges the raw
+ * profiles into a single profile, the other maps the counters back to source. They ship with the clang
+ * the build already uses, so a coverage run either has both or skips with a notice. See coverage_runner.
+ * */
+#define COVERAGE_PROFDATA_PROGRAM "llvm-profdata"
+#define COVERAGE_COV_PROGRAM      "llvm-cov"
+
+/**
+ * The response files a coverage run hands the llvm tools. The whole suite is hundreds of binaries and
+ * as many raw profiles, well past the arguments one NYA_Command holds, so the lists go in a file each
+ * and the command carries a single `@file` the tool expands. Both live under the gitignored directory.
+ * */
+#define COVERAGE_OBJECTS_RESPONSE  COVERAGE_DIRECTORY "/objects.rsp"
+#define COVERAGE_PROFILES_RESPONSE COVERAGE_DIRECTORY "/profiles.rsp"
+
 NYA_INTERNAL b8  _test_collect_sources(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL b8  _test_collect_headers(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32 _test_compare_paths(const NYA_String* a, const NYA_String* b);
@@ -60,12 +76,35 @@ NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source, NYA_Dictᐸb8ᐳ* h
 NYA_INTERNAL void _test_append_arguments(NYA_BuildRule* rule, NYA_ConstCString const* arguments);
 
 /**
- * Finds, builds and runs the tests, optionally under coverage instrumentation.
+ * Finds, builds and runs the tests, optionally under coverage instrumentation and its threshold gate.
  * */
-NYA_INTERNAL void _test_run_all(NYA_ArgCommand* command, b8 coverage);
+NYA_INTERNAL void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want_html);
 
-/** Merges the raw profiles a coverage run produced and prints the report. */
-NYA_INTERNAL void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules);
+/**
+ * Merges the raw profiles a coverage run produced, prints the per-file report, and exits non-zero when
+ * total line coverage of src/nyangine is below `fail_under`. Writes the HTML listing too when asked.
+ * */
+NYA_INTERNAL void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules, s64 fail_under, b8 want_html);
+
+/** Whether `program --version` runs and exits cleanly, so a missing llvm tool is a skip, not a crash. */
+NYA_INTERNAL b8 _coverage_program_exists(NYA_ConstCString program) __attr_no_discard;
+
+/**
+ * Writes `<binary>\n-object <binary>...\nsrc/nyangine` to COVERAGE_OBJECTS_RESPONSE: the instrumented
+ * binaries llvm-cov reads the coverage mapping from, then the one source tree the numbers are about.
+ * Returns the `@file` argument that expands to it, shared by the report, the export and the listing —
+ * a file because the suite is more binaries than one command's argument list holds.
+ * */
+NYA_INTERNAL NYA_ConstCString _coverage_write_object_response(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) __attr_no_discard;
+
+/**
+ * Writes one raw profile path per line to COVERAGE_PROFILES_RESPONSE and returns the `@file` argument
+ * that expands to it, so llvm-profdata merges them all however many tests there are.
+ * */
+NYA_INTERNAL NYA_ConstCString _coverage_write_profile_response(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) __attr_no_discard;
+
+/** The total line coverage percent out of `llvm-cov export` JSON, or a negative on a parse failure. */
+NYA_INTERNAL f64 _coverage_parse_line_percent(NYA_ConstCString json) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -74,14 +113,33 @@ NYA_INTERNAL void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run
  */
 
 void test_runner(NYA_ArgCommand* command) {
-    _test_run_all(command, false);
+    _test_run_all(command, false, 0, false);
 }
 
 void coverage_runner(NYA_ArgCommand* command) {
-    _test_run_all(command, true);
+    nya_assert(command != nullptr);
+
+    NYA_ArgParameter* fail_under = command->parameters[1];
+    NYA_ArgParameter* html_flag  = command->parameters[2];
+    nya_assert(fail_under != nullptr && nya_string_equals(fail_under->name, "fail-under"));
+    nya_assert(html_flag != nullptr && nya_string_equals(html_flag->name, "html"));
+
+    /*
+     * llvm-profdata merges the profiles and llvm-cov maps the counters back to source. They ship with
+     * the clang the build already uses, but a stripped toolchain can lack them; missing, this skips with
+     * a notice rather than failing, the way the CVE hook does. Coverage is a gate CI runs, not something
+     * a developer's checkout without the matching llvm tools should trip over.
+     */
+    if (!_coverage_program_exists(COVERAGE_PROFDATA_PROGRAM) || !_coverage_program_exists(COVERAGE_COV_PROGRAM)) {
+        nya_log_info("Coverage skipped: '%s' and '%s' are not both on PATH. They ship with clang;", COVERAGE_PROFDATA_PROGRAM, COVERAGE_COV_PROGRAM);
+        nya_log_info("install the matching llvm tools to measure coverage. CI has them and runs ./build coverage.");
+        return;
+    }
+
+    _test_run_all(command, true, fail_under->value.as_s64, html_flag->value.as_b8);
 }
 
-void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
+void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want_html) {
     nya_assert(command != nullptr);
 
     NYA_ArgParameter* test_files = command->parameters[0];
@@ -327,72 +385,75 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
     nya_array_foreach (run_rules, run_rule) NYA_EXPECT(nya_build(*run_rule));
 
-    if (coverage) _test_report_coverage(run_rules);
+    if (coverage) _test_report_coverage(run_rules, fail_under, want_html);
 }
 
-void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
+void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules, s64 fail_under, b8 want_html) {
+    nya_assert(run_rules != nullptr);
+
     /*
-     * Merge, then report. Both are ordinary build rules so a failure is reported the way any other
-     * command's is, rather than as a silent absence of output.
+     * Merge the raw profiles into one, print the human report, read the total off a captured summary,
+     * then gate on it. Merge and the report are ordinary build rules, so a failure in either is reported
+     * the way any other command's is. The gate reads a second, machine-summary run rather than scraping
+     * the printed table, so the number it acts on is llvm-cov's own and no column has to be guessed at.
      */
+    NYA_ConstCString profiles_response = _coverage_write_profile_response(run_rules);
+    NYA_ConstCString objects_response  = _coverage_write_object_response(run_rules);
+
     NYA_BuildRule merge = {
         .name    = "coverage_merge",
         .policy  = NYA_BUILD_ALWAYS,
         .command = {
-            .program   = "llvm-profdata",
-            .arguments = { "merge", "-sparse", "-o", COVERAGE_PROFILE_DATA },
+            .program   = COVERAGE_PROFDATA_PROGRAM,
+            .arguments = { "merge", "-sparse", "-o", COVERAGE_PROFILE_DATA, profiles_response },
         },
     };
+    NYA_EXPECT(nya_build(&merge), "while merging the coverage profiles");
 
-    u32 merge_count = 0;
-    while (merge_count < NYA_COMMAND_MAX_ARGUMENTS && merge.command.arguments[merge_count] != nullptr) merge_count++;
-
+    // The human report: the per-file and total line and region table, printed straight through.
     NYA_BuildRule report = {
         .name    = "coverage_report",
         .policy  = NYA_BUILD_ALWAYS,
         .command = {
-            .program   = "llvm-cov",
-            .arguments = { "report", "-instr-profile=" COVERAGE_PROFILE_DATA },
+            .program   = COVERAGE_COV_PROGRAM,
+            .arguments = { "report", "-instr-profile=" COVERAGE_PROFILE_DATA, objects_response },
         },
     };
-
-    u32 report_count = 0;
-    while (report_count < NYA_COMMAND_MAX_ARGUMENTS && report.command.arguments[report_count] != nullptr) report_count++;
-
-    /*
-     * Every test contributes a profile and a binary.
-     */
-    b8 first_object = true;
-
-    nya_array_foreach (run_rules, run_rule) {
-        NYA_ConstCString binary = (*run_rule)->output_file;
-
-        NYA_String* profile = nya_string_sprintf(
-            nya_arena_global,
-            COVERAGE_DIRECTORY "/%s.profraw",
-            nya_string_to_cstring(nya_arena_global, nya_path_basename(nya_arena_global, binary))
-        );
-
-        nya_assert(merge_count < NYA_COMMAND_MAX_ARGUMENTS, "too many tests to merge in one command");
-        merge.command.arguments[merge_count++] = nya_string_to_cstring(nya_arena_global, profile);
-
-        nya_assert(report_count + 2 < NYA_COMMAND_MAX_ARGUMENTS, "too many tests to report on in one command");
-        if (!first_object) report.command.arguments[report_count++] = "-object";
-        report.command.arguments[report_count++] = binary;
-
-        first_object = false;
-    }
-
-    // Restricted to the engine: the tests themselves are instrumented too, and counting a test file
-    // as covered by its own execution would inflate every number here toward a hundred percent.
-    nya_assert(report_count < NYA_COMMAND_MAX_ARGUMENTS, "no room for the source filter");
-    report.command.arguments[report_count++] = "src/nyangine";
-
-    NYA_EXPECT(nya_build(&merge), "while merging the coverage profiles");
     NYA_EXPECT(nya_build(&report), "while generating the coverage report");
 
+    /*
+     * The number the gate reads. `export -summary-only` keeps the per-file and total figures and drops
+     * the per-line detail, as JSON, so the total is unambiguous rather than a column counted off a table.
+     */
+    NYA_String* summary      = build_capture(nya_arena_global, COVERAGE_COV_PROGRAM,
+                                             (const NYA_ConstCString[]){ "export", "-summary-only", "-instr-profile=" COVERAGE_PROFILE_DATA, objects_response, nullptr });
+    f64         line_percent = _coverage_parse_line_percent(nya_string_to_cstring(nya_arena_global, summary));
+    if (line_percent < 0.0) nya_log_panic("Could not read total line coverage from the llvm-cov export summary.");
+
+    // An annotated HTML tree, when asked. Recreated each time so a deleted source cannot leave a stale
+    // page behind, and dropped under the gitignored coverage directory rather than committed.
+    if (want_html) {
+        (void)nya_filesystem_delete_recursive(COVERAGE_HTML_DIRECTORY);
+
+        NYA_BuildRule show = {
+            .name    = "coverage_html",
+            .policy  = NYA_BUILD_ALWAYS,
+            .command = {
+                .program   = COVERAGE_COV_PROGRAM,
+                .arguments = { "show", "-format=html", "-output-dir=" COVERAGE_HTML_DIRECTORY, "-instr-profile=" COVERAGE_PROFILE_DATA, objects_response },
+            },
+        };
+        NYA_EXPECT(nya_build(&show), "while writing the HTML coverage listing");
+
+        nya_log_info("Annotated HTML coverage written to " COVERAGE_HTML_DIRECTORY "/index.html");
+    }
+
     nya_log_info("Coverage profile written to " COVERAGE_PROFILE_DATA);
-    nya_log_info("For an annotated listing: llvm-cov show -instr-profile=" COVERAGE_PROFILE_DATA " <one of the test binaries> <source file>");
+    nya_log_info("Total line coverage of src/nyangine: %.2f%% (floor %lld%%, raise it with --fail-under).", line_percent, (long long)fail_under);
+
+    if (line_percent < (f64)fail_under) {
+        nya_log_panic("Total line coverage %.2f%% is below the --fail-under floor of %lld%%.", line_percent, (long long)fail_under);
+    }
 }
 
 /*
@@ -551,4 +612,87 @@ NYA_INTERNAL void _test_append_arguments(NYA_BuildRule* rule, NYA_ConstCString c
     }
 
     nya_assert(rule->command.arguments[count] == nullptr);
+}
+
+NYA_INTERNAL b8 _coverage_program_exists(NYA_ConstCString program) {
+    nya_assert(program != nullptr);
+
+    // A program missing from PATH still spawns: the forked child fails execvp and _exit(127)s, so
+    // nya_command_run returns ok with a non-zero exit. Presence is the clean exit, not the spawn. Both
+    // llvm tools answer --version with 0, which is what this checks. Same shape as sbom.c's probe.
+    NYA_Command probe = {
+        .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
+        .program   = program,
+        .arguments = { "--version" },
+    };
+    NYA_Error ran = nya_command_run(&probe);
+    return ran.ok && probe.exit_code == 0;
+}
+
+NYA_INTERNAL NYA_ConstCString _coverage_write_object_response(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
+    nya_assert(run_rules != nullptr);
+
+    // One token per line, which is how the llvm tools split a response file. The first binary is
+    // positional; every later one is introduced by -object, which is how llvm-cov takes coverage from
+    // more than one binary at once.
+    NYA_String* body         = nya_string_create(nya_arena_global);
+    b8          first_object = true;
+    nya_array_foreach (run_rules, run_rule) {
+        if (!first_object) nya_string_extend(body, "-object ");
+        nya_string_extend(body, (*run_rule)->output_file);
+        nya_string_extend(body, "\n");
+        first_object = false;
+    }
+
+    // Restricted to the engine: the tests themselves are instrumented too, and counting a test file as
+    // covered by its own execution would drag every number here toward a hundred percent.
+    nya_string_extend(body, "src/nyangine\n");
+
+    NYA_EXPECT(nya_file_write(COVERAGE_OBJECTS_RESPONSE, body), "while writing the coverage object list");
+    return "@" COVERAGE_OBJECTS_RESPONSE;
+}
+
+NYA_INTERNAL NYA_ConstCString _coverage_write_profile_response(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
+    nya_assert(run_rules != nullptr);
+
+    // Every test contributes one raw profile, named after its binary. One path per line, the same
+    // response-file shape llvm-profdata reads its inputs from.
+    NYA_String* body = nya_string_create(nya_arena_global);
+    nya_array_foreach (run_rules, run_rule) {
+        NYA_String* profile = nya_string_sprintf(
+            nya_arena_global,
+            COVERAGE_DIRECTORY "/%s.profraw\n",
+            nya_string_to_cstring(nya_arena_global, nya_path_basename(nya_arena_global, (*run_rule)->output_file))
+        );
+        nya_string_extend(body, nya_string_to_cstring(nya_arena_global, profile));
+    }
+
+    NYA_EXPECT(nya_file_write(COVERAGE_PROFILES_RESPONSE, body), "while writing the coverage profile list");
+    return "@" COVERAGE_PROFILES_RESPONSE;
+}
+
+NYA_INTERNAL f64 _coverage_parse_line_percent(NYA_ConstCString json) {
+    nya_assert(json != nullptr);
+
+    // `export` ends the object with a "totals" summary, and the per-file summaries with the same shape
+    // come before it, so searching forward from "totals" for its "lines" percent lands on the total and
+    // never on one file. A hand walk rather than a full parse: one number out of a known-good shape.
+    NYA_ConstCString totals = strstr(json, "\"totals\"");
+    if (totals == nullptr) return -1.0;
+
+    NYA_ConstCString lines = strstr(totals, "\"lines\"");
+    if (lines == nullptr) return -1.0;
+
+    NYA_ConstCString percent = strstr(lines, "\"percent\"");
+    if (percent == nullptr) return -1.0;
+
+    // Step past `"percent"` and the colon and space that separate it from its value.
+    percent += strlen("\"percent\"");
+    while (*percent == ':' || *percent == ' ') percent++;
+
+    char* end   = nullptr;
+    f64   value = strtod(percent, &end);
+    if (end == percent) return -1.0; // nothing numeric where the value should have been.
+
+    return value;
 }

@@ -180,18 +180,27 @@
 #define FLAGS_TEST      "-DNYA_EXECUTION_MODE=4", "-O0", "-DNYA_TESTING", "-DNYA_HEADLESS"
 
 /**
- * Source based coverage instrumentation, for `./build run coverage`.
- * */
-/**
  * What a benchmark is compiled with: optimised, headless, and *without* sanitizers.
  * */
 #define FLAGS_BENCH     "-DNYA_EXECUTION_MODE=2", "-O2", "-DNYA_HEADLESS", "-fno-omit-frame-pointer"
 
+/**
+ * Source based coverage instrumentation, for `./build coverage`. Added only to that build, never to
+ * check, debug or release: a counter in every region is overhead the shipping binary should not carry,
+ * and a profile file it should not write. See test.c.
+ * */
 #define FLAGS_COVERAGE  "-fprofile-instr-generate", "-fcoverage-mapping"
 
-/** Where a coverage run puts the raw profiles, the merged profile and the instrumented binaries. */
-#define COVERAGE_DIRECTORY    "./.coverage"
-#define COVERAGE_PROFILE_DATA COVERAGE_DIRECTORY "/merged.profdata"
+/** Where a coverage run puts the raw profiles, the merged profile, the HTML listing and the instrumented binaries. */
+#define COVERAGE_DIRECTORY      "./.coverage"
+#define COVERAGE_PROFILE_DATA   COVERAGE_DIRECTORY "/merged.profdata"
+#define COVERAGE_HTML_DIRECTORY COVERAGE_DIRECTORY "/html"
+
+/**
+ * The floor `./build coverage --fail-under` defaults to: below it the command exits non-zero. A low
+ * bar on purpose, a floor to ratchet up as the tests grow rather than one set where they are today.
+ * */
+#define COVERAGE_DEFAULT_FAIL_UNDER 45
 
 // The build system is a host tool. It needs base, math, platform and serde and nothing that opens
 // a window, so core and renderer are compiled out rather than linked and left unused. Without this
