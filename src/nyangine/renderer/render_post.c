@@ -13,6 +13,7 @@
 #define _NYA_POST_PIPELINE_OCCLUSION_APPLY "nya_post_occlusion_apply_pipeline"
 #define _NYA_POST_PIPELINE_SSAO            "nya_post_ssao_pipeline"
 #define _NYA_POST_PIPELINE_SSAO_BLUR       "nya_post_ssao_blur_pipeline"
+#define _NYA_POST_PIPELINE_SSR             "nya_post_ssr_pipeline"
 #define _NYA_POST_PIPELINE_INK             "nya_post_ink_pipeline"
 #define _NYA_POST_PIPELINE_ANTIALIAS       "nya_post_antialias_pipeline"
 #define _NYA_POST_PIPELINE_BLUR            "nya_post_depth_of_field_blur_pipeline"
@@ -65,10 +66,10 @@ typedef struct {
 } _NYA_PostStep;
 
 /**
- * The built-in passes one frame can queue before the caller's: occlusion twice, ssao twice, ink, motion blur, depth
- * of field twice, light shafts twice, eye adaptation twice, antialiasing.
+ * The built-in passes one frame can queue before the caller's: occlusion twice, ssao twice, reflections, ink, motion
+ * blur, depth of field twice, light shafts twice, eye adaptation twice, antialiasing.
  * */
-#define _NYA_POST_BUILT_IN_MAX 13
+#define _NYA_POST_BUILT_IN_MAX 14
 
 /**
  * Whether one pass runs: its own options, then the window's switches. NYA_RENDER_FEATURE_POST is the master, so
@@ -85,6 +86,7 @@ NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_Window* window) {
     return _nya_post_on(window, NYA_RENDER_FEATURE_INK, render->post_ink.enabled)
         || _nya_post_on(window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, render->post_ambient_occlusion.enabled)
         || _nya_post_on(window, NYA_RENDER_FEATURE_SSAO, render->post_ssao.enabled)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_SSR, render->post_ssr.enabled)
         || (nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE)
         || _nya_post_on(window, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE)
         || _nya_post_on(window, NYA_RENDER_FEATURE_LIGHT_SHAFTS, render->post_light_shafts.enabled)
@@ -542,6 +544,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderSceneView                view      = scene ? _nya_post_scene_view(window, chain) : (struct NYA_ShaderSceneView){ 0 };
     struct NYA_ShaderAmbientOcclusionUniform  occlusion = { 0 };
     struct NYA_ShaderSsaoUniform              ssao       = { 0 };
+    struct NYA_ShaderSsrUniform               ssr        = { 0 };
     struct NYA_ShaderInkUniform               ink       = { 0 };
     struct NYA_ShaderAntialiasUniform         antialias = { 0 };
     struct NYA_ShaderDepthOfFieldUniform      focus     = { 0 };
@@ -630,6 +633,39 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .uniform      = &ssao,
             .uniform_size = sizeof(ssao),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_HALF,
+        };
+    }
+
+    // screen-space reflections over the scene, one full resolution pass reading the colour and the normal buffer. The
+    // still-water reflection is planar and drawn in the 3D pass; this is the opt-in for everything else.
+    const NYA_PostSsr* ssr_options = &render->post_ssr;
+
+    if (scene && _nya_post_on(window, NYA_RENDER_FEATURE_SSR, ssr_options->enabled)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SSR, NYA_ASSET_SHADER_EFFECT_SSR_FRAG, 2, 0)) {
+        const NYA_Render3DLight* light = &render->mesh_batch.light;
+
+        // the ambient's sky and ground, what a missed ray reflects; the flat ambient colour when either is unset.
+        NYA_Color sky    = light->sky.a > 0.0F ? light->sky : light->color;
+        NYA_Color ground = light->ground.a > 0.0F ? light->ground : light->color;
+
+        ssr = (struct NYA_ShaderSsrUniform){
+            .view         = view,
+            .max_distance = ssr_options->max_distance > 0.0F ? ssr_options->max_distance : NYA_POST_SSR_DISTANCE,
+            .thickness    = ssr_options->thickness > 0.0F ? ssr_options->thickness : NYA_POST_SSR_THICKNESS,
+            .strength     = ssr_options->strength > 0.0F ? ssr_options->strength : NYA_POST_SSR_STRENGTH,
+            .fresnel      = ssr_options->fresnel > 0.0F ? ssr_options->fresnel : NYA_POST_SSR_FRESNEL,
+            .steps        = (f32)(ssr_options->steps > 0 ? ssr_options->steps : NYA_POST_SSR_STEPS),
+
+            .sky_r    = sky.r,    .sky_g = sky.g,       .sky_b = sky.b,
+            .ground_r = ground.r, .ground_g = ground.g, .ground_b = ground.b,
+        };
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_SSR,
+            .trace        = NYA_TRACE_POST,
+            .uniform      = &ssr,
+            .uniform_size = sizeof(ssr),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
         };
     }
 
@@ -1045,6 +1081,25 @@ NYA_PostSsao nya_post_ssao(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_ssao;
+}
+
+void nya_post_ssr_set(NYA_Window* window, NYA_PostSsr ssr) {
+    nya_assert(window != nullptr);
+
+    ssr.max_distance = nya_clamp(ssr.max_distance, 0.0F, 256.0F);
+    ssr.thickness    = nya_clamp(ssr.thickness, 0.0F, 16.0F);
+    ssr.strength     = nya_clamp(ssr.strength, 0.0F, 1.0F);
+    ssr.fresnel      = nya_clamp(ssr.fresnel, 0.0F, 1.0F);
+    // the march's loop is bounded by SSR_MAX_STEPS; anything past it reads the same.
+    if (ssr.steps > 0) ssr.steps = nya_clamp(ssr.steps, 1U, (u32)NYA_POST_SSR_STEPS_MAX);
+
+    window->render_system.post_ssr = ssr;
+}
+
+NYA_PostSsr nya_post_ssr(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_ssr;
 }
 
 void nya_post_antialias_set(NYA_Window* window, NYA_PostAntialias antialias) {

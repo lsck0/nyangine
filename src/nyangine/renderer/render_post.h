@@ -24,6 +24,7 @@
  * nya_post_ink_set(window, (NYA_PostInk){ .enabled = true });
  * nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.4F });
  * nya_post_ssao_set(window, (NYA_PostSsao){ .enabled = true, .strength = 0.5F });
+ * nya_post_ssr_set(window, (NYA_PostSsr){ .enabled = true, .strength = 0.6F });
  * nya_post_antialias_set(window, (NYA_PostAntialias){ .enabled = true });
  * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
  * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed, .motion = camera_velocity });
@@ -33,10 +34,11 @@
  * nya_post_motion_blur_set(window, (NYA_PostMotionBlur){ .enabled = true });
  * ```
  *
- * They run inside nya_post_end before the caller's passes, occlusion then ssao then ink then motion blur then depth of
- * field then light shafts then eye adaptation then antialiasing, and the debug view after them. Depth of field follows the ink, so
+ * They run inside nya_post_end before the caller's passes, occlusion then ssao then reflections then ink then motion blur then depth of
+ * field then light shafts then eye adaptation then antialiasing, and the debug view after them. Reflections precede the ink so a line
+ * is drawn over the mirror rather than reflected, and depth of field follows the ink, so
  * a line blurs with the surface it is drawn on, and comes before antialiasing, which smooths the cut between sharp and
- * blurred. A feature that is off has no pass, no pipeline and no target. Ink, occlusion, ssao, motion blur, light shafts
+ * blurred. A feature that is off has no pass, no pipeline and no target. Ink, occlusion, ssao, reflections, motion blur, light shafts
  * and distance focus read the scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only
  * while one of them or a debug view is on, and they skip a frame whose capture drew no 3D. Bloom and speed lines are
  * drawn after the caller's passes, so a grade shapes what glows and leaves the lines as drawn.
@@ -103,6 +105,31 @@
 
 /** The most samples the gather takes, matching SSAO_MAX_SAMPLES in effect_ssao.frag.hlsl. */
 #define NYA_POST_SSAO_SAMPLES_MAX 32
+
+/** How far a reflection ray travels, in world units, when NYA_PostSsr.max_distance is zero. */
+#define NYA_POST_SSR_DISTANCE 12.0F
+
+/**
+ * How far behind stored geometry a marched point may sit and still count as a hit, in world units, when
+ * NYA_PostSsr.thickness is zero. Too small and a ray steps over thin surfaces; too large and it strikes the sky
+ * behind them.
+ * */
+#define NYA_POST_SSR_THICKNESS 0.5F
+
+/** How strongly the reflection composites over the scene, in [0, 1], when NYA_PostSsr.strength is zero. */
+#define NYA_POST_SSR_STRENGTH 0.6F
+
+/**
+ * The reflectivity head-on, the Schlick F0, when NYA_PostSsr.fresnel is zero. Low, so a surface seen straight down
+ * barely reflects and only the grazing angles turn to mirror, which is how water and polished floors read.
+ * */
+#define NYA_POST_SSR_FRESNEL 0.2F
+
+/** March steps a reflection ray takes when NYA_PostSsr.steps is zero. The shader clamps the count to sixty-four. */
+#define NYA_POST_SSR_STEPS 24
+
+/** The most steps the march takes, matching SSR_MAX_STEPS in effect_ssr.frag.hlsl. */
+#define NYA_POST_SSR_STEPS_MAX 64
 
 /** FXAA's sub-pixel smoothing when NYA_PostAntialias.subpixel is zero. Higher softens more. */
 #define NYA_POST_ANTIALIAS_SUBPIXEL 0.75F
@@ -192,6 +219,7 @@ typedef struct NYA_PostChain            NYA_PostChain;
 typedef struct NYA_PostInk              NYA_PostInk;
 typedef struct NYA_PostAmbientOcclusion NYA_PostAmbientOcclusion;
 typedef struct NYA_PostSsao             NYA_PostSsao;
+typedef struct NYA_PostSsr               NYA_PostSsr;
 typedef struct NYA_PostAntialias        NYA_PostAntialias;
 typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
 typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
@@ -295,6 +323,33 @@ struct NYA_PostSsao {
 
     /** Hemisphere samples per pixel, clamped to NYA_POST_SSAO_SAMPLES_MAX. See NYA_POST_SSAO_SAMPLES. */
     u32 samples;
+};
+
+/**
+ * Screen-space reflections: each surface reflects the scene along its reflection ray, marched through the scene
+ * normal buffer and read where it first crosses behind stored geometry. A ray that leaves the screen or finds
+ * nothing falls back to a fresnel-weighted sky and ground tint, so grazing edges gain a soft environment reflection
+ * rather than a black band. Fresnel-weighted throughout, so a surface reflects most at a grazing angle. Kept off by
+ * default; the still-water reflection is planar and separate, and this is the opt-in for the rest of the scene.
+ * */
+// @reflect
+struct NYA_PostSsr {
+    b8 enabled;
+
+    /** How far a reflection ray travels, in world units. See NYA_POST_SSR_DISTANCE. */
+    f32 max_distance;
+
+    /** How far behind stored geometry a hit may sit, in world units. See NYA_POST_SSR_THICKNESS. */
+    f32 thickness;
+
+    /** How strongly the reflection composites over the scene, in [0, 1]. See NYA_POST_SSR_STRENGTH. */
+    f32 strength;
+
+    /** The reflectivity head-on, the Schlick F0, in [0, 1]. See NYA_POST_SSR_FRESNEL. */
+    f32 fresnel;
+
+    /** March steps per ray, clamped to NYA_POST_SSR_STEPS_MAX. See NYA_POST_SSR_STEPS. */
+    u32 steps;
 };
 
 /**
@@ -572,6 +627,10 @@ NYA_API NYA_PostAmbientOcclusion nya_post_ambient_occlusion(NYA_Window* window) 
 /** Sets this window's classic SSAO, clamped like the ink. */
 NYA_API void         nya_post_ssao_set(NYA_Window* window, NYA_PostSsao ssao);
 NYA_API NYA_PostSsao nya_post_ssao(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's screen-space reflections, clamped like the ink. */
+NYA_API void        nya_post_ssr_set(NYA_Window* window, NYA_PostSsr ssr);
+NYA_API NYA_PostSsr nya_post_ssr(NYA_Window* window) __attr_no_discard;
 
 /** Sets this window's antialiasing, clamped like the ink. */
 NYA_API void              nya_post_antialias_set(NYA_Window* window, NYA_PostAntialias antialias);

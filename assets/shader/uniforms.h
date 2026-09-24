@@ -338,6 +338,33 @@ struct NYA_ShaderSsaoUniform {
     f32 samples;
 };
 
+/** effect_ssr.frag.hlsl. See NYA_PostSsr; every field already has its default applied. */
+struct NYA_ShaderSsrUniform {
+    struct NYA_ShaderSceneView view;
+
+    /** How far a reflection ray travels, in world units, before it gives up. */
+    f32 max_distance;
+
+    /** How far behind stored geometry a marched point may sit and still count as a hit, in world units. */
+    f32 thickness;
+
+    /** How strongly the reflection composites over the scene, in [0, 1]. */
+    f32 strength;
+
+    /** The reflectivity head-on, the Schlick F0: grazing angles reflect more, straight-down surfaces this much. */
+    f32 fresnel;
+
+    /** March steps, as a float for the row. The march clamps it to SSR_MAX_STEPS. */
+    f32 steps;
+    f32 pad_0, pad_1, pad_2;
+
+    /** The sky tint a missed ray reflects, above the horizon. */
+    f32 sky_r, sky_g, sky_b, sky_pad;
+
+    /** The ground tint a missed ray reflects, below the horizon. */
+    f32 ground_r, ground_g, ground_b, ground_pad;
+};
+
 /** effect_antialias.frag.hlsl. See NYA_PostAntialias. */
 struct NYA_ShaderAntialiasUniform {
     f32 texel_x, texel_y;
@@ -465,6 +492,7 @@ struct NYA_ShaderSceneDebugUniform {
 };
 
 static_assert(sizeof(struct NYA_ShaderSceneView) == 80, "five rows, matching SceneView in effect_scene.hlsli");
+static_assert(sizeof(struct NYA_ShaderSsrUniform) == 144, "SceneView and four rows, matching SsrUniform in effect_ssr.frag.hlsl");
 static_assert(offsetof(struct NYA_ShaderSceneDebugUniform, light_view_projection) == 128, "the ink block and one row");
 
 /**

@@ -216,6 +216,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,
     &_NYA_REFLECT_NYA_PostSsao,
+    &_NYA_REFLECT_NYA_PostSsr,
     &_NYA_REFLECT_NYA_PostAntialias,
     &_NYA_REFLECT_NYA_PostFocus,
     &_NYA_REFLECT_NYA_PostDepthOfField,

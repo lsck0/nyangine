@@ -996,6 +996,7 @@ struct NYA_RenderSystemWindow {
     NYA_PostInk              post_ink;
     NYA_PostAmbientOcclusion post_ambient_occlusion;
     NYA_PostSsao             post_ssao;
+    NYA_PostSsr              post_ssr;
     NYA_PostAntialias        post_antialias;
     NYA_PostDepthOfField     post_depth_of_field;
     NYA_PostSpeedLines       post_speed_lines;

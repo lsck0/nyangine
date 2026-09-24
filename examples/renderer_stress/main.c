@@ -165,6 +165,9 @@ typedef struct {
 
     /** Classic SSAO in place of the stylised ambient occlusion, from NYA_STRESS_SSAO. Off leaves the stylised one. */
     b8            ssao_on;
+
+    /** Screen-space reflections over the scene, from NYA_STRESS_SSR. Off by default, so the frame is unchanged. */
+    b8            ssr_on;
     b8            crt_on;
     b8            grade_on;
     b8            grayscale_on;
@@ -680,6 +683,7 @@ void stress_layer_on_destroy(NYA_Window* window) {
     nya_post_eye_adaptation_set(window, (NYA_PostEyeAdaptation){ 0 });
     nya_post_light_shafts_set(window, (NYA_PostLightShafts){ 0 });
     nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
+    nya_post_ssr_set(window, (NYA_PostSsr){ 0 });
     nya_render3d_decals_set(window, (NYA_Render3DDecals){ 0 });
 
     nya_post_chain_destroy(&state->post);
@@ -1193,6 +1197,7 @@ NYA_INTERNAL void apply_scene_features(NYA_Window* window, Stress* state) {
         nya_post_light_shafts_set(window, (NYA_PostLightShafts){ 0 });
         nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
         nya_post_ssao_set(window, (NYA_PostSsao){ 0 });
+        nya_post_ssr_set(window, (NYA_PostSsr){ 0 });
         return;
     }
 
@@ -1208,6 +1213,9 @@ NYA_INTERNAL void apply_scene_features(NYA_Window* window, Stress* state) {
         nya_post_ssao_set(window, (NYA_PostSsao){ 0 });
         nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.45F });
     }
+
+    // screen-space reflections over the scene when asked; a fresnel-weighted mirror on the grazing surfaces.
+    nya_post_ssr_set(window, state->ssr_on ? (NYA_PostSsr){ .enabled = true, .strength = 0.6F } : (NYA_PostSsr){ 0 });
 
     if (sc->heavy_post) {
         // motion blur reads the camera's motion between frames; the speed comes from the previous eye.
@@ -1346,6 +1354,9 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     // classic SSAO in place of the stylised occlusion, for comparing the two or a headless SSAO run.
     state->ssao_on = getenv("NYA_STRESS_SSAO") != nullptr;
+
+    // screen-space reflections over the scene, for a headless SSR run. Off leaves the frame unchanged.
+    state->ssr_on = getenv("NYA_STRESS_SSR") != nullptr;
 
     nya_world_user_data_set(state);
 

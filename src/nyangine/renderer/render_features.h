@@ -117,6 +117,9 @@ enum NYA_RenderFeature {
     NYA_RENDER_FEATURE_INK,
     NYA_RENDER_FEATURE_AMBIENT_OCCLUSION,
     NYA_RENDER_FEATURE_SSAO,
+
+    /** Screen-space reflections over the scene, the post pass. Distinct from the scene's planar water. */
+    NYA_RENDER_FEATURE_SSR,
     NYA_RENDER_FEATURE_ANTIALIAS,
     NYA_RENDER_FEATURE_DEPTH_OF_FIELD,
     NYA_RENDER_FEATURE_SPEED_LINES,
@@ -163,6 +166,7 @@ struct NYA_RenderFeatures {
     NYA_RenderToggle ink;
     NYA_RenderToggle ambient_occlusion;
     NYA_RenderToggle ssao;
+    NYA_RenderToggle ssr;
     NYA_RenderToggle antialias;
     NYA_RenderToggle depth_of_field;
     NYA_RenderToggle speed_lines;
