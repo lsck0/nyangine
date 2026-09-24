@@ -318,11 +318,26 @@ struct NYA_HttpRoute {
      * */
     u64 (*resource_of)(const NYA_HttpExchange* exchange);
 
-    /** Set exactly when `auth` is NYA_HTTP_AUTH_NONE. */
+    /** Set exactly when `auth` is NYA_HTTP_AUTH_NONE, unless `handler_callback` is set instead. */
     NYA_HttpHandlerFn handler;
 
-    /** Set exactly when `auth` is not NYA_HTTP_AUTH_NONE. */
+    /** Set exactly when `auth` is not NYA_HTTP_AUTH_NONE, unless `handler_identified_callback` is set instead. */
     NYA_HttpIdentifiedFn handler_identified;
+
+    /**
+     * A reload-safe stand-in for `handler`: a token from `nya_callback(fn)`, resolved to the current
+     * function on every dispatch through the resolver a program installs with nya_http_router_resolvers_set.
+     *
+     * A raw `handler` pointer is baked into the route table once and dangles the moment a code hot reload
+     * swaps the DLL out from under it; a token survives, because the resolver re-derives it by name against
+     * the new image (see [[code-hot-reload]]). Set this instead of `handler`, never both. Auth NONE only.
+     * The http module holds only the opaque token — resolving it is the program's, since the named-callback
+     * registry lives a layer above this one.
+     * */
+    u64 handler_callback;
+
+    /** Likewise for `handler_identified`: a `nya_callback` token for an identified handler that hot-swaps. */
+    u64 handler_identified_callback;
 
     /** One line, for the OpenAPI summary. Required. */
     NYA_ConstCString summary;
@@ -423,6 +438,23 @@ NYA_API NYA_HttpStatus nya_http_router_dispatch(
 
 /** Runs the rest of the chain. A layer that does not call this answers the request itself. */
 NYA_API NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain);
+
+/** Turns a route's `handler_callback` token into the function to call this dispatch. See nya_http_router_resolvers_set. */
+typedef NYA_HttpHandlerFn (*NYA_HttpHandlerResolver)(u64 token);
+
+/** Likewise for `handler_identified_callback`. */
+typedef NYA_HttpIdentifiedFn (*NYA_HttpIdentifiedResolver)(u64 token);
+
+/**
+ * Installs how a `handler_callback` / `handler_identified_callback` token becomes a function pointer.
+ *
+ * The named-callback registry that survives a code reload is a layer above http, so the router cannot
+ * resolve a token itself: a program wires this once at startup, each resolver a one-liner over
+ * `nya_callback_get`. Until it is set, a route that carries a token asserts on dispatch rather than
+ * guessing; routes that use the plain `handler`/`handler_identified` pointers need no resolver at all.
+ * Either resolver may be null when that kind of token is never used.
+ * */
+NYA_API void nya_http_router_resolvers_set(NYA_HttpHandlerResolver handler, NYA_HttpIdentifiedResolver identified);
 
 /**
  * Replaces the response body with a NYA_HttpProblem for `status`.

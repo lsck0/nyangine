@@ -98,19 +98,26 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
          * table that gets it wrong does not start.
          */
         if (route->auth == NYA_HTTP_AUTH_NONE) {
-            if (route->handler == nullptr || route->handler_identified != nullptr) {
+            // Exactly one of the plain pointer or the reload-safe token, and nothing in the identified slots.
+            b8 plain = route->handler != nullptr;
+            b8 token = route->handler_callback != 0;
+
+            if (plain == token || route->handler_identified != nullptr || route->handler_identified_callback != 0) {
                 return nya_error(
                     NYA_ERROR_INVALID_ARGUMENT,
-                    "%s %s takes no identity, so it needs `handler` and only `handler`",
+                    "%s %s takes no identity, so it needs exactly one of `handler` or `handler_callback` and no identified handler",
                     nya_http_method_text(route->method),
                     route->path
                 );
             }
         } else {
-            if (route->handler_identified == nullptr || route->handler != nullptr) {
+            b8 plain = route->handler_identified != nullptr;
+            b8 token = route->handler_identified_callback != 0;
+
+            if (plain == token || route->handler != nullptr || route->handler_callback != 0) {
                 return nya_error(
                     NYA_ERROR_INVALID_ARGUMENT,
-                    "%s %s demands an identity, so it needs `handler_identified` and only that",
+                    "%s %s demands an identity, so it needs exactly one of `handler_identified` or `handler_identified_callback` and no unauthenticated handler",
                     nya_http_method_text(route->method),
                     route->path
                 );
@@ -387,24 +394,48 @@ NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpSta
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/* How a callback token becomes a function, installed by the program a layer above; null until it is. */
+NYA_INTERNAL NYA_HttpHandlerResolver    _nya_http_handler_resolver    = nullptr;
+NYA_INTERNAL NYA_HttpIdentifiedResolver _nya_http_identified_resolver = nullptr;
+
+void nya_http_router_resolvers_set(NYA_HttpHandlerResolver handler, NYA_HttpIdentifiedResolver identified) {
+    _nya_http_handler_resolver    = handler;
+    _nya_http_identified_resolver = identified;
+}
+
 NYA_HttpStatus _nya_http_router_run_route(NYA_HttpExchange* exchange) {
     const NYA_HttpRoute* route = exchange->route;
 
     nya_assert(route != nullptr, "the chain reached its innermost step with no route");
 
     if (route->auth == NYA_HTTP_AUTH_NONE) {
-        nya_assert(route->handler != nullptr, "nya_http_router_check refuses a route with no handler");
+        // The token wins when set: it is re-resolved every dispatch, so a reloaded DLL's new handler runs.
+        NYA_HttpHandlerFn handler = route->handler;
 
-        return route->handler(exchange);
+        if (route->handler_callback != 0) {
+            nya_assert(_nya_http_handler_resolver != nullptr, "a route carries a handler_callback but no resolver was set; call nya_http_router_resolvers_set");
+            handler = _nya_http_handler_resolver(route->handler_callback);
+        }
+
+        nya_assert(handler != nullptr, "nya_http_router_check refuses a route with no handler");
+
+        return handler(exchange);
     }
 
     NYA_HttpStatus refused = _nya_http_router_extract_identity(exchange);
     if (refused != NYA_HTTP_STATUS_NONE) return refused;
 
-    nya_assert(route->handler_identified != nullptr, "nya_http_router_check refuses a route with no handler");
+    NYA_HttpIdentifiedFn handler = route->handler_identified;
+
+    if (route->handler_identified_callback != 0) {
+        nya_assert(_nya_http_identified_resolver != nullptr, "a route carries a handler_identified_callback but no resolver was set; call nya_http_router_resolvers_set");
+        handler = _nya_http_identified_resolver(route->handler_identified_callback);
+    }
+
+    nya_assert(handler != nullptr, "nya_http_router_check refuses a route with no handler");
     nya_assert(exchange->identified, "the extractor returned no refusal and no identity");
 
-    return route->handler_identified(exchange, &exchange->identity);
+    return handler(exchange, &exchange->identity);
 }
 
 NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
