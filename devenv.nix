@@ -66,6 +66,17 @@
     # headless server checkout that never builds SDL does not need any of this, but carrying it keeps
     # `./build build vendor` working out of the box.
     pkgs.openssl.dev    # vendor_openssl.h links the *system* OpenSSL rather than vendoring one.
+
+    # ── HTTP response compression, linked on every host build. ───────────────────────────────────
+    # flags.h FLAGS_LINUX_X86_64 puts -lz -lbrotlienc -lbrotlicommon on every host link — the build
+    # tool that rebuilds itself included, and gnyame at runtime. Those become DT_NEEDED entries the
+    # loader resolves against the $ORIGIN-only rpath plus LD_LIBRARY_PATH and nothing else. Outside
+    # this shell the host's /usr/lib carries them; inside, nix keeps them in the store, so without
+    # these two packages (and the LD_LIBRARY_PATH below) a self-rebuilt `./build` dies with
+    # `libbrotlienc.so.1: cannot open shared object file`. libz is here for the same reason.
+    pkgs.brotli
+    pkgs.zlib
+
     pkgs.alsa-lib
     pkgs.libpulseaudio
     pkgs.pipewire
@@ -118,6 +129,15 @@
     # manages and which is never committed here (only the four config files are tracked). Only `./build
     # wasm` ever populates it; a first run builds the wasm sysroot here and later ones reuse it.
     EM_CACHE = "${config.devenv.root}/.devenv/emscripten-cache";
+
+    # The engine builds every binary with a $ORIGIN-only rpath (flags.h), so the loader finds no system
+    # .so on its own. Outside this shell the host loader's default path (/usr/lib …) resolves libz,
+    # libbrotli* and libssl/libcrypto; inside it, nix keeps them in the store and off any default path,
+    # so name their lib outputs here or a self-rebuilt `./build` — and a running gnyame — cannot load
+    # them. openssl is already a package above (its .dev); this reaches its runtime lib output too.
+    # stdenv.cc.cc.lib carries libstdc++.so.6, which the build tool needs through the SPIRV-Cross shared
+    # library it links (`-lspirv-cross-c-shared`, a C++ library) for the shader-compile rules.
+    LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.brotli pkgs.zlib pkgs.openssl pkgs.stdenv.cc.cc.lib ];
   };
 
   enterShell = ''
