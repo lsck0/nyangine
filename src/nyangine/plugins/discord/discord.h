@@ -47,11 +47,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_DiscordActivity NYA_DiscordActivity;
 typedef struct NYA_DiscordEvent    NYA_DiscordEvent;
@@ -185,11 +181,7 @@ struct NYA_DiscordEvent {
     char secret[NYA_DISCORD_MAX_SECRET];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Starts trying to reach the local Discord client for `application_id`.
@@ -224,11 +216,7 @@ NYA_API NYA_Error nya_discord_activity_set(NYA_DiscordActivity activity) __attr_
 /** Clears the presence card. What returning to a launcher, or quitting to the desktop, wants. */
 NYA_API NYA_Error nya_discord_activity_clear(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * INBOUND
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── INBOUND ─────────────────────────────────────
 
 /**
  * Drains one queued event. False when there are none left, which is every frame in an ordinary session.

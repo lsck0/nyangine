@@ -11,16 +11,9 @@
 #include <unistd.h>
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PROTOCOL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE PROTOCOL ─────────────────────────────────────
 
-/*
- * Every message is an opcode and a length (u32 each, little endian) followed by the body, written as one
- * buffer.
- */
+// Every message is an opcode and a length (u32 each, little endian) then the body, written as one buffer.
 
 #define _NYA_DISCORD_OPCODE_HANDSHAKE 0
 #define _NYA_DISCORD_OPCODE_FRAME     1
@@ -44,18 +37,11 @@
 /** How long to wait for the handshake reply before treating the connection as dead. */
 #define _NYA_DISCORD_HANDSHAKE_TIMEOUT_MS 5000
 
-/*
- * The two events worth subscribing to. Presence is pushed; these are the only things the client ever
- * says on its own, and without a SUBSCRIBE it says neither.
- */
+// The two events worth subscribing to: the only things the client says on its own, and without a SUBSCRIBE it says neither.
 #define _NYA_DISCORD_EVENT_ACTIVITY_JOIN         "ACTIVITY_JOIN"
 #define _NYA_DISCORD_EVENT_ACTIVITY_JOIN_REQUEST "ACTIVITY_JOIN_REQUEST"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 typedef struct {
     NYA_Arena* allocator;
@@ -181,11 +167,7 @@ NYA_INTERNAL b8 _nya_discord_parse_user_id(const NYA_Value* value, OUT char* out
 /** Whether `text` is one to twenty decimal digits. What a user id has to be before it is sent back. */
 NYA_INTERNAL b8 _nya_discord_user_id_is_valid(NYA_ConstCString text) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_discord_init(u64 application_id) {
     if (application_id == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Discord application id of zero");
@@ -313,11 +295,7 @@ NYA_Error nya_discord_activity_clear(void) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * INBOUND
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── INBOUND ─────────────────────────────────────
 
 b8 nya_discord_poll(OUT NYA_DiscordEvent* out_event) {
     nya_assert(out_event != nullptr);
@@ -354,11 +332,7 @@ NYA_Error nya_discord_join_reply(NYA_ConstCString user_id, b8 accept) {
     return _nya_discord_send_user_command(accept ? "SEND_ACTIVITY_JOIN_INVITE" : "CLOSE_ACTIVITY_REQUEST", user_id);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 void _nya_discord_event_push(NYA_DiscordEvent event) {
     nya_assert(event.kind > NYA_DISCORD_EVENT_NONE && event.kind < NYA_DISCORD_EVENT_KIND_COUNT);
@@ -482,9 +456,7 @@ NYA_Error _nya_discord_send_user_command(NYA_ConstCString command, NYA_ConstCStr
 void _nya_discord_handle_event(NYA_ConstCString event, const NYA_Object* data) {
     nya_assert(event != nullptr);
 
-    /*
-     * Reject by default: an event this build does not know is ignored, not guessed at.
-     */
+    // Reject by default: an event this build does not know is ignored, not guessed at.
     if (nya_string_equals(event, _NYA_DISCORD_EVENT_ACTIVITY_JOIN)) {
         if (data == nullptr) return;
 
@@ -602,8 +574,7 @@ NYA_String* _nya_discord_activity_payload(NYA_Arena* arena, const NYA_DiscordAct
 
     nya_string_extend_sprintf(out, "{\"cmd\":\"SET_ACTIVITY\",\"nonce\":\"%llu\"", (unsigned long long)nonce);
 
-    // Discord watches the pid and removes the card when the process exits, so a crashed game does not show as
-    // playing.
+    // Discord watches the pid and removes the card when the process exits, so a crashed game does not show as playing.
     nya_string_extend_sprintf(out, ",\"args\":{\"pid\":%lld", (long long)_nya_discord_process_id());
 
     // null activity clears presence; an empty object would leave the card up.
@@ -819,11 +790,7 @@ s64 _nya_discord_process_id(void) {
 #endif
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * TRANSPORT
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TRANSPORT ─────────────────────────────────────
 
 #if OS_WINDOWS
 
@@ -939,10 +906,7 @@ NYA_INTERNAL b8 _nya_discord_write_bytes(const u8* data, u32 length) {
     u32 written = 0;
 
     while (written < length) {
-        /*
-         * MSG_NOSIGNAL: a peer closing mid-write raises SIGPIPE, which by default kills the process, so closing Discord
-         * would take the game with it.
-         */
+        // MSG_NOSIGNAL: a peer closing mid-write raises SIGPIPE, which by default kills the process, so closing Discord would take the game with it.
         ssize_t chunk = send(_NYA_DISCORD.handle, data + written, length - written, MSG_NOSIGNAL);
 
         if (chunk < 0) {
@@ -981,12 +945,7 @@ void _nya_discord_disconnect(void) {
     _NYA_DISCORD.read_length  = 0;
     _NYA_DISCORD.user_name[0] = '\0';
 
-    /*
-     * Unanswered join requests go, accepted joins stay.
-     */
-    // a request is a live conversation with a client that is no longer there: replying to it would be
-    // refused and the asker has already been told nothing happened. A join is just a secret, and the
-    // player asked for it, so it survives to be acted on.
+    // Unanswered join requests go, accepted joins stay: a request is a dead conversation, but a join is a secret the player asked for.
     u32 kept = 0;
 
     for (u32 i = 0; i < _NYA_DISCORD.event_count; i++) {
