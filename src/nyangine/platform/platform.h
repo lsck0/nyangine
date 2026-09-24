@@ -4,6 +4,7 @@
 #include "nyangine/platform/ipc/ipc.h"
 #include "nyangine/platform/signals/signals.h"
 #include "nyangine/platform/terminal/terminal.h"
+#include "nyangine/platform/web/web.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────

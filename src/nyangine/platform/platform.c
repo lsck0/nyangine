@@ -7,6 +7,10 @@
 #include "nyangine/platform/ipc/ipc.c"
 #include "nyangine/platform/terminal/terminal.c"
 
+// The web primitives are target-independent in the same sense: each file carries its OS_WASM backend and
+// its native fallback, so this builds the fallbacks here and the browser backends under a wasm module.
+#include "nyangine/platform/web/web.c"
+
 #if OS_WINDOWS
 #include "nyangine/platform/host/host_windows.c"
 #include "nyangine/platform/ipc/ipc_windows.c"
