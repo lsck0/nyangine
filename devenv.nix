@@ -89,6 +89,7 @@
     pkgs.mesa
     pkgs.libGL
     pkgs.libglvnd
+    pkgs.vulkan-loader  # libvulkan.so.1 — SDL_GPU's Vulkan backend loads it at runtime.
     pkgs.wayland
     pkgs.wayland-protocols
     pkgs.wayland-scanner
@@ -137,7 +138,20 @@
     # them. openssl is already a package above (its .dev); this reaches its runtime lib output too.
     # stdenv.cc.cc.lib carries libstdc++.so.6, which the build tool needs through the SPIRV-Cross shared
     # library it links (`-lspirv-cross-c-shared`, a C++ library) for the shader-compile rules.
-    LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.brotli pkgs.zlib pkgs.openssl pkgs.stdenv.cc.cc.lib ];
+    #
+    # The rest is what a windowed gnyame dlopens at runtime — SDL3 loads its video, input and audio
+    # backends by soname (libwayland-client, libxkbcommon, libdecor, the Xlib set, libGL, and the ALSA/
+    # PulseAudio/PipeWire trio), and SDL_GPU loads Vulkan (libvulkan). None are on the $ORIGIN rpath, so
+    # without them here SDL_Init reports "wayland not available" and a GUI run dies at startup. On a
+    # non-NixOS host the GPU *driver* (the Vulkan ICD, mesa's DRI) is still the host's, so a GUI/GPU run
+    # may need to happen outside this shell (the nixGL problem) — the shell covers the build, the gates,
+    # the tests and the headless server regardless.
+    LD_LIBRARY_PATH = lib.makeLibraryPath [
+      pkgs.brotli pkgs.zlib pkgs.openssl pkgs.stdenv.cc.cc.lib
+      pkgs.wayland pkgs.libxkbcommon pkgs.libdecor pkgs.libdrm pkgs.mesa pkgs.libGL pkgs.libglvnd pkgs.vulkan-loader pkgs.dbus
+      pkgs.libx11 pkgs.libxcursor pkgs.libxext pkgs.libxfixes pkgs.libxi pkgs.libxrandr pkgs.libxscrnsaver pkgs.libxtst
+      pkgs.alsa-lib pkgs.libpulseaudio pkgs.pipewire
+    ];
   };
 
   enterShell = ''
