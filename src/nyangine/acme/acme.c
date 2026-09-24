@@ -23,20 +23,9 @@
 #include <openssl/x509v3.h>
 #endif // NYA_MODULE_TLS
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
-/**
- * An account key, whichever algorithm it carries.
- *
- * EdDSA lives in `eddsa` and is the engine's own key (crypto_sign.h); ES256 lives in `es256` as an
- * OpenSSL key, and its public coordinates are cached beside it because they are read for every JWK and a
- * BIGNUM is not worth extracting twice. The private half is in one of the two and never leaves this
- * struct as bytes.
- * */
+/** An account key: EdDSA in `eddsa` (the engine's own) or ES256 in `es256` (OpenSSL), with the ES256 public point cached beside it. */
 struct NYA_AcmeAccountKey {
     NYA_AcmeAlgorithm algorithm;
     NYA_Arena*        arena;
@@ -77,11 +66,7 @@ typedef struct {
     NYA_ConstCString kid;
 } _NYA_AcmeSession;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** `size` bytes as base64url text in the arena, terminated. Null on an allocation that cannot hold it, which cannot happen here. */
 NYA_INTERNAL NYA_ConstCString _nya_acme_b64url(NYA_Arena* arena, const u8* data, u64 size) __attr_no_discard;
@@ -108,11 +93,7 @@ NYA_INTERNAL NYA_Error _nya_acme_make_csr(NYA_Arena* arena, const NYA_ConstCStri
                                           OUT NYA_String** out_key_pem) __attr_no_discard;
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SMALL HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SMALL HELPERS
 
 NYA_ConstCString _nya_acme_b64url(NYA_Arena* arena, const u8* data, u64 size) {
     // three bytes become four characters; a couple of bytes of slack and a terminator past that.
@@ -130,8 +111,7 @@ NYA_ConstCString _nya_acme_alg_name(NYA_AcmeAlgorithm algorithm) {
 }
 
 NYA_ConstCString _nya_acme_thumbprint_input(NYA_Arena* arena, const NYA_AcmeAccountKey* key) {
-    // RFC 7638: the required members, lexicographically ordered, no whitespace. Built by hand rather than
-    // through the object serializer, so the byte order the hash is taken over is not a serializer detail.
+    // RFC 7638: required members, lexicographically ordered, no whitespace; built by hand so the byte order is not a serializer detail.
     if (key->algorithm == NYA_ACME_ALGORITHM_EDDSA) {
         NYA_ConstCString x = _nya_acme_b64url(arena, key->eddsa.public_key.bytes, sizeof(key->eddsa.public_key.bytes));
         return nya_string_to_cstring(arena, nya_string_sprintf(arena, "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"%s\"}", x));
@@ -165,11 +145,7 @@ NYA_ConstCString _nya_acme_challenge_token(NYA_ConstCString path) {
     return token;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCOUNT KEYS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCOUNT KEYS
 
 #ifdef NYA_MODULE_TLS
 /** Fills a key's cached ES256 public coordinates from its OpenSSL key. */
@@ -267,11 +243,7 @@ NYA_AcmeAlgorithm nya_acme_account_key_algorithm(const NYA_AcmeAccountKey* key) 
     return key->algorithm;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * JWK, THUMBPRINT AND JWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// JWK, THUMBPRINT AND JWS
 
 NYA_Error nya_acme_jwk(NYA_Arena* arena, const NYA_AcmeAccountKey* key, OUT NYA_Object** out_jwk) {
     nya_assert(arena != nullptr);
@@ -329,8 +301,7 @@ NYA_Error _nya_acme_sign(const NYA_AcmeAccountKey* key, const u8* message, u64 s
 #ifdef NYA_MODULE_TLS
     if (capacity < NYA_CRYPTO_ECDSA_SIGNATURE_BYTES) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the ES256 signature does not fit");
 
-    // OpenSSL signs the message under SHA-256 and returns DER; the JWS form is the raw r||s, each padded
-    // to the coordinate size, so the DER is decoded and the two integers written out fixed-width.
+    // OpenSSL returns DER; the JWS form is raw r||s each padded to the coordinate size, so the DER is decoded and rewritten.
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (ctx == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no signing context");
 
@@ -391,9 +362,7 @@ NYA_Error nya_acme_jws_sign(NYA_Arena* arena, const NYA_AcmeAccountKey* key, NYA
     nya_assert(url != nullptr);
     nya_assert(out_jws != nullptr);
 
-    // the protected header: alg and url always, then exactly one of the embedded jwk (newAccount) or the
-    // kid (everything after it), then the fresh nonce. A nonce is optional only for the standalone
-    // key-authorization signing a caller never reaches here; a POST to the CA always has one.
+    // the protected header: alg and url always, then either the embedded jwk (newAccount) or the kid, then the nonce.
     NYA_Object* header = nya_object_create(arena);
     nya_object_add(header, "alg", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)_nya_acme_alg_name(key->algorithm) });
 
@@ -436,11 +405,7 @@ NYA_Error nya_acme_jws_sign(NYA_Arena* arena, const NYA_AcmeAccountKey* key, NYA
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HTTP-01 CHALLENGE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// HTTP-01 CHALLENGE
 
 NYA_Error nya_acme_key_authorization(NYA_Arena* arena, NYA_ConstCString token, const NYA_AcmeAccountKey* key, OUT NYA_ConstCString* out_key_authorization) {
     nya_assert(arena != nullptr);
@@ -510,11 +475,7 @@ b8 nya_acme_challenge_response(const NYA_AcmeChallengeStore* store, NYA_ConstCSt
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CSR AND CERTIFICATE KEY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CSR AND CERTIFICATE KEY
 
 #ifdef NYA_MODULE_TLS
 NYA_Error _nya_acme_make_csr(NYA_Arena* arena, const NYA_ConstCString* domains, u64 domain_count, OUT NYA_ConstCString* out_csr_b64url, OUT NYA_String** out_key_pem) {
@@ -537,8 +498,7 @@ NYA_Error _nya_acme_make_csr(NYA_Arena* arena, const NYA_ConstCString* domains, 
         goto done;
     }
 
-    // the subject is left empty and the domains go in the subjectAltName, which is where a modern CA
-    // reads them: `DNS:a,DNS:b`. A domain is validated first so this string cannot be steered.
+    // the subject is empty and the domains go in the subjectAltName (`DNS:a,DNS:b`); each is validated first so it cannot be steered.
     {
         NYA_String* san_value = nya_string_create(arena);
         for (u64 i = 0; i < domain_count; i++) {
@@ -592,11 +552,7 @@ done:
 }
 #endif // NYA_MODULE_TLS
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE FLOW
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE FLOW
 
 // Everything from here to nya_acme_obtain is the order flow, reached only from that function, which
 // needs OpenSSL for the CSR. Compiled only with TLS; otherwise these are unused functions and
@@ -872,11 +828,7 @@ NYA_Error nya_acme_obtain(NYA_Arena* arena, const NYA_AcmeConfig* config, OUT NY
 #endif // NYA_MODULE_TLS
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RENEWAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// RENEWAL
 
 NYA_Error nya_acme_needs_renewal(NYA_ConstCString chain_pem, u32 renew_before_days, OUT b8* out_needs_renewal) {
     nya_assert(chain_pem != nullptr);
@@ -897,8 +849,7 @@ NYA_Error nya_acme_needs_renewal(NYA_ConstCString chain_pem, u32 renew_before_da
     BIO_free(bio);
     if (leaf == nullptr) return nya_error(NYA_ERROR_PARSE, "the PEM held no certificate");
 
-    // renew when notAfter is before now + the window: X509_cmp_time returns -1 when the time is earlier
-    // than the reference, which is exactly "expires before the deadline".
+    // renew when notAfter is before now + the window; X509_cmp_time returns -1 when the time is earlier.
     time_t deadline    = time(nullptr) + (time_t)renew_before_days * 24 * 60 * 60;
     int    comparison  = X509_cmp_time(X509_get0_notAfter(leaf), &deadline);
     *out_needs_renewal = comparison < 0;

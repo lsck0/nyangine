@@ -92,11 +92,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/crypto/crypto_hash.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The path prefix an HTTP-01 challenge is served under, RFC 8555 section 8.3. */
 #define NYA_ACME_HTTP01_PREFIX "/.well-known/acme-challenge/"
@@ -121,11 +117,7 @@
 #define NYA_ACME_RENEW_BEFORE_DAYS 30
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_AcmeAccountKey    NYA_AcmeAccountKey;
 typedef struct NYA_AcmeChallengeStore NYA_AcmeChallengeStore;
@@ -234,11 +226,7 @@ typedef struct {
     NYA_AcmeTransport transport;
 } NYA_AcmeConfig;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCOUNT KEYS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCOUNT KEYS
 
 /**
  * A fresh account key of `algorithm`, allocated from `arena`.
@@ -262,11 +250,7 @@ NYA_API void nya_acme_account_key_destroy(NYA_AcmeAccountKey* key);
 /** Which algorithm the key carries. */
 NYA_API NYA_AcmeAlgorithm nya_acme_account_key_algorithm(const NYA_AcmeAccountKey* key) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * JWK, THUMBPRINT AND JWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// JWK, THUMBPRINT AND JWS
 
 /**
  * The public JWK of the account key, as the object a newAccount request embeds.
@@ -295,11 +279,7 @@ NYA_API NYA_Error nya_acme_jwk_thumbprint(const NYA_AcmeAccountKey* key, OUT NYA
 NYA_API NYA_Error nya_acme_jws_sign(NYA_Arena* arena, const NYA_AcmeAccountKey* key, NYA_ConstCString url, NYA_ConstCString nonce, NYA_ConstCString kid,
                                     const NYA_Object* payload, OUT NYA_Object** out_jws) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HTTP-01 CHALLENGE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// HTTP-01 CHALLENGE
 
 /**
  * The key-authorization for `token`: `token || "." || base64url(SHA-256(thumbprint input))`, RFC 8555
@@ -341,11 +321,7 @@ NYA_API void nya_acme_challenge_store_remove(NYA_AcmeChallengeStore* store, NYA_
  * */
 NYA_API b8 nya_acme_challenge_response(const NYA_AcmeChallengeStore* store, NYA_ConstCString request_path, OUT NYA_ConstCString* out_body) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * OBTAIN AND RENEW
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// OBTAIN AND RENEW
 
 /**
  * Runs the whole RFC 8555 flow and fills `out_certificate`.
