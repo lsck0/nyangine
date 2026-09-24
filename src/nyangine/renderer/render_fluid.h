@@ -256,6 +256,9 @@ typedef struct NYA_Fluid              NYA_Fluid;
 /** A wind field the volume may drift on. Defined in render_wind.h; only ever held here by pointer. */
 typedef struct NYA_WindField          NYA_WindField;
 
+/** A set of force fields the volume drives its velocity with. Defined in render_force.h; only ever held here by pointer. */
+typedef struct NYA_ForceSet           NYA_ForceSet;
+
 /** Which renderer a volume draws through, and how its grid is laid out in the world. */
 enum NYA_FluidSpace {
     /**
@@ -473,6 +476,21 @@ struct NYA_Fluid {
     const NYA_WindField* wind;
     f32                  wind_influence;
     f32                  wind_time_s;
+
+    /**
+     * An optional set of force fields the volume drives its velocity field with, borrowed from the caller, and how
+     * strongly.
+     *
+     * Null is the default and means no force — the step integrates exactly as before. Set it and each step samples
+     * `nya_forces_at(...)` at every cell's own world centre and adds `force * influence * step` to that cell's
+     * velocity, so a point well pulls smoke inward, a vortex winds it up and a turbulence stir folds it. Unlike the
+     * wind, which is one push sampled at the origin, this is a per-cell field: that is what lets a vortex actually
+     * swirl the grid. Additive to the wind, not a replacement. `force_time_s` is this volume's own set clock. See
+     * nya_fluid_force_set.
+     * */
+    const NYA_ForceSet* forces;
+    f32                 force_influence;
+    f32                 force_time_s;
 };
 
 /*
@@ -556,6 +574,15 @@ NYA_API void nya_fluid_obstacles_clear(NYA_Fluid* fluid);
  * the volume's origin), a stylized breeze; a per-cell wind sampling is a follow-up.
  * */
 NYA_API void nya_fluid_wind_set(NYA_Fluid* fluid, const NYA_WindField* field, f32 influence);
+
+/**
+ * Makes the volume drive its velocity field with `forces`, at `influence` (a multiplier on the sampled
+ * acceleration per step). A null `forces` turns it off, which is the default and the exact old behaviour. The set is
+ * borrowed — the caller owns it — so the volume, the particles and the foliage can all read one composed field.
+ * Sampled per cell, so a spatially varying force (a well, a vortex, a curl-noise stir) shapes the grid rather than
+ * pushing it uniformly the way the wind does. Additive to the wind; a volume may run both.
+ * */
+NYA_API void nya_fluid_force_set(NYA_Fluid* fluid, const NYA_ForceSet* forces, f32 influence);
 
 /*
  * ─────────────────────────────────────────────────────────

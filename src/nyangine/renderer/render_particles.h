@@ -45,6 +45,9 @@ typedef struct NYA_ParticleSystem  NYA_ParticleSystem;
 /** A wind field the particles may drift on. Defined in render_wind.h; only ever held here by pointer. */
 typedef struct NYA_WindField       NYA_WindField;
 
+/** A set of force fields the particles accelerate under. Defined in render_force.h; only ever held here by pointer. */
+typedef struct NYA_ForceSet        NYA_ForceSet;
+
 enum NYA_ParticleSpace {
     /**
      * Drawn through render2d, in world pixels, ignoring z. The default.
@@ -219,6 +222,20 @@ struct NYA_ParticleSystem {
     const NYA_WindField* wind;
     f32                  wind_influence;
     f32                  wind_time_s;
+
+    /**
+     * An optional set of force fields the particles accelerate under, borrowed from the caller, and how strongly.
+     *
+     * Null is the default and means no force — the system integrates exactly as before. Set it and every tick each
+     * particle takes `nya_forces_at(...) * influence` as an acceleration, added to its velocity, so a gravity well,
+     * a vortex or a curl-noise stir moves the same dust the wind and the water already share. This sits beside the
+     * wind rather than replacing it: a scene may run both, the force summed onto the wind-eased velocity. `force_time_s`
+     * is the set clock this system advances itself, so the field animates on its own. See nya_particles_force_set,
+     * [[render_force]].
+     * */
+    const NYA_ForceSet* forces;
+    f32                 force_influence;
+    f32                 force_time_s;
 };
 
 /*
@@ -250,6 +267,14 @@ NYA_API void nya_particles_on_update_set(NYA_ParticleSystem* system, NYA_Particl
  * the caller owns it and keeps it alive — so several systems and the foliage can share one wind.
  * */
 NYA_API void nya_particles_wind_set(NYA_ParticleSystem* system, const NYA_WindField* field, f32 influence);
+
+/**
+ * Makes the system accelerate under `forces`, at `influence` (a multiplier on the sampled acceleration). A null
+ * `forces` turns it off, which is the default and the exact old behaviour. The set is borrowed — the caller owns it
+ * and keeps it alive — so several systems, the fluid and the foliage can share one composed field. Independent of
+ * and additive to the wind: a system may run both at once.
+ * */
+NYA_API void nya_particles_force_set(NYA_ParticleSystem* system, const NYA_ForceSet* forces, f32 influence);
 
 /**
  * Makes the system reproducible: the same seed and the same calls give the same effect.

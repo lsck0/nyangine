@@ -78,6 +78,14 @@ void nya_particles_wind_set(NYA_ParticleSystem* system, const NYA_WindField* fie
     // wind_time_s is left where it is, so turning the wind off and on again does not jump the field's phase.
 }
 
+void nya_particles_force_set(NYA_ParticleSystem* system, const NYA_ForceSet* forces, f32 influence) {
+    nya_assert(system != nullptr);
+
+    system->forces          = forces;
+    system->force_influence = influence;
+    // force_time_s is left where it is, the same rule the wind uses, so toggling the force does not jump its phase.
+}
+
 void nya_particles_seed(NYA_ParticleSystem* system, u64 seed) {
     nya_assert(system != nullptr);
 
@@ -194,6 +202,10 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
     // The wind field's own clock, advanced only while a field is set, so the drift animates on its own.
     if (system->wind != nullptr) system->wind_time_s += delta_time_s;
 
+    // The force set's own clock, advanced the same way, so a turbulence stir animates whether or not the caller
+    // also advances the shared set.
+    if (system->forces != nullptr) system->force_time_s += delta_time_s;
+
     for (u32 i = 0; i < system->count;) {
         NYA_Particle* particle = &system->particles[i];
 
@@ -216,6 +228,13 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
         if (system->wind != nullptr) {
             f32x3 wind = nya_wind_at(system->wind, particle->position, system->wind_time_s);
             particle->velocity = nya_lerp(particle->velocity, wind, nya_min(delta_time_s * system->wind_influence, 1.0F));
+        }
+
+        // Ride the force set: sample the total acceleration here and integrate it into the velocity. Additive to
+        // the wind above, not a replacement, so a gravity well or a vortex can pull dust the breeze also carries.
+        if (system->forces != nullptr) {
+            f32x3 force = nya_forces_at(system->forces, particle->position, particle->velocity, system->force_time_s);
+            particle->velocity += force * (system->force_influence * delta_time_s);
         }
 
         particle->position += particle->velocity * delta_time_s;

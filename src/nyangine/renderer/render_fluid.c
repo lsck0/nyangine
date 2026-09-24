@@ -311,6 +311,14 @@ void nya_fluid_wind_set(NYA_Fluid* fluid, const NYA_WindField* field, f32 influe
     // wind_time_s is left alone, so toggling the wind does not jump the field's phase.
 }
 
+void nya_fluid_force_set(NYA_Fluid* fluid, const NYA_ForceSet* forces, f32 influence) {
+    nya_assert(fluid != nullptr);
+
+    fluid->forces          = forces;
+    fluid->force_influence = influence;
+    // force_time_s is left alone, the same rule the wind uses, so toggling the force does not jump its phase.
+}
+
 /*
  * ─────────────────────────────────────────────────────────
  * THE STEP
@@ -350,6 +358,49 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
             fluid->velocity_y[i] += w.y * push;
             fluid->velocity_z[i] += w.z * push;
         }
+    }
+
+    // The force set: sampled per interior cell at that cell's own world centre, so a spatially varying force — a
+    // point well, a vortex, a curl-noise stir — actually shapes the grid instead of pushing it as one block the way
+    // the wind does. Drag reads the cell's current velocity, which is why the sample takes it. Added alongside the
+    // other body forces, before vorticity and the projection clean the field up; the interior-only sweep leaves the
+    // borders to the bounds pass downstream, exactly as _nya_fluid_forces_add does.
+    if (fluid->forces != nullptr) {
+        fluid->force_time_s += step_s;
+
+        f32x3 origin      = fluid->options.origin;
+        f32   force_push  = fluid->force_influence * step_s;
+        u32   force_row_y = fluid->stride_x;
+        u32   force_row_z = fluid->stride_x * fluid->stride_y;
+
+        for (u32 k = 1; k <= fluid->depth; k++) {
+            for (u32 j = 1; j <= fluid->height; j++) {
+                u32 row = (k * force_row_z) + (j * force_row_y);
+
+                for (u32 i = 1; i <= fluid->width; i++) {
+                    u32 index = row + i;
+
+                    // interior cell (i, j, k) is centred on world origin + (i - 0.5, j - 0.5, k - 0.5) * cell_size;
+                    // see _nya_fluid_grid_position, which is this map inverted.
+                    f32x3 world = {
+                        origin.x + (((f32)i - 0.5F) * cell_size),
+                        origin.y + (((f32)j - 0.5F) * cell_size),
+                        origin.z + (((f32)k - 0.5F) * cell_size),
+                    };
+                    f32x3 velocity = { fluid->velocity_x[index], fluid->velocity_y[index], fluid->velocity_z[index] };
+
+                    f32x3 force = nya_forces_at(fluid->forces, world, velocity, fluid->force_time_s);
+
+                    fluid->velocity_x[index] += force.x * force_push;
+                    fluid->velocity_y[index] += force.y * force_push;
+                    fluid->velocity_z[index] += force.z * force_push;
+                }
+            }
+        }
+
+        _nya_fluid_bounds_set(fluid, fluid->velocity_x, _NYA_FLUID_BOUND_VELOCITY_X);
+        _nya_fluid_bounds_set(fluid, fluid->velocity_y, _NYA_FLUID_BOUND_VELOCITY_Y);
+        _nya_fluid_bounds_set(fluid, fluid->velocity_z, _NYA_FLUID_BOUND_VELOCITY_Z);
     }
 
     _nya_fluid_vorticity_add(fluid, step_s);
