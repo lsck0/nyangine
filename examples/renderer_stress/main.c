@@ -168,6 +168,16 @@ typedef struct {
 
     /** Screen-space reflections over the scene, from NYA_STRESS_SSR. Off by default, so the frame is unchanged. */
     b8            ssr_on;
+#if !OS_WASM
+    /**
+     * An opt-in GPU-compute particle field, from NYA_STRESS_COMPUTE. Positions and velocities live in a
+     * storage buffer a compute shader integrates each tick; a second compute pass gathers them into a texture
+     * drawn in the corner. Desktop only — WebGL2 has no compute stage. Null when off, or when the device (an
+     * offscreen or software one) has no compute, in which case the scene simply draws without it.
+     * */
+    NYA_GPUParticleField* compute_field;
+    b8                    compute_on;
+#endif
     b8            crt_on;
     b8            grade_on;
     b8            grayscale_on;
@@ -652,6 +662,14 @@ void stress_layer_on_create(NYA_Window* window) {
     systems_build();
     post_pipelines_ensure(window);
 
+#if !OS_WASM
+    // the opt-in GPU-compute particle field, built once (and again after a reload, which destroyed it). A
+    // null result — no compute on this device — is fine: step and draw ignore it and the scene is unchanged.
+    if (state->compute_on && state->compute_field == nullptr) {
+        state->compute_field = nya_gpu_particle_field_create(window, 1024, 192);
+    }
+#endif
+
     // the occlusion buffer is tens of kilobytes; it lives on the world's arena, cleared and refilled each frame.
     if (state->occlusion == nullptr) {
         state->occlusion = nya_arena_alloc(nya_world()->allocator, sizeof(NYA_OcclusionBuffer));
@@ -687,6 +705,12 @@ void stress_layer_on_destroy(NYA_Window* window) {
     nya_render3d_decals_set(window, (NYA_Render3DDecals){ 0 });
 
     nya_post_chain_destroy(&state->post);
+
+#if !OS_WASM
+    // the GPU-compute field's buffer, texture and pipelines. Null when it was never on, which destroy ignores.
+    nya_gpu_particle_field_destroy(window, state->compute_field);
+    state->compute_field = nullptr;
+#endif
 
     // the last frame's readings, so a headless timed run leaves the numbers in the log.
     const StressScale* sc = scale_of(state);
@@ -840,6 +864,12 @@ void stress_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_particles_update(state->dust, delta_time_s);
     nya_particles_update(state->sparks, delta_time_s);
     nya_particles_update(state->smoke, delta_time_s);
+
+#if !OS_WASM
+    // the GPU-compute field, once a tick, on its own command buffer. Ignored when off. The frame draws the
+    // texture it leaves behind; see stress_layer_on_render.
+    nya_gpu_particle_field_step(window, state->compute_field, delta_time_s);
+#endif
 
     // the simulated column over the fire.
     f32x3 fire = hearth();
@@ -1293,6 +1323,20 @@ void stress_layer_on_render(NYA_Window* window) {
                                  state->post_on ? "on" : "off", state->shadows_on ? "on" : "off",
                                  state->occlusion_on ? "on" : "off");
 
+#if !OS_WASM
+    // the GPU-compute field, drawn in the top-right corner over the flushed scene. The compute passes that
+    // filled this texture ran in on_update on a command buffer of their own; here it is just sampled. Ignored
+    // when the field is off or the device had no compute.
+    if (state->compute_field != nullptr) {
+        u32 target_width = 0, target_height = 0;
+        nya_render2d_target_size(window, &target_width, &target_height);
+
+        f32 size   = 192.0F;
+        f32 margin = 12.0F;
+        nya_gpu_particle_field_draw(window, state->compute_field, (f32)target_width - size - margin, margin, size, size);
+    }
+#endif
+
     // the engine's own overlay: the trace table, VRAM by kind and the fixed-capacity ceilings. This is the
     // instrumentation the task asks for — it names which resource is fullest, not just the frame time.
     nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){
@@ -1357,6 +1401,11 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     // screen-space reflections over the scene, for a headless SSR run. Off leaves the frame unchanged.
     state->ssr_on = getenv("NYA_STRESS_SSR") != nullptr;
+
+#if !OS_WASM
+    // the GPU-compute particle field, for a desktop or headless compute run. Off leaves the frame unchanged.
+    state->compute_on = getenv("NYA_STRESS_COMPUTE") != nullptr;
+#endif
 
     nya_world_user_data_set(state);
 
