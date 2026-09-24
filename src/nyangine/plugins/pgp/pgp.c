@@ -9,11 +9,7 @@
 #include "nyangine/os/os_random.h"
 #include "nyangine/plugins/pgp/pgp.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 
 /** What `gpg --version` said, asked once. */
 typedef struct {
@@ -27,11 +23,7 @@ NYA_INTERNAL _NYA_PgpState _NYA_PGP = { 0 };
 /** Bytes of the stderr gpg wrote that an error quotes back. Enough for its first sentence. */
 #define _NYA_PGP_MAX_DETAIL 256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /**
  * A directory of this call's own, under the system temporary directory, with a random name.
@@ -53,11 +45,7 @@ NYA_INTERNAL void _nya_pgp_wipe(NYA_ConstCString path);
 /** The first line of what gpg wrote to stderr, for an error message. Never more than one line. */
 NYA_INTERNAL void _nya_pgp_detail(const NYA_Command* command, OUT char* out_detail, u64 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 b8 nya_pgp_available(void) {
     if (_NYA_PGP.asked) return _NYA_PGP.available;
@@ -126,9 +114,7 @@ NYA_Error nya_pgp_encrypt(NYA_Arena* arena, NYA_ConstCString recipient_key, cons
     NYA_ConstCString plaintext_path  = nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s/message", home));
     NYA_ConstCString ciphertext_path = nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s/message.asc", home));
 
-    // The whole directory goes at the end of this call however it ends, and the plaintext is
-    // overwritten before it does: a one-time code in a temporary file is the one thing here worth
-    // more than the ciphertext.
+    // The whole directory goes however this ends, and the plaintext is overwritten first: a one-time code in a temporary file is worth more than the ciphertext.
     defer {
         _nya_pgp_wipe(plaintext_path);
         (void)nya_filesystem_delete_recursive(home);
@@ -147,12 +133,7 @@ NYA_Error nya_pgp_encrypt(NYA_Arena* arena, NYA_ConstCString recipient_key, cons
             // Its own home, so the server's keyring is neither read nor locked.
             "--homedir", home,
 
-            /*
-             * The key is used from the file rather than imported, so nothing about this machine
-             * changes when a user changes their key. `always` for the trust model because the caller
-             * decided to trust this key by storing it against an account; gpg's web of trust has
-             * nothing to say about a key a program was handed.
-             */
+            // Key used from the file, never imported, so a user changing their key changes nothing here; trust `always` because the caller already trusted it by storing it.
             "--recipient-file", key_path,
             "--trust-model", "always",
 
@@ -207,8 +188,7 @@ NYA_Error nya_pgp_fingerprint(NYA_Arena* arena, NYA_ConstCString recipient_key, 
             "--batch", "--no-tty",
             "--homedir", home,
 
-            // The machine readable listing, because the human one is formatted for a terminal and has
-            // been reformatted before.
+            // The machine-readable listing; the human one is formatted for a terminal and gets reformatted.
             "--with-colons", "--with-fingerprint",
             "--show-keys", key_path,
             nullptr,
@@ -227,11 +207,7 @@ NYA_Error nya_pgp_fingerprint(NYA_Arena* arena, NYA_ConstCString recipient_key, 
         return nya_error(NYA_ERROR_PARSE, "gpg does not read that as a public key: %s", detail);
     }
 
-    /*
-     * The colon listing is one record per line and the first field says which. `fpr` carries the
-     * fingerprint in its tenth field, and the first `fpr` after the first `pub` is the primary key's
-     * — which is the one a person recognises and the one to store.
-     */
+    // The colon listing is one record per line; `fpr` carries the fingerprint in its tenth field, and the first one is the primary key's, which is what to store.
     NYA_ConstCString text = nya_string_to_cstring(arena, command.stdout_content);
 
     for (u64 index = 0; text[index] != '\0';) {
@@ -265,11 +241,7 @@ NYA_Error nya_pgp_fingerprint(NYA_Arena* arena, NYA_ConstCString recipient_key, 
     return nya_error(NYA_ERROR_PARSE, "gpg read that key but reported no fingerprint for it");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_pgp_workspace(NYA_Arena* arena, NYA_String** out_path) {
     NYA_String* temporary = nullptr;
@@ -336,11 +308,7 @@ void _nya_pgp_wipe(NYA_ConstCString path) {
 
     defer nya_file_close(&file);
 
-    /*
-     * One pass of zeroes. This is not an attempt to defeat a filesystem that copies blocks around; it
-     * is so that the bytes are not simply still there in a file somebody forgot to delete, which is
-     * the failure that actually happens.
-     */
+    // One pass of zeroes: not to defeat a block-copying filesystem, but so the bytes are not left in a file somebody forgot to delete, which is the real failure.
     u8 zeroes[256] = { 0 };
 
     for (u64 written = 0; written < size; written += sizeof(zeroes)) {
@@ -360,11 +328,7 @@ void _nya_pgp_detail(const NYA_Command* command, char* out_detail, u64 capacity)
         return;
     }
 
-    /*
-     * gpg's last line is the one that says what went wrong; everything before it is the reading of
-     * the key that led there. Taken whole and bounded rather than searched for a known phrase, since
-     * those are translated.
-     */
+    // gpg's last line says what went wrong; taken whole and bounded rather than searched for a phrase, since those are translated.
     NYA_ConstCString text = (NYA_ConstCString)command->stderr_content->items;
     u64              size = command->stderr_content->length;
 
