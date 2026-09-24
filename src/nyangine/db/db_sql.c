@@ -337,11 +337,14 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
              * Blobs come back base64 encoded rather than as bytes.
              */
             case SQLITE_BLOB: {
+                // sqlite3_column_blob returns null for a zero-length blob, which is a real value a
+                // caller can store, so a non-null empty pointer stands in for it: the encoder wants
+                // bytes to point at, and an empty blob encodes to an empty string, not a crash.
                 const u8* data = sqlite3_column_blob(statement, i);
                 int       size = sqlite3_column_bytes(statement, i);
 
                 NYA_String* encoded = nya_string_create(arena);
-                nya_base64_encode(encoded, data, (u64)(size > 0 ? size : 0));
+                nya_base64_encode(encoded, data != nullptr ? data : (const u8*)"", (u64)(size > 0 ? size : 0));
                 nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, encoded) });
             } break;
 
