@@ -66,6 +66,25 @@ typedef struct {
 
     /** The gain propagation is applying, so it can be folded out again. */
     f32 propagation_gain;
+
+    /**
+     * The stereo panner placing this voice, when it is on. See core_audio_panner.h and
+     * nya_audio_panner_set_enabled. The render state is the mixer thread's alone once playing.
+     * */
+    NYA_AudioPanRender pan_render;
+
+    /*
+     * Written by the game, read by the mixer, relaxed on both sides like the filter's pair: the source
+     * azimuth and whether the panner is the one placing this voice.
+     */
+    atomic f32 pan_azimuth;
+    atomic b8  pan_active;
+
+    /**
+     * Distance attenuation the panner path applies in place of the mixer's, since taking over the pan also
+     * takes over MIX_SetTrack3DPosition's falloff. One when the panner is off, so the mixer's own applies.
+     * */
+    f32 spatial_gain;
 } NYA_AudioVoice;
 
 /*
@@ -119,6 +138,15 @@ struct NYA_AudioSystem {
 
     /** Which of the two music slots is "the music". */
     u32 music_slot;
+
+    /**
+     * Whether positioned sounds are placed by our own stereo panner rather than SDL_mixer's. Off by default,
+     * so a game that never asks for it hears exactly what it did. See nya_audio_panner_set_enabled.
+     * */
+    b8 panner_enabled;
+
+    /** The mixer device's channel count, read once at init. The panner engages only on a stereo device. */
+    s32 device_channels;
 
     f32 master_gain;
     f32 sound_gain;
@@ -175,6 +203,15 @@ NYA_INTERNAL f32x3 _nya_audio_world_to_audio_3d(f32x3 world_position) __attr_no_
  */
 NYA_INTERNAL void _nya_audio_track_set_pan(MIX_Track* track, f32 pan);
 NYA_INTERNAL void _nya_audio_track_set_position(MIX_Track* track, f32x3 position);
+
+/**
+ * Places a track at a listener-relative point: through our own panner when it is on and the device is stereo,
+ * otherwise through SDL_mixer's positioning. Takes the slot so it can arm the panner and fold in distance.
+ * */
+NYA_INTERNAL void _nya_audio_place_track(u32 slot, MIX_Track* track, f32x3 position);
+
+/** Takes a voice off the panner and drops its distance gain, for when SDL_mixer's own positioning takes over. */
+NYA_INTERNAL void _nya_audio_panner_disarm(NYA_AudioVoice* slot, u32 index);
 
 /** Frees every chain and its lines. Only once no callback can run. */
 NYA_INTERNAL void _nya_audio_lines_release(NYA_AudioSystem* system);
@@ -252,6 +289,11 @@ NYA_Error nya_system_audio_init(void) {
         return NYA_OK;
     }
 
+    // the device's channel count, so the panner can bow out on anything but a stereo pair. A failed query
+    // leaves it zero, which the panner reads as "not stereo".
+    SDL_AudioSpec device_spec = { 0 };
+    if (MIX_GetMixerFormat(mixer, &device_spec)) system->device_channels = device_spec.channels;
+
     // effect and music buses, so each has its own chain. master is the mixer, processed by the post-mix callback.
     for (u32 bus = 0; bus < NYA_AUDIO_BUS_COUNT; bus++) {
         if (bus == NYA_AUDIO_BUS_MASTER) continue;
@@ -284,8 +326,15 @@ NYA_Error nya_system_audio_init(void) {
 
         // one, not zero: it is a multiplier. see _nya_audio_apply_gain.
         system->slots[i].propagation_gain = 1.0F;
+        system->slots[i].spatial_gain     = 1.0F;
 
-        if (!MIX_SetTrackCookedCallback(system->slots[i].track, _nya_audio_track_mix_callback, &system->slots[i].filter)) {
+        // the panner starts off and open on every slot; positioned playback arms it per sound.
+        atomic_store_explicit(&system->slots[i].pan_active, false, memory_order_relaxed);
+        atomic_store_explicit(&system->slots[i].pan_azimuth, 0.0F, memory_order_relaxed);
+        nya_audio_pan_render_reset(&system->slots[i].pan_render);
+
+        // the whole voice, not just its filter: the cooked hook now runs the panner too. See the callback.
+        if (!MIX_SetTrackCookedCallback(system->slots[i].track, _nya_audio_track_mix_callback, &system->slots[i])) {
             return nya_error(NYA_ERROR_NOT_OK, "MIX_SetTrackCookedCallback() failed for slot %u: %s", i, SDL_GetError());
         }
     }
@@ -419,6 +468,12 @@ NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams pa
     system->slots[slot].positional       = false;
     system->slots[slot].radius           = nya_max(params.radius, 0.0F);
 
+    // the panner too: a reset here is safe because the track is stopped, so its cooked callback is not
+    // running and cannot be touching the render state.
+    system->slots[slot].spatial_gain = 1.0F;
+    atomic_store_explicit(&system->slots[slot].pan_active, false, memory_order_relaxed);
+    nya_audio_pan_render_reset(&system->slots[slot].pan_render);
+
     atomic_store_explicit(&system->slots[slot].filter.target_hz, 0.0F, memory_order_relaxed);
 
 
@@ -438,7 +493,7 @@ NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams pa
 
     // against the track, since the voice does not exist yet. placement wins over pan.
     if (position != nullptr) {
-        _nya_audio_track_set_position(track, *position);
+        _nya_audio_place_track(slot, track, *position);
     } else if (params.pan != 0.0F) {
         _nya_audio_track_set_pan(track, params.pan);
     }
@@ -493,6 +548,15 @@ void nya_audio_listener_3d_set(NYA_AudioListener3D listener) {
 
 NYA_AudioListener3D nya_audio_listener_3d_get(void) {
     return _nya_audio_system.listener_3d;
+}
+
+void nya_audio_panner_set_enabled(b8 enabled) {
+    // not guarded on `ready`: a game may set it before the device is up, and placement reads it live.
+    _nya_audio_system.panner_enabled = enabled;
+}
+
+b8 nya_audio_panner_enabled(void) {
+    return _nya_audio_system.panner_enabled;
 }
 
 void nya_audio_stop_sounds(void) {
@@ -677,12 +741,18 @@ void nya_audio_voice_set_pan(NYA_SoundVoice voice, f32 pan) {
     NYA_AudioVoice* slot = _nya_audio_resolve(voice);
     if (slot == nullptr) return;
 
+    // an explicit pan takes the voice off the panner, or the cooked hook would place it a second time.
+    _nya_audio_panner_disarm(slot, voice.index);
+
     _nya_audio_track_set_pan(slot->track, pan);
 }
 
 void nya_audio_voice_set_position(NYA_SoundVoice voice, f32x3 position) {
     NYA_AudioVoice* slot = _nya_audio_resolve(voice);
     if (slot == nullptr) return;
+
+    // the low-level 3D setter is SDL_mixer's own; take the voice off our panner so the two do not stack.
+    _nya_audio_panner_disarm(slot, voice.index);
 
     _nya_audio_track_set_position(slot->track, position);
 }
@@ -843,7 +913,7 @@ void _nya_audio_voice_place(u32 slot) {
 
     f32x3 heard = voice->planar ? _nya_audio_world_to_audio((f32x2){ position.x, position.y }) : _nya_audio_world_to_audio_3d(position);
 
-    _nya_audio_track_set_position(voice->track, heard);
+    _nya_audio_place_track(slot, voice->track, heard);
 }
 
 void _nya_audio_bus_publish(NYA_AudioBus bus) {
@@ -883,10 +953,11 @@ void _nya_audio_apply_gain(u32 slot) {
     // out.
     f32 category = slot >= NYA_AUDIO_VOICES ? system->music_gain : system->sound_gain;
 
-    /* Propagation is a fourth multiplier here. */
+    /* Propagation is a fourth multiplier here, and the panner's distance falloff a fifth. */
     f32 propagation = system->slots[slot].propagation_gain;
+    f32 spatial     = system->slots[slot].spatial_gain;
 
-    MIX_SetTrackGain(system->slots[slot].track, system->slots[slot].base_gain * category * system->master_gain * propagation);
+    MIX_SetTrackGain(system->slots[slot].track, system->slots[slot].base_gain * category * system->master_gain * propagation * spatial);
 }
 
 void _nya_audio_track_set_pan(MIX_Track* track, f32 pan) {
@@ -901,6 +972,43 @@ void _nya_audio_track_set_pan(MIX_Track* track, f32 pan) {
 void _nya_audio_track_set_position(MIX_Track* track, f32x3 position) {
     // overrides pan: SDL_mixer keeps only the latest.
     MIX_SetTrack3DPosition(track, &(MIX_Point3D){ .x = position[0], .y = position[1], .z = position[2] });
+}
+
+void _nya_audio_place_track(u32 slot, MIX_Track* track, f32x3 position) {
+    NYA_AudioSystem* system = &_nya_audio_system;
+    nya_assert(slot < _NYA_AUDIO_SLOTS);
+
+    // SDL_mixer's positioning unless our panner is on and the device is a stereo pair: the panner is a
+    // two-ear model and has nothing to say to a mono or surround layout.
+    if (!system->panner_enabled || system->device_channels != 2) {
+        _nya_audio_panner_disarm(&system->slots[slot], slot);
+        _nya_audio_track_set_position(track, position);
+        return;
+    }
+
+    // take SDL_mixer's own spatialisation off this track, so the cooked hook is the only thing panning it.
+    MIX_SetTrackStereo(track, nullptr);
+    MIX_SetTrack3DPosition(track, nullptr);
+
+    atomic_store_explicit(&system->slots[slot].pan_azimuth, nya_audio_pan_azimuth(position), memory_order_relaxed);
+    atomic_store_explicit(&system->slots[slot].pan_active, true, memory_order_relaxed);
+
+    // the panner owns falloff now, since MIX_SetTrack3DPosition is off. Inverse distance past the reference,
+    // where the world-to-audio scaling puts 1.0; nearer than that is full.
+    f32 distance                   = nya_vector_length(position);
+    system->slots[slot].spatial_gain = distance > 1.0F ? 1.0F / distance : 1.0F;
+
+    _nya_audio_apply_gain(slot);
+}
+
+void _nya_audio_panner_disarm(NYA_AudioVoice* slot, u32 index) {
+    atomic_store_explicit(&slot->pan_active, false, memory_order_relaxed);
+
+    // fold the distance gain back out, so a voice handed to SDL_mixer's positioning is not doubly quiet.
+    if (slot->spatial_gain != 1.0F) {
+        slot->spatial_gain = 1.0F;
+        _nya_audio_apply_gain(index);
+    }
 }
 
 f32x3 _nya_audio_world_to_audio(f32x2 world_position) {
@@ -1046,8 +1154,20 @@ void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SDL_AudioSpec* 
 void SDLCALL _nya_audio_track_mix_callback(void* userdata, MIX_Track* track, const SDL_AudioSpec* spec, float* pcm, int samples) {
     nya_unused(track);
 
-    /* The cooked hook, not the raw one. */
-    _nya_audio_filter_apply((NYA_AudioFilterState*)userdata, spec, pcm, samples);
+    /* The cooked hook, not the raw one: this is the decoded, unspatialised signal for one voice. */
+    NYA_AudioVoice* voice = (NYA_AudioVoice*)userdata;
+
+    // the panner first, placing the source in the stereo field, then the voice's own low pass over it. When
+    // the panner is off the buffer is whatever SDL_mixer's positioning left, and only the filter runs.
+    if (atomic_load_explicit(&voice->pan_active, memory_order_relaxed)) {
+        NYA_StereoPan pan = nya_audio_pan_compute((NYA_StereoPanParams){
+            .azimuth_radians = atomic_load_explicit(&voice->pan_azimuth, memory_order_relaxed),
+        });
+
+        nya_audio_pan_render(&voice->pan_render, (f32)spec->freq, spec->channels, pan, pcm, samples);
+    }
+
+    _nya_audio_filter_apply(&voice->filter, spec, pcm, samples);
 }
 
 void SDLCALL _nya_audio_group_mix_callback(void* userdata, MIX_Group* group, const SDL_AudioSpec* spec, float* pcm, int samples) {

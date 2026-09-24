@@ -327,6 +327,17 @@ NYA_API NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f3
  * */
 NYA_API NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle, f32x3 world_position, NYA_SoundParams params);
 
+/**
+ * Turns our own stereo panner on for positioned sounds. Off by default, where SDL_mixer places them as
+ * before. On, and on a stereo device, nya_audio_play_sound_at, nya_audio_play_sound_at_3d and the
+ * nya_audio_voice_set_world_position setters are placed by the panner instead: an interaural level and time
+ * difference and a head shadow, from the source's azimuth. See core_audio_panner.h for the model. The
+ * explicit nya_audio_voice_set_pan and nya_audio_voice_set_position stay SDL_mixer's, and a non-stereo
+ * device falls back to it too.
+ * */
+NYA_API void nya_audio_panner_set_enabled(b8 enabled);
+NYA_API b8   nya_audio_panner_enabled(void) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────
  * MUSIC

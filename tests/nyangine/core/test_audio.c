@@ -601,6 +601,39 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the stereo panner opt-in places positioned sounds through our own path
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // Off by default, so a game that never asks keeps SDL_mixer's positioning unchanged.
+    nya_check(!nya_audio_panner_enabled(), "the panner must be off until asked for");
+
+    nya_audio_panner_set_enabled(true);
+    nya_check(nya_audio_panner_enabled(), "the panner must read back on once enabled");
+
+    nya_audio_listener_set((NYA_AudioListener){ .position = { 0.0F, 0.0F }, .reference_distance = 1.0F, .plane = NYA_AUDIO_PLANE_SIDE });
+
+    // A positioned sound now takes the panner path. As with the rest of playback this only runs where there
+    // is a device; the panner math itself is covered device-free in test_audio_panner.
+    NYA_SoundVoice panned = nya_audio_play_sound_at(TEST_WAV_PATH, (f32x2){ 4.0F, 0.0F }, (NYA_SoundParams){ .gain = 1.0F });
+    if (panned.generation != 0) {
+      nya_assert(nya_audio_voice_valid(panned), "a panned sound must be a live voice");
+
+      // Moving it re-places it against the listener, re-arming the azimuth rather than a mixer 3D position.
+      nya_audio_voice_set_world_position(panned, (f32x2){ -4.0F, 0.0F });
+      nya_assert(nya_audio_voice_valid(panned), "moving a panned voice must not stop it");
+
+      // An explicit pan takes the voice back off the panner, and must not fall over doing so.
+      nya_audio_voice_set_pan(panned, 0.5F);
+      nya_assert(nya_audio_voice_valid(panned), "an explicit pan must leave the voice sounding");
+
+      nya_audio_voice_stop(panned, 0);
+    }
+
+    nya_audio_panner_set_enabled(false);
+    nya_check(!nya_audio_panner_enabled(), "the panner must read back off again");
+  }
+
   printf("PASSED: test_audio\n");
   return nya_check_failures() == 0 ? 0 : 1;
 }

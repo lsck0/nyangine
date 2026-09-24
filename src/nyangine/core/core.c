@@ -7,6 +7,8 @@
 #include "nyangine/core/core_config.c"
 // the chain before the system that owns one per bus, and propagation after it, since it steers its voices.
 #include "nyangine/core/core_audio_effects.c"
+// the pure panner primitive before the system that composes it onto a voice.
+#include "nyangine/core/core_audio_panner.c"
 #include "nyangine/core/core_audio.c"
 #include "nyangine/core/core_audio_propagation.c"
 #include "nyangine/core/core_callback.c"

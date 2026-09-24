@@ -6,6 +6,7 @@
 #include "nyangine/core/core_asset.h"
 #include "nyangine/core/core_audio.h"
 #include "nyangine/core/core_audio_effects.h"
+#include "nyangine/core/core_audio_panner.h"
 #include "nyangine/core/core_audio_propagation.h"
 #include "nyangine/core/core_callback.h"
 #include "nyangine/core/core_config.h"
