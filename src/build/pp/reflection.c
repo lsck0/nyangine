@@ -104,6 +104,20 @@ _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDec
 /** Walks one tree, sorted, and scans every header in it into `set`. */
 NYA_INTERNAL void _nya_reflect_scan_tree(_NYA_ReflectSet* set, NYA_ConstCString directory);
 
+/**
+ * Whether a type's source file sits in a module that names SDL, the renderer or core, and so whose
+ * reflection cannot compile without the SDL graph. Everything else under src/nyangine is the
+ * server-safe floor. See docs/layering-core-split.md: this is what routes a type's definition to
+ * reflection_engine.c (SDL-bound) or reflection_engine_server.c (compiled by a headless build too).
+ * */
+NYA_INTERNAL b8 _nya_reflect_is_sdl_bound(NYA_ConstCString source_file);
+
+/**
+ * Whether a server-safe type's struct is only in scope when the db module is on — its header sits
+ * behind NYA_MODULE_DB in nyangine.h — so its reflection has to sit behind the same flag.
+ * */
+NYA_INTERNAL b8 _nya_reflect_is_db_module(NYA_ConstCString source_file);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -118,7 +132,8 @@ void nya_reflection_generate(void) {
         nullptr,
     };
     NYA_ConstCString outputs[] = {
-        NYA_REFLECT_OUTPUT_ENGINE_HEADER, NYA_REFLECT_OUTPUT_ENGINE_SOURCE, NYA_REFLECT_OUTPUT_HEADER, NYA_REFLECT_OUTPUT_SOURCE, nullptr,
+        NYA_REFLECT_OUTPUT_ENGINE_HEADER, NYA_REFLECT_OUTPUT_ENGINE_SOURCE, NYA_REFLECT_OUTPUT_ENGINE_SERVER_SOURCE,
+        NYA_REFLECT_OUTPUT_HEADER,        NYA_REFLECT_OUTPUT_SOURCE,        nullptr,
     };
     if (nya_pp_is_current("generate_reflection", inputs, outputs)) return;
 
@@ -166,7 +181,51 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_HEADER, engine_header), "while writing the generated engine reflection header");
 
+    // ── the engine server source ────────────────────────────────────────────────────────────────
+    //
+    // The server-safe half: the builtins and every engine type in a module a headless build compiles.
+    // Included from nyangine.c inside the NYA_SERVER seam, so a server binary has these descriptions
+    // without ever compiling the SDL-bound half below. The builtins live here rather than in the SDL
+    // source because both a full build and a headless one need them and a definition in each would be a
+    // duplicate symbol; a full build compiles this file too (the seam is true whenever SDL is present),
+    // so it is the one place they are defined. See docs/layering-core-split.md.
+    NYA_String* server_source = nya_string_create(arena);
+
+    nya_string_extend(server_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
+    nya_string_extend(server_source, "#include \"nyangine/nyangine.h\"\n\n");
+    nya_string_extend(server_source, "#include \"genyarated/reflection_engine.h\"\n\n");
+    nya_string_extend(server_source,
+                      "/*\n"
+                      " * The server-safe engine reflections: the builtins and the annotated types in modules a\n"
+                      " * headless (NYA_NO_SDL + NYA_SERVER) build compiles. The SDL-bound ones are in\n"
+                      " * reflection_engine.c. Every size and offset is an expression, so the compiler already\n"
+                      " * compiling these structs computes the layout. See src/build/pp/reflection.h.\n"
+                      " */\n\n");
+
+    _nya_reflect_emit_builtins(server_source);
+
+    // The unguarded server-safe types first, then the db-module ones behind NYA_MODULE_DB — the same flag
+    // their headers sit behind in nyangine.h, so a headless build without db still compiles this file.
+    for (u32 i = 0; i < set.engine_type_count; i++) {
+        if (_nya_reflect_is_sdl_bound(set.types[i].source_file) || _nya_reflect_is_db_module(set.types[i].source_file)) continue;
+        _nya_reflect_emit_type(&set, server_source, &set.types[i], set.engine_type_count);
+    }
+
+    nya_string_extend(server_source, "#ifdef NYA_MODULE_DB\n\n");
+    for (u32 i = 0; i < set.engine_type_count; i++) {
+        if (_nya_reflect_is_sdl_bound(set.types[i].source_file) || !_nya_reflect_is_db_module(set.types[i].source_file)) continue;
+        _nya_reflect_emit_type(&set, server_source, &set.types[i], set.engine_type_count);
+    }
+    nya_string_extend(server_source, "#endif // NYA_MODULE_DB\n");
+
+    NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_SERVER_SOURCE, server_source), "while writing the generated server reflection source");
+
     // ── the engine source ───────────────────────────────────────────────────────────────────────
+    //
+    // The SDL-bound half: the type descriptions that need the renderer, core, ui or physics graph to
+    // compile, plus the NYA_REFLECT_ENGINE_TYPES table over *every* engine type. The table names the
+    // server-safe symbols too, which is why this file needs them linked — a full build always compiles
+    // reflection_engine_server.c beside it (with the db module on), so they resolve.
     NYA_String* engine_source = nya_string_create(arena);
 
     nya_string_extend(engine_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
@@ -178,13 +237,11 @@ void nya_reflection_generate(void) {
                       "/*\n"
                       " * Every size and offset below is an expression rather than a number, so the compiler that is\n"
                       " * already compiling these structs is what computes the layout. See src/build/pp/reflection.h.\n"
+                      " * The builtins and the server-safe types are in reflection_engine_server.c; see it.\n"
                       " */\n\n");
 
-    // Here rather than in the game's file: the primitives are shared by both, and a definition in each
-    // would be a duplicate symbol the moment the launcher compiles them into one translation unit.
-    _nya_reflect_emit_builtins(engine_source);
-
     for (u32 i = 0; i < set.engine_type_count; i++) {
+        if (!_nya_reflect_is_sdl_bound(set.types[i].source_file)) continue;
         _nya_reflect_emit_type(&set, engine_source, &set.types[i], set.engine_type_count);
     }
 
@@ -262,6 +319,18 @@ void nya_reflection_generate(void) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+b8 _nya_reflect_is_sdl_bound(NYA_ConstCString source_file) {
+    // A whitelist of the modules that name SDL, the renderer or core, checked against the type's source
+    // path. Everything else under src/nyangine is the server-safe floor. The leading and trailing slashes
+    // keep this from matching a substring of some longer name.
+    return strstr(source_file, "/core/") != nullptr || strstr(source_file, "/renderer/") != nullptr || strstr(source_file, "/ui/") != nullptr ||
+           strstr(source_file, "/physics/") != nullptr || strstr(source_file, "/debug/") != nullptr || strstr(source_file, "/replicate/") != nullptr;
+}
+
+b8 _nya_reflect_is_db_module(NYA_ConstCString source_file) {
+    return strstr(source_file, "/db/") != nullptr || strstr(source_file, "/accounts/") != nullptr;
+}
 
 s32 _nya_reflect_compare_paths(const NYA_String* a, const NYA_String* b) {
     u64 shortest = a->length < b->length ? a->length : b->length;

@@ -35,6 +35,13 @@
  * */
 #define NYA_REFLECT_OUTPUT_ENGINE_HEADER "./src/genyarated/reflection_engine.h"
 #define NYA_REFLECT_OUTPUT_ENGINE_SOURCE "./src/genyarated/reflection_engine.c"
+// The server-safe half of the engine reflections: the builtins and every annotated type that lives in a
+// module a headless build compiles (base, math, serde, net, http, db, accounts and their neighbours),
+// split out of reflection_engine.c so a NYA_SERVER build has its type descriptions without compiling the
+// SDL-bound half. The SDL-bound definitions (core, renderer, ui, physics, debug, replicate) stay in
+// reflection_engine.c. See docs/layering-core-split.md, steps 6–7 — this is the reflection table coming
+// off the wall for the server types ahead of the full per-component refactor.
+#define NYA_REFLECT_OUTPUT_ENGINE_SERVER_SOURCE "./src/genyarated/reflection_engine_server.c"
 #define NYA_REFLECT_OUTPUT_HEADER        "./src/genyarated/reflection.h"
 #define NYA_REFLECT_OUTPUT_SOURCE        "./src/genyarated/reflection.c"
 
