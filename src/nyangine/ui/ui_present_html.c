@@ -49,6 +49,19 @@ NYA_INTERNAL NYA_Color _nya_ui_html_button_color(const NYA_UIStateColors* colors
 /** Appends `;<prop>:rgba(...)` from a colour, unless it is the zeroed "use the style default" one, which the stylesheet then answers — the same bargain the GPU backend makes with an all-zero colour. */
 NYA_INTERNAL void _nya_ui_html_style_color(NYA_UIHtml* html, NYA_ConstCString prop, NYA_Color color);
 
+/**
+ * Renders the social-media embedding metadata in `meta` as the `<head>` block, into `out`, null terminated.
+ * Every value is escaped through _nya_ui_html_escape and every URL is gated by nya_ui_page_meta_url_ok.
+ * */
+NYA_INTERNAL void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u32 capacity);
+
+/**
+ * Appends one `<meta attr="key" content="value">` to `scratch`, with `value` escaped. `attr` ("name" or
+ * "property") and `key` are this file's own literals; only `value` is a caller's text, so only it is escaped.
+ * A null or empty `value` writes nothing, which is how a field's absence becomes a missing tag.
+ * */
+NYA_INTERNAL void _nya_ui_html_meta_tag(NYA_UIHtml* scratch, NYA_ConstCString attr, NYA_ConstCString key, NYA_ConstCString value);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LIFETIME
@@ -158,13 +171,15 @@ b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, NYA_UIWidgetKind* out_kind
  * ships. The stylesheet colours each widget kind by class; the script forwards a click or an input on
  * anything carrying `data-nya` to the server and swaps whatever HTML comes back into the surface.
  *
- * `%s` twice: the title, escaped, and the body's elements.
+ * `%s` four times: the title (escaped), the social-media embedding metadata block (each field escaped, or
+ * empty), the body's elements, and the script's nonce attribute.
  */
 NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "<!doctype html>\n"
     "<html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
     "<title>%s</title>\n"
     "<link rel=\"icon\" href=\"data:,\">\n"
+    "%s"
     "<style>\n"
     "  :root{--bg:#14161c;--panel:#1c2029;--ink:#d8dbe2;--dim:#9498a2;--accent:#5a7cff;--line:#2a2f3a}\n"
     "  html,body{margin:0;height:100%%;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}\n"
@@ -219,6 +234,11 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "</script></body></html>\n";
 
 u32 nya_ui_html_document(const NYA_UIHtml* html, char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce) {
+    return nya_ui_html_document_meta(html, out, capacity, title, script_nonce, nullptr);
+}
+
+u32 nya_ui_html_document_meta(const NYA_UIHtml* html, char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce,
+                              const NYA_PageMeta* meta) {
     nya_assert(html != nullptr && out != nullptr && capacity > 0);
 
     // The nonce as the attribute it becomes, or nothing. It is this server's own random value, not user
@@ -236,7 +256,12 @@ u32 nya_ui_html_document(const NYA_UIHtml* html, char* out, u32 capacity, NYA_Co
         (void)snprintf(safe_title, sizeof(safe_title), "%.*s", (s32)nya_min(scratch.used, (u32)(sizeof(safe_title) - 1)), scratch.body);
     }
 
-    s32 written = snprintf(out, capacity, _NYA_UI_HTML_PAGE, safe_title, html->body, nonce_attr);
+    // The embedding metadata as its block of `<meta>`/`<link>` tags, each field escaped, or the empty string
+    // when there is no metadata — which is what keeps the default page byte-for-byte unchanged.
+    char meta_head[NYA_PAGE_META_HEAD_MAX] = { 0 };
+    if (meta != nullptr) _nya_ui_html_meta_head(meta, meta_head, sizeof(meta_head));
+
+    s32 written = snprintf(out, capacity, _NYA_UI_HTML_PAGE, safe_title, meta_head, html->body, nonce_attr);
 
     if (written <= 0) {
         out[0] = '\0';
@@ -636,4 +661,138 @@ void _nya_ui_html_escape(NYA_UIHtml* html, NYA_ConstCString text) {
             }
         }
     }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PAGE METADATA — the tags a link unfurls with
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+void _nya_ui_html_meta_tag(NYA_UIHtml* scratch, NYA_ConstCString attr, NYA_ConstCString key, NYA_ConstCString value) {
+    if (value == nullptr || value[0] == '\0') return;
+
+    // `attr` and `key` are literals from _nya_ui_html_meta_head; `value` is the caller's field, so only it
+    // goes through the escaper — which turns `"` into `&quot;`, so no value can close the attribute early.
+    _nya_ui_html_put(scratch, "<meta ");
+    _nya_ui_html_put(scratch, attr);
+    _nya_ui_html_put(scratch, "=\"");
+    _nya_ui_html_put(scratch, key);
+    _nya_ui_html_put(scratch, "\" content=\"");
+    _nya_ui_html_escape(scratch, value);
+    _nya_ui_html_put(scratch, "\">\n");
+}
+
+void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u32 capacity) {
+    nya_assert(meta != nullptr && out != nullptr && capacity > 0);
+
+    out[0] = '\0';
+
+    // The same escaper the body uses, into a scratch presenter, so the metadata and a label are escaped by
+    // one rule; the block is copied out of it below. A field left null simply skips its tag.
+    NYA_UIHtml scratch = { 0 };
+
+    // A URL only reaches the head once it is a well-formed http(s) URL, so a `javascript:` or `data:` URL
+    // never lands in an href. The three URL fields share the gate.
+    NYA_ConstCString url   = nya_ui_page_meta_url_ok(meta->canonical_url) ? meta->canonical_url : nullptr;
+    NYA_ConstCString image = nya_ui_page_meta_url_ok(meta->image_url) ? meta->image_url : nullptr;
+
+    // The standard description, which is not OpenGraph but every crawler reads.
+    _nya_ui_html_meta_tag(&scratch, "name", "description", meta->description);
+
+    // OpenGraph: the vocabulary Facebook, LinkedIn, Slack, Discord and most everything else unfurl from.
+    _nya_ui_html_meta_tag(&scratch, "property", "og:title", meta->title);
+    _nya_ui_html_meta_tag(&scratch, "property", "og:description", meta->description);
+    _nya_ui_html_meta_tag(&scratch, "property", "og:type", meta->type);
+    _nya_ui_html_meta_tag(&scratch, "property", "og:url", url);
+    _nya_ui_html_meta_tag(&scratch, "property", "og:image", image);
+    // An image's alt text is meaningless without the image, so it rides along only when the image was emitted.
+    if (image != nullptr) _nya_ui_html_meta_tag(&scratch, "property", "og:image:alt", meta->image_alt);
+    _nya_ui_html_meta_tag(&scratch, "property", "og:site_name", meta->site_name);
+    _nya_ui_html_meta_tag(&scratch, "property", "og:locale", meta->locale);
+
+    // Twitter Card: only when a card is chosen, since the `twitter:card` tag is what turns the rest on. The
+    // title, description and image mirror the OpenGraph ones, so a page fills them once.
+    if (meta->twitter_card != NYA_TWITTER_CARD_NONE) {
+        NYA_ConstCString card = meta->twitter_card == NYA_TWITTER_CARD_SUMMARY_LARGE_IMAGE ? "summary_large_image" : "summary";
+
+        _nya_ui_html_meta_tag(&scratch, "name", "twitter:card", card);
+        _nya_ui_html_meta_tag(&scratch, "name", "twitter:title", meta->title);
+        _nya_ui_html_meta_tag(&scratch, "name", "twitter:description", meta->description);
+        _nya_ui_html_meta_tag(&scratch, "name", "twitter:image", image);
+    }
+
+    // The oEmbed discovery link a consumer follows to fetch structured metadata as JSON. Its href is a URL,
+    // so it passes the same gate and is escaped like every other value.
+    if (nya_ui_page_meta_url_ok(meta->oembed_url)) {
+        _nya_ui_html_put(&scratch, "<link rel=\"alternate\" type=\"application/json+oembed\" href=\"");
+        _nya_ui_html_escape(&scratch, meta->oembed_url);
+        _nya_ui_html_put(&scratch, "\"");
+        if (meta->title != nullptr && meta->title[0] != '\0') {
+            _nya_ui_html_put(&scratch, " title=\"");
+            _nya_ui_html_escape(&scratch, meta->title);
+            _nya_ui_html_put(&scratch, "\"");
+        }
+        _nya_ui_html_put(&scratch, ">\n");
+    }
+
+    (void)snprintf(out, capacity, "%.*s", (s32)nya_min(scratch.used, capacity - 1), scratch.body);
+}
+
+b8 nya_ui_page_meta_url_ok(NYA_ConstCString url) {
+    if (url == nullptr || url[0] == '\0') return false;
+
+    // nya_url_parse only accepts the schemes this engine speaks — http, https, ws, wss — so `javascript:`
+    // and `data:` are refused for free; here we narrow that to the two an unfurled link may point a browser
+    // at. A `ws(s):` endpoint is a real URL but not one a preview image or a canonical page is served over.
+    NYA_Url        parsed  = { 0 };
+    NYA_UrlFailure failure = { 0 };
+    if (!nya_url_parse(url, strlen(url), &parsed, &failure).ok) return false;
+
+    return parsed.scheme == NYA_URL_SCHEME_HTTP || parsed.scheme == NYA_URL_SCHEME_HTTPS;
+}
+
+/** A field copied into `arena`, null terminated and truncated to NYA_PAGE_META_FIELD_MAX, so the oEmbed JSON
+ *  it becomes is bounded. Null or empty gives null, which the caller reads as "no such member". */
+NYA_INTERNAL NYA_ConstCString _nya_ui_page_meta_field(NYA_Arena* arena, NYA_ConstCString value) {
+    if (value == nullptr || value[0] == '\0') return nullptr;
+
+    u32   length = (u32)nya_min((u64)strlen(value), (u64)NYA_PAGE_META_FIELD_MAX);
+    char* copy   = nya_arena_alloc(arena, length + 1);
+    if (copy == nullptr) return nullptr;
+
+    nya_memcpy(copy, value, length);
+    copy[length] = '\0';
+
+    return copy;
+}
+
+NYA_Error nya_ui_page_meta_oembed(NYA_Arena* arena, const NYA_PageMeta* meta, NYA_Object** out_object) {
+    nya_assert(arena != nullptr && meta != nullptr && out_object != nullptr);
+
+    *out_object = nullptr;
+
+    NYA_Object* object = nya_object_create(arena);
+    if (object == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the oEmbed document");
+
+    // The two members every oEmbed 1.0 response carries. A generic page is a "link"; the richer types
+    // (photo, video, rich) carry a player this metadata does not describe.
+    nya_object_add(object, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "1.0" });
+    nya_object_add(object, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "link" });
+
+    // The rest are the fields the value actually holds, each bounded, each skipped when unset — the same
+    // "only when set" the head follows. The serializer JSON-escapes every value on the way out.
+    NYA_ConstCString title    = _nya_ui_page_meta_field(arena, meta->title);
+    NYA_ConstCString provider = _nya_ui_page_meta_field(arena, meta->site_name);
+    NYA_ConstCString author   = _nya_ui_page_meta_field(arena, meta->author_name);
+    NYA_ConstCString thumb    = nya_ui_page_meta_url_ok(meta->image_url) ? _nya_ui_page_meta_field(arena, meta->image_url) : nullptr;
+
+    if (title != nullptr) nya_object_add(object, "title", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)title });
+    if (provider != nullptr) nya_object_add(object, "provider_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)provider });
+    if (author != nullptr) nya_object_add(object, "author_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)author });
+    if (thumb != nullptr) nya_object_add(object, "thumbnail_url", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)thumb });
+
+    *out_object = object;
+
+    return NYA_OK;
 }

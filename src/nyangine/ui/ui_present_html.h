@@ -69,7 +69,9 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_object.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_shapes.h"
 #include "nyangine/math/math_vector.h"
@@ -93,6 +95,26 @@
 
 /** The default metric, in pixels: a monospace cell, so a measurement here matches the terminal's grid. */
 #define NYA_UI_HTML_CELL ((f32x2){ 8.0F, 18.0F })
+
+/**
+ * Bytes one page-metadata value may render to in the `<head>`, terminator included.
+ *
+ * A dozen short tags, each an escaped field of the value — generous for that and small enough to build on
+ * the stack. A value whose escaped fields want more than this is truncated the way the body is.
+ * */
+#ifndef NYA_PAGE_META_HEAD_MAX
+#define NYA_PAGE_META_HEAD_MAX 4096
+#endif
+
+/**
+ * The longest a single metadata field is copied at when it becomes an oEmbed value.
+ *
+ * The head escaper already bounds what a field contributes there; this bounds the oEmbed JSON, so a caller
+ * that hands over a novel for a title answers a truncated one rather than an unbounded response body.
+ * */
+#ifndef NYA_PAGE_META_FIELD_MAX
+#define NYA_PAGE_META_FIELD_MAX 1024
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -150,6 +172,75 @@ struct NYA_UIHtml {
     /** The looks at each style depth, and which is in force, exactly as the recorder keeps them. */
     NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1];
     u32        depth;
+};
+
+typedef enum NYA_TwitterCard NYA_TwitterCard;
+typedef struct NYA_PageMeta  NYA_PageMeta;
+
+/**
+ * Which Twitter Card a link unfurls as, or none.
+ *
+ * `_NONE` (the zero) emits no `twitter:*` tag at all, so a zeroed NYA_PageMeta stays quiet; the two real
+ * cards are the ones a page without a player needs — a small thumbnail beside the text, or a large one above.
+ * */
+enum NYA_TwitterCard {
+    NYA_TWITTER_CARD_NONE = 0,
+    NYA_TWITTER_CARD_SUMMARY,
+    NYA_TWITTER_CARD_SUMMARY_LARGE_IMAGE,
+};
+
+/**
+ * The metadata a link unfurls with: the title, blurb and image a social network or a chat app shows when
+ * someone pastes a URL this server answers. It is threaded into the SSR `<head>` as OpenGraph, Twitter Card
+ * and a standard description, and it is what the oEmbed endpoint answers from.
+ *
+ * Every field is optional and a zeroed value emits nothing new — the default page is unchanged — so a caller
+ * fills only what it has. A tag is emitted only when its field is set; see nya_ui_html_document_meta.
+ *
+ * ── security ──
+ *
+ * Every field is escaped for the attribute context of the head (the same escaper a label goes through, `"`
+ * included) and JSON-escaped for oEmbed, so nothing here can break out of a tag or a string. A URL field —
+ * `canonical_url`, `image_url`, `oembed_url` — is validated as an http(s) URL and dropped otherwise, so a
+ * `javascript:` or `data:` URL never reaches `og:url`, `og:image` or the discovery link. See
+ * nya_ui_page_meta_url_ok.
+ * */
+struct NYA_PageMeta {
+    /** The page's title, for `og:title` and `twitter:title`. The `<title>` element is set separately. */
+    NYA_ConstCString title;
+
+    /** A sentence about the page, for `<meta name="description">`, `og:description` and `twitter:description`. */
+    NYA_ConstCString description;
+
+    /** The canonical http(s) URL of the page, for `og:url`. Dropped when it is not an http(s) URL. */
+    NYA_ConstCString canonical_url;
+
+    /** An http(s) URL of the preview image, for `og:image` and `twitter:image`. Dropped when not http(s). */
+    NYA_ConstCString image_url;
+
+    /** Alternative text for the image, for `og:image:alt`. Only emitted when the image URL is. */
+    NYA_ConstCString image_alt;
+
+    /** The site's name, for `og:site_name` and the oEmbed `provider_name`. */
+    NYA_ConstCString site_name;
+
+    /** The author's name, for the oEmbed `author_name`. */
+    NYA_ConstCString author_name;
+
+    /** The OpenGraph object type, for `og:type`: "website", "article", "video.other", … . */
+    NYA_ConstCString type;
+
+    /** Which Twitter Card to unfurl as; NYA_TWITTER_CARD_NONE emits no `twitter:*` tag. */
+    NYA_TwitterCard twitter_card;
+
+    /** The locale, for `og:locale`: "en_US", "de_DE", … . */
+    NYA_ConstCString locale;
+
+    /**
+     * The http(s) URL of this page's oEmbed endpoint, for the `<link rel="alternate" type="application/json
+     * +oembed">` a consumer follows to fetch structured metadata. Dropped when it is not an http(s) URL.
+     * */
+    NYA_ConstCString oembed_url;
 };
 
 /*
@@ -211,3 +302,39 @@ NYA_API b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, OUT NYA_UIWidgetKi
  * nya_ui_html_body is what every later patch sends.
  * */
 NYA_API u32 nya_ui_html_document(const NYA_UIHtml* html, OUT char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce);
+
+/**
+ * nya_ui_html_document, plus the social-media embedding metadata in `meta` woven into the `<head>`.
+ *
+ * The same page, with a standard `<meta name="description">`, the OpenGraph tags (`og:title`,
+ * `og:description`, `og:type`, `og:url`, `og:image`, `og:image:alt`, `og:site_name`, `og:locale`), the
+ * Twitter Card tags (`twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`), and — when
+ * `meta->oembed_url` is set — the `<link rel="alternate" type="application/json+oembed">` discovery tag a
+ * consumer follows to the oEmbed endpoint. So a link to this page unfurls with a title, blurb and image.
+ *
+ * A tag is emitted only when its field is set, and a null or zeroed `meta` emits nothing new, so this is a
+ * drop-in for nya_ui_html_document that a page opts into by filling the value. Every field is escaped for
+ * the head's attribute context and every URL field is validated as http(s); see NYA_PageMeta. The existing
+ * `<title>` still comes from `title`, escaped, unchanged.
+ * */
+NYA_API u32 nya_ui_html_document_meta(const NYA_UIHtml* html, OUT char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce,
+                                      const NYA_PageMeta* meta);
+
+/**
+ * Whether `url` is a URL safe to place in `href`/`src`: a well-formed absolute http(s) URL and nothing else.
+ *
+ * False for null, empty, a `javascript:` or `data:` URL, a `ws(s):` one, or anything nya_url_parse refuses.
+ * This is the gate every URL field passes before it reaches the head or the oEmbed response.
+ * */
+NYA_API b8 nya_ui_page_meta_url_ok(NYA_ConstCString url) __attr_no_discard;
+
+/**
+ * Builds the oEmbed response document for `meta` into `*out_object`, allocated from `arena`.
+ *
+ * A "link"-type oEmbed 1.0 object — `version`, `type`, `title`, `provider_name` (from `site_name`),
+ * `author_name`, and `thumbnail_url` (from `image_url`, only when it is a valid http(s) URL). Each field is
+ * bounded to NYA_PAGE_META_FIELD_MAX so the rendered JSON is bounded; the serializer escapes every value, so
+ * this is what an `/oembed?url=…` handler renders with nya_http_response_json. Never fails on a zeroed
+ * `meta`: `version` and `type` are always present, which is the minimum a valid oEmbed response carries.
+ * */
+NYA_API NYA_Error nya_ui_page_meta_oembed(NYA_Arena* arena, const NYA_PageMeta* meta, OUT NYA_Object** out_object) __attr_no_discard;
