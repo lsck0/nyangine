@@ -18,6 +18,12 @@ static void key(NYA_Keycode keycode, b8 down) {
     nya_system_input_handle_event(&event);
 }
 
+/** A key with modifiers held, the way ctrl+A reaches the field: the flags travel on the event itself. */
+static void key_mod(NYA_Keycode keycode, b8 down, NYA_KeyModFlag modifiers) {
+    NYA_Event event = { .type = down ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP, .as_key_event = { .is_down = down, .key = keycode, .modifier_flags = modifiers } };
+    nya_system_input_handle_event(&event);
+}
+
 static void tap(NYA_Keycode keycode) {
     key(keycode, true);
     key(keycode, false);
@@ -240,6 +246,37 @@ s32 main(void) {
         (void)form(true);
         nya_ui_focus_reset(&window);
         nya_check(!nya_ui_typing(&window), "and so does a focus reset");
+    }
+
+    // ── The write-back the SSR server drives: focus with a click, select the whole line, then type the
+    //    value over it — which replaces the buffer rather than appending — and an empty value deletes it.
+    {
+        f32x2 field = { FIELD.x + 200.0F, FIELD.y + 20.0F };
+
+        nya_ui_focus_reset(&window);
+        (void)snprintf(name, sizeof(name), "old");
+
+        // focus, then select the whole line.
+        click_at(field);
+        (void)form(true);
+        nya_check(nya_ui_typing(&window), "the click focuses the field");
+
+        key_mod(NYA_KEY_A, true, NYA_KEYMOD_CTRL);
+        (void)form(true);
+
+        // release ctrl and type: the selection is replaced, so the buffer becomes exactly what was typed.
+        key_mod(NYA_KEY_A, false, NYA_KEYMOD_NONE);
+        type("new");
+        (void)form(true);
+        nya_check(nya_string_equals(name, "new"), "select-all then type replaces the whole field, got '%s'", name);
+
+        // an empty value: select all and delete, which clears the field.
+        key_mod(NYA_KEY_A, true, NYA_KEYMOD_CTRL);
+        (void)form(true);
+        key_mod(NYA_KEY_A, false, NYA_KEYMOD_NONE);
+        tap(NYA_KEY_DELETE);
+        (void)form(true);
+        nya_check(name[0] == '\0', "select-all then delete clears the field, got '%s'", name);
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

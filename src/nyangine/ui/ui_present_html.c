@@ -178,8 +178,8 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "  .nya-button:hover,.nya-selectable:hover{border-color:var(--accent)}\n"
     "  .nya-selectable[data-on=\"1\"],.nya-toggle[data-on=\"1\"]{background:var(--accent);color:#fff;border-color:var(--accent)}\n"
     "  .nya-toggle,.nya-radio{cursor:pointer;border:1px solid var(--line);border-radius:5px;background:#262b36;display:flex;align-items:center;justify-content:center}\n"
-    "  .nya-field input{width:100%%;height:100%%;background:#0f1116;color:var(--ink);border:1px solid var(--line);border-radius:5px;font:inherit;padding:0 6px;box-sizing:border-box}\n"
-    "  .nya-slider input{width:100%%}\n"
+    "  .nya-field input{width:100%%;height:100%%;background:var(--nya-track,#0f1116);color:var(--ink);border:1px solid var(--line);border-radius:var(--nya-radius,5px);font:inherit;padding:0 var(--nya-pad,6px);box-sizing:border-box}\n"
+    "  .nya-slider input{width:100%%;accent-color:var(--nya-accent,var(--accent))}\n"
     "  .nya-scrim{background:rgba(0,0,0,.5)}\n"
     "  .nya-rule,.nya-underline{background:var(--line)}\n"
     "  .nya-underline{background:var(--accent)}\n"
@@ -211,7 +211,10 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "        if(html)morph(html);});\n"
     "  }\n"
     "  surface.addEventListener('click',function(e){var t=e.target.closest('[data-nya]');if(t&&t.dataset.nya==='click')send(t.id,'click',null);});\n"
-    "  surface.addEventListener('input',function(e){var t=e.target.closest('[data-nya]');if(t&&t.dataset.nya)send(t.id,'input',e.target.value);});\n"
+    // A value change on a slider or a field: the event name is the element's own data-nya — 'input' for the
+    // range, 'text' for the field — and the id sent is the widget's, the nearest ancestor carrying one, since
+    // the <input> itself has none. The value is capped so no field can post an unbounded body to the server.
+    "  surface.addEventListener('input',function(e){var t=e.target.closest('[data-nya]');if(!t)return;var host=t.closest('[id]');if(!host)return;var v=e.target.value;if(v!=null&&v.length>4096)v=v.slice(0,4096);send(host.id,t.dataset.nya,v);});\n"
     "})();\n"
     "</script></body></html>\n";
 
@@ -367,7 +370,28 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     switch (widget->kind) {
         case NYA_UI_WIDGET_PANEL:
             _nya_ui_html_style_color(html, "background", style->panel);
+            // The ink is the colour of the outline the GPU draws around a panel; here it is the border's.
+            _nya_ui_html_style_color(html, "border-color", style->ink);
             if (look->radius > 0.0F) _nya_ui_html_putf(html, ";border-radius:%dpx", (s32)look->radius);
+            break;
+
+        // The dim sheet over the surface behind a modal: the style's own scrim colour, falling through to
+        // the stylesheet's default the same way every other colour does.
+        case NYA_UI_WIDGET_SCRIM: _nya_ui_html_style_color(html, "background", style->scrim); break;
+
+        // The value widgets paint through their own inner <input>, which no fill on this <div> would reach.
+        // Their look travels as inherited CSS custom properties instead — the stylesheet reads them off the
+        // input with the fixed sheet as the fallback — so a custom track, accent, radius or padding shows on
+        // the field and slider the way it does natively. A zeroed colour writes nothing and the default stands.
+        case NYA_UI_WIDGET_FIELD:
+            _nya_ui_html_style_color(html, "--nya-track", style->track);
+            if (look->radius > 0.0F) _nya_ui_html_putf(html, ";--nya-radius:%dpx", (s32)look->radius);
+            if (look->padding > 0.0F) _nya_ui_html_putf(html, ";--nya-pad:%dpx", (s32)roundf(look->padding * 0.5F));
+            break;
+
+        case NYA_UI_WIDGET_SLIDER:
+            _nya_ui_html_style_color(html, "--nya-accent", style->accent);
+            _nya_ui_html_style_color(html, "--nya-track", style->track);
             break;
 
         // The button family shares a body colour and a rounded border. A selectable or a toggle that is on
@@ -393,11 +417,9 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
         case NYA_UI_WIDGET_UNDERLINE: _nya_ui_html_style_color(html, "background", style->accent); break;
 
         // The rest keep the stylesheet's fill: a label and text follow the per-widget colour above, the
-        // scrim, rule and stripe are fixed sheets, and the value widgets draw through their own inputs.
-        case NYA_UI_WIDGET_SCRIM:
+        // rule and stripe are fixed sheets, and the field and slider carried their look as the custom
+        // properties above rather than a fill on the div.
         case NYA_UI_WIDGET_LABEL:
-        case NYA_UI_WIDGET_SLIDER:
-        case NYA_UI_WIDGET_FIELD:
         case NYA_UI_WIDGET_COLOR_PICKER:
         case NYA_UI_WIDGET_CHART:
         case NYA_UI_WIDGET_ICON:
@@ -466,9 +488,13 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
             break;
 
         case NYA_UI_WIDGET_FIELD:
-            _nya_ui_html_put(html, "<input type=\"text\" value=\"");
+            // A real text input. `data-nya="text"` marks it as a text write-back, the event the client
+            // posts as `{ id, event: "text", value }` — distinct from the slider's `"input"`, so a server
+            // knows to set the field's text rather than aim a pointer. `maxlength` bounds what a browser
+            // sends to the field's own capacity; the server truncates to the same, so neither can overrun.
+            _nya_ui_html_putf(html, "<input type=\"text\" maxlength=\"%d\" value=\"", (s32)(NYA_UI_TEXT_INPUT_MAX - 1));
             _nya_ui_html_escape(html, widget->as_field.field.buffer != nullptr ? widget->as_field.field.buffer : "");
-            _nya_ui_html_put(html, "\" data-nya=\"input\">");
+            _nya_ui_html_put(html, "\" data-nya=\"text\">");
             break;
 
         // The rest are marks and fills the stylesheet draws from the class and the rectangle alone: a

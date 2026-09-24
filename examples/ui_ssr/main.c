@@ -28,12 +28,18 @@
  *
  * ## What this demonstrates and what it does not
  *
- * It is click-driven: buttons and a toggle, which a synthetic pointer drives generically. Text fields
- * and sliders carry a value the client would send too, and wiring that back is the same idea with the
- * value set instead of a pointer synthesised; it is left out here to keep the loop one honest mechanism
- * rather than a table of special cases. There is also no diffing yet — the whole surface is replaced on
- * each event rather than the one element that changed — which a real deployment adds so a patch is a few
- * bytes; the ids are already stable for exactly that.
+ * A click on a button or a toggle is driven by a synthetic pointer, generically. A slider and a text
+ * field carry a value the client sends too, and that is wired the same way: the slider's value aims a
+ * drag along its track, and the field's value is typed into it over a select-all — both go in through
+ * the input system, so the component's own slider and field logic decide what the value means, not a
+ * special case per widget. There is no diffing yet — the whole surface is replaced on each event rather
+ * than the one element that changed — which a real deployment adds so a patch is a few bytes; the ids
+ * are already stable for exactly that.
+ *
+ * The value each session holds — the counter, the theme, the volume, the typed name — round-trips in the
+ * sealed cookie, so it is per browser. Focus and the caret are transient UI state the server process
+ * keeps for its one window, not per session; sharing them across browsers is the same limitation the
+ * slider's drag has, and does not affect the value, which is what the cookie carries.
  *
  * ## Security
  *
@@ -76,10 +82,11 @@ NYA_INTERNAL NYA_UIHtml HTML;
  * times over at twelve bytes.
  * */
 typedef struct {
-    s32 count;
-    u32 tab;
-    b8  dark;
-    f32 volume;
+    s32  count;
+    u32  tab;
+    b8   dark;
+    f32  volume;
+    char name[48];
 } AppState;
 
 /** The key the state cookie is sealed with, made at startup: a restart forgets every session, which for
@@ -123,6 +130,15 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
 
                 nya_ui_panel_end(ui);
             }
+
+            // a text field, driven live from the browser: what a person types there is sent as a "text"
+            // event, and the server writes it into this buffer through the field's own editing — the same
+            // path a keyboard drives. See handle_event.
+            (void)nya_ui_text_input(ui, "name", app->name, sizeof(app->name));
+
+            char hello[96] = { 0 };
+            (void)snprintf(hello, sizeof(hello), "hello, %s", app->name[0] != '\0' ? app->name : "stranger");
+            nya_ui_label(ui, hello);
         } else {
             (void)nya_ui_toggle(ui, "dark mode", &app->dark);
             nya_ui_label(ui, app->dark ? "the theme is dark" : "the theme is light");
@@ -239,6 +255,58 @@ NYA_INTERNAL void inject_click(f32 x, f32 y) {
     nya_system_input_handle_event(&up);
 }
 
+/** Presses or releases a key with the given modifiers, as a keyboard would. */
+NYA_INTERNAL void inject_key(NYA_Keycode key, b8 down, NYA_KeyModFlag modifiers) {
+    NYA_Event event = {
+        .type         = down ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP,
+        .as_key_event = { .window = WINDOW.handle, .is_down = down, .key = key, .modifier_flags = modifiers },
+    };
+    nya_system_input_handle_event(&event);
+}
+
+/** Commits typed text, as a keyboard or an IME would: the focused field inserts it at the caret. */
+NYA_INTERNAL void inject_text(NYA_ConstCString text) {
+    NYA_Event event = { .type = NYA_EVENT_TEXT_INPUT, .as_text_input_event = { .window = WINDOW.handle, .text = text } };
+    nya_system_input_handle_event(&event);
+}
+
+/** One input pass over the component with whatever has been injected, then the frame's end. Draws nothing. */
+NYA_INTERNAL void input_pass(AppState* app) {
+    component(&WINDOW, NYA_UI_PASS_INPUT, app);
+
+    NYA_Event ended = { .type = NYA_EVENT_UPDATING_ENDED };
+    _nya_system_event_on_update_ended_hook(&ended);
+}
+
+/**
+ * Sets the field under `box` to `value`, the string a browser sent, through the input system — the same
+ * idea as the slider, but text instead of a pointer. A click focuses the field, ctrl+A selects the whole
+ * line, and the typed value replaces the selection; an empty value deletes it, clearing the field. Each
+ * step is its own input frame, because focus and the caret only settle between passes, exactly as they do
+ * for a person. When it returns, the component's own editing has written `value` into the caller's buffer.
+ */
+NYA_INTERNAL void inject_field_text(AppState* app, NYA_Rectf box, NYA_ConstCString value) {
+    // focus: a click in the box starts the field editing.
+    inject_click(box.x + (box.width * 0.5F), box.y + (box.height * 0.5F));
+    input_pass(app);
+
+    // select the whole line, so the value replaces the text rather than inserting into it.
+    inject_key(NYA_KEY_A, true, NYA_KEYMOD_CTRL);
+    input_pass(app);
+
+    // release ctrl (so the next text is typed, not read as a shortcut), then type the value over the
+    // selection — or, when it is empty, delete the selection to clear the field.
+    inject_key(NYA_KEY_A, false, NYA_KEYMOD_NONE);
+
+    if (value != nullptr && value[0] != '\0') {
+        inject_text(value);
+    } else {
+        inject_key(NYA_KEY_DELETE, true, NYA_KEYMOD_NONE);
+    }
+
+    input_pass(app);
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * HANDLERS
@@ -319,13 +387,30 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
 
         f32 t = (f32)nya_clamp(value / 1000.0, 0.0, 1.0);
         inject_drag(value_rect.x + value_rect.width * t, value_rect.y + value_rect.height * 0.5F);
+
+        render(&app);
+    } else if (nya_string_equals(event, "text") && nya_ui_html_widget(&HTML, (u32)id, &kind, &value_rect) && kind == NYA_UI_WIDGET_FIELD) {
+        // The field's value is the whole string the browser now shows; the value_rect is its box. Typing it
+        // into the field over its own contents is what makes the server's buffer match the browser's, and it
+        // goes in through the input system rather than by touching the buffer directly. This runs its own
+        // input passes, so the render below is only the draw the client gets back.
+        NYA_ConstCString value = "";
+        NYA_Value* v = nya_object_get(body, "value");
+        if (v != nullptr && v->type == NYA_TYPE_STRING) value = v->as_string;
+
+        inject_field_text(&app, value_rect, value);
+
+        render(&app);
     } else if (nya_ui_html_rect(&HTML, (u32)id, &rect)) {
         inject_click(rect.x + rect.width * 0.5F, rect.y + rect.height * 0.5F);
+
+        render(&app);
+    } else {
+        // An unknown id simply changes nothing; the client still gets a consistent surface back.
+        render(&app);
     }
 
-    // Whether or not the id resolved, re-render: an unknown id simply changes nothing, and the client
-    // still gets a consistent surface back. Then the changed state is sealed back into the cookie.
-    render(&app);
+    // The changed state is sealed back into the cookie.
 
     if (!app_to_cookie(exchange, &app)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -390,6 +475,11 @@ s32 main(s32 argc, char** argv) {
     defer nya_system_events_deinit();
     nya_system_input_init();
     defer nya_system_input_deinit();
+    // No window opens, but a field taking focus starts text input, which looks the window handle up; the
+    // system has to be up for that lookup to resolve to "no such window" rather than read an unallocated
+    // table. The UI text tests bring it up for the same reason.
+    nya_system_window_init();
+    defer nya_system_window_deinit();
     nya_system_asset_init();
     defer nya_system_asset_deinit();
 

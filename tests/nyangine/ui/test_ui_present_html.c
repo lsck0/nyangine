@@ -105,8 +105,10 @@ s32 main(void) {
         nya_check(found, "the slider's id resolves to a slider kind");
         nya_check(track.width > 0.0F, "with a track a value event can aim a pointer along, got %.1f", (f64)track.width);
     }
-    nya_check(nya_string_contains(body, "type=\"text\" value=\"ada\""), "the field carries its text");
-    nya_check(nya_string_contains(body, "data-nya=\"input\""), "and reports input");
+    nya_check(nya_string_contains(body, "type=\"text\"") && nya_string_contains(body, "value=\"ada\""), "the field carries its text");
+    nya_check(nya_string_contains(body, "data-nya=\"input\""), "the slider reports input");
+    nya_check(nya_string_contains(body, "data-nya=\"text\""), "and the field reports a text write-back");
+    nya_check(nya_string_contains(body, "maxlength=\"255\""), "with its length bounded to the field's capacity");
 
     // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same tree renders to the same ids twice — a patch needs that.
@@ -146,10 +148,13 @@ s32 main(void) {
         // The button body colour is deliberately alpha zero on every state: opaque blue would be unmistakable
         // in the output, so its absence proves the presenter honours "alpha zero means the default".
         nya_ui_style_set(&window, (NYA_UIStyle){
-                                      .panel  = { 0.0F, 1.0F, 0.0F, 1.0F },   // green, on the panel
-                                      .accent = { 1.0F, 0.0F, 0.0F, 1.0F },   // red, on the chosen toggle
-                                      .radius = 16.0F,
-                                      .button = { .normal   = { 0.0F, 0.0F, 1.0F, 0.0F },
+                                      .panel   = { 0.0F, 1.0F, 0.0F, 1.0F },   // green, on the panel
+                                      .accent  = { 1.0F, 0.0F, 0.0F, 1.0F },   // red, on the chosen toggle and the slider
+                                      .ink     = { 0.0F, 1.0F, 1.0F, 1.0F },   // cyan, the outline around the panel
+                                      .track   = { 1.0F, 1.0F, 0.0F, 1.0F },   // yellow, the empty part of a slider or field
+                                      .radius  = 16.0F,
+                                      .padding = 10.0F,
+                                      .button  = { .normal   = { 0.0F, 0.0F, 1.0F, 0.0F },
                                                   .focused  = { 0.0F, 0.0F, 1.0F, 0.0F },
                                                   .pressed  = { 0.0F, 0.0F, 1.0F, 0.0F },
                                                   .disabled = { 0.0F, 0.0F, 1.0F, 0.0F } },
@@ -168,6 +173,14 @@ s32 main(void) {
         nya_check(nya_string_contains(styled, "rgba(255,0,0"), "and the custom accent reaches the chosen toggle");
         nya_check(nya_string_contains(styled, "border-radius:16px"), "and the larger radius rounds the styled widgets");
         nya_check(!nya_string_contains(styled, "0,0,255"), "a colour left at alpha zero is not emitted, leaving the stylesheet's default");
+
+        // Style beyond the fill colours: the ink outlines the panel, and the track, accent, radius and
+        // padding reach the value widgets as inherited CSS custom properties their inputs read.
+        nya_check(nya_string_contains(styled, "border-color:rgba(0,255,255"), "the ink colour outlines the panel");
+        nya_check(nya_string_contains(styled, "--nya-track:rgba(255,255,0"), "the track colour reaches the field and slider");
+        nya_check(nya_string_contains(styled, "--nya-accent:rgba(255,0,0"), "the accent reaches the slider's fill");
+        nya_check(nya_string_contains(styled, "--nya-radius:16px"), "the radius reaches the field's box");
+        nya_check(nya_string_contains(styled, "--nya-pad:5px"), "and the padding insets the field's text");
     }
 
     nya_ui_html_deinit(&html);
