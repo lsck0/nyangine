@@ -470,6 +470,11 @@ NYA_INTERNAL b8 _test_collect_sources(NYA_ConstCString path, const NYA_Directory
     NYA_String* file = nya_string_from(nya_arena_global, path);
     if (!nya_string_ends_with(file, ".c")) return true;
 
+    // tests/cbmc holds CBMC harnesses that only build under the `cbmc` model checker (`./build verify`):
+    // they use `__CPROVER_assume`/`__CPROVER_assert` builtins plain clang cannot resolve. Skip them here
+    // so `./build run test` does not try to compile them and fail.
+    if (nya_string_contains(nya_string_to_cstring(nya_arena_global, file), "/cbmc/")) return true;
+
     // nya_path_join normalises away the leading "./", which the build rules above expect to be
     // there since they use these paths verbatim as input and output files.
     if (!nya_string_starts_with(file, "./")) nya_string_extend_front(file, "./");
