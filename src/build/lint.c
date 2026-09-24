@@ -185,6 +185,7 @@ NYA_INTERNAL void _lint_rule_verb_pairs(Lint* lint);
 NYA_INTERNAL void _lint_rule_callers(Lint* lint);
 NYA_INTERNAL void _lint_rule_clangd(Lint* lint);
 NYA_INTERNAL void _lint_rule_redact(Lint* lint);
+NYA_INTERNAL void _lint_rule_web_profile(Lint* lint);
 
 // The allowances: what each rule knowingly lets through today, and why. After the declarations it reads.
 #include "build/lint_allowances.h"
@@ -212,6 +213,7 @@ u32 lint_run(void) {
     _lint_rule_callers(&lint);
     _lint_rule_clangd(&lint);
     _lint_rule_redact(&lint);
+    _lint_rule_web_profile(&lint);
 
     nya_array_foreach (lint.files, file) nya_lexer_destroy(&file->lexer);
 
@@ -612,6 +614,69 @@ void _lint_rule_redact(Lint* lint) {
                              "%.*s is a reflected field named like a '%s': tag it @redact, or @loggable to say it may be read",
                              (int)name->length, name->items, word);
             }
+        }
+    }
+}
+
+/*
+ * The web-profile gate of "Model, SO, DTO": only DTO headers reach the web client, so the three shapes
+ * keep to their headers by name.
+ *
+ * A `*_dto.h` is the shared shape the `web` profile compiles, so it may include no server-only header:
+ * an include of a `*_model.h` or `*_so.h` from a DTO header is exactly the edge that would drag the
+ * server's storage layout, and any secret in it, into wasm. It may not include base_web_profile.h
+ * either, since that header refuses to compile under the profile and would make the DTO refuse itself.
+ *
+ * A `*_model.h` or `*_so.h` is server only, and carries base_web_profile.h so the compiler refuses it
+ * under -DNYA_WEB_PROFILE. This rule requires that include, so the compile-time half of the gate cannot
+ * be forgotten: a model or so header without the guard is a hole this turns into a finding. Together the
+ * two halves mean a header that breaks the split fails `./build check` and, in a web build, fails to
+ * compile. See src/nyangine/base/base_web_profile.h and TODO.md's "Model, SO, DTO".
+ */
+void _lint_rule_web_profile(Lint* lint) {
+    NYA_ConstCString guard = "base/base_web_profile.h";
+
+    nya_array_foreach (lint->files, file) {
+        if (file->generated || !nya_string_ends_with(file->path, ".h")) continue;
+
+        b8 is_dto   = nya_string_ends_with(file->path, "_dto.h");
+        b8 is_model = nya_string_ends_with(file->path, "_model.h");
+        b8 is_so    = nya_string_ends_with(file->path, "_so.h");
+        if (!is_dto && !is_model && !is_so) continue;
+
+        b8 guarded = false;
+
+        NYA_ArrayᐸNYA_Tokenᐳ* tokens = file->lexer.tokens;
+        for (u64 i = 0; i + 2 < tokens->length; i++) {
+            if (!_lint_symbol_is(&tokens->items[i], '#') || !_lint_token_is(file, &tokens->items[i + 1], "include")) continue;
+
+            NYA_Token* target = &tokens->items[i + 2];
+            if (target->type != NYA_TOKEN_STRING) continue;
+
+            NYA_String* included = _lint_token_text(nya_arena_global, file, target);
+
+            if (nya_string_ends_with(included, guard)) {
+                guarded = true;
+
+                if (is_dto) {
+                    _lint_report(lint, "web-profile", file->path, target->line_number,
+                                 "a dto header includes the server-only guard %s; a *_dto.h is the shape the web profile compiles and must not refuse itself", guard);
+                }
+                continue;
+            }
+
+            if (!is_dto) continue;
+
+            if (nya_string_ends_with(included, "_model.h") || nya_string_ends_with(included, "_so.h")) {
+                _lint_report(lint, "web-profile", file->path, target->line_number,
+                             "a dto header includes %.*s; only *_dto.h reaches the web client, so a DTO must not include a model or so header", (int)included->length,
+                             included->items);
+            }
+        }
+
+        if ((is_model || is_so) && !guarded) {
+            _lint_report(lint, "web-profile", file->path, 1,
+                         "a server-only header must include \"nyangine/base/base_web_profile.h\" first, so the web profile refuses to compile it");
         }
     }
 }

@@ -221,6 +221,9 @@
 #define FLAGS_WASM                                                     \
     "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
     "-DNYA_WASM_WITH_ENGINE",                                          \
+    /* the web profile: only DTO headers cross to the client, and a model or so header refuses to */ \
+    /* compile here through base_web_profile.h, so the server storage layout cannot reach wasm. */ \
+    "-DNYA_WEB_PROFILE",                                              \
     /* the same warning suppressions CFLAGS carries: the engine source */ \
     /* the wasm path now compiles trips these exactly as the native build does. */ \
     "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", \
@@ -265,6 +268,7 @@
 // wasm_demo.c's stand-in/real switch and means nothing here. NYA_HEADLESS is set inside wasm_ui.c.
 #define FLAGS_WASM_UI                                                  \
     "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
+    "-DNYA_WEB_PROFILE",                                              \
     "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-format", \
     WASM_UI_VENDOR_INCLUDES,                                           \
     "-sEXPORTED_FUNCTIONS=_" WASM_UI_RENDER_SYMBOL ",_" WASM_UI_EVENT_SYMBOL, \
@@ -309,6 +313,7 @@
 // nothing, so this drops the perf/trace runtime leaves rather than dragging them into the shim TU.
 #define FLAGS_WASM_GAME                                                 \
     "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
+    "-DNYA_WEB_PROFILE",                                              \
     "-DNYA_PERF_FORCE_NODEBUG", "-DNYA_TRACE_FORCE_DISABLED",          \
     "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-format", \
     WASM_UI_VENDOR_INCLUDES,                                           \
