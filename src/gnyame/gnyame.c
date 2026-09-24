@@ -99,6 +99,20 @@ NYA_Error gny_part_world_init(void) {
  */
 
 NYA_Error gny_part_plugins_init(void) {
+    /*
+     * The one publisher gnyame trusts, pinned in the program: the bundled plugins/hello is signed with
+     * this key (its plugin.sig), so a default build — which refuses unsigned plugins — loads it and
+     * nothing else. Only the public half is here; its secret was drawn on a developer's machine by
+     * `./build plugin keygen` and does not ship. Editing hello invalidates its signature on purpose;
+     * re-signing means a fresh key, a new plugin.sig, and this literal changed to match. See
+     * core_plugin_signature.h, and `./build plugin` for the tool that produced the pair.
+     */
+    static const NYA_CryptoSignPublicKey nyangine_publisher = {
+        .bytes = { 0xa0, 0x6f, 0xed, 0x39, 0xd7, 0x4f, 0x69, 0x08, 0xa9, 0x35, 0x5c, 0x7b, 0x3a, 0xef, 0xfe, 0xc3,
+                   0x57, 0xac, 0xd4, 0x14, 0xbd, 0x11, 0x87, 0x1b, 0x8e, 0xd6, 0xe7, 0x9a, 0x18, 0x2e, 0x86, 0x85 },
+    };
+    NYA_TRY(nya_plugin_trust_key("nyangine", &nyangine_publisher));
+
     // after the world, because a plugin's `on_load` spawns entities into it, and before the layers, so
     // a plugin's systems are registered while the schedule is still being built. Refusals are reported
     // per plugin and never stop the game: `plugins/` is somebody else's code.

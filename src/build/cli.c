@@ -379,6 +379,32 @@ NYA_INTERNAL NYA_ArgParameter changelog_release_flag = {
     .description = "Print only the newest version's section, on stdout. The release notes CD publishes.",
 };
 
+NYA_INTERNAL NYA_ArgParameter plugin_directory = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    .name        = "directory",
+    .description = "The plugin directory to sign, e.g. plugins/hello.",
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, .directory = "plugins", },
+};
+
+NYA_INTERNAL NYA_ArgParameter plugin_seed = {
+    .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type    = NYA_TYPE_STRING,
+    .name          = "seed",
+    .description   = "The signing key's seed file. keygen writes it; sign reads it.",
+    .default_value = { .type = NYA_TYPE_STRING, .as_string = "plugin_signing.seed" },
+    .completion    = { .kind = NYA_ARG_COMPLETION_KIND_FILE, },
+};
+
+NYA_INTERNAL NYA_ArgParameter plugin_publisher = {
+    .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type    = NYA_TYPE_STRING,
+    .name          = "publisher",
+    .description   = "Who the signature names. Defaults to the manifest's author.",
+    // A default makes it optional: without one the parser treats a flag as required.
+    .default_value = { .type = NYA_TYPE_STRING, .as_string = "" },
+};
+
 NYA_INTERNAL NYA_ArgParameter completions_shell = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .value.type  = NYA_TYPE_STRING,
@@ -664,6 +690,25 @@ NYA_INTERNAL NYA_ArgCommand wasm_game = {
     .handler     = &wasm_game_runner,
 };
 
+NYA_INTERNAL NYA_ArgCommand plugin = {
+    .name        = "plugin",
+    .description = "Sign plugins so a build that requires it will load them.",
+    .subcommands = {
+        &(NYA_ArgCommand){
+            .name        = "keygen",
+            .description = "Draw an Ed25519 signing key, write its seed to a file, and print the public key to pin.",
+            .handler     = &plugin_keygen_runner,
+            .parameters  = { &plugin_seed, },
+        },
+        &(NYA_ArgCommand){
+            .name        = "sign",
+            .description = "Sign a plugin directory with a seed off disk, writing its plugin.sig.",
+            .handler     = &plugin_sign_runner,
+            .parameters  = { &plugin_directory, &plugin_seed, &plugin_publisher, },
+        },
+    },
+};
+
 NYA_INTERNAL NYA_ArgCommand completions = {
     .name        = "completions",
     .description = "Generate a shell completion script on stdout, e.g. ./build completions zsh > ~/.zsh/completions/_build",
@@ -702,6 +747,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &wasm,
             &wasm_ui,
             &wasm_game,
+            &plugin,
             &completions,
         },
     },

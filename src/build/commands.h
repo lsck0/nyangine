@@ -14,6 +14,7 @@
  *   lint.c       the rules `./build check` runs before clang-tidy
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
+ *   plugin.c     `./build plugin keygen` and `./build plugin sign`
  *   fuzz.c       `./build run fuzz`
  *   agent.c      `./build run agent`
  *   simulation.c `./build run simulation`
@@ -119,6 +120,16 @@ void example_runner(NYA_ArgCommand* command);
  * Name of the example at `index`, or nullptr past the last one. Fits NYA_ArgCompletion.choices_fn.
  * */
 NYA_ConstCString example_completion_name(u32 index);
+
+/**
+ * Draws an Ed25519 signing key and writes its seed to a file, printing the public key to pin. See plugin.c.
+ * */
+void plugin_keygen_runner(NYA_ArgCommand* command);
+
+/**
+ * Signs a plugin directory with a seed off disk, writing its plugin.sig. See plugin.c.
+ * */
+void plugin_sign_runner(NYA_ArgCommand* command);
 
 /**
  * Stages one distribution target, or every one this host can produce, under dist/. See dist.c.

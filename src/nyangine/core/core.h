@@ -32,6 +32,7 @@
 #include "nyangine/core/core_tilemap.h"
 #include "nyangine/core/core_nav.h"
 #include "nyangine/core/core_plugin.h"
+#include "nyangine/core/core_plugin_signature.h"
 #include "nyangine/core/core_tween.h"
 #include "nyangine/core/core_types.h"
 #include "nyangine/core/core_window.h"

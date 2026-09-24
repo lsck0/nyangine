@@ -77,6 +77,23 @@ Without those secrets set the step is skipped, the build falls back to the sampl
 `.signing/`, and the release is unsigned rather than failing. A fork has no secrets and has to keep
 building.
 
+## Plugin signing keys
+
+Separate from the Authenticode certificate above, and simpler. A plugin is signed with an Ed25519 key
+so a build that requires it (the default; see `NYA_PLUGIN_REQUIRE_SIGNATURE` in
+`src/nyangine/core/core_plugin_signature.h`) will load it and refuse an unsigned one.
+
+```sh
+./build plugin keygen --seed my.seed        # draws a key, writes the seed, prints the public key
+./build plugin sign plugins/hello --seed my.seed
+```
+
+`keygen` prints only the public key — pin that in the program with `nya_plugin_trust_key`, the way
+`src/gnyame/gnyame.c` pins the one the bundled `plugins/hello` is signed with. The **seed is the private
+key**: keep it off the tree (`*.seed` is gitignored), keep it to yourself (`keygen` writes it `0600`),
+and rotate it if it ever leaks, exactly as for any other key here. There is deliberately no way to
+recover a lost seed: a new one means a new public key to pin and re-signing what it signed.
+
 ## Why sops and gpg, and not the alternatives
 
 - **age** is a better key format and sops supports it. gpg wins here only because the Windows signing

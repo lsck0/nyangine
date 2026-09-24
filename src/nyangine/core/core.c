@@ -36,6 +36,8 @@
 // After core_system.c: a plugin is one entry in that registry, and after the Lua plugin, which is
 // included before core in nyangine.c and is what a plugin's code runs in.
 #include "nyangine/core/core_plugin.c"
+// After core_plugin.c: it is what nya_plugin_load calls to prove a plugin's signature before running it.
+#include "nyangine/core/core_plugin_signature.c"
 #include "nyangine/core/core_tilemap.c"
 #include "nyangine/core/core_nav.c"
 #include "nyangine/core/core_tween.c"

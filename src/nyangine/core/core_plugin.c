@@ -73,6 +73,13 @@ NYA_INTERNAL void _nya_plugin_manifest_problem(NYA_ConstCString path, NYA_ConstC
 /** Logs every permission in `missing` and returns how many there were. */
 NYA_INTERNAL u32 _nya_plugin_permissions_report(NYA_ConstCString name, NYA_PluginPermission missing);
 
+/**
+ * The loud line a plugin gets when it loads without a trusted signature, which only happens in a build
+ * that opted out of NYA_PLUGIN_REQUIRE_SIGNATURE. Names the plugin, why its signature was not accepted,
+ * and every permission it is about to hold anyway, so the log records what was trusted and on no proof.
+ * */
+NYA_INTERNAL void _nya_plugin_signature_warn(const NYA_PluginManifest* manifest, NYA_ConstCString why);
+
 /** Everything that must be true before a VM is created: name, version, permissions, dependencies, conflicts. */
 NYA_INTERNAL NYA_Error _nya_plugin_admit(NYA_ConstCString directory, const NYA_PluginManifest* manifest) __attr_no_discard;
 
@@ -291,6 +298,24 @@ NYA_Error nya_plugin_load(NYA_ConstCString directory) {
 
     NYA_PluginManifest manifest = { 0 };
     NYA_TRY(nya_plugin_manifest_load(directory, &manifest));
+
+    /*
+     * Before anything of the plugin runs, and before the slot is taken: a plugin the program does not
+     * trust must not reach the VM, and refusing here is refusing at the earliest point the manifest is
+     * known. Verification is by the publisher key the program pinned, never by anything in the folder.
+     */
+    NYA_Error signed_by_trusted = nya_plugin_signature_verify(directory, nullptr, 0);
+
+    if (!signed_by_trusted.ok) {
+        if (NYA_PLUGIN_REQUIRE_SIGNATURE) {
+            return nya_error(NYA_ERROR_PERMISSION_DENIED, "'%s' is refused: %s (this build requires a trusted signature)", manifest.name,
+                             (NYA_ConstCString)signed_by_trusted.message);
+        }
+
+        // The opt-in path: load it, but say loudly what it is and everything it may now do unproven.
+        _nya_plugin_signature_warn(&manifest, (NYA_ConstCString)signed_by_trusted.message);
+    }
+
     NYA_TRY(_nya_plugin_admit(directory, &manifest));
 
     _NYA_PluginSlot* slot = _nya_plugin_slot_free();
@@ -775,6 +800,29 @@ u32 _nya_plugin_permissions_report(NYA_ConstCString name, NYA_PluginPermission m
     }
 
     return count;
+}
+
+void _nya_plugin_signature_warn(const NYA_PluginManifest* manifest, NYA_ConstCString why) {
+    nya_assert(manifest != nullptr);
+
+    nya_log_warn("[plugin] '%s' %s by %s is loading UNSIGNED: %s.", manifest->name, manifest->version,
+                 manifest->author[0] != '\0' ? manifest->author : "an unnamed author", why != nullptr ? why : "no trusted signature");
+    nya_log_warn("[plugin] this build has NYA_PLUGIN_REQUIRE_SIGNATURE off; a shipping build refuses unsigned plugins.");
+
+    const NYA_TypeReflection* type    = nya_reflect_of(NYA_PluginPermission);
+    b8                        granted = false;
+
+    for (u32 i = 0; i < type->variant_count; i++) {
+        const NYA_ReflectVariant* variant = &type->variants[i];
+
+        if (variant->value == 0) continue;
+        if (((s64)manifest->permissions & variant->value) != variant->value) continue;
+
+        nya_log_warn("[plugin] '%s' is being granted %s without a signature.", manifest->name, variant->name);
+        granted = true;
+    }
+
+    if (!granted) nya_log_warn("[plugin] '%s' asks for no permissions beyond logging and the clock.", manifest->name);
 }
 
 NYA_Error _nya_plugin_admit(NYA_ConstCString directory, const NYA_PluginManifest* manifest) {

@@ -15,6 +15,13 @@
 
 #define TEST_PLUGIN_ROOT "./.test_plugins"
 
+/*
+ * This suite is about the manifest, the permission grant and the namespacing, none of which is a
+ * signature. The plugins it writes are unsigned on purpose, so it compiles the dev opt-out; the
+ * signature policy itself is proved in test_plugin_signature.c.
+ */
+#define NYA_PLUGIN_REQUIRE_SIGNATURE false
+
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 

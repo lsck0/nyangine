@@ -20,6 +20,7 @@
 #include "build/changelog.c"
 #include "build/dist.c"
 #include "build/example.c"
+#include "build/plugin.c"
 // After test.c: both name the host flags and the sanitizer environment a test binary runs under.
 #include "build/fuzz.c"
 #include "build/simulation.c"
