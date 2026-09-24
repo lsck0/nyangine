@@ -128,8 +128,7 @@ struct SDL_GPUTexture {
     u32    height;
     b8     is_default_target; // fbo 0, not a real GL texture object
 
-    // Render-target / depth state, filled by SDL_CreateGPUTexture for the 3D + shadow + post path. A plain
-    // 2D sampler texture leaves all of these at their zeroed defaults and behaves exactly as before.
+    // Render-target/depth state, filled by SDL_CreateGPUTexture; a plain 2D sampler texture leaves these zeroed.
     b8     is_renderbuffer;   // backed by `rbo` (multisample colour/depth, or a non-sampled attachment)
     b8     is_color_target;   // usable as a colour attachment
     b8     is_depth;          // a depth (or depth-stencil) target
@@ -184,8 +183,7 @@ struct SDL_GPURenderPass {
     u32 target_width;
     u32 target_height;
 
-    // Off-screen pass bookkeeping, read by SDL_EndGPURenderPass to run any MSAA resolve. Zeroed for the
-    // swapchain (fbo 0) path, which resolves nothing.
+    // Off-screen pass bookkeeping for the MSAA resolve; zeroed for the swapchain (fbo 0) path, which resolves nothing.
     b8              offscreen;             // bound a real FBO, not fbo 0
     u32             num_color_targets;
     SDL_GPUTexture* color_target[2];       // the colour attachments, in order (index 1 is the normal buffer)
@@ -376,8 +374,7 @@ SDL_GPUDevice* SDL_CreateGPUDevice(SDL_GPUShaderFormat format_flags, bool debug_
     attrs.depth        = true;
     attrs.antialias    = false;
 
-    // The canvas the page created. Under node there is no canvas, so this returns <= 0 and the shim
-    // runs in trace-only mode: the sequence is still recorded, no GL is issued.
+    // The canvas the page created; under node there is none, so this returns <= 0 and the shim runs trace-only, recording the sequence with no GL.
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl = emscripten_webgl_create_context("#canvas", &attrs);
     if (gl > 0 && emscripten_webgl_make_context_current(gl) == EMSCRIPTEN_RESULT_SUCCESS) {
         device->gl        = gl;
@@ -414,8 +411,7 @@ bool SDL_ClaimWindowForGPUDevice(SDL_GPUDevice* device, SDL_Window* window) {
 SDL_GPUShaderFormat SDL_GetGPUShaderFormats(SDL_GPUDevice* device) {
     nya_unused(device);
     _nya_gles_trace("SDL_GetGPUShaderFormats");
-    // The engine keys shader selection on this. There is no GLSL flag in SDL's enum, so the shim reports
-    // PRIVATE — its own marker — and the wasm build feeds this backend the compiled GLSL ES source.
+    // The engine keys shader selection on this; with no GLSL flag in SDL's enum, the shim reports PRIVATE and the wasm build feeds it compiled GLSL ES.
     return SDL_GPU_SHADERFORMAT_PRIVATE;
 }
 
@@ -514,10 +510,7 @@ SDL_GPUTexture* SDL_CreateGPUTexture(SDL_GPUDevice* device, const SDL_GPUTexture
         texture->gl_attachment = texture->has_stencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
     }
 
-    // A renderbuffer, not a texture, when the attachment is multisampled (WebGL2 has no multisample
-    // textures) or when it is a depth target with no sampling asked of it. Everything else — a plain 2D
-    // texture, a single-sampled colour target, a sampled depth target — is a GL texture, so it can be
-    // read by a later pass (the shadow map, the resolved scene colour a post pass samples).
+    // A renderbuffer when the attachment is multisampled or a depth target with no sampling; everything else is a GL texture a later pass can read.
     texture->is_renderbuffer = samples > 1 || (texture->is_depth && !sampler_use);
 
     if (!device->gl_ok) return texture; // headless (node): record the shape, issue no GL.
@@ -536,8 +529,7 @@ SDL_GPUTexture* SDL_CreateGPUTexture(SDL_GPUDevice* device, const SDL_GPUTexture
 
     glGenTextures(1, &texture->id);
     glBindTexture(GL_TEXTURE_2D, texture->id);
-    // A colour/depth target is allocated immutable-shaped with glTexStorage2D so it is complete before the
-    // first attachment; a plain sampler texture keeps glTexImage2D so SDL_UploadToGPUTexture can respecify it.
+    // A colour/depth target is glTexStorage2D (immutable, complete before attachment); a sampler texture keeps glTexImage2D so upload can respecify it.
     if (color_use || depth_use) {
         glTexStorage2D(GL_TEXTURE_2D, 1, internal, (GLsizei)createinfo->width, (GLsizei)createinfo->height);
     } else {
@@ -613,8 +605,7 @@ NYA_INTERNAL const GLchar* _nya_gles_fragment_varying_fix(NYA_Arena* arena, cons
     u64 needle_len = sizeof(needle) - 1;
     u64 repl_len   = sizeof(repl) - 1;
 
-    // repl is one byte longer than needle, so the copy grows by at most the match count; sizing at 2x the
-    // source (plus the terminator) is a safe over-allocation that avoids a separate counting pass.
+    // repl is one byte longer than needle, so 2x the source (plus terminator) is a safe over-allocation that avoids a counting pass.
     GLchar* buffer = (GLchar*)nya_arena_alloc(arena, (u64)length * 2 + 1);
 
     u64 w = 0;
@@ -647,8 +638,7 @@ SDL_GPUShader* SDL_CreateGPUShader(SDL_GPUDevice* device, const SDL_GPUShaderCre
         const GLchar* source = (const GLchar*)createinfo->code; // GLSL ES 300 source bytes
         GLint         length = (GLint)createinfo->code_size;
 
-        // The fragment stage's input varyings carry SPIRV-Cross' `in_var_` prefix, which will not link
-        // against the vertex stage's `out_var_` outputs; normalise them here. See the helper above.
+        // The fragment stage's `in_var_` varyings will not link against the vertex stage's `out_var_`; normalise them here (see the helper above).
         if (shader->stage == GL_FRAGMENT_SHADER) {
             source = _nya_gles_fragment_varying_fix(device->arena, source, length, &length);
         }
@@ -734,14 +724,11 @@ SDL_GPUGraphicsPipeline* SDL_CreateGPUGraphicsPipeline(SDL_GPUDevice* device, co
             return pipeline;
         }
 
-        // The vertex uniform block SPIRV-Cross names `type_Uniforms` → binding 0, matching the slot the
-        // engine pushes vertex uniforms to (see SDL_PushGPUVertexUniformData). No layout(binding=) exists
-        // in the source, so the shim assigns it here.
+        // The `type_Uniforms` block → binding 0, matching the slot the engine pushes to; no layout(binding=) in the source, so the shim assigns it here.
         GLuint block = glGetUniformBlockIndex(pipeline->program, "type_Uniforms");
         if (block != GL_INVALID_INDEX) glUniformBlockBinding(pipeline->program, block, 0);
 
-        // Each sampler2D uniform → the next texture unit in declared order. The names are synthesised
-        // (`_29`), so bind by reflecting the active uniforms rather than by a fixed name.
+        // Each sampler2D uniform → the next texture unit; names are synthesised (`_29`), so bind by reflecting the active uniforms, not a fixed name.
         glUseProgram(pipeline->program);
         GLint uniform_count = 0;
         glGetProgramiv(pipeline->program, GL_ACTIVE_UNIFORMS, &uniform_count);
@@ -876,8 +863,7 @@ SDL_GPURenderPass* SDL_BeginGPURenderPass(SDL_GPUCommandBuffer* command_buffer, 
     pass->device = device;
     pass->cmd    = command_buffer;
 
-    // Off-screen when the first colour target is a real texture (not the swapchain sentinel) or a depth
-    // target is bound. The 2D swapchain path passes the default target and no depth, so it stays on fbo 0.
+    // Off-screen when the first colour target is a real texture or a depth target is bound; the 2D swapchain path passes the default target and no depth, staying on fbo 0.
     b8 color_is_default = num_color_targets > 0 && color_target_infos[0].texture != nullptr && color_target_infos[0].texture->is_default_target;
     pass->offscreen     = (num_color_targets > 0 && !color_is_default) || depth_stencil_target_info != nullptr;
 
@@ -954,8 +940,7 @@ SDL_GPURenderPass* SDL_BeginGPURenderPass(SDL_GPUCommandBuffer* command_buffer, 
     glViewport(0, 0, (GLsizei)pass->target_width, (GLsizei)pass->target_height);
     glDisable(GL_SCISSOR_TEST);
 
-    // Per-attachment clears with glClearBuffer*, which target one attachment each — the right tool for an FBO
-    // with more than one colour attachment, unlike the single glClearColor the swapchain path uses.
+    // Per-attachment clears with glClearBuffer*, the right tool for a multi-attachment FBO, unlike the single glClearColor the swapchain path uses.
     for (u32 i = 0; i < pass->num_color_targets; i++) {
         if (color_target_infos[i].load_op == SDL_GPU_LOADOP_CLEAR) {
             SDL_FColor  c    = color_target_infos[i].clear_color;
@@ -1050,9 +1035,7 @@ void SDL_PushGPUVertexUniformData(SDL_GPUCommandBuffer* command_buffer, Uint32 s
 
 void SDL_PushGPUFragmentUniformData(SDL_GPUCommandBuffer* command_buffer, Uint32 slot_index, const void* data, Uint32 length) {
     _nya_gles_trace("SDL_PushGPUFragmentUniformData");
-    // The built-in 2D pipelines declare no fragment uniform blocks; this is reached only by a custom
-    // shape shader. Its block would need its own binding assigned at link time — TODO with custom 2D
-    // shaders. For now push to a separate binding range so it cannot collide with the vertex block.
+    // The built-in 2D pipelines declare no fragment uniform blocks; a custom shape shader's block needs its own binding (TODO), so push to a separate range that cannot collide with the vertex block.
     _nya_gles_push_uniform(command_buffer, command_buffer->device->fragment_ubo, slot_index, data, length);
 }
 
@@ -1082,8 +1065,7 @@ NYA_INTERNAL void _nya_gles_setup_attributes(SDL_GPURenderPass* render_pass) {
         if (a->type == GL_FLOAT) {
             glVertexAttribPointer(a->location, a->size, a->type, a->normalized, pipeline->vertex_pitch, pointer);
         } else {
-            // Integer-typed attributes still read as normalized floats in the shader (UBYTE4_NORM), which
-            // is what glVertexAttribPointer with normalized=GL_TRUE does.
+            // Integer-typed attributes read as normalized floats in the shader (UBYTE4_NORM), which normalized=GL_TRUE does.
             glVertexAttribPointer(a->location, a->size, a->type, a->normalized, pipeline->vertex_pitch, pointer);
         }
     }
@@ -1128,9 +1110,7 @@ void SDL_EndGPURenderPass(SDL_GPURenderPass* render_pass) {
     SDL_GPUDevice* device = render_pass->device;
     if (!device->gl_ok || !render_pass->offscreen) return; // the swapchain draws already executed; nothing to resolve.
 
-    // Any colour target with a RESOLVE store op is a multisample renderbuffer whose contents must be blitted
-    // down to its single-sample resolve texture. WebGL2's glBlitFramebuffer does the resolve: a read FBO on
-    // the multisample attachment, a draw FBO on the resolve texture, same rectangle, GL_NEAREST.
+    // A RESOLVE store op's multisample renderbuffer is blitted down to its resolve texture via glBlitFramebuffer: read FBO on the MSAA attachment, draw FBO on the resolve texture, GL_NEAREST.
     for (u32 i = 0; i < render_pass->num_color_targets; i++) {
         SDL_GPUTexture* source  = render_pass->color_target[i];
         SDL_GPUTexture* resolve = render_pass->resolve_target[i];
@@ -1201,8 +1181,7 @@ void SDL_BlitGPUTexture(SDL_GPUCommandBuffer* command_buffer, const SDL_GPUBlitI
         glClear(GL_COLOR_BUFFER_BIT);
     }
 
-    // The source rectangle, y-flipped when the flip mode asks for it, into the destination rectangle. NEAREST
-    // unless a smooth downscale was requested — a resolve is always NEAREST, which is what the callers pass.
+    // The source rectangle into the destination (y-flipped if the flip mode asks); NEAREST unless a smooth downscale is requested, which a resolve never is.
     GLint  sx0 = (GLint)info->source.x, sy0 = (GLint)info->source.y;
     GLint  sx1 = sx0 + (GLint)info->source.w, sy1 = sy0 + (GLint)info->source.h;
     GLint  dx0 = (GLint)info->destination.x, dy0 = (GLint)info->destination.y;
@@ -1222,8 +1201,7 @@ bool SDL_GPUTextureSupportsSampleCount(SDL_GPUDevice* device, SDL_GPUTextureForm
     if (want <= 1) return true; // single-sampled is always available.
 
     if (!device->gl_ok) {
-        // Headless (node): report a plausible fixed ceiling of 4x, so the renderer's MSAA pick is deterministic
-        // without a GL context. A browser answers from GL_MAX_SAMPLES below.
+        // Headless (node): report a fixed 4x ceiling so the MSAA pick is deterministic without GL; a browser answers from GL_MAX_SAMPLES below.
         return want <= 4;
     }
 
@@ -1236,8 +1214,7 @@ bool SDL_GPUTextureSupportsFormat(SDL_GPUDevice* device, SDL_GPUTextureFormat fo
     nya_unused(device), nya_unused(type), nya_unused(usage);
     _nya_gles_trace("SDL_GPUTextureSupportsFormat");
 
-    // The shim maps every format _nya_gles_texture_format handles onto a WebGL2-renderable GL format, so it
-    // reports support for exactly those. Only 2D targets exist here; a 3D/array/cube request is unsupported.
+    // The shim reports support for exactly the formats _nya_gles_texture_format handles; only 2D targets exist, so 3D/array/cube is unsupported.
     if (type != SDL_GPU_TEXTURETYPE_2D) return false;
     switch (format) {
         case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
