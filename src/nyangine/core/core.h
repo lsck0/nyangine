@@ -35,6 +35,7 @@
 #include "nyangine/core/core_plugin.h"
 #include "nyangine/core/core_plugin_signature.h"
 #include "nyangine/core/core_tween.h"
+#include "nyangine/core/core_undo.h"
 #include "nyangine/core/core_types.h"
 #include "nyangine/core/core_window.h"
 #include "nyangine/core/core_world.h"

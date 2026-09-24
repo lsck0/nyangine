@@ -43,5 +43,6 @@
 #include "nyangine/core/core_tilemap.c"
 #include "nyangine/core/core_nav.c"
 #include "nyangine/core/core_tween.c"
+#include "nyangine/core/core_undo.c"
 #include "nyangine/core/core_window.c"
 #include "nyangine/core/core_world.c"
