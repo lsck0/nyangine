@@ -355,6 +355,17 @@ NYA_INTERNAL NYA_ArgParameter check_strict_flag = {
     .description = "Fail on any finding, rather than reporting and succeeding. What CI wants.",
 };
 
+NYA_INTERNAL NYA_ArgParameter commit_check_target = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    // variadic so it is optional, not so it takes several: with none, the HEAD commit is checked; with
+    // one, either a message file or a git range. A second argument is refused.
+    .variadic    = true,
+    .value.type  = NYA_TYPE_STRING,
+    .name        = "target",
+    .description = "A commit message file, or a git revision range like origin/master..HEAD. Defaults to HEAD.",
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, },
+};
+
 NYA_INTERNAL NYA_ArgParameter skip_self_rebuild_flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
     .value.type  = NYA_TYPE_B8,
@@ -683,6 +694,13 @@ NYA_INTERNAL NYA_ArgCommand verify = {
     .handler     = &verify_runner,
 };
 
+NYA_INTERNAL NYA_ArgCommand commit_check = {
+    .name        = "commit-check",
+    .description = "Lint a commit message, or every message in a git range, against the repo's rules. What CI runs on a PR.",
+    .handler     = &commit_check_runner,
+    .parameters  = { &commit_check_target, },
+};
+
 NYA_INTERNAL NYA_ArgCommand coverage = {
     .name        = "coverage",
     .description = "Build and run the tests instrumented, report line coverage of src/nyangine, and gate on --fail-under.",
@@ -809,6 +827,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &check,
             &typos,
             &verify,
+            &commit_check,
             &coverage,
             &changelog,
             &sbom,

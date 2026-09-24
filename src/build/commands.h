@@ -111,6 +111,13 @@ void verify_runner(NYA_ArgCommand* command);
 void typos_runner(NYA_ArgCommand* command);
 
 /**
+ * Holds one commit message, or every message in a git range, to the repository's rules — a
+ * conventional-commit subject, a sane length, and no AI-attribution trailer — by running the same
+ * hooks/commit-msg-lint.sh the commit-msg hook does. See commit.c.
+ * */
+void commit_check_runner(NYA_ArgCommand* command);
+
+/**
  * The project's own rules, run by `./build check` before clang-tidy: banned calls, the module order, verb pairs,
  * callers for every NYA_API, and .clangd against the build's flags. Prints each finding and returns how many.
  * */

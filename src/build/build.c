@@ -22,6 +22,9 @@
 // Another sibling gate: bounded model checking of the untrusted-input parsers with CBMC. Beside the
 // other read-only gates, and independent of them.
 #include "build/verify.c"
+// Another sibling gate, over the commit messages rather than the code: a thin bridge onto the shared
+// shell linter the commit-msg hook also runs.
+#include "build/commit.c"
 // Before dist.c: it defines build_capture, and writes the CHANGELOG.md every distribution ships.
 #include "build/changelog.c"
 // After changelog.c: it calls build_capture, which changelog.c defines.
