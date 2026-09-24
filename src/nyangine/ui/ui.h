@@ -29,6 +29,9 @@
  *   nya_ui_text_input                           one line of typed text, with selection and the clipboard
  *   nya_ui_color_picker                         a colour by saturation and value, hue, alpha and hex
  *   nya_ui_chart                                a line or bar plot of a caller's values
+ *   nya_ui_node_editor_begin, nya_ui_node_editor_end  a pannable, zoomable canvas for a node graph
+ *   nya_ui_node                                 a draggable titled box with input and output port stubs
+ *   nya_ui_node_link                            an elbow drawn between two ports, under the nodes
  *   nya_ui_icon                                 a picture cut from a texture
  *   nya_ui_badge                                a small tag, fitted to its text
  *   nya_ui_progress                             a slim bar, part of it filled
@@ -268,6 +271,27 @@ typedef struct NYA_Window NYA_Window;
  * */
 #define NYA_UI_GRIP        12.0F
 #define NYA_UI_WINDOW_MIN  ((f32x2){ 96.0F, 64.0F })
+
+/**
+ * Ports a node editor remembers the on-screen anchor of in one pass, so a link drawn after the nodes can find
+ * where each of its ends sits. A graph with more ports on screen than this draws the extra ones but cannot route a
+ * link to them; refused rather than grown, like every other table here.
+ * */
+#ifndef NYA_UI_NODE_PORTS_MAX
+#define NYA_UI_NODE_PORTS_MAX 256
+#endif
+
+/** A node's default width and one port stub's side, in pixels at scale 1 before the canvas zoom. */
+#define NYA_UI_NODE_WIDTH 160.0F
+#define NYA_UI_NODE_PORT  10.0F
+
+/** A node's link, and the in-progress one, drawn this thick in pixels at scale 1 before the zoom. */
+#define NYA_UI_NODE_LINK 2.0F
+
+/** The canvas zoom is kept between these, and multiplied toward them by this share per wheel notch. */
+#define NYA_UI_NODE_ZOOM_MIN  0.25F
+#define NYA_UI_NODE_ZOOM_MAX  4.0F
+#define NYA_UI_NODE_ZOOM_STEP 0.1F
 
 /**
  * The display scale is snapped to steps this size and the result never drops under the smallest. A style's own
@@ -732,6 +756,101 @@ struct NYA_UIIcon {
     NYA_Color tint;
 };
 
+/** A link between two ports, both ends named by the node key and the port index the caller gave them. */
+typedef struct NYA_UINodeLink NYA_UINodeLink;
+
+struct NYA_UINodeLink {
+    /** The node the link leaves, and the output port on its right edge it leaves from. */
+    u64 from_node;
+    u32 from_port;
+
+    /** The node the link enters, and the input port on its left edge it enters. */
+    u64 to_node;
+    u32 to_port;
+};
+
+/**
+ * A node graph's canvas: where it is panned to and how far it is zoomed, the interaction the widget is in the
+ * middle of, and what the last pass reported. The caller owns it and it outlives the pass, exactly as a window's
+ * NYA_UIWindowState does; a zeroed one is a canvas at the origin, unzoomed.
+ *
+ * The fields with a leading underscore are the widget's own scratch between passes and are not the caller's to
+ * write. Everything above them is: the caller reads `pan` and `zoom` to place its own overlay, or writes them to
+ * frame the graph, and reads `connected`, `disconnected` and their payloads right after nya_ui_node_editor_end to
+ * fold a completed link or a detached input back into the graph model it owns.
+ * */
+typedef struct NYA_UINodeEditor NYA_UINodeEditor;
+
+struct NYA_UINodeEditor {
+    /** The canvas offset in window pixels, and the zoom (1 is one graph pixel to one window pixel at scale 1). */
+    f32x2 pan;
+    f32   zoom;
+
+    /** A link was completed this pass; `link` holds its two ends. Written every pass, so read it right after the end. */
+    b8             connected;
+    NYA_UINodeLink link;
+
+    /** An input port was grabbed to detach this pass; `detach_node` and `detach_port` name it. The caller drops the link. */
+    b8  disconnected;
+    u64 detach_node;
+    u32 detach_port;
+
+    /* The widget's scratch across passes. Private; a caller writes none of it. */
+
+    b8    _linking;
+    u64   _link_node;
+    u32   _link_port;
+    b8    _panning;
+    f32x2 _pan_grip;
+    u64   _drag_node;
+    f32x2 _drag_offset;
+
+    /* Per-pass scratch, reset by nya_ui_node_editor_begin. */
+
+    NYA_Rectf _canvas;
+    s32       _layer;
+    b8        _hit;
+    u32       _port_count;
+
+    struct {
+        u64   node;
+        u32   port;
+        b8    output;
+        f32x2 at;
+    } _ports[NYA_UI_NODE_PORTS_MAX];
+};
+
+/**
+ * One node: a titled box with input ports down its left edge and output ports down its right. The box is drawn from
+ * the theme's panel and the ports from its accent, so a node follows a restyle like the rest of the UI.
+ * */
+typedef struct NYA_UINode NYA_UINode;
+
+struct NYA_UINode {
+    /** Names the node in a reported link, and scopes nothing else; two nodes in one graph must not share it, and it is never zero. */
+    u64 key;
+
+    /** Drawn along the top of the box. Optional. */
+    NYA_ConstCString title;
+
+    /**
+     * The node's top left in graph space, pixels at scale 1 before pan and zoom. The caller owns it and the widget
+     * writes it as the node is dragged, the way a toggle writes its b8.
+     * */
+    f32x2* position;
+
+    /** The box's width in graph pixels at scale 1. Zero takes NYA_UI_NODE_WIDTH. */
+    f32 width;
+
+    /** How many ports run down each edge. */
+    u32 inputs;
+    u32 outputs;
+
+    /** One label per port, drawn beside its stub, or null for none. Must point at as many strings as the count when given. */
+    const NYA_ConstCString* input_labels;
+    const NYA_ConstCString* output_labels;
+};
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS
@@ -1003,6 +1122,69 @@ NYA_API b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCSt
  * field takes six or eight digits, with or without a '#'. True when `*color` changed.
  * */
 NYA_API b8 nya_ui_color_picker(NYA_UI* ui, NYA_ConstCString label, NYA_Color* color);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * NODE EDITOR
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * A pannable, zoomable canvas for a node graph. It fills its container — give that container a definite size — and
+ * clips everything drawn between the begin and the end to itself. Dragging empty canvas pans it and the wheel zooms
+ * it about the pointer, both written into `editor`.
+ *
+ * Nodes and links compose from the primitives already here: a node is the theme's panel with the accent for its
+ * ports, a link three of the flat fills a rule is drawn from. Nothing keeps a graph — the caller owns the nodes and
+ * the links and declares them each pass, and the widget only reports the connect and disconnect gestures back
+ * through `editor`. The state a canvas must remember between passes, the pan, the zoom and the drag in flight, lives
+ * in the caller's NYA_UINodeEditor for the reason a window's does.
+ *
+ * False, with nothing opened and no end to call, when the container table is full; skip the nodes, the links and the
+ * end. `editor` is the caller's and outlives the pass.
+ *
+ * ```c
+ * static NYA_UINodeEditor editor = { .zoom = 1.0F };
+ * static f32x2 positions[] = { { 40.0F, 40.0F }, { 260.0F, 120.0F } };
+ *
+ * if (nya_ui_panel_begin(ui, "graph", (NYA_UIPanel){ .width = nya_ui_grow(1), .height = nya_ui_grow(1) })) {
+ *     if (nya_ui_node_editor_begin(ui, "canvas", &editor)) {
+ *         (void)nya_ui_node(ui, (NYA_UINode){ .key = 1, .title = "source", .position = &positions[0], .outputs = 1 }, &editor);
+ *         (void)nya_ui_node(ui, (NYA_UINode){ .key = 2, .title = "sink",   .position = &positions[1], .inputs  = 1 }, &editor);
+ *
+ *         for (u32 i = 0; i < link_count; i++) nya_ui_node_link(ui, &editor, links[i]);
+ *
+ *         nya_ui_node_editor_end(ui, &editor);
+ *     }
+ *
+ *     if (editor.connected)    graph_connect(editor.link);
+ *     if (editor.disconnected) graph_detach(editor.detach_node, editor.detach_port);
+ *
+ *     nya_ui_panel_end(ui);
+ * }
+ * ```
+ * */
+NYA_API b8   nya_ui_node_editor_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UINodeEditor* editor) __attr_no_discard;
+NYA_API void nya_ui_node_editor_end(NYA_UI* ui, NYA_UINodeEditor* editor);
+
+/**
+ * One node in the open canvas: a draggable titled box carrying `node.inputs` port stubs down its left edge and
+ * `node.outputs` down its right, placed at `node.position` through the canvas's pan and zoom. Dragging the title bar
+ * moves the node, writing `node.position`; pressing an output stub starts a link the pointer drags, and releasing it
+ * over another node's input stub reports the link through `editor`. Pressing a connected input stub asks to detach
+ * it, also through `editor`.
+ *
+ * True when the node moved this pass. Takes no room in the layout — a canvas positions its nodes itself — so the
+ * order they are declared in is only their draw order, back to front.
+ * */
+NYA_API b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor);
+
+/**
+ * Draws `link` between the two ports it names, an elbow of the flat fills a rule is made of, under the nodes so they
+ * sit over their wires. Declared after the nodes, since it looks up where this pass placed each end; a link to a
+ * node not on screen this pass draws nothing. Purely visual: the caller owns the list of links and passes each one.
+ * */
+NYA_API void nya_ui_node_link(NYA_UI* ui, NYA_UINodeEditor* editor, NYA_UINodeLink link);
 
 /*
  * ─────────────────────────────────────────────────────────

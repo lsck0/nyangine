@@ -133,6 +133,7 @@
 #include "nyangine/ui/ui_draw.c"
 #include "nyangine/ui/ui_input.c"
 #include "nyangine/ui/ui_layout.c"
+#include "nyangine/ui/ui_node.c"
 #include "nyangine/ui/ui_style.c"
 #include "nyangine/ui/ui_text.c"
 #include "nyangine/ui/ui_widgets.c"
