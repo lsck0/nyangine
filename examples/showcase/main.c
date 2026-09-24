@@ -64,8 +64,8 @@
 #define WATER_HALF  6.0F
 
 /** How deep the channel bed sits below the water plane (y = 0), and how high the banks stand above it. */
-#define BED_DEPTH   1.8F
-#define BANK_HEIGHT 2.6F
+#define BED_DEPTH   3.5F
+#define BANK_HEIGHT 8.0F
 
 /**
  * The terrain is a grid of tiles, each its own registered mesh with an LOD chain, so the world can be far larger
@@ -254,8 +254,10 @@ NYA_INTERNAL f32 terrain_height(f32 x, f32 z) {
 
     // eroded hills, faded in by `profile` so they raise the banks and uplands but leave the wet channel smooth. A
     // second, longer octave gives the wide world a few distinct ridges rather than one repeating swell.
-    f32 hills = (sinf(x * 0.055F) * 2.6F) + (cosf((z * 0.045F) + 1.3F) * 2.0F) + (sinf((x + z) * 0.085F) * 1.1F)
-                + (cosf((x * 0.020F) - (z * 0.017F)) * 3.2F);
+    // Stronger, taller relief than the first pass, which was so shallow over this wide world that it read
+    // as a flat grey plain. A big low-frequency swell raises real hills and uplands the banks climb into.
+    f32 hills = (sinf(x * 0.055F) * 5.0F) + (cosf((z * 0.045F) + 1.3F) * 4.0F) + (sinf((x + z) * 0.085F) * 2.2F)
+                + (cosf((x * 0.020F) - (z * 0.017F)) * 7.0F) + (sinf((x * 0.012F) + (z * 0.010F)) * 9.0F);
 
     // a shallow ripple, strongest in the channel, so the water's refraction has relief to distort.
     f32 ripple = 0.10F * sinf(x * 0.7F) * cosf(z * 0.6F);
@@ -945,16 +947,19 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
     // a slow, wide fly-through of the enlarged valley: a low orbit that rises and falls and lets its target sweep
     // down the river, so both banks, the herd and the sun all pass through frame and it reads as a living world.
     f32 t      = state->elapsed_s * 0.045F;
-    f32 radius = 52.0F + (sinf(t * 0.7F) * 10.0F);
+    f32 radius = 40.0F + (sinf(t * 0.7F) * 8.0F);
 
+    // Higher and closer than before, looking down into the valley: the old low, level eye filled half the
+    // frame with sky and left the wide terrain reading as an empty plain. gnyame's cube3d orbits looking
+    // down at its scene; this matches that framing so the relief and the banks fill the view.
     f32x3 eye = {
         cosf(t) * radius,
-        12.0F + (sinf(t * 1.3F) * 4.0F),
-        (sinf(t) * radius * 0.6F) - 12.0F,
+        26.0F + (sinf(t * 1.3F) * 5.0F),
+        (sinf(t) * radius * 0.6F) - 10.0F,
     };
 
-    // look at a point drifting along the river, a little above the water, so the camera pans down the valley.
-    f32x3 target = { sinf(t * 0.5F) * 26.0F, 1.6F, 0.0F };
+    // look at a point drifting along the river, so the camera pans down the valley while tilted downward.
+    f32x3 target = { sinf(t * 0.5F) * 22.0F, 2.0F, 0.0F };
 
     nya_render3d_begin(window, (NYA_Camera3DPerspective){ .position = eye, .target = target, .far_plane = 500.0F });
 
@@ -984,11 +989,11 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
     // distance and height fog with aerial perspective: the depth cue a flat-shaded valley otherwise lacks, and
     // what lets the far tiles recede into the sky's hue as the LOD coarsens them.
     nya_render3d_fog_set(window, (NYA_Render3DFog){
-                                     .color          = { 0.62F, 0.66F, 0.68F, 1.0F },
-                                     .density        = 0.008F,
-                                     .height_falloff = 0.04F,
-                                     .sun_amount     = 0.35F,
-                                     .aerial         = 0.75F,
+                                     .color          = { 0.60F, 0.65F, 0.70F, 1.0F },
+                                     .density        = 0.006F,
+                                     .height_falloff = 0.05F,
+                                     .sun_amount     = 0.40F,
+                                     .aerial         = 0.70F,
                                  });
 
     if (!state->meshes_ready) {
