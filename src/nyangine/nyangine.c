@@ -33,6 +33,9 @@
 #include "nyangine/tls/tls.c"
 #include "nyangine/physics/physics.c"
 #include "nyangine/net/net.c"
+// after tls, whose client session it borrows for the encrypted link, and after os, whose socket it connects.
+// A mail client, so it sits above the transport and below the HTTP server that has a reason to send mail.
+#include "nyangine/smtp/smtp.c"
 // before core, for the reason nyangine.h gives.
 #include "nyangine/http/http.c"
 #include "nyangine/core/core.c"
