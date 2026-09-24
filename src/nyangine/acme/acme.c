@@ -598,6 +598,11 @@ done:
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+// Everything from here to nya_acme_obtain is the order flow, reached only from that function, which
+// needs OpenSSL for the CSR. Compiled only with TLS; otherwise these are unused functions and
+// -Werror,-Wunused-function fails the NYA_NO_TLS (Windows) cross-build.
+#ifdef NYA_MODULE_TLS
+
 /** Reads a string member of an object, or null. Points into the object's own storage. */
 NYA_INTERNAL NYA_ConstCString _nya_acme_string(const NYA_Object* object, NYA_ConstCString key) {
     if (object == nullptr) return nullptr;
@@ -767,6 +772,8 @@ NYA_INTERNAL NYA_Error _nya_acme_authorization(_NYA_AcmeSession* session, NYA_Co
     nya_acme_challenge_store_remove(session->config->challenges, token);
     return nya_error(NYA_ERROR_TIMEOUT, "an authorization did not become valid in time");
 }
+
+#endif // NYA_MODULE_TLS
 
 NYA_Error nya_acme_obtain(NYA_Arena* arena, const NYA_AcmeConfig* config, OUT NYA_AcmeCertificate* out_certificate) {
     nya_assert(arena != nullptr);
