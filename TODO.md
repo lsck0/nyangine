@@ -1113,18 +1113,9 @@ C compiled to wasm, the same headers as the server, no HTML, CSS or JS written b
   manage users and edit roles. Built only from the widget set below.
 - `[ ]` Hot reload on the web: the dev server pushes a rebuilt module over the WebSocket.
 
-## Known bug — showcase renders dark (2026-09-24)
+## Showcase-dark bug — FIXED (`ae6df37c`)
 
-`examples/showcase` renders BROKEN on the dev's display: black sky, near-black shaded terrain and ground, only
-the river bright (blown highlights). Green hills float in a black void. Persists after dropping forced HDR and
-taming the water, so HDR was not the (whole) cause. The sky gradient does not appear (background is black, not a
-blue→gold sky), which points at either the sky pass not compositing into the post render-texture, or the post
-stack (bloom + light shafts + scene tonemap) crushing everything but the water, or the scene lighting/ambient not
-reaching the ground. NOT yet root-caused — do NOT hand-tune palette values (that was a dead end and wasted the
-user's time); diagnose properly: capture the showcase window ALONE at full res (Hyprland/`grim -o <output>` or
-`grim -g`), and bisect by disabling the post chain (draw straight to the window) and each post pass in turn, and
-by comparing against the gnyame cube3d scene which renders correctly with the same APIs. Likely a real
-renderer/post interaction, not just example params.
+Root cause: the sky's `ground` (lower-hemisphere) colour was near-black, and the showcase camera orbits looking DOWN into the valley, so most of the frame sat below the horizon line and showed that near-black ground → a black void past the terrain. `renderer_stress` has the same dark ground but a level camera, so it never showed the bug. Fix: a warm haze `ground` colour close to the fog/horizon. Bisected by forcing the no-post path (still dark → post ruled out) and comparing a full-res `grim -g` capture against renderer_stress's working sky.
 
 ## Phase 5 — engine features, continued
 
