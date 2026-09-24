@@ -38,9 +38,7 @@ s32 main(void) {
     nya_assert(_nya_net_udp_sequence_newer(5, 65530), "a few past the wrap is newer than a few before it");
     nya_assert(!_nya_net_udp_sequence_newer(65530, 5));
 
-    /*
-     * The threshold, at exactly half the space.
-     */
+    /* The threshold, at exactly half the space. */
     nya_assert(_nya_net_udp_sequence_newer(32768, 0), "half the space ahead is still newer");
     nya_assert(!_nya_net_udp_sequence_newer(32769, 0), "just past half is read as older");
 
@@ -134,9 +132,7 @@ s32 main(void) {
 
   printf("TEST: a jump further than the window clears rather than over-shifting\n");
   {
-    /*
-     * The undefined-behaviour case.
-     */
+    /* The undefined-behaviour case. */
     _NYA_NetUdpPeer peer = { 0 };
 
     _nya_net_udp_record_ack(&peer, 1);
@@ -370,9 +366,7 @@ s32 main(void) {
     _nya_net_udp_retire_reliable(&peer, arena, 4);
     nya_assert(peer.outgoing_reliable->length == 6, "a repeated ack retired more");
 
-    /*
-     * An ack further ahead than anything could be outstanding is refused.
-     */
+    /* An ack further ahead than anything could be outstanding is refused. */
     u64 before = peer.outgoing_reliable->length;
 
     _nya_net_udp_retire_reliable(&peer, arena, (u16)(4 + NYA_NET_MAX_RELIABLE_IN_FLIGHT + 100));

@@ -121,11 +121,7 @@ static u64 mutate(u8* data, u64 size, u64 capacity) {
   return size;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * A SERVER THAT ONLY EVER UPGRADES
- * ─────────────────────────────────────────────────────────
- */
+/* A SERVER THAT ONLY EVER UPGRADES */
 
 /** Answers one upgrade request and then writes whatever it is told to. */
 typedef struct {

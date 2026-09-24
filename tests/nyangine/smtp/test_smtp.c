@@ -13,11 +13,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * A SCRIPTED FAKE SERVER OVER AN IN-MEMORY CHANNEL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* A SCRIPTED FAKE SERVER OVER AN IN-MEMORY CHANNEL */
 
 typedef struct {
   NYA_SmtpChannel base;

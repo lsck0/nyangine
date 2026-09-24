@@ -26,9 +26,7 @@ static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 ra
 
   const u32 draws = 4096;
 
-  /*
-   * The bounds the range promises, as a ratio, with a hair of slack.
-   */
+  /* The bounds the range promises, as a ratio, with a hair of slack. */
   f32 slack = 1.0F + 1e-5F;
   f32 low   = exp2f(-range / units_per_doubling) / slack;
   f32 high  = exp2f(range / units_per_doubling) * slack;
@@ -52,9 +50,7 @@ static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 ra
   // The whole point of the feature: a constant would satisfy every bound above.
   nya_assert(moved, "%s: the variation never varied; %u draws all came back as %f", name, draws, (f64)first);
 
-  /*
-   * Centred, which is what a symmetric range means.
-   */
+  /* Centred, which is what a symmetric range means. */
   f64 mean      = sum / (f64)draws;
   f64 tolerance = (f64)range / 11.0;
 
@@ -258,9 +254,7 @@ s32 main(void) {
     nya_assert(top[1] == 0.0F, "top down: nothing may reach the mixer's y, got %f", (f64)top[1]);
     nya_assert(top[2] == 2.0F, "top down: world y must become depth, got %f", (f64)top[2]);
 
-    /*
-     * The reference distance is a divisor, which is the whole reason it sets the scale of the world.
-     */
+    /* The reference distance is a divisor, which is the whole reason it sets the scale of the world. */
     nya_audio_listener_set((NYA_AudioListener){ .position = { 10.0F, 20.0F }, .reference_distance = 8.0F, .plane = NYA_AUDIO_PLANE_SIDE });
 
     f32x3 farther = _nya_audio_world_to_audio((f32x2){ 14.0F, 28.0F });
@@ -393,9 +387,7 @@ s32 main(void) {
     NYA_Asset* asset = nya_asset_get(TEST_WAV_PATH);
     nya_assert(asset != nullptr, "the test tone was never queued");
 
-    /*
-     * Everything below is guarded on there being a device.
-     */
+    /* Everything below is guarded on there being a device. */
     NYA_SoundVoice voice = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
 
     if (voice.generation == 0) {

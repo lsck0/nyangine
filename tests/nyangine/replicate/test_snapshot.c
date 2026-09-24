@@ -132,14 +132,10 @@ NYA_INTERNAL void test_delta_against_identical_baseline(NYA_Arena* arena) {
 
   nya_assert(delta_bytes < full_bytes / 4, "an unchanged world should delta to a small fraction of a full snapshot");
 
-  /*
-   * And the decode still produces the *full* state, not the empty delta.
-   */
+  /* And the decode still produces the *full* state, not the empty delta. */
   nya_assert(decoded.entity_count == 16);
 
-  /*
-   * Looked up by handle, not by position in the array.
-   */
+  /* Looked up by handle, not by position in the array. */
   for (u32 i = 0; i < 16; i++) {
     const NYA_NetEntityState* got = nya_net_snapshot_find(&decoded, handles[i]);
     nya_assert(got != nullptr, "entity %u is missing from the decoded snapshot", i);
@@ -210,9 +206,7 @@ NYA_INTERNAL void test_reused_slot_is_not_a_baseline(NYA_Arena* arena) {
 
   nya_assert(decoded.entity_count == 1);
 
-  /*
-   * The newcomer must arrive whole.
-   */
+  /* The newcomer must arrive whole. */
   nya_assert(decoded.entities[0].handle.generation == second.generation);
   nya_assert(decoded.entities[0].position.x == -1.0F, "the new occupant's own position arrived");
   nya_assert(decoded.entities[0].position.z == -3.0F);
@@ -253,9 +247,7 @@ NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* ar
 
   NYA_NetSnapshot incoming = { .tick = 5, .entities = described, .entity_count = 2 };
 
-  /*
-   * An entity this process spawned itself, marked replicated, that the snapshot does not mention.
-   */
+  /* An entity this process spawned itself, marked replicated, that the snapshot does not mention. */
   NYA_EntityHandle local_only = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 0.0F, 0.0F, 0.0F });
 
   // And an unreplicated one, which must be left entirely alone.
@@ -298,9 +290,7 @@ NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* ar
 
   nya_assert(found == 2, "both described entities were spawned, found %u", found);
 
-  /*
-   * The map is what makes applying twice idempotent.
-   */
+  /* The map is what makes applying twice idempotent. */
   u32 after_first = 0;
   nya_entity_foreach (entity) {
     nya_unused(entity);

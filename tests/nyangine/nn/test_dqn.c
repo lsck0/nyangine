@@ -187,9 +187,7 @@ int main(void) {
     printf("  random %.3f, learned %.3f, loss %.4f, epsilon %.3f\n",
            (f64)random_return, (f64)learned_return, (f64)nya_nn_dqn_average_loss(agent), (f64)nya_nn_dqn_exploration(agent));
 
-    /*
-     * The optimum is three steps right from the middle: 1.0 - 2 * 0.02 = 0.96.
-     */
+    /* The optimum is three steps right from the middle: 1.0 - 2 * 0.02 = 0.96. */
     nya_assert(learned_return > 0.8F, "the agent returned %f, expected better than 0.8", (f64)learned_return);
     nya_assert(learned_return > random_return + 0.5F, "the agent (%f) did not clearly beat random (%f)", (f64)learned_return, (f64)random_return);
 

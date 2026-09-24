@@ -193,9 +193,7 @@ s32 main(void) {
       coin, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 2.0F, 2.0F, 2.0F }, .is_sensor = true
     ));
 
-    /*
-     * The player is an ordinary dynamic body with nothing sensor-shaped about it.
-     */
+    /* The player is an ordinary dynamic body with nothing sensor-shaped about it. */
     NYA_EntityHandle player = nya_entity_spawn(.name = "player", .position = { 0.0F, 6.0F, 0.0F });
     nya_assert(nya_physics3d_body_attach(player, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 0.5F, 0.5F, 0.5F }));
 

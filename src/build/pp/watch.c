@@ -2,11 +2,7 @@
 
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** Why a declaration in a watched function is not in the ring. Written into the companion, so it shows. */
 typedef enum {
@@ -77,11 +73,7 @@ typedef struct {
     u32 problems;
 } _NYA_WatchSet;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 NYA_INTERNAL const NYA_ConstCString _NYA_WATCH_TREES[] = {
     NYA_WATCH_TREE_ENGINE,
@@ -101,11 +93,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_WATCH_NOT_A_TYPE[] = {
 /** Longest declarator this pass reads, in tokens. A plain one is three or four. */
 #define _NYA_WATCH_DECLARATOR_MAX 16
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 NYA_INTERNAL b8  _nya_watch_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32 _nya_watch_compare(const NYA_String* a, const NYA_String* b);
@@ -172,11 +160,7 @@ NYA_INTERNAL void _nya_watch_emit_companion(const _NYA_WatchSet* set, u32 source
 /** Deletes whatever is in the output directory that this run did not write. */
 NYA_INTERNAL void _nya_watch_prune(const _NYA_WatchSet* set, NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_watch_generate(void) {
     NYA_ConstCString inputs[] = {
@@ -258,11 +242,7 @@ void nya_watch_generate(void) {
                  NYA_WATCH_OUTPUT_DIRECTORY);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_watch_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* files = user_data;

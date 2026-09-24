@@ -24,11 +24,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FIXTURES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FIXTURES */
 
 /** Writes `contents` to `<root>/<name>/<relative>`, creating every directory on the way. */
 static void plugin_file_write(NYA_ConstCString name, NYA_ConstCString relative, NYA_ConstCString contents) {
@@ -69,11 +65,7 @@ static NYA_ConstCString plugin_directory(NYA_Arena* arena, NYA_ConstCString name
     return nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s/%s", TEST_SIGNATURE_ROOT, name));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE SUITE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE SUITE */
 
 s32 main(void) {
     (void)nya_filesystem_delete_recursive(TEST_SIGNATURE_ROOT);

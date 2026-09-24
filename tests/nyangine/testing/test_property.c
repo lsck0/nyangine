@@ -29,11 +29,7 @@ nya_derive_dict(u32);
 /** How far two floats may drift and still count as equal after a round trip through a transform. */
 #define TOLERANCE 1.0e-3F
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ENCODING LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ENCODING LAWS */
 
 /** base64: decoding what was encoded gives back exactly the bytes that went in. */
 /** Clamping lands inside the range for every float, infinities and NaN included, since settings files and peers send those too. */
@@ -864,11 +860,7 @@ static b8 law_url_round_trips(NYA_Property* property) {
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONTAINER LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONTAINER LAWS */
 
 /** An array is a stack: what goes in with push_back comes out of pop_back in reverse. */
 static b8 law_array_is_a_stack(NYA_Property* property) {
@@ -996,11 +988,7 @@ static b8 law_ring_is_a_queue(NYA_Property* property) {
     return nya_ring_is_empty(ring);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MATH LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MATH LAWS */
 
 /** A drawn rotation. Normalised, since every identity below is about unit quaternions. */
 static NYA_Quaternion draw_rotation(NYA_Property* property) {
@@ -1094,11 +1082,7 @@ static b8 law_quaternion_matrix_agrees(NYA_Property* property) {
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE SUITE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE SUITE */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

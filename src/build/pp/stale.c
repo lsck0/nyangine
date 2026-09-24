@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** What _nya_pp_collect_newest accumulates into while the walk runs. */
 typedef struct {
@@ -15,11 +11,7 @@ typedef struct {
 NYA_INTERNAL b8 _nya_pp_collect_newest(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL b8 _nya_pp_has_extension(NYA_ConstCString path, NYA_ConstCString extension) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 u64 nya_pp_newest(NYA_ConstCString* paths, NYA_ConstCString extension) {
     nya_assert(paths != nullptr);
@@ -73,11 +65,7 @@ b8 nya_pp_is_current(NYA_ConstCString pass, NYA_ConstCString* inputs, NYA_ConstC
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 NYA_INTERNAL b8 _nya_pp_collect_newest(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     _NYA_PPNewest* state = (_NYA_PPNewest*)user_data;

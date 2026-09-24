@@ -321,9 +321,7 @@ s32 main(void) {
     nya_lexer_destroy(&divide_lexer);
   }
 
-  /*
-   * Separated by a space, so not an opener.
-   */
+  /* Separated by a space, so not an opener. */
   {
     NYA_Lexer spaced_lexer = nya_lexer_create("a / * b");
     nya_lexer_run(&spaced_lexer);

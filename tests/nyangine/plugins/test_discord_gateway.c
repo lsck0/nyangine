@@ -52,11 +52,7 @@ typedef struct {
   f32 jitter;
 } Fake;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE FAKE TRANSPORT
- * ─────────────────────────────────────────────────────────
- */
+/* THE FAKE TRANSPORT */
 
 static NYA_Error fake_open(void* user, NYA_ConstCString url) {
   Fake* fake = (Fake*)user;
@@ -242,9 +238,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_discord_gateway_state_name(NYA_DISCORD_GATEWAY_STATE_CONNECTING), "connecting"));
     nya_assert(nya_discord_gateway_sequence(gateway) == (s64)-1, "no payload has carried a sequence yet");
 
-    /*
-     * HELLO. The interval arms the heartbeat and the login goes out in the same poll.
-     */
+    /* HELLO. The interval arms the heartbeat and the login goes out in the same poll. */
     fake_push(&fake, "{\"op\":10,\"d\":{\"heartbeat_interval\":45000}}");
 
     NYA_DiscordGatewayEvent event = { 0 };
@@ -260,9 +254,7 @@ s32 main(void) {
     );
     nya_assert(!nya_string_contains(fake_last_sent(&fake), "shard"), "an unsharded bot does not send a shard");
 
-    /*
-     * READY: the session and the resume url are what a RESUME later needs.
-     */
+    /* READY: the session and the resume url are what a RESUME later needs. */
     fake_push(&fake,
               "{\"op\":0,\"s\":1,\"t\":\"READY\",\"d\":{\"session_id\":\"session-one\","
               "\"resume_gateway_url\":\"wss://gateway-us-east1-b.discord.gg\",\"user\":{\"username\":\"nyabot\"}}}");
@@ -323,9 +315,7 @@ s32 main(void) {
       "on the resume url READY gave, with the version and encoding this client can read"
     );
 
-    /*
-     * A second HELLO, and this time the login is a RESUME rather than an IDENTIFY.
-     */
+    /* A second HELLO, and this time the login is a RESUME rather than an IDENTIFY. */
     fake_push(&fake, "{\"op\":10,\"d\":{\"heartbeat_interval\":45000}}");
     nya_assert(!nya_discord_gateway_poll(gateway, &event));
 
@@ -339,9 +329,7 @@ s32 main(void) {
     nya_assert(event.kind == NYA_DISCORD_GATEWAY_EVENT_RESUMED);
     nya_assert(nya_discord_gateway_state(gateway) == NYA_DISCORD_GATEWAY_STATE_READY);
 
-    /*
-     * An ordinary dispatch, which is everything a bot is actually there for.
-     */
+    /* An ordinary dispatch, which is everything a bot is actually there for. */
     fake_push(&fake, "{\"op\":0,\"s\":3,\"t\":\"MESSAGE_CREATE\",\"d\":{\"content\":\"!ping\",\"channel_id\":\"42\"}}");
     nya_assert(nya_discord_gateway_poll(gateway, &event));
     nya_assert(event.kind == NYA_DISCORD_GATEWAY_EVENT_DISPATCH);
@@ -352,9 +340,7 @@ s32 main(void) {
     nya_assert(content != nullptr && content->type == NYA_TYPE_STRING);
     nya_assert(nya_string_equals(content->as_string, "!ping"), "the payload arrives decoded");
 
-    /*
-     * A payload of the caller's own, which is only legal once logged in.
-     */
+    /* A payload of the caller's own, which is only legal once logged in. */
     NYA_Object* presence = nya_object_create(arena);
     nya_object_add(presence, "op", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 3 });
 

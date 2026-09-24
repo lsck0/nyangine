@@ -70,9 +70,7 @@ static void write_test_wav(void) {
 }
 
 s32 main(void) {
-  /*
-   * The systems the asset system needs, rather than nya_app_init.
-   */
+  /* The systems the asset system needs, rather than nya_app_init. */
 
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
   b8 sdl_ok         = SDL_Init(0);
@@ -335,9 +333,7 @@ s32 main(void) {
     NYA_Asset* predecoded = nya_asset_get(SOUND_FIXTURE);
     nya_assert(predecoded != nullptr, "the sound was never registered");
 
-    /*
-     * Guarded on the decode having worked, not asserted outright.
-     */
+    /* Guarded on the decode having worked, not asserted outright. */
     nya_assert(predecoded->type == NYA_ASSET_TYPE_SOUND, "the asset came back as the wrong type");
 
     if (predecoded->status == NYA_ASSET_STATUS_LOADED) {
@@ -347,9 +343,7 @@ s32 main(void) {
       nya_log_info("no usable mixer, so the sound decode was not exercised (expected in some CI images)");
     }
 
-    /*
-     * The same file again, streamed rather than predecoded, under its own handle.
-     */
+    /* The same file again, streamed rather than predecoded, under its own handle. */
     char streamed_handle[] = "sound:streamed";
 
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){

@@ -24,9 +24,7 @@ s32 main(void) {
     b8 sdl_ok         = SDL_Init(0);
     nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-    /*
-     * Brought up once for the whole file.
-     */
+    /* Brought up once for the whole file. */
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
     nya_system_asset_init();

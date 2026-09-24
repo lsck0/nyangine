@@ -17,11 +17,7 @@
 /** Offsets the offset law draws, in minutes either side of UTC: RFC 3339 allows up to 23:59. */
 #define OFFSET_MINUTES_MAX (23 * 60 + 59)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 typedef struct {
     NYA_ConstCString text;
@@ -70,11 +66,7 @@ static void check_parse_cases(NYA_ConstCString format, ParseFn parse, const Pars
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** Any instant written as RFC 3339 parses back to exactly itself. */
 static b8 law_rfc3339_round_trips(NYA_Property* property) {

@@ -159,9 +159,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_net_transport_send(a, ca.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)));
 
-    /*
-     * The sender's buffer is overwritten before the receiver polls.
-     */
+    /* The sender's buffer is overwritten before the receiver polls. */
     fill(payload, sizeof(payload), 0x00);
 
     drain(b, &cb);
@@ -267,9 +265,7 @@ s32 main(void) {
     // ── a message far larger than one datagram ─────────────────────────────────
     printf("TEST: udp fragments and reassembles a large message\n");
     {
-      /*
-       * Well past NYA_NET_MAX_DATAGRAM, so this is split into fragments the transport tracks itself.
-       */
+      /* Well past NYA_NET_MAX_DATAGRAM, so this is split into fragments the transport tracks itself. */
       u64 size    = 30000;
       u8* payload = nya_arena_alloc(arena, size);
       fill(payload, size, 0x7C);
@@ -373,9 +369,7 @@ s32 main(void) {
   // TEST: reliability actually recovers from loss
   printf("TEST: udp reliable delivery survives 30%% packet loss\n");
   {
-    /*
-     * The test the perfect loopback link cannot provide.
-     */
+    /* The test the perfect loopback link cannot provide. */
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 
@@ -446,9 +440,7 @@ s32 main(void) {
   // TEST: the paths a working network never takes
   printf("TEST: timeouts, keepalives and dead peers\n");
   {
-    /*
-     * The error paths, reached by moving the clock rather than by waiting.
-     */
+    /* The error paths, reached by moving the clock rather than by waiting. */
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 
@@ -528,9 +520,7 @@ s32 main(void) {
 
   printf("TEST: a fragmented unreliable message\n");
   {
-    /*
-     * Unreliable fragmentation, which is what a large snapshot actually is.
-     */
+    /* Unreliable fragmentation, which is what a large snapshot actually is. */
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 

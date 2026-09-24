@@ -24,11 +24,7 @@
 /** Long enough for the module to accept it, and nothing anybody would use. */
 #define PASSWORD "a correct horse battery staple"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES: the smallest honest login, the accounts_api example's three handlers with nothing else on them
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ROUTES: the smallest honest login, the accounts_api example's three handlers with nothing else on them */
 
 /** The account this request's cookie names, or false with the 401 the caller returns. Mirrors accounts_api. */
 static b8 request_account(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user) {
@@ -128,11 +124,7 @@ static const NYA_HttpRouter LOGIN_ROUTER = {
     .name = "login", .routes = LOGIN_ROUTES, .route_count = nya_carray_length(LOGIN_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE LOOPBACK HARNESS: a real port, a real socket, one whole answer at a time
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE LOOPBACK HARNESS: a real port, a real socket, one whole answer at a time */
 
 static void sleep_ms(u32 milliseconds) {
     struct timespec request = { .tv_sec = milliseconds / 1000, .tv_nsec = (long)(milliseconds % 1000) * 1000000L };
@@ -223,11 +215,7 @@ static b8 session_cookie_token(const char* answer, OUT char* out_token, u64 capa
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

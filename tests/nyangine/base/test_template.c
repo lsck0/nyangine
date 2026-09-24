@@ -5,11 +5,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────
- * FIXTURES
- * ─────────────────────────────────────────────────────────
- */
+/* FIXTURES */
 
 /* Distinct sizes, so a name collision shows up as a static_assert on sizeof rather than as nothing. */
 typedef struct {

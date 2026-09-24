@@ -413,9 +413,7 @@ s32 main(void) {
         nya_check(distinct > 1, "walking the camera across texels should move the volume, got " FMTu32 " distinct positions", distinct);
     }
 
-    /*
-     * ── Options take defaults for zeroes and clamp the rest, so a config file cannot size the atlas wrongly.
-     */
+    /* ── Options take defaults for zeroes and clamp the rest, so a config file cannot size the atlas wrongly. */
     {
         NYA_Window fresh = { 0 };
 

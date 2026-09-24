@@ -43,11 +43,7 @@ static void mount_one(const u8* data, u64 size) {
     NYA_EXPECT(nya_http_static_mount((NYA_HttpStaticConfig){ .files = &file, .count = 1 }));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CLIENT, LIFTED FROM test_websocket.c
- * ─────────────────────────────────────────────────────────
- */
+/* THE CLIENT, LIFTED FROM test_websocket.c */
 
 #define CLIENT_MESSAGE_BYTES 4096
 
@@ -230,11 +226,7 @@ static void client_settle(Client* client) {
     for (u32 step = 0; step < 40; step++) client_step(client);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TESTS
- * ─────────────────────────────────────────────────────────
- */
+/* THE TESTS */
 
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_livereload");

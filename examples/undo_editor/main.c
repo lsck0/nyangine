@@ -344,11 +344,7 @@ NYA_INTERNAL void part_task_group(void) {
     nya_log_info("(the group joined every task regardless; a validation error is expected input, not a crash.)");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc);

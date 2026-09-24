@@ -4,17 +4,9 @@
 #include <ftw.h>
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
-/*
- * ─────────────────────────────────────────────────────────
- * BUILD
- * ─────────────────────────────────────────────────────────
- */
+/* BUILD */
 
 void hook_create_build_directory(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
@@ -531,9 +523,7 @@ void hook_build_steamrt_vendors(NYA_BuildRule* rule) {
 void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
-    /*
-     * Nothing recorded yet is not a failure.
-     */
+    /* Nothing recorded yet is not a failure. */
     if (!nya_filesystem_exists("./perf.data")) {
         nya_log_warn("There is no ./perf.data to convert; run './build run profile' first.");
         return;
@@ -706,11 +696,7 @@ void hook_sign_windows_executable(NYA_BuildRule* rule) {
     nya_command_destroy(&command);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ASSET
- * ─────────────────────────────────────────────────────────
- */
+/* ASSET */
 
 void hook_compile_shaders(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);

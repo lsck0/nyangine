@@ -37,11 +37,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where the token is read from. An environment variable, so nothing of it is in this tree. */
 #define TOKEN_VARIABLE "DISCORD_BOT_TOKEN"
@@ -63,11 +59,7 @@ static void stop(int signal_number) {
     RUNNING = 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE HANDLERS */
 
 /** `object[key]` as a string, or null. The payloads are documents, so everything optional is missing. */
 static NYA_ConstCString string_at(const NYA_Object* object, NYA_CString key) {
@@ -137,11 +129,7 @@ static void on_interaction(NYA_DiscordRest* rest, const NYA_Object* interaction)
     if (!queued.ok) nya_log_warn("Could not queue the reply: %s", (NYA_ConstCString)queued.message);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PROGRAM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE PROGRAM */
 
 s32 main(s32 argc, char** argv) {
     nya_log_level_set(NYA_LOG_LEVEL_INFO);

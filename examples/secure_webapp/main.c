@@ -88,11 +88,7 @@
 
 #include "SDL3/SDL_init.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* STATE */
 
 /** Default port. Loopback only; a deployment behind a reverse proxy sets its own and binds the wildcard. */
 #define DEFAULT_PORT 47830
@@ -130,11 +126,7 @@ NYA_INTERNAL NYA_UIHtml HTML;
 NYA_INTERNAL NYA_Arena*    DB_ARENA = nullptr;
 NYA_INTERNAL NYA_Database* DB       = nullptr;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE CONTENT — one immediate-mode component per page, drawn for a browser
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE CONTENT — one immediate-mode component per page, drawn for a browser */
 
 /** The public home page: prose a crawler indexes and a link unfurls, drawn the way the GPU build would. */
 NYA_INTERNAL void home_component(NYA_Window* window) {
@@ -195,11 +187,7 @@ NYA_INTERNAL void draw_home(NYA_Window* window, NYA_ConstCString unused) {
     home_component(window);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PAGE METADATA — so a link to the home page unfurls, and /oembed answers from the same value
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE PAGE METADATA — so a link to the home page unfurls, and /oembed answers from the same value */
 
 /**
  * The social-media embedding metadata for the home page.
@@ -224,11 +212,7 @@ NYA_INTERNAL NYA_PageMeta home_meta(void) {
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE COMPRESSION LAYER — gzip over the whole server, in one place
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE COMPRESSION LAYER — gzip over the whole server, in one place */
 
 /**
  * Runs the rest of the chain, then compresses whatever came back when the client asked for it.
@@ -248,11 +232,7 @@ NYA_INTERNAL NYA_HttpStatus compress_layer(NYA_HttpExchange* exchange, NYA_HttpC
     return status;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SESSION GUARD — the account this request's cookie names, reused from accounts_api
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SESSION GUARD — the account this request's cookie names, reused from accounts_api */
 
 /**
  * The account this request's cookie names, or false with the 401 already the caller's to return.
@@ -299,11 +279,7 @@ NYA_INTERNAL NYA_ConstCString request_address(NYA_HttpExchange* exchange) {
     return exchange->address[0] != '\0' ? exchange->address : "unknown";
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SSR HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SSR HELPERS */
 
 /**
  * Sets the per-response Content-Security-Policy for an SSR page: a fresh nonce for the one inline script
@@ -326,11 +302,7 @@ NYA_INTERNAL b8 ssr_security_policy(NYA_HttpExchange* exchange, OUT char* out_no
     return nya_http_response_header(exchange->response, "Content-Security-Policy", policy).ok;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: THE PAGES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS: THE PAGES */
 
 /** `GET /`: the home page, server-rendered, with the embedding metadata woven into its `<head>`. */
 NYA_INTERNAL NYA_HttpStatus handle_home(NYA_HttpExchange* exchange) {
@@ -413,11 +385,7 @@ NYA_INTERNAL NYA_HttpStatus handle_oembed(NYA_HttpExchange* exchange) {
     return sent.ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: THE LOGIN, reused from accounts_api
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS: THE LOGIN, reused from accounts_api */
 
 /** Registration, open to anybody in this example. A taken name or a short password says which. */
 NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
@@ -497,11 +465,7 @@ NYA_INTERNAL NYA_HttpStatus handle_logout(NYA_HttpExchange* exchange) {
     return cleared.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ROUTES */
 
 /*
  * Every route is NYA_HTTP_AFFINITY_MAIN: the SSR pages share the one HTML presenter and window, and the
@@ -541,11 +505,7 @@ NYA_INTERNAL const NYA_HttpRouter ACCOUNT_ROUTER = {
     .name = "accounts", .routes = ACCOUNT_ROUTES, .route_count = nya_carray_length(ACCOUNT_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DISCOVERABILITY SURFACE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE DISCOVERABILITY SURFACE */
 
 /**
  * Builds and mounts the four well-known documents a crawler and an LLM look for. Merge
@@ -598,11 +558,7 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
         .name = "nyangine secure webapp", .summary = "An example content site built on nyangine.", .sections = llms_sections, .section_count = nya_carray_length(llms_sections) });
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HEADLESS SELF TEST — the server proves itself, on a thread of its own
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE HEADLESS SELF TEST — the server proves itself, on a thread of its own */
 
 /** Whether `needle` occurs in the `size` bytes at `hay`. A raw body is bytes, not a C string, so no strstr. */
 NYA_INTERNAL b8 bytes_contain(const u8* hay, u64 size, NYA_ConstCString needle) {
@@ -717,11 +673,7 @@ NYA_INTERNAL void self_test_run(void* data) {
     *test->running = 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;

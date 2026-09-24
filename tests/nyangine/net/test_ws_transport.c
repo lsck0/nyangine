@@ -29,11 +29,7 @@
 /** The version this server speaks. A client presenting anything else is refused at the join. */
 #define SERVER_VERSION 7U
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TRANSPORT UNDER TEST, AND WHAT ITS POLL HAS SEEN
- * ─────────────────────────────────────────────────────────
- */
+/* THE TRANSPORT UNDER TEST, AND WHAT ITS POLL HAS SEEN */
 
 static NYA_NetTransport* TRANSPORT = nullptr;
 
@@ -77,11 +73,7 @@ static void transport_drain(void) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CLIENT — a browser stood in for by a socket and the codec
- * ─────────────────────────────────────────────────────────
- */
+/* THE CLIENT — a browser stood in for by a socket and the codec */
 
 #define CLIENT_MESSAGE_BYTES 8192
 
@@ -317,11 +309,7 @@ static void drain_close(Client* client) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TESTS
- * ─────────────────────────────────────────────────────────
- */
+/* THE TESTS */
 
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_net_ws_transport");

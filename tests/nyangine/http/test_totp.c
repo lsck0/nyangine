@@ -17,11 +17,7 @@
 /** A code as it is printed, so a wrong one can be built next to a right one. */
 #define CODE_CHARACTERS NYA_CRYPTO_TOTP_DIGITS
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** The code this secret's authenticator would show at `unix_s`. */
 static void code_at(const NYA_CryptoTotpSecret* secret, u64 unix_s, OUT char out_code[NYA_CRYPTO_TOTP_CODE_BYTES]) {
@@ -64,11 +60,7 @@ static void spend_wrong(NYA_HttpTotpGuard* guard, const NYA_CryptoTotpSecret* se
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

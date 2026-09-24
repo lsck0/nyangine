@@ -20,11 +20,7 @@
 /** "accounts" folded into eight ASCII bytes. Fixed, so the suite is one run. */
 #define SEED 0x6163636F756E7473ULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS — USERNAME NORMALISATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS — USERNAME NORMALISATION */
 
 /** Normalising an already-normalised name changes nothing: normalize(normalize(x)) == normalize(x). */
 static b8 law_normalize_is_idempotent(NYA_Property* property) {
@@ -73,11 +69,7 @@ static b8 law_normalize_folds_case(NYA_Property* property) {
     return ok_a == ok_b && (!ok_a || strcmp(a, b) == 0);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS — THE STORED PASSWORD HASH
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS — THE STORED PASSWORD HASH */
 
 /**
  * Draws a stored-hash string: sometimes a plausible `$argon2id$v=19$m=...,t=...,p=...$...$...` with drawn
@@ -179,11 +171,7 @@ static b8 law_number_never_overflows(NYA_Property* property) {
     return within && stopped;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS — THE LOGIN THROTTLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS — THE LOGIN THROTTLE */
 
 /** The wait a count of failures earns never falls as the count rises, and never passes the cap. */
 static b8 law_throttle_wait_is_monotone_and_bounded(NYA_Property* property) {

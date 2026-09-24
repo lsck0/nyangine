@@ -19,11 +19,7 @@
 /** Shaped like the real thing and deliberately not one. */
 #define TEST_TOKEN "not-a-token-this-is-a-test-fixture"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SOCKET
- * ─────────────────────────────────────────────────────────
- */
+/* THE SOCKET */
 
 typedef struct {
   NYA_WebSocketEventKind kind;
@@ -146,11 +142,7 @@ static const char* STALE = "{\"metadata\":{\"message_id\":\"s-1\",\"message_type
                            "\"message_timestamp\":\"2020-01-01T00:00:00Z\",\"subscription_type\":\"channel.follow\"},"
                            "\"payload\":{\"event\":{}}}";
 
-/*
- * ─────────────────────────────────────────────────────────
- * HELIX
- * ─────────────────────────────────────────────────────────
- */
+/* HELIX */
 
 typedef struct {
   u32         status;

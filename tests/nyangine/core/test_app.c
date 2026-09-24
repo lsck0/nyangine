@@ -15,9 +15,7 @@ static u64 arena_used(NYA_Arena* arena) {
 }
 
 s32 main(void) {
-  /*
-   * The subsystems the frame loop reaches into, and nothing more.
-   */
+  /* The subsystems the frame loop reaches into, and nothing more. */
   _NYA_APP_INSTANCE = (NYA_App){
     .initialized                    = true,
     .options                        = { _NYA_APP_DEFAULT_OPTIONS },

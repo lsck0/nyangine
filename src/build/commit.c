@@ -15,11 +15,7 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The shared core, relative to the repository root the build tool runs from. */
 #define COMMIT_LINTER "hooks/commit-msg-lint.sh"
@@ -27,11 +23,7 @@
 /** With no argument, the one commit at HEAD. A range so the script's range mode reads exactly it. */
 #define COMMIT_DEFAULT_RANGE "HEAD~1..HEAD"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void commit_check_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);

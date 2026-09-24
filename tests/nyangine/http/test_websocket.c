@@ -30,11 +30,7 @@
 #define ECHO_PATH "/ws/echo"
 #define PUSH_PATH "/ws/push"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE ROUTES UNDER TEST
- * ─────────────────────────────────────────────────────────
- */
+/* THE ROUTES UNDER TEST */
 
 static u32 OPENS    = 0;
 static u32 MESSAGES = 0;
@@ -80,11 +76,7 @@ static const NYA_HttpWebSocketRoute PUSH_ROUTE = {
     .summary = "says nothing until the program broadcasts",
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CLIENT
- * ─────────────────────────────────────────────────────────
- */
+/* THE CLIENT */
 
 /** What a message on this connection may be. Smaller than the server's, which is what it is testing. */
 #define CLIENT_MESSAGE_BYTES 8192
@@ -312,11 +304,7 @@ static void client_wait(Client* client, const u32* counter, u32 target) {
     for (u32 step = 0; step < PUMP_STEPS && *counter < target; step++) client_step(client);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TESTS
- * ─────────────────────────────────────────────────────────
- */
+/* THE TESTS */
 
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_websocket");

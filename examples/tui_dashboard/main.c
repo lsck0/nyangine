@@ -59,11 +59,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Frames drawn before the program exits on its own. Bounded, because an example must end. */
 #define FRAME_COUNT 600
@@ -135,11 +131,7 @@
 /** Columns from the right edge where the legend starts, room for its width in any common font. */
 #define LEGEND_COLUMNS_FROM_RIGHT 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** What a bar is a share of, which is the dropdown's two options in its order. */
 typedef enum {
@@ -189,11 +181,7 @@ typedef struct {
     u32 bar_count;
 } Dashboard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DRAWING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* DRAWING */
 
 /** One arena: a row that takes focus, and the room its bar is drawn into once the UI is on the screen. */
 static void arena_row(NYA_UI* ui, Dashboard* dashboard, u32 index, const NYA_ArenaStats* stats) {
@@ -407,11 +395,7 @@ static void legend_show(NYA_Window* window, Dashboard* dashboard, const u8* rgba
     (void)nya_render2d_terminal_image(window, x, 0.0F, rgba, LEGEND_WIDTH_PX, LEGEND_HEIGHT_PX);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INPUT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* INPUT */
 
 /** Drains the terminal and feeds the input system every widget above it reads. */
 static void input_pump(Dashboard* dashboard) {
@@ -454,11 +438,7 @@ static NYA_UIStyle dashboard_style(void) {
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

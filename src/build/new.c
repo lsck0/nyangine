@@ -24,11 +24,7 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where each kind is scaffolded. Examples auto-discover from here; an app lives beside the engine. */
 #define NEW_EXAMPLE_ROOT "./examples"
@@ -43,11 +39,7 @@
 #define NEW_TOKEN       "nyanew"
 #define NEW_TOKEN_UPPER "NYANEW"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** Which of the three shapes to scaffold. */
 typedef enum NewKind {
@@ -268,11 +260,7 @@ NYA_INTERNAL NYA_ConstCString NEW_TEMPLATE_APP_SOURCE =
     "\n"
     "void nya_app_entry_deinit(void) { nya_app_deinit(); }\n";
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Whether `name` is a C identifier: a letter or underscore, then letters, digits or underscores. */
 NYA_INTERNAL b8 _new_name_is_identifier(NYA_ConstCString name);
@@ -289,11 +277,7 @@ NYA_INTERNAL NYA_String* _new_render(NYA_Arena* arena, NYA_ConstCString template
 /** Creates `directory` and writes `contents` to `directory/filename`, panicking on an IO failure. */
 NYA_INTERNAL void _new_write_file(NYA_Arena* arena, NYA_ConstCString directory, NYA_ConstCString filename, const NYA_String* contents);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void new_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -391,11 +375,7 @@ NYA_ConstCString new_completion_kind(u32 index) {
     return kinds[index];
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _new_name_is_identifier(NYA_ConstCString name) {
     nya_assert(name != nullptr);

@@ -14,11 +14,7 @@
 /** Fixed, so the suite is the same run every time. */
 #define SEED 0x7832353531392121ULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 static u8 hex_digit(char c) {
     if (c >= '0' && c <= '9') return (u8)(c - '0');
@@ -54,11 +50,7 @@ static b8 x25519(const u8 k[NYA_CRYPTO_EXCHANGE_KEY_BYTES], const u8 u[NYA_CRYPT
     return accepted;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** Two pairs from any secrets arrive at the same shared secret from either side. */
 static b8 law_both_sides_agree(NYA_Property* property) {
@@ -80,11 +72,7 @@ static b8 law_both_sides_agree(NYA_Property* property) {
     return alice_ok && bob_ok && nya_crypto_equals(from_alice.bytes, from_bob.bytes, sizeof(from_alice.bytes));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

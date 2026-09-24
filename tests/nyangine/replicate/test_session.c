@@ -115,9 +115,7 @@ s32 main(void) {
     // A world with something in it, so a snapshot would have work to do if one were taken.
     NYA_EntityHandle crate = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 5.0F, 5.0F, 0.0F });
 
-    /*
-     * The claim being tested: with nobody listening, a tick does no networking at all.
-     */
+    /* The claim being tested: with nobody listening, a tick does no networking at all. */
     run_ticks(&tick, 120, false);
 
     nya_assert(_NYA_NET_SERVER.tick_arena != nullptr);
@@ -185,9 +183,7 @@ s32 main(void) {
 
     nya_assert(entity->position.x > start_x + 10.0F, "the host's player did not move (x went %f -> %f)", (f64)start_x, (f64)entity->position.x);
 
-    /*
-     * Moved exactly once per tick, not twice.
-     */
+    /* Moved exactly once per tick, not twice. */
     f32 expected = start_x + (SPEED * TICK_SECONDS * 30.0F);
     f32 drift    = entity->position.x - expected;
 
@@ -223,9 +219,7 @@ s32 main(void) {
 
     printf("  listening on %u\n", port);
 
-    /*
-     * The world the client is about to be told about.
-     */
+    /* The world the client is about to be told about. */
     (void)nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 300.0F, 0.0F, 0.0F });
     (void)nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 400.0F, 0.0F, 0.0F });
 
@@ -235,9 +229,7 @@ s32 main(void) {
       .on_sample_command = nya_callback(sample_command),
     }));
 
-    /*
-     * Server and client are in one process here, so they share one entity table.
-     */
+    /* Server and client are in one process here, so they share one entity table. */
     HELD_ACTIONS = 0;
 
     u64 deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
@@ -385,9 +377,7 @@ s32 main(void) {
     NYA_Entity* entity = nya_entity_get(player);
     f32         before = entity->position.x;
 
-    /*
-     * One tick, holding right, and the player has already moved.
-     */
+    /* One tick, holding right, and the player has already moved. */
     HELD_ACTIONS = 1ULL << ACTION_RIGHT;
 
     nya_net_client_tick(tick, TICK_SECONDS);

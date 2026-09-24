@@ -25,11 +25,7 @@
 /** RFC 4226 appendix D and RFC 6238 appendix B share this seed: ASCII "12345678901234567890". */
 #define VECTOR_SECRET "12345678901234567890"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** One counter under the vector key, against the answer the RFC prints for it. */
 static void check_code(NYA_ConstCString what, u64 counter, NYA_ConstCString printed) {
@@ -50,11 +46,7 @@ static void check_time(u64 unix_s, u64 expected_counter, NYA_ConstCString printe
     check_code("rfc 6238 appendix b", counter, printed);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** A code is always exactly six decimal digits, leading zeros kept rather than trimmed. */
 static b8 law_code_is_six_digits(NYA_Property* property) {
@@ -94,11 +86,7 @@ static b8 law_steps_differ(NYA_Property* property) {
     return !nya_crypto_totp_code_equals(here, next);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

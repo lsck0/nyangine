@@ -145,9 +145,7 @@ s32 main(void) {
     nya_assert(PARSE("--port", "99999").port == NYA_NET_DEFAULT_PORT, "a port past 65535 falls back");
     nya_assert(PARSE("--port", "65535").port == 65535, "the highest real port is accepted");
 
-    /*
-     * Past what a u64 holds.
-     */
+    /* Past what a u64 holds. */
     nya_assert(PARSE("--port", "99999999999999999999999").port == NYA_NET_DEFAULT_PORT, "an overflowing number falls back");
 
     // an empty attached value is a value the user wrote, so it is refused rather than treated as absent.

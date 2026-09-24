@@ -2,11 +2,7 @@
 
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** One C type the boundary can carry, and how it crosses in each direction. */
 typedef struct {
@@ -73,11 +69,7 @@ typedef struct {
     u64         offset;
 } _NYA_LuaBindReader;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /**
  * Everything that crosses, and nothing else.
@@ -112,11 +104,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_LUABIND_PERMISSIONS[] = {
     "NONE", "UI", "INPUT", "KEYBINDING", "ENTITIES", "AUDIO", "ASSETS", "FILESYSTEM", "NETWORK",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 NYA_INTERNAL b8 _nya_luabind_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32 _nya_luabind_compare(const NYA_String* a, const NYA_String* b);
@@ -163,11 +151,7 @@ NYA_INTERNAL void _nya_luabind_emit_source(const _NYA_LuaBindSet* set, NYA_Strin
 /** Writes the `---@meta` definitions an editor reads. */
 NYA_INTERNAL void _nya_luabind_emit_definitions(const _NYA_LuaBindSet* set, NYA_String* out);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_luabind_generate(void) {
     NYA_ConstCString inputs[]  = { NYA_LUABIND_DIRECTORY, "./src/build/pp/luabind.c", nullptr };
@@ -210,11 +194,7 @@ void nya_luabind_generate(void) {
                  NYA_LUABIND_OUTPUT_SOURCE, set->skipped);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_luabind_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* files = user_data;

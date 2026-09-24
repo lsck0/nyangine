@@ -25,11 +25,7 @@
 #define REDIRECT_URI  "https://example.test/callback"
 #define SCOPES        "openid email profile"
 
-/*
- * ─────────────────────────────────────────────────────────
- * RSA FIXTURE — see the file note above.
- * ─────────────────────────────────────────────────────────
- */
+/* RSA FIXTURE — see the file note above. */
 
 #define JWKS_N                                                                                                                                       \
   "rNTZZodETUlBmRuqVoYznjyGvO3tfzAPv3JoVT2eZ1BMhFEsMpSfBt2fzERbpCW_21bGFav879ghV4Gcwdzmo1jhyL05AJbpgfnps2OT2qGZymWy89BseBrAPuHEghyO1veMu8MzMZE8fBisN" \
@@ -117,11 +113,7 @@
   "ZVbj5LljsIQiDqrCmcRXkqdCOatG3cutQjeCmE-g9wi7z1kOMD6Ks-2NZPmQQq8GZDq0yYSocWRyftt_0C2JZEBpdZdBxNBvf6-FC6d0xvSoAos7Fw71knhMvO-TgJvfv9IPYYtrnDO_yTTb"   \
   "UwXMMj13zOfptNpvmyovfEFD4-I6KJgRtPceIP-6stO7VzsVcgskcA"
 
-/*
- * ─────────────────────────────────────────────────────────
- * REPLIES
- * ─────────────────────────────────────────────────────────
- */
+/* REPLIES */
 
 #define JWKS_EC_X "5P_TGFB_fOb8s9HiuPd7FKMl10sDvGETdFrYcq8kkLo"
 #define JWKS_EC_Y "bJdoN89iTGM4siIKrVoAdbhHhwYxLVyPGdSKpn4wURU"
@@ -156,11 +148,7 @@ static const char* JWKS_EC_AS_RSA_KID = "{\"keys\":[{\"kty\":\"EC\",\"kid\":\"te
 #define TOKEN_BODY(id_token)                                                                                                                         \
   "{\"access_token\":\"test-access-token-fixture\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"" id_token "\"}"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE FAKE
- * ─────────────────────────────────────────────────────────
- */
+/* THE FAKE */
 
 typedef struct {
   u32         status;

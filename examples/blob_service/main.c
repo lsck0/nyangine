@@ -103,11 +103,7 @@
 #include "SDL3/SDL_init.h"
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS AND STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS AND STATE */
 
 /** Default port. Loopback only; the sibling web servers sit on 47800 and 47810, this one after them. */
 #define DEFAULT_PORT 47820
@@ -158,11 +154,7 @@ NYA_INTERNAL void stop(int signal_number) {
     RUNNING = 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE INDEX WORKER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE INDEX WORKER */
 
 /**
  * Runs one "index" job, on a worker thread, off a connection of its own.
@@ -247,11 +239,7 @@ NYA_INTERNAL NYA_JobOutcome index_job(const NYA_QueuedJob* job, void* context) {
     return NYA_JOB_OUTCOME_COMPLETE;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INGEST: THE STORE-AND-ENQUEUE BOTH HANDLERS AND THE SELF-TEST SHARE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* INGEST: THE STORE-AND-ENQUEUE BOTH HANDLERS AND THE SELF-TEST SHARE */
 
 /**
  * Stores `size` bytes and enqueues an index job for them, writing the resulting content-address to
@@ -274,11 +262,7 @@ NYA_INTERNAL NYA_Error ingest(const u8* bytes, u64 size, OUT NYA_BlobId* out_id)
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS */
 
 /**
  * Stores the request body and answers with its content-address.
@@ -380,11 +364,7 @@ NYA_INTERNAL NYA_HttpStatus jobs_query(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE ROUTE TABLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE ROUTE TABLE */
 
 /*
  * All three are NYA_HTTP_AFFINITY_MAIN: they touch the blob store and the queue, which are the main
@@ -439,11 +419,7 @@ NYA_INTERNAL const NYA_HttpRouter SERVICE_ROUTER = {
     .route_count = nya_carray_length(SERVICE_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HEADLESS SELF-TEST
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE HEADLESS SELF-TEST */
 
 /** How many distinct objects the self-test uploads, and so how many index jobs it expects to see done. */
 #define SELF_TEST_OBJECTS 2
@@ -533,11 +509,7 @@ NYA_INTERNAL void self_test_client(void* data) {
     nya_log_info("self-test: downloaded %s -> %llu bytes, verified against its id.", id_a, (unsigned long long)response.raw_body->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PROGRAM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE PROGRAM */
 
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;

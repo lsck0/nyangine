@@ -47,11 +47,7 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where everything below is staged. Wiped and rebuilt, so nothing may be kept here by hand. */
 #define DIST_DIRECTORY "./dist"
@@ -78,11 +74,7 @@
 #define DIST_TOKEN_SHA256_WINDOWS "@SHA256_WINDOWS@"
 #define DIST_TOKEN_DATE           "@DATE@"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 typedef enum DistKind DistKind;
 
@@ -132,11 +124,7 @@ typedef struct DistTarget {
     NYA_ConstCString extras[5];
 } DistTarget;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Runs `program`, showing its output. */
 NYA_INTERNAL void _dist_run(NYA_ConstCString name, NYA_ConstCString program, const NYA_ConstCString* arguments);
@@ -165,11 +153,7 @@ NYA_INTERNAL void _dist_archive(NYA_Arena* arena, const DistTarget* target);
 /** Writes dist/SHA256SUMS over every archive staged so far. */
 NYA_INTERNAL void _dist_write_checksums(NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TABLES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TABLES */
 
 // clang-format off
 
@@ -296,11 +280,7 @@ NYA_INTERNAL struct {
 /** Which targets have already been staged this run, indexed like DIST_TARGETS. */
 NYA_INTERNAL b8 _dist_staged[nya_carray_length(DIST_TARGETS)] = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void dist_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -382,11 +362,7 @@ NYA_ConstCString dist_completion_target(u32 index) {
     return DIST_TARGETS[index].name;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 void _dist_run(NYA_ConstCString name, NYA_ConstCString program, const NYA_ConstCString* arguments) {
     NYA_BuildRule rule = {

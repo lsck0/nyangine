@@ -189,9 +189,7 @@ s32 main(void) {
     nya_assert(nya_input_modifiers_by(PLAYER_TWO) == NYA_KEYMOD_LCTRL);
     nya_assert(nya_input_modifiers_by(PLAYER_ONE) == NYA_KEYMOD_NONE);
 
-    /*
-     * The whole reason modifiers are stored per player.
-     */
+    /* The whole reason modifiers are stored per player. */
     nya_assert(!nya_input_action_pressed_by(PLAYER_ONE, ACTION_FIRE), "player two's ctrl does not complete player one's chord");
 
     // And with their own ctrl down it fires.
@@ -256,9 +254,7 @@ s32 main(void) {
     release(keyboard(1), NYA_KEY_A);
     end_frame();
 
-    /*
-     * A reset must tear the slots down, not merely unroute them.
-     */
+    /* A reset must tear the slots down, not merely unroute them. */
     press(keyboard(2), NYA_KEY_B, NYA_KEYMOD_NONE);
     nya_assert(nya_input_key_pressed_by(PLAYER_TWO, NYA_KEY_B));
 
@@ -296,9 +292,7 @@ s32 main(void) {
 
   // TEST: many lobby cycles, which is where the state used to accumulate
   {
-    /*
-     * Claim, use, reset, repeat.
-     */
+    /* Claim, use, reset, repeat. */
     for (u32 cycle = 0; cycle < 50; cycle++) {
       nya_input_source_assign(keyboard(1), PLAYER_ONE);
       nya_input_source_assign(keyboard(2), PLAYER_TWO);

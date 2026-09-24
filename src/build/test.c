@@ -5,11 +5,7 @@ typedef NYA_BuildRule* NYA_BuildRulePointer;
 nya_derive_array(NYA_BuildRulePointer);
 nya_derive_dict(b8);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /*
  * The engine a test links when it takes the engine as it is. Its own `#include "nyangine/nyangine.c"`
@@ -106,11 +102,7 @@ NYA_INTERNAL NYA_ConstCString _coverage_write_profile_response(NYA_ArrayᐸNYA_B
 /** The total line coverage percent out of `llvm-cov export` JSON, or a negative on a parse failure. */
 NYA_INTERNAL f64 _coverage_parse_line_percent(NYA_ConstCString json) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void test_runner(NYA_ArgCommand* command) {
     _test_run_all(command, false, 0, false);
@@ -351,9 +343,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
         };
 
         if (coverage) {
-            /*
-             * One raw profile per test, named after it.
-             */
+            /* One raw profile per test, named after it. */
             u32 env_count = 0;
             while (env_count < NYA_COMMAND_MAX_ENV_VARS && run_test_rule->command.environment[env_count] != nullptr) env_count++;
 
@@ -456,11 +446,7 @@ void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules, s64 f
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 NYA_INTERNAL b8 _test_collect_sources(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* sources = (NYA_ArrayᐸNYA_Stringᐳ*)user_data;

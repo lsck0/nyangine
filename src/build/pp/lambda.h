@@ -25,11 +25,7 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The macro whose call sites this pass reads. Matched as a whole identifier, outside comments and literals. */
 #define NYA_LAMBDA_MARKER "nya_lambda"
@@ -69,11 +65,7 @@
 #define NYA_LAMBDA_MAX_BODY       8192
 #define NYA_LAMBDA_MAX_PATH       256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS */
 
 /**
  * Walks every tree, reads every call site, and writes one companion per source file plus the manifest.

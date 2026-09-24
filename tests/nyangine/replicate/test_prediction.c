@@ -90,9 +90,7 @@ s32 main(void) {
   defer nya_world_destroy(CLIENT_WORLD);
   defer nya_world_destroy(SERVER_WORLD);
 
-  /*
-   * The client's table is pushed out of step with the server's before anything is replicated.
-   */
+  /* The client's table is pushed out of step with the server's before anything is replicated. */
   (void)nya_world_set(CLIENT_WORLD);
   {
     NYA_EntityHandle filler[6];
@@ -154,9 +152,7 @@ s32 main(void) {
 
   printf("TEST: the replica world is separate\n");
   {
-    /*
-     * The property that makes everything below meaningful.
-     */
+    /* The property that makes everything below meaningful. */
     u64 deadline = nya_clock_get_monotonic_ms() + 5000;
 
     while (!nya_entity_is_valid(nya_net_client_entity()) && nya_clock_get_monotonic_ms() < deadline) {
@@ -174,9 +170,7 @@ s32 main(void) {
 
     printf("  server entity %u, client entity %u\n", SERVER_PLAYER.index, local.index);
 
-    /*
-     * The two really are different numbers, which is what says the translation happened.
-     */
+    /* The two really are different numbers, which is what says the translation happened. */
     nya_assert(local.index != SERVER_PLAYER.index, "the two worlds handed out the same index; the translation is untested");
 
     // The client's copy exists in the client's world and not in the server's.
@@ -218,9 +212,7 @@ s32 main(void) {
 
   printf("TEST: a disagreeing prediction is corrected and replayed\n");
   {
-    /*
-     * The whole point of the file.
-     */
+    /* The whole point of the file. */
     u64 corrections_before = nya_net_client_correction_count();
 
     u64 deadline = nya_clock_get_monotonic_ms() + 6000;
@@ -239,9 +231,7 @@ s32 main(void) {
 
     nya_assert(corrections > corrections_before, "a prediction that disagrees with the server was never corrected");
 
-    /*
-     * And the client is still ahead of where the server said it was, because the replay put it back.
-     */
+    /* And the client is still ahead of where the server said it was, because the replay put it back. */
     (void)nya_world_set(SERVER_WORLD);
     NYA_Entity* authoritative = nya_entity_get(SERVER_PLAYER);
     nya_assert(authoritative != nullptr);
@@ -258,9 +248,7 @@ s32 main(void) {
 
   printf("TEST: snapshots keep flowing and being acknowledged\n");
   {
-    /*
-     * The baseline arena swap, which is only exercised by a client that actually applies deltas.
-     */
+    /* The baseline arena swap, which is only exercised by a client that actually applies deltas. */
     u64 before = nya_net_client_server_tick();
 
     for (u32 i = 0; i < 60; i++) {
@@ -324,9 +312,7 @@ s32 main(void) {
 
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_DISCONNECTED, "the client did not notice the server closing");
 
-    /*
-     * And the replicated world went with the connection.
-     */
+    /* And the replicated world went with the connection. */
     (void)nya_world_set(CLIENT_WORLD);
     nya_system_sim_apply_commands();
 

@@ -23,11 +23,7 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The formatter, by name. Found on PATH, or skipped with a notice if it is not installed. */
 #define FORMAT_PROGRAM "clang-format"
@@ -40,11 +36,7 @@ NYA_INTERNAL const NYA_ConstCString _FORMAT_ROOTS[] = {
 /** The translation-unit roots that sit outside a tree, the same two the linter names by hand. */
 NYA_INTERNAL const NYA_ConstCString _FORMAT_FILES[] = { "./src/main.c", "./build.c" };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Whether `clang-format --version` runs and exits cleanly, which is to say the tool is installed on PATH. */
 NYA_INTERNAL b8 _format_program_exists(void);
@@ -52,11 +44,7 @@ NYA_INTERNAL b8 _format_program_exists(void);
 /** Collects the .c and .h files under a walked tree into an NYA_ArrayᐸNYA_Stringᐳ, skipping corpora and crashes. */
 NYA_INTERNAL b8 _format_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void format_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -139,11 +127,7 @@ void format_runner(NYA_ArgCommand* command) {
                  files->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _format_program_exists(void) {
     // The probe typos.c uses for its spell checker: a program missing from PATH still spawns and the child

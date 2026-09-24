@@ -20,11 +20,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DOCUMENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE DOCUMENT */
 
 /** Where a converted document is written when no path is given. */
 #define DEFAULT_OUTPUT "cli_tool.out"
@@ -47,11 +43,7 @@ NYA_INTERNAL NYA_Object* document_create(NYA_Arena* arena) {
     return root;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * COMMAND HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* COMMAND HANDLERS */
 
 NYA_INTERNAL NYA_ArgParameter format_flag;
 NYA_INTERNAL NYA_ArgParameter output_path;
@@ -130,11 +122,7 @@ NYA_INTERNAL void convert_runner(NYA_ArgCommand* command) {
     nya_log_info("Wrote %llu bytes of %s to %s and read it back.", (unsigned long long)text->length, name, path);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE COMMAND TREE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE COMMAND TREE */
 
 /*
  * A flag with no default_value is required, whatever its kind, so every optional argument here
@@ -195,11 +183,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
     },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_backtrace_init();

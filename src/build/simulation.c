@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /**
  * A seed nobody chose, for a run nobody is replaying.
@@ -15,11 +11,7 @@
  * */
 NYA_INTERNAL u64 _simulation_seed_fresh(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void simulation_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -134,11 +126,7 @@ void simulation_runner(NYA_ArgCommand* command) {
     NYA_EXPECT(nya_build(&run_rule), "the simulation found something; the seed above replays it");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 u64 _simulation_seed_fresh(void) {
     // hashed rather than used raw, so two runs started in the same millisecond do not get seeds that

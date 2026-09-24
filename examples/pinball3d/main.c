@@ -26,11 +26,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define WINDOW_TITLE  "nyangine — pinball"
 #define WINDOW_WIDTH  720
@@ -117,11 +113,7 @@
 /** The room around the table. Blue rather than black, so the dark green playfield's edge still reads against it. */
 #define ROOM_COLOR ((NYA_Color){ 0.07F, 0.08F, 0.13F, 1.0F })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 typedef enum {
     PINBALL_ENTITY_NONE = 0,
@@ -187,11 +179,7 @@ NYA_INTERNAL Pinball* pinball(void) {
     return nya_world_user_data();
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TABLE SPACE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TABLE SPACE */
 
 /*
  * The playfield lies in the xz plane with -z up the table, and the whole thing is then tilted about
@@ -209,11 +197,7 @@ NYA_INTERNAL f32x3 table_point(f32x3 flat) {
     return nya_quaternion_rotate(table_rotation(), flat);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BUILDING THE TABLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* BUILDING THE TABLE */
 
 /** A static box bolted to the playfield. Walls and the playfield itself. */
 NYA_INTERNAL NYA_EntityHandle solid_create(NYA_ConstCString name, u32 kind, f32x3 flat_center, f32x3 size, f32 restitution) {
@@ -324,11 +308,7 @@ NYA_INTERNAL void ball_serve(void) {
     nya_physics3d_apply_impulse(ball, table_point((f32x3){ 0.0F, 0.0F, -SERVE_IMPULSE }));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE LAYER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE LAYER */
 
 void pinball_layer_on_create(NYA_Window* window) {
     nya_assert(window != nullptr);
@@ -548,11 +528,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DRAWING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* DRAWING */
 
 /** The flat colour each kind draws in. Indexed by PinballEntityKind. */
 NYA_INTERNAL NYA_Color kind_color(u32 kind) {
@@ -611,11 +587,7 @@ void pinball_layer_on_render(NYA_Window* window) {
                                  "drained %u · a/d flippers · space serves", pinball()->balls_drained);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

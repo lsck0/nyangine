@@ -13,11 +13,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SINKS
- * ─────────────────────────────────────────────────────────
- */
+/* THE SINKS */
 
 /** The human rendering, as a terminal would hold it. */
 static char HUMAN[16 * 1024] = { 0 };

@@ -113,9 +113,7 @@ s32 main(void) {
 
     nya_assert(rect_equals(nya_rect_intersection(a, b), (NYA_Rectf){ 5.0F, 5.0F, 5.0F, 5.0F }));
 
-    /*
-     * Disjoint boxes intersect to something empty with *zero* extents, not negative ones.
-     */
+    /* Disjoint boxes intersect to something empty with *zero* extents, not negative ones. */
     NYA_Rectf none = nya_rect_intersection(a, c);
     nya_assert(nya_rect_is_empty(none));
     nya_assert(none.width == 0.0F && none.height == 0.0F, "an empty intersection is clamped, not negative");
@@ -188,9 +186,7 @@ s32 main(void) {
 
     nya_assert(rect_equals(nya_circle_bounds(circle), (NYA_Rectf){ -10.0F, -10.0F, 20.0F, 20.0F }));
 
-    /*
-     * A circle against a rectangle, including the case the naive test gets wrong.
-     */
+    /* A circle against a rectangle, including the case the naive test gets wrong. */
     NYA_Rectf box = { 20.0F, 20.0F, 20.0F, 20.0F };
 
     nya_assert(!nya_circle_overlaps_rect(circle, box), "far away on the diagonal is a miss");

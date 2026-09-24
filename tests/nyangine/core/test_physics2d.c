@@ -474,9 +474,7 @@ s32 main(void) {
     nya_assert(pickup_enters == 1, "sitting inside a sensor is one enter and not one per step, got " FMTu32, pickup_enters);
     nya_assert(pickup_exits == 0, "and no exit while it is still there");
 
-    /*
-     * The case the b2Shape_IsValid guard exists for.
-     */
+    /* The case the b2Shape_IsValid guard exists for. */
     nya_entity_despawn(player);
     step(1);
 

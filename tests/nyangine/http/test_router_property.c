@@ -27,11 +27,7 @@
 /** The distinct paths a table draws from. Few, so a path is shared across verbs and re-drawn as a lookup. */
 #define PATHS_MAX 6
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** The absolute paths a table and its lookups are drawn from; a couple share a prefix, to catch a partial match. */
 static NYA_ConstCString PATHS[PATHS_MAX] = { "/a", "/b", "/api", "/api/v2", "/api/v2/items", "/health" };
@@ -95,11 +91,7 @@ static b8 path_present(const Table* table, NYA_ConstCString path) {
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /**
  * A non-HEAD lookup resolves to the route registered on exactly that method and path, and to nothing

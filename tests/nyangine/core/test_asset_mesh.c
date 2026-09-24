@@ -83,9 +83,7 @@ s32 main(void) {
 
     assert_unit_sized("Cubie.fbx", asset);
 
-    /*
-     * UVs and the material, both of which were dropped on the floor until textures were wanted.
-     */
+    /* UVs and the material, both of which were dropped on the floor until textures were wanted. */
     nya_assert(asset->as_mesh.uvs != nullptr, "the model's UV set was read");
 
     // whether the reservation and the write agreed. Not required, since teardown frees the reserved
@@ -102,12 +100,8 @@ s32 main(void) {
     // Not all: an atlas is often addressed with wrapped coordinates outside the unit square. Most.
     nya_assert(in_unit_range > vertices / 2, "only %u of %u UVs are in the unit square", in_unit_range, vertices);
 
-    /*
-     * The embedded texture, decoded and on the GPU.
-     */
-    /*
-     * Parts, one per material, each a contiguous run of the index buffer.
-     */
+    /* The embedded texture, decoded and on the GPU. */
+    /* Parts, one per material, each a contiguous run of the index buffer. */
     nya_assert(asset->as_mesh.part_count > 0, "the model has at least one part");
     nya_assert(asset->as_mesh.part_count <= asset->as_mesh.part_capacity, "part_count is within what was reserved");
 
@@ -136,9 +130,7 @@ s32 main(void) {
     if (nya_app_get()->render_system.gpu_device != nullptr) {
       nya_assert(asset->as_mesh.texture_count > 0, "the texture embedded in the FBX was decoded and uploaded");
     } else {
-      /*
-       * Headless, so nothing could be uploaded and it must not be asserted.
-       */
+      /* Headless, so nothing could be uploaded and it must not be asserted. */
       nya_assert(asset->as_mesh.texture_count == 0, "no GPU, so no texture was uploaded");
     }
 
@@ -147,9 +139,7 @@ s32 main(void) {
              (f64)asset->as_mesh.parts[0].base_color.b);
 
 
-    /*
-     * Normals are unit length.
-     */
+    /* Normals are unit length. */
     for (u32 i = 0; i < vertices; i++) {
       f32x3 normal = asset->as_mesh.normals[i];
       f32   length = sqrtf((normal.x * normal.x) + (normal.y * normal.y) + (normal.z * normal.z));
@@ -254,9 +244,7 @@ s32 main(void) {
 
     nya_assert(asset != nullptr, "the entry exists");
 
-    /*
-     * FAILED, and nothing left half built.
-     */
+    /* FAILED, and nothing left half built. */
     nya_assert(asset->status == NYA_ASSET_STATUS_FAILED, "a JSON file is not a model, status %d", (int)asset->status);
     nya_assert(asset->as_mesh.vertex_count == 0, "and it reports no geometry");
 

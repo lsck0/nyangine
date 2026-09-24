@@ -46,11 +46,7 @@
 
 #include <signal.h>
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define TOKEN_VARIABLE   "TWITCH_BOT_TOKEN"
 #define CLIENT_VARIABLE  "TWITCH_CLIENT_ID"
@@ -75,11 +71,7 @@ static void stop(int signal_number) {
     RUNNING = 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE HANDLERS */
 
 /** `object[key]` as a string, or null. The payloads are documents, so everything optional is missing. */
 static NYA_ConstCString string_at(const NYA_Object* object, NYA_CString key) {
@@ -124,11 +116,7 @@ static void on_chat(NYA_TwitchHelix* helix, NYA_ConstCString channel_id, NYA_Con
     if (!queued.ok) nya_log_warn("Could not queue the answer: %s", (NYA_ConstCString)queued.message);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PROGRAM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE PROGRAM */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc);

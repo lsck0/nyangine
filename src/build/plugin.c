@@ -8,21 +8,13 @@
  * built and run it with the arguments the parser already checked.
  */
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The signing program's source, and the binary it compiles to at the repository root. */
 #define PLUGIN_SIGNER_SOURCE "./tools/plugin_signer.c"
 #define PLUGIN_SIGNER_BINARY "nya_plugin_signer" HOST_EXECUTABLE_SUFFIX
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** The rule that compiles tools/plugin_signer.c into PLUGIN_SIGNER_BINARY, exactly as an example is built. */
 NYA_INTERNAL NYA_BuildRule _plugin_signer_build_rule(void);
@@ -30,11 +22,7 @@ NYA_INTERNAL NYA_BuildRule _plugin_signer_build_rule(void);
 /** Runs the built signer with `arguments` (nullptr terminated), and ends the process on a non-zero exit. */
 NYA_INTERNAL void _plugin_signer_run(NYA_Arena* arena, const NYA_ConstCString* arguments);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void plugin_keygen_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -79,11 +67,7 @@ void plugin_sign_runner(NYA_ArgCommand* command) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 NYA_BuildRule _plugin_signer_build_rule(void) {
     // The same flags, plugins and vendors the project links, by naming the same macros an example does.

@@ -17,11 +17,7 @@
 
 #define NOW_S 1700000000ULL
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SINKS
- * ─────────────────────────────────────────────────────────
- */
+/* THE SINKS */
 
 /** Everything the log has produced since the last reset, from a sink registered like any other. */
 static char CAPTURED[64 * 1024] = { 0 };
@@ -60,11 +56,7 @@ static b8 any_sink_holds(NYA_ConstCString text) {
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE ROUTES
- * ─────────────────────────────────────────────────────────
- */
+/* THE ROUTES */
 
 /** Answers with the DTO the route declares, so the response body is a typed one the layer can decode. */
 static NYA_HttpStatus echo_submission(NYA_HttpExchange* exchange) {
@@ -117,11 +109,7 @@ static const NYA_HttpRouter ROUTER = {
     .route_count = nya_carray_length(ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * ONE EXCHANGE
- * ─────────────────────────────────────────────────────────
- */
+/* ONE EXCHANGE */
 
 /** Builds a request by hand: the parser has its own test and this one is about what comes after it. */
 static void make_request(OUT NYA_HttpRequest* request, NYA_ConstCString target, NYA_ConstCString body) {
@@ -168,11 +156,7 @@ static NYA_HttpStatus dispatch(NYA_Arena* arena, const NYA_HttpRequest* request,
     return nya_http_router_dispatch(&exchange, routers, nya_carray_length(routers), layers, nya_carray_length(layers));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE PROPERTY
- * ─────────────────────────────────────────────────────────
- */
+/* THE PROPERTY */
 
 /** Writes `marker` into every `char[N]` anywhere under `type`, which is every place a marker can go. */
 static u32 fill_text(const NYA_TypeReflection* type, void* address, NYA_ConstCString marker, u32 depth) {

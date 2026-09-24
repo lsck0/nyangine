@@ -22,11 +22,7 @@
 #define RP_ID  "example.com"
 #define ORIGIN "https://example.com"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────
- * A TINY CBOR WRITER, ENOUGH TO BUILD WHAT AN AUTHENTICATOR SENDS
- * ─────────────────────────────────────────────────────────────────────────────
- */
+/* A TINY CBOR WRITER, ENOUGH TO BUILD WHAT AN AUTHENTICATOR SENDS */
 
 typedef struct {
   u8 *bytes;
@@ -83,11 +79,7 @@ static void cbor_text(Buffer *buffer, const char *text) {
 
 static void cbor_map(Buffer *buffer, u64 pairs) { cbor_head(buffer, 5, pairs); }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────
- * BUILDERS FOR THE THREE STRUCTURES A RELYING PARTY IS HANDED
- * ─────────────────────────────────────────────────────────────────────────────
- */
+/* BUILDERS FOR THE THREE STRUCTURES A RELYING PARTY IS HANDED */
 
 /** A COSE_Key map for an Ed25519 public key: kty OKP, alg EdDSA, crv Ed25519, x the 32 key bytes. */
 static void put_cose_ed25519(Buffer *buffer, const u8 public_key[32]) {
@@ -158,9 +150,6 @@ static u64 build_client_data(char *out, u64 capacity, const char *type, const ch
   return (u64)written;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────
- */
 
 static NYA_Database *open_accounts(NYA_Arena *arena) {
   nya_account_throttle_reset();

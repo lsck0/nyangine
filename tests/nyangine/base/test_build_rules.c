@@ -7,11 +7,7 @@
 
 #include <utime.h>
 
-/*
- * ─────────────────────────────────────────────────────────
- * FIXTURES
- * ─────────────────────────────────────────────────────────
- */
+/* FIXTURES */
 
 #define WORK_DIRECTORY "./_test_build_rules"
 #define INPUT_PATH     WORK_DIRECTORY "/input.txt"
@@ -122,9 +118,7 @@ s32 main(void) {
     NYA_EXPECT(nya_build(&once));
     nya_assert(pre_hook_calls == 2, "an existing output must skip, got " FMTu32, pre_hook_calls);
 
-    /*
-     * A directory counts as an existing output.
-     */
+    /* A directory counts as an existing output. */
     reset_hooks();
 
     NYA_BuildRule directory = {
@@ -174,9 +168,7 @@ s32 main(void) {
     NYA_EXPECT(nya_build(&outdated));
     nya_assert(pre_hook_calls == 2, "a touched input must rebuild, got " FMTu32, pre_hook_calls);
 
-    /*
-     * Equal timestamps must count as up to date rather than as outdated.
-     */
+    /* Equal timestamps must count as up to date rather than as outdated. */
     stamp_file(INPUT_PATH, -50);
     stamp_file(OUTPUT_PATH, -50);
 

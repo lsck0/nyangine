@@ -247,11 +247,7 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
     .post_build_hooks = { &hook_insert_integrity_hash, &hook_sign_windows_executable, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * STEAM
- * ─────────────────────────────────────────────────────────
- */
+/* STEAM */
 
 /* The release build with the Steamworks plugin, and steam_api64.dll beside it where the loader looks first. */
 
@@ -328,11 +324,7 @@ NYA_INTERNAL NYA_BuildRule build_project_steam_windows_x86_64 = {
     .dependencies = { &link_project_steam_windows_x86_64, &copy_steam_library_windows_x86_64, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * DEVELOPER
- * ─────────────────────────────────────────────────────────
- */
+/* DEVELOPER */
 
 /* Debug's shape with the developer flag set: optimized, no sanitizers, still hot reloading. */
 

@@ -368,9 +368,7 @@ s32 main(void) {
 
     nya_assert(nya_entity_is_valid(a1) && nya_entity_is_valid(a2) && nya_entity_is_valid(b1));
 
-    /*
-     * Immediately, with no rebuild in between.
-     */
+    /* Immediately, with no rebuild in between. */
     u32 count = 0;
     nya_entity_foreach_kind (KIND_A, entity) {
       nya_assert(entity->type == KIND_A, "the kind index returned the wrong kind");
@@ -416,9 +414,7 @@ s32 main(void) {
     nya_entity_foreach_flags (FLAG_X, entity) count++;
     nya_assert(count == 1, "a despawned entity must leave its flags, got %u", count);
 
-    /*
-     * Slot reuse is where a stale bit would show.
-     */
+    /* Slot reuse is where a stale bit would show. */
     NYA_EntityHandle reused = nya_entity_spawn(.name = "reused", .type = KIND_B);
     nya_assert(reused.index == a2.index, "expected the freed slot back, so the test means something");
 

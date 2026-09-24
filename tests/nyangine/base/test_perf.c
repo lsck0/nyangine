@@ -2,9 +2,7 @@
  * THIS FILE WAS CLANKER WANKED !!!
  **/
 
-/*
- * Switches the profiler on for this translation unit, before the engine is included.
- */
+/* Switches the profiler on for this translation unit, before the engine is included. */
 #define NYA_PERF_FORCE_DEBUG
 
 #include "nyangine/nyangine.c"

@@ -5,11 +5,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TYPES UNDER TEST
- * ─────────────────────────────────────────────────────────
- */
+/* THE TYPES UNDER TEST */
 
 typedef enum {
   TEST_KIND_NONE  = 0,
@@ -44,11 +40,7 @@ typedef struct {
   f64        weight;
 } TestEntity;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TABLES, AS THE GENERATOR WILL EMIT THEM
- * ─────────────────────────────────────────────────────────
- */
+/* THE TABLES, AS THE GENERATOR WILL EMIT THEM */
 
 /*
  * The primitives and the vectors are not hand written here: the engine defines exactly one of each,

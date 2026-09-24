@@ -13,9 +13,7 @@ void dummy_fn_c(NYA_Event* e) { nya_unused(e); }
 
 s32 main(void) {
 #if NYA_CODE_HOT_RELOAD
-  /*
-   * The named callback registry is compiled out of a test build.
-   */
+  /* The named callback registry is compiled out of a test build. */
 
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
   b8 sdl_ok = SDL_Init(0);

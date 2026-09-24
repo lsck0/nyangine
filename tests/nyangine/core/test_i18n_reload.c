@@ -109,9 +109,7 @@ s32 main(void) {
     // The edit a translator would make.
     write_fixture("after");
 
-    /*
-     * Driven rather than waited on, and it takes more than one frame by design.
-     */
+    /* Driven rather than waited on, and it takes more than one frame by design. */
     b8 reloaded = false;
 
     for (u32 frame = 0; frame < 40 && !reloaded; frame++) {
@@ -141,9 +139,7 @@ s32 main(void) {
     NYA_EXPECT(nya_i18n_load(FIXTURE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
     nya_assert(nya_string_equals(nya_string_menu_start(), "good"));
 
-    /*
-     * Truncated JSON, which is what an editor writing a file looks like for a few milliseconds.
-     */
+    /* Truncated JSON, which is what an editor writing a file looks like for a few milliseconds. */
     NYA_Arena*  arena = nya_arena_create(.name = "half");
     defer       nya_arena_destroy(arena);
     NYA_String* half = nya_string_from(arena, "{\n  \"menu_start\": \"trunc");

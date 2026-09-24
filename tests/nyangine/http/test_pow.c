@@ -56,11 +56,7 @@ static const NYA_HttpRoute ROUTES[] = {
 
 static const NYA_HttpRouter ROUTER = { .name = "guarded", .routes = ROUTES, .route_count = nya_carray_length(ROUTES) };
 
-/*
- * ─────────────────────────────────────────────────────────
- * ONE EXCHANGE
- * ─────────────────────────────────────────────────────────
- */
+/* ONE EXCHANGE */
 
 /** Builds a POST request by hand, optionally carrying the token and solution headers (lowercased, as parsed). */
 static void make_request(OUT NYA_HttpRequest* request, NYA_ConstCString token, NYA_ConstCString solution) {
@@ -158,11 +154,7 @@ static void find_under(const u8* nonce, u8 difficulty, OUT u8* out_suffix, OUT u
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TESTS
- * ─────────────────────────────────────────────────────────
- */
+/* THE TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

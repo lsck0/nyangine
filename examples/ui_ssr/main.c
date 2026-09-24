@@ -56,11 +56,7 @@
 
 #include "SDL3/SDL_init.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE — the whole application, on the server
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* STATE — the whole application, on the server */
 
 #define DEFAULT_PORT 47820
 
@@ -98,11 +94,7 @@ NYA_INTERNAL u8 SEAL_KEY[32] = { 0 };
 #define STATE_LABEL  "ui_ssr.state"
 #define STATE_TTL_S  (7 * 24 * 3600)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE COMPONENT — one function, every surface
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE COMPONENT — one function, every surface */
 
 /**
  * The UI, described the same way for a browser, a terminal and a GPU. It reads the state above and, on
@@ -158,11 +150,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
     nya_ui_end(ui);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE LOOP — render, and turn an event into an input pass
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE LOOP — render, and turn an event into an input pass */
 
 /** Runs one input pass with the current input, then a draw pass into HTML. Leaves HTML holding the body. */
 NYA_INTERNAL void render(AppState* app) {
@@ -307,17 +295,9 @@ NYA_INTERNAL void inject_field_text(AppState* app, NYA_Rectf box, NYA_ConstCStri
     input_pass(app);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS */
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * EMBEDDING METADATA — so a link to this page unfurls on social media and chat apps
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* EMBEDDING METADATA — so a link to this page unfurls on social media and chat apps */
 
 /**
  * The social-media embedding metadata for this page. The URL fields are built into the caller's buffers from
@@ -487,11 +467,7 @@ NYA_INTERNAL NYA_HttpStatus handle_oembed(NYA_HttpExchange* exchange) {
     return sent.ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES AND MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ROUTES AND MAIN */
 
 NYA_INTERNAL const NYA_HttpRoute ROUTES[] = {
     { .method = NYA_HTTP_METHOD_GET, .path = "/", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_page,

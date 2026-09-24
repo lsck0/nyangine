@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Collects the target names under tests/fuzz: "fuzz_serde_json.c" becomes "serde_json". */
 NYA_INTERNAL b8 _fuzz_collect_targets(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
@@ -26,11 +22,7 @@ NYA_INTERNAL NYA_ConstCString _fuzz_compiler_program(void) __attr_no_discard;
 /** Whether `program` runs at all. The whole environment probe. */
 NYA_INTERNAL b8 _fuzz_program_exists(NYA_ConstCString program) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void fuzz_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -68,9 +60,7 @@ void fuzz_runner(NYA_ArgCommand* command) {
         return;
     }
 
-    /*
-     * The environment probe, in one place and before any work starts.
-     */
+    /* The environment probe, in one place and before any work starts. */
     NYA_ConstCString compiler = _fuzz_compiler_program();
 
     if (compiler == nullptr || !_fuzz_program_exists(FUZZ_DRIVER_PROGRAM)) {
@@ -187,11 +177,7 @@ NYA_ConstCString fuzz_completion_target_name(u32 index) {
     return nya_string_to_cstring(arena, &targets->items[index]);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _fuzz_collect_targets(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* targets = (NYA_ArrayᐸNYA_Stringᐳ*)user_data;

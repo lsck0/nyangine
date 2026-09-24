@@ -79,11 +79,7 @@ static b8 target_holds(const NYA_String* expected) {
   return actual->length == expected->length && (expected->length == 0 || memcmp(actual->items, expected->items, expected->length) == 0);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RACING WRITERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* RACING WRITERS */
 
 static NYA_ConstCString WRITER_PAYLOADS[WRITER_COUNT] = {
   "first writer, and nothing else in this file",
@@ -100,11 +96,7 @@ static s32 SDLCALL writer(void* data) {
   return 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SIMULATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SIMULATION */
 
 typedef struct AtomicScenario AtomicScenario;
 
@@ -203,11 +195,7 @@ static u32 simulate(u64 seed) {
   return failures;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
   b8 sdl_ok = SDL_Init(0);

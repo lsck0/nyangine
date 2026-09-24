@@ -13,11 +13,7 @@
 #define NYA_BUILD_HAS_SPIRV_CROSS 0
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directory) __attr_no_discard;
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) __attr_no_discard;
@@ -108,11 +104,7 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
  * */
 #define NYA_ASSET_BLOB_MIN_COMPRESSION_SAVING_BYTES 128
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_asset_compile_shaders(void) {
     // when a shared `.hlsli` last changed, which no per shader rule can see.
@@ -416,11 +408,7 @@ void nya_asset_bundle(void) {
      * */
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 /**
  * Every asset file under ./assets/, walked once per build tool invocation and memoised.

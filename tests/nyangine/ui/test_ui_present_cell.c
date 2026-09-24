@@ -56,11 +56,7 @@ static NYA_UIStyle style(void) {
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ONE WIDGET AT A TIME, STRAIGHT AT THE SEAM
- * ─────────────────────────────────────────────────────────
- */
+/* ONE WIDGET AT A TIME, STRAIGHT AT THE SEAM */
 
 /** What a kind is expected to leave on the screen, and whether it leaves paper rather than characters. */
 typedef struct {
@@ -227,11 +223,7 @@ static void present(NYA_UICells* grid, const NYA_UIWidgetDraw* draw) {
     presenter->draw(presenter->state, &window, draw);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * A WHOLE TREE, AGAINST THE RECORDER
- * ─────────────────────────────────────────────────────────
- */
+/* A WHOLE TREE, AGAINST THE RECORDER */
 
 /** The tree both presenters run. Not one line of it knows which one is installed. */
 static void screen(NYA_UIPass pass) {

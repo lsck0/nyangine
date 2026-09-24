@@ -35,11 +35,7 @@
 /** A region small enough that a handful of allocations spill past it, which is what exercises the region chain. */
 #define REGION_BYTES 4096
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * A LIVE ALLOCATION AND ITS FILL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* A LIVE ALLOCATION AND ITS FILL */
 
 /** One allocation the law is holding, with the id its fill was written from. */
 typedef struct {
@@ -76,11 +72,7 @@ static b8 ranges_overlap(const u8* a, u64 a_size, const u8* b, u64 b_size) { ret
  * */
 static u8 draw_alignment(NYA_Property* property) { return (u8)(8u << nya_property_draw_below(property, 4)); }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** Every pointer the arena returns is a multiple of the alignment it was created with, and a zero-size ask is null. */
 static b8 law_pointer_is_aligned(NYA_Property* property) {

@@ -10,11 +10,7 @@
 // build directories were renamed.
 #include "build/vendor/vendor_sdl_shadercross.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS AND MACROS */
 
 /**
  * Where the hand written shaders live, and the include directory the compiler is given.

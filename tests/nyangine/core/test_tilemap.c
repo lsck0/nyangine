@@ -172,9 +172,7 @@ s32 main(void) {
 
     u32 built = nya_tilemap_collision_build(map, "collision", KIND_TERRAIN);
 
-    /*
-     * The solid rows are three full-width rows: the shelf and two rows of wall.
-     */
+    /* The solid rows are three full-width rows: the shelf and two rows of wall. */
     nya_assert(built == 3, "three merged runs, got " FMTu32, built);
     nya_assert(nya_physics2d_body_count() == 3, "and three bodies in the solver");
 

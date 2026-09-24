@@ -35,11 +35,7 @@
 /** Bytes a raw arbitrary header holds at most in the totality law. */
 #define RAW_MAX 256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** The bytes a name may hold: RFC 7230 token characters, every one of which the name predicate accepts. */
 static const char NAME_ALPHABET[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-.^_`|~";
@@ -65,11 +61,7 @@ static u64 draw_value(NYA_Property* property, OUT char* out, u64 capacity) {
     return length;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /**
  * A header assembled from unique well formed pairs, joined the one way the parser accepts — "name=value"

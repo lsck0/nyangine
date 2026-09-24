@@ -37,9 +37,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_replica");
   defer      nya_arena_destroy(arena);
 
-  /*
-   * Two worlds. Each owns its own entity table.
-   */
+  /* Two worlds. Each owns its own entity table. */
   NYA_World* server_world = nya_world_create();
   NYA_World* client_world = nya_world_create();
 
@@ -56,9 +54,7 @@ s32 main(void) {
 
   nya_memset(map, 0, sizeof(*map));
 
-  /*
-   * The client's table is pushed out of step with the server's before anything is replicated.
-   */
+  /* The client's table is pushed out of step with the server's before anything is replicated. */
   (void)nya_world_set(client_world);
   {
     NYA_EntityHandle filler[8];
@@ -107,9 +103,7 @@ s32 main(void) {
 
     nya_assert(nya_entity_is_valid(local_a) && nya_entity_is_valid(local_b), "both were mapped");
 
-    /*
-     * The assertion the whole file exists for.
-     */
+    /* The assertion the whole file exists for. */
     b8 differs = local_a.index != server_a.index || local_b.index != server_b.index;
     nya_assert(differs, "the two worlds handed out the same indices; this test is not testing anything");
 
@@ -214,9 +208,7 @@ s32 main(void) {
     nya_net_replica_map_despawn_all(map);
     nya_system_sim_apply_commands();
 
-    /*
-     * What reconnecting depends on.
-     */
+    /* What reconnecting depends on. */
     nya_assert(!nya_entity_is_valid(survivor), "a torn down map left its entities behind");
     nya_assert(!nya_entity_is_valid(nya_net_replica_local(map, server_a)), "and left its mappings behind");
 

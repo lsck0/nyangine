@@ -89,9 +89,7 @@ s32 main(void) {
     nya_assert(call_count == 1 && call_was(0, crate, true), "arriving fires entered once");
     nya_assert(nya_entity_hovered().index == crate.index, "and the system remembers who it is");
 
-    /*
-     * The point of edge triggering, and the reason this is cheap to call unconditionally.
-     */
+    /* The point of edge triggering, and the reason this is cheap to call unconditionally. */
     for (u32 frame = 0; frame < 10; frame++) (void)nya_entity_hover((f32x2){ 100.0F + (f32)frame, 100.0F });
 
     nya_assert(call_count == 1, "resting on the same entity fires nothing further, got %u calls", call_count);
@@ -132,9 +130,7 @@ s32 main(void) {
     nya_assert(hit.index == right.index, "the new entity is the hovered one");
     nya_assert(call_count == 3, "one leave and one enter, got %u calls", call_count);
 
-    /*
-     * This ordering is the contract.
-     */
+    /* This ordering is the contract. */
     nya_assert(call_was(1, left, false), "the entity being left is told first");
     nya_assert(call_was(2, right, true), "and the entity being entered second");
 
@@ -150,9 +146,7 @@ s32 main(void) {
 
     NYA_EntityHandle hit = nya_entity_hover((f32x2){ 0.0F, 0.0F });
 
-    /*
-     * Deliberately unlike nya_entity_click, which answers NONE for an entity that declines.
-     */
+    /* Deliberately unlike nya_entity_click, which answers NONE for an entity that declines. */
     nya_assert(hit.index == terrain.index && hit.generation == terrain.generation, "the handle is reported anyway");
     nya_assert(nya_entity_hovered().index == terrain.index, "and it holds the hover");
     nya_assert(call_count == 0, "but nothing is called");
@@ -196,9 +190,7 @@ s32 main(void) {
 
     nya_entity_despawn(crate);
 
-    /*
-     * No leave, and the hover is dropped in the same call.
-     */
+    /* No leave, and the hover is dropped in the same call. */
     nya_assert(call_count == 1, "despawning does not fire the leave edge, got %u calls", call_count);
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()), "and the hover is released immediately");
 
@@ -244,9 +236,7 @@ s32 main(void) {
   {
     reset();
 
-    /*
-     * The awkward case, and the reason the stored handle is committed before either callback runs.
-     */
+    /* The awkward case, and the reason the stored handle is committed before either callback runs. */
     NYA_EntityHandle crate = spawn_2d("crate", (f32x2){ 100.0F, 100.0F }, true);
 
     (void)nya_entity_hover((f32x2){ 100.0F, 100.0F });

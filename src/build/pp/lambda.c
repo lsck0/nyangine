@@ -2,11 +2,7 @@
 
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** One source file that wrote at least one lambda, and where its companion goes. */
 typedef struct {
@@ -49,11 +45,7 @@ typedef struct {
     u32 problems;
 } _NYA_LambdaSet;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 NYA_INTERNAL const NYA_ConstCString _NYA_LAMBDA_TREES[] = {
     NYA_LAMBDA_TREE_ENGINE,
@@ -62,11 +54,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_LAMBDA_TREES[] = {
     NYA_LAMBDA_TREE_TESTS,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 NYA_INTERNAL b8  _nya_lambda_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32 _nya_lambda_compare(const NYA_String* a, const NYA_String* b);
@@ -119,11 +107,7 @@ NYA_INTERNAL void _nya_lambda_emit_companion(const _NYA_LambdaSet* set, u32 sour
 /** Deletes whatever is in the output directory that this run did not write. */
 NYA_INTERNAL void _nya_lambda_prune(const _NYA_LambdaSet* set, NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_lambda_generate(void) {
     NYA_ConstCString inputs[] = {
@@ -197,11 +181,7 @@ void nya_lambda_generate(void) {
                  NYA_LAMBDA_OUTPUT_DIRECTORY);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_lambda_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* files = user_data;

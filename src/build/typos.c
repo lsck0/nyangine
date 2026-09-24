@@ -17,29 +17,17 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The spell checker, by name. Found on PATH, or skipped with a notice if it is not installed. */
 #define TYPOS_PROGRAM "typos"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Whether `typos --version` runs and exits cleanly, which is to say the tool is installed on PATH. */
 NYA_INTERNAL b8 _typos_program_exists(void);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void typos_runner(NYA_ArgCommand* command) {
     nya_unused(command);
@@ -77,11 +65,7 @@ void typos_runner(NYA_ArgCommand* command) {
     nya_log_info("Spell check: no typos in src/, tests/, examples/ or docs/.");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _typos_program_exists(void) {
     // A program missing from PATH still spawns — the forked child fails execvp and _exit(127)s, so

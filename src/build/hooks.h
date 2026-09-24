@@ -6,17 +6,9 @@
 #include "nyangine/nyangine.h"
 #include "build/flags.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS AND MACROS */
 
-/*
- * ─────────────────────────────────────────────────────────
- * BUILD
- * ─────────────────────────────────────────────────────────
- */
+/* BUILD */
 
 /**
  * Creates the directory a rule configures into, along with any missing parents.
@@ -138,11 +130,7 @@ void hook_verify_hardening(NYA_BuildRule* rule);
  * */
 void hook_sign_windows_executable(NYA_BuildRule* rule);
 
-/*
- * ─────────────────────────────────────────────────────────
- * ASSET
- * ─────────────────────────────────────────────────────────
- */
+/* ASSET */
 
 /** Wrapper around nya_asset_compile_shaders. */
 void hook_compile_shaders(NYA_BuildRule* rule);

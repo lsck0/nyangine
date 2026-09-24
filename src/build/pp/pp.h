@@ -30,11 +30,7 @@
 #include "build/pp/reflection.h"
 #include "build/pp/watch.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BUILD RULES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* BUILD RULES */
 
 NYA_INTERNAL NYA_BuildRule build_shaders = {
     .name            = "build_shaders",
@@ -127,9 +123,7 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
     .post_build_hooks = { &hook_index_assets, },
 };
 
-/*
- * Depends on index_assets, and the order is the point.
- */
+/* Depends on index_assets, and the order is the point. */
 NYA_INTERNAL NYA_BuildRule bundle_assets = {
     .name             = "bundle_assets",
     .is_metarule      = true,

@@ -281,11 +281,7 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
     .post_build_hooks = { &hook_insert_integrity_hash, &hook_verify_hardening, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * STEAM
- * ─────────────────────────────────────────────────────────
- */
+/* STEAM */
 
 /*
  * The release build with the Steamworks plugin, for the Steam Linux Runtime: compiled and linked against the sniper
@@ -379,11 +375,7 @@ NYA_INTERNAL NYA_BuildRule build_project_steam_linux_x86_64 = {
     .dependencies = { &link_project_steam_linux_x86_64, &copy_steam_library_linux_x86_64, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * DEVELOPER
- * ─────────────────────────────────────────────────────────
- */
+/* DEVELOPER */
 
 /*
  * Same shape as the debug rules, different flag set: optimized, no sanitizers, still hot reloading.

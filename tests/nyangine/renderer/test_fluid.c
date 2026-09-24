@@ -134,11 +134,7 @@ static b8 fields_are_finite(const NYA_Fluid* fluid) {
   return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SIMULATED RUN
- * ─────────────────────────────────────────────────────────
- */
+/* THE SIMULATED RUN */
 
 static void action_emit(NYA_SimulationRun* run) {
   FluidScenario* scenario = run->user_data;

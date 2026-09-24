@@ -96,9 +96,7 @@ s32 main(void) {
 
     (void)nya_sprite_animator_advance(&animator, 0.0F, nullptr, 0);
 
-    /*
-     * Half a second at ten frames a second is five frames in one tick, straight past frame three.
-     */
+    /* Half a second at ten frames a second is five frames in one tick, straight past frame three. */
     u32 count = nya_sprite_animator_advance(&animator, 0.5F, signals, nya_carray_length(signals));
 
     nya_assert(has_event(signals, count, EVENT_CONNECTS), "a tick that skips past the frame still fires its marker");

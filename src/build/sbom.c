@@ -28,11 +28,7 @@
 
 #include "build/vendor/licence_allowlist.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where the generated SBOM goes. Gitignored: it is derived from the submodules on every run. */
 #define SBOM_OUTPUT_DIRECTORY "./sbom"
@@ -52,11 +48,7 @@
 /** What the licence could not be resolved to. Never on the allowlist, so it fails the gate. */
 #define SBOM_LICENCE_UNKNOWN "UNKNOWN"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** One vendored dependency, fully resolved: what the SBOM row and the gate both read. */
 typedef struct SbomDependency {
@@ -69,11 +61,7 @@ typedef struct SbomDependency {
     NYA_ConstCString licence_file; // which file the licence was read from, for the summary.
 } SbomDependency;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Parses .gitmodules into `deps`, returning how many submodules it found. */
 NYA_INTERNAL u32 _sbom_read_submodules(NYA_Arena* arena, SbomDependency* deps);
@@ -96,11 +84,7 @@ NYA_INTERNAL NYA_String* _sbom_render_cyclonedx(NYA_Arena* arena, const SbomDepe
 /** Runs the CVE scanner over the generated SBOM, or explains how CI does and skips. */
 NYA_INTERNAL void _sbom_cve_scan(NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void sbom_runner(NYA_ArgCommand* command) {
     nya_unused(command);
@@ -158,11 +142,7 @@ void sbom_runner(NYA_ArgCommand* command) {
     _sbom_cve_scan(arena);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 u32 _sbom_read_submodules(NYA_Arena* arena, SbomDependency* deps) {
     nya_assert(deps != nullptr);

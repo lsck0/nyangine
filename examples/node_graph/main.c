@@ -40,11 +40,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define WINDOW_TITLE  "nyangine — node graph"
 #define WINDOW_WIDTH  1280
@@ -63,11 +59,7 @@
 /** A muted dark ground, so the canvas and the panel read against it. */
 #define COLOR_GROUND ((NYA_Color){ 0.05F, 0.06F, 0.09F, 1.0F })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** What a node does, which is the badge it wears in the side panel. */
 typedef enum {
@@ -249,11 +241,7 @@ NYA_INTERNAL u32 graph_type_count(const Graph* graph, NodeType type) {
     return count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE FRAME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE FRAME */
 
 /** The canvas panel: the node editor, its nodes and its wires, and the two gestures folded back into the model. */
 NYA_INTERNAL void canvas_panel(NYA_UI* ui, NodeGraph* state) {
@@ -363,11 +351,7 @@ NYA_INTERNAL void frame_pass(NYA_Window* window, NYA_UIPass pass, NodeGraph* sta
     nya_ui_end(ui);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER HOOKS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER HOOKS */
 
 void node_graph_layer_on_create(NYA_Window* window) {
     nya_assert(window != nullptr);
@@ -417,11 +401,7 @@ void node_graph_layer_on_render(NYA_Window* window) {
     frame_pass(window, NYA_UI_PASS_DRAW, state);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

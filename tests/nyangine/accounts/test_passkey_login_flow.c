@@ -286,11 +286,7 @@ static u64 post_json(NYA_Arena* arena, u16 port, const char* path, const char* c
     return exchange(client, nya_string_to_cstring(arena, request), answer, capacity);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

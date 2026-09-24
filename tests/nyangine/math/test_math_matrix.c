@@ -227,9 +227,7 @@ s32 main(void) {
 
   // TEST: the 3D projections land on SDL_GPU's 0..1 depth range
   {
-    /*
-     * The one thing about these matrices that is easy to get wrong and impossible to see.
-     */
+    /* The one thing about these matrices that is easy to get wrong and impossible to see. */
     f32     near_plane = 0.5F;
     f32     far_plane  = 100.0F;
     f32_4x4 perspective = nya_matrix_perspective(1.0F, 1.6F, near_plane, far_plane);

@@ -96,9 +96,7 @@ NYA_INTERNAL void test_basic_flag_parameter(void) {
 
 // TEST: flag with explicit value, which is attached rather than adjacent
 NYA_INTERNAL void test_flag_with_explicit_value(void) {
-  /*
-   * This used to read `{ "app", "--debug", "true" }`, and that spelling is gone on purpose.
-   */
+  /* This used to read `{ "app", "--debug", "true" }`, and that spelling is gone on purpose. */
   NYA_ArgParameter flag = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
     .value.type = NYA_TYPE_B8,

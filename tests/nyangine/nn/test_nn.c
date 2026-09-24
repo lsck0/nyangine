@@ -324,9 +324,7 @@ int main(void) {
       nya_nn_backward(graph, loss);
       nya_nn_optimizer_step(optimizer);
 
-      /*
-       * Sampled from step ten on, so the first passes' growth is not mistaken for a leak.
-       */
+      /* Sampled from step ten on, so the first passes' growth is not mistaken for a leak. */
       if (step < 10) continue;
 
       u64 usage = nya_nn_graph_memory_usage_bytes(graph);
@@ -343,9 +341,7 @@ int main(void) {
 
   // TEST: two backward calls on one tape sum, rather than double count
   {
-    /*
-     * A regression test for a bug that was in this library and produced no symptom.
-     */
+    /* A regression test for a bug that was in this library and produced no symptom. */
     NYA_NNGraph*  graph = nya_nn_graph_create(arena);
     NYA_NNTensor* w     = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1, 1), true);
 
@@ -542,9 +538,7 @@ int main(void) {
     // A layer wider than NYA_NN_DRAW_MAX_UNITS, so the sampling path is the one exercised.
     nya_nn_draw(window, network, graph, input, (NYA_NNDrawStyle){ .width = 300.0F, .height = 200.0F, .show_values = true });
 
-    /*
-     * Labels, including every way a caller gets the count wrong.
-     */
+    /* Labels, including every way a caller gets the count wrong. */
     NYA_ConstCString input_labels[]  = { "x", nullptr, "z" };
     NYA_ConstCString output_labels[] = { "a", "b" };
 

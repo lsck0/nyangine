@@ -76,11 +76,7 @@ NYA_INTERNAL const LineItem LINE_ITEMS[] = {
  * */
 NYA_INTERNAL NYA_Object* invoice_create(NYA_Arena* arena, NYA_ConstCString locale);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * i18n: PLURALS AND GROUPED NUMBERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* i18n: PLURALS AND GROUPED NUMBERS */
 
 /**
  * The noun for "item", per plural category, for one language. A category the language never reaches
@@ -203,11 +199,7 @@ NYA_INTERNAL NYA_ConstCString LATEX_TEMPLATE =
     "{{ count_label }} --- total {{ total }}\n"
     "\\end{document}\n";
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

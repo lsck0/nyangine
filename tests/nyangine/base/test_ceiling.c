@@ -109,9 +109,7 @@ s32 main(void) {
         warning_count = 0;
         nya_log_sink_add(count_warnings, nullptr);
 
-        /*
-         * Filled relative to what is already registered, not from zero.
-         */
+        /* Filled relative to what is already registered, not from zero. */
         u32 already   = nya_ceiling_count();
         u32 remaining = (u32)NYA_CEILING_REGISTRY_MAX - already;
 

@@ -8,11 +8,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BUILDING DOCUMENTS BY HAND
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* BUILDING DOCUMENTS BY HAND */
 
 /** The largest hand built document; the value count case is the one that needs it. */
 #define DOCUMENT_BYTES_MAX (NYA_SERDE_NYA_BINARY_VALUE_COUNT_MAX + 1024)

@@ -24,11 +24,7 @@
 /** Fixed, so the suite is the same run every time. "seal" and "props" in ASCII. */
 #define SEED 0x7365616C70726F70ULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** One drawn seal: a secret at least the minimum, a non-empty label, a bounded plaintext and a live ttl. */
 typedef struct {
@@ -70,11 +66,7 @@ static void draw_seal(NYA_Property* property, OUT Drawn* drawn) {
     drawn->ttl_s = 60 + nya_property_draw_below(property, 1000000);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** unseal(seal(x)) == x: the same bytes, the same size, under the same secret and label. */
 static b8 law_round_trip(NYA_Property* property) {

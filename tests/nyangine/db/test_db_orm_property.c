@@ -37,11 +37,7 @@
 /** The span explicit keys are drawn from, small enough that a re-used key — and so a rejected insert — turns up. */
 #define KEY_SPAN 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DESCRIBED TYPE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE DESCRIBED TYPE */
 
 typedef struct {
     s64  id;
@@ -77,11 +73,7 @@ static const NYA_TypeReflection ROW = {
     .field_count = nya_carray_length(ROW_FIELDS),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE MODEL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE MODEL */
 
 /** The plain truth the database is checked against: the rows that ought to be in the table, by key. */
 typedef struct {
@@ -128,11 +120,7 @@ static s64 pick_key(NYA_Property* property, const Model* model) {
     return (s64)(1 + nya_property_draw_below(property, KEY_SPAN));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE LAW
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE LAW */
 
 /**
  * The table agrees with the model after every operation. Insert either lets the database assign the key

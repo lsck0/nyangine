@@ -66,9 +66,7 @@ s32 main(void) {
 
     nya_particles_update(system, 0.2F);
 
-    /*
-     * The regression this exists for.
-     */
+    /* The regression this exists for. */
     nya_assert(nya_particles_count(system) == 20, "the short lived ones are gone, got " FMTu32, nya_particles_count(system));
 
     for (u32 i = 0; i < nya_particles_count(system); i++) {
@@ -101,9 +99,7 @@ s32 main(void) {
 
     nya_particles_clear(system);
 
-    /*
-     * Damping as an exponential, not a subtraction.
-     */
+    /* Damping as an exponential, not a subtraction. */
     (void)nya_particles_emit(system, (NYA_ParticleBurst){
       .count      = 1,
       .lifetime_s = { 10.0F, 10.0F },
@@ -156,9 +152,7 @@ s32 main(void) {
 
     (void)nya_particles_emit(system, (NYA_ParticleBurst){ .count = 4000, .speed = { 1.0F, 1.0F } });
 
-    /*
-     * Uniform on the sphere, which three uniform components normalised is not.
-     */
+    /* Uniform on the sphere, which three uniform components normalised is not. */
     f32x3 squared = f32x3_zero;
     for (u32 i = 0; i < nya_particles_count(system); i++) {
       f32x3 v  = system->particles[i].velocity;

@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** One key of the base locale, with the argument types its format specifiers imply. */
 typedef struct {
@@ -45,11 +41,7 @@ NYA_INTERNAL s32 _nya_i18n_compare(const NYA_String* a, const NYA_String* b);
 /** Sorts a specifier string in place. Three elements at most in practice; insertion is plenty. */
 NYA_INTERNAL void _nya_i18n_sort_specifiers(char* specifiers);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_i18n_generate(void) {
     NYA_ConstCString inputs[]  = { NYA_I18N_DIRECTORY, "./src/build/pp/i18n.c", nullptr };
@@ -99,9 +91,7 @@ void nya_i18n_generate(void) {
         }
     }
 
-    /*
-     * Sorted, because the enum's values are its output.
-     */
+    /* Sorted, because the enum's values are its output. */
     for (u32 i = 1; i < key_count; i++) {
         NYA_I18nKey current = keys[i];
         u32         j       = i;
@@ -156,9 +146,7 @@ void nya_i18n_generate(void) {
                 nya_log_panic("i18n: locale '%s' key '%s' uses an unsupported format specifier", name, keys[i].key);
             }
 
-            /*
-             * Sorted before comparison, so a translation may reorder its arguments positionally.
-             */
+            /* Sorted before comparison, so a translation may reorder its arguments positionally. */
             /*
              * Zeroed, not just assigned into.
              *
@@ -238,9 +226,7 @@ void nya_i18n_generate(void) {
         _nya_i18n_enum_name(keys[i].key, name, sizeof(name));
 
         nya_string_extend_sprintf(out, "/** `%s` */\n", keys[i].key);
-        /*
-         * __attr_allow_unused, on every accessor.
-         */
+        /* __attr_allow_unused, on every accessor. */
         nya_string_extend_sprintf(out, "static inline __attr_allow_unused NYA_ConstCString nya_string_%s(", keys[i].key);
 
         if (keys[i].argument_count == 0) {
@@ -278,11 +264,7 @@ void nya_i18n_generate(void) {
     nya_log_info("Generated %s: %u keys across %llu locales.", NYA_I18N_OUTPUT, key_count, (unsigned long long)locales->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, NYA_ConstCString key, OUT NYA_I18nKey* out_key) {
     nya_unused(where, key);
@@ -310,9 +292,7 @@ b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, N
 
         if (count >= NYA_I18N_MAX_ARGUMENTS) return false;
 
-        /*
-         * Only four kinds, deliberately.
-         */
+        /* Only four kinds, deliberately. */
         switch (*cursor) {
             case 's': out_key->argument_types[count] = "NYA_ConstCString"; break;
             case 'd':

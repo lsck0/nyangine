@@ -182,9 +182,7 @@ s32 main(void) {
     f32_4x4 palette[NYA_SKELETON_MAX_BONES];
     nya_skeleton_palette(skeleton, &pose, palette);
 
-    /*
-     * The key assertion here.
-     */
+    /* The key assertion here. */
     for (u32 i = 0; i < skeleton->bone_count; i++) {
       f32 error = identity_error(palette[i]);
 

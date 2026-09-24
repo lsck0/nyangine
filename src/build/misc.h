@@ -14,11 +14,7 @@
 // For CC.
 #include "build/vendor/vendor_common.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PROJECT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PROJECT */
 
 /**
  * Every release artifact this host can produce. A Windows host produces only the Windows ones, see build.h. Steam Linux
@@ -60,11 +56,7 @@ NYA_INTERNAL NYA_BuildRule assemble_docs = {
     .pre_build_hooks = { &hook_assemble_docs, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RUNNING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* RUNNING */
 
 /**
  * Debug runs directly. Sanitized, hot reloading, slow.
@@ -150,11 +142,7 @@ NYA_INTERNAL NYA_BuildRule run_release = {
     .dependencies = { &host_build_release, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * OPENING THINGS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* OPENING THINGS */
 
 NYA_INTERNAL NYA_BuildRule open_perf_report = {
     .name        = "open_perf_report",
@@ -169,9 +157,7 @@ NYA_INTERNAL NYA_BuildRule open_perf_report = {
                 .arguments = { "./perf.data.txt", },
             },
 
-            /*
-             * Converted here as well as after the run that recorded it.
-             */
+            /* Converted here as well as after the run that recorded it. */
             .pre_build_hooks = { &hook_convert_perf_data_to_plain, },
         },
         &(NYA_BuildRule){
@@ -186,11 +172,7 @@ NYA_INTERNAL NYA_BuildRule open_perf_report = {
     },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * REPOSITORY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* REPOSITORY */
 
 NYA_INTERNAL NYA_BuildRule show_stats = {
     .name   = "show_stats",
@@ -222,11 +204,7 @@ NYA_INTERNAL NYA_BuildRule update_submodules = {
     },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE TOOL ITSELF
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE TOOL ITSELF */
 
 /**
  * Builds the host's own build tool. Read only by main, which hands it to nya_rebuild_yourself after

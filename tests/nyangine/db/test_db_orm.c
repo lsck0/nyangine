@@ -10,11 +10,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DESCRIBED TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE DESCRIBED TYPES */
 
 /** Characters a name holds, terminator included. Small, so the truncation edge is reachable. */
 #define NAME_MAX 24
@@ -123,9 +119,7 @@ static const NYA_TypeReflection TEST_FEELING = {
   .field_count = nya_carray_length(TEST_FEELING_FIELDS),
 };
 
-/*
- * The types nya_orm_open has to refuse.
- */
+/* The types nya_orm_open has to refuse. */
 
 static const NYA_ReflectField NO_KEY_FIELDS[] = {
   { .name = "score", .type = nya_reflect_of(u32), .offset = 0 },
@@ -159,11 +153,7 @@ static const NYA_TypeReflection NESTED = {
   .field_count = nya_carray_length(NESTED_FIELDS),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE ROUND TRIP LAW
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE ROUND TRIP LAW */
 
 /** Cases the law runs. Each is an insert and a select against a real database. */
 #define CASES 500
@@ -222,11 +212,7 @@ static b8 law_row_round_trips(NYA_Property* property) {
   return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE TESTS */
 
 /** Opens a fresh in memory database. Each test gets its own, so none can pollute another. */
 static NYA_Database* open_memory(NYA_Arena* arena) {

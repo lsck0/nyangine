@@ -30,9 +30,7 @@ s32 main(void) {
     // If the writer's spelling of 1.0 ever changes, the splice above stops testing anything.
     nya_assert(!nya_string_equals(patched, document), "the splice did not change the document; the writer's number format moved");
 
-    /*
-     * NYA_SERDE_NO_CHECKSUM, so the number parser is what decides.
-     */
+    /* NYA_SERDE_NO_CHECKSUM, so the number parser is what decides. */
     NYA_Object* parsed = nullptr;
     NYA_Error   error  = nya_serde_nya_deserialize(arena, patched->items, patched->length, NYA_SERDE_NO_CHECKSUM, &parsed);
 

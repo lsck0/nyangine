@@ -23,11 +23,7 @@
 
 // clang-format off
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ARTIFACTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ARTIFACTS */
 
 #define PROJECT_NAME "gnyame"
 
@@ -83,9 +79,7 @@
 #define WINDOWS_X86_64_DEV_IMPLIB   PROJECT_NAME ".dev.lib"
 #define WINDOWS_X86_64_BINARY       PROJECT_NAME "." VERSION ".windows-x86_64.exe"
 
-/*
- * A Steam build is a directory, since the Steamworks library ships beside the executable. Its contents are the depot.
- */
+/* A Steam build is a directory, since the Steamworks library ships beside the executable. Its contents are the depot. */
 #define STEAM_LINUX_X86_64_DIRECTORY   PROJECT_NAME "." VERSION ".steam-linux-x86_64"
 #define STEAM_LINUX_X86_64_BINARY      STEAM_LINUX_X86_64_DIRECTORY "/" PROJECT_NAME
 #define STEAM_LINUX_X86_64_LIBRARY     STEAM_LINUX_X86_64_DIRECTORY "/libsteam_api.so"
@@ -100,11 +94,7 @@
 #define OBJECT_DIRECTORY "./.objects"
 #define OBJECT_SUFFIX    ".o"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * COMPILER FLAGS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* COMPILER FLAGS */
 
 // CC and NPROCS come from build/vendor/vendor.h.
 // -mfma is not implied by -mavx2, and nn/nn_simd.h falls back to separate multiply and add without it.
@@ -454,9 +444,7 @@
 #define FLAGS_DEBUG_WINDOWS_X86_64     FLAGS_HOTRELOAD_WINDOWS_X86_64, "-Wl,--out-implib," WINDOWS_X86_64_DEBUG_IMPLIB
 #define FLAGS_DEV_WINDOWS_X86_64       FLAGS_HOTRELOAD_WINDOWS_X86_64, "-Wl,--out-implib," WINDOWS_X86_64_DEV_IMPLIB
 
-/*
- * Authenticode signing of the shipped .exe. See hook_sign_windows_executable.
- */
+/* Authenticode signing of the shipped .exe. See hook_sign_windows_executable. */
 // Deliberately not under assets/: that tree is walked by the asset indexer and embedded into
 // assets.c, which would put the private key inside the shipped binary.
 #define SIGNING_PFX_PATH      "./.signing/sample.pfx"
@@ -475,11 +463,7 @@
 #define COMPILER_CACHE_PROGRAM "ccache"
 #define COMPILER_CACHE_ENV     "NYA_CCACHE"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HOST TARGETS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HOST TARGETS */
 
 /*
  * Running always targets the host. Cross compiling to Windows from Linux is a build time
@@ -513,11 +497,7 @@
         "LSAN_OPTIONS=suppressions=./.sanitizers/lsan.supp", "TSAN_OPTIONS=suppressions=./.sanitizers/tsan.supp",                                    \
         "UBSAN_OPTIONS=suppressions=./.sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1"
 
-/*
- * ─────────────────────────────────────────────────────────
- * HOST NATIVE ARTIFACTS
- * ─────────────────────────────────────────────────────────
- */
+/* HOST NATIVE ARTIFACTS */
 
 /*
  * For the two things built to run on this machine right now rather than to be shipped anywhere: the

@@ -10,9 +10,7 @@
 static NYA_Window window;
 
 s32 main(void) {
-    /*
-     * ── A zeroed struct overrides nothing, which is what lets a config file name only what it changes.
-     */
+    /* ── A zeroed struct overrides nothing, which is what lets a config file name only what it changes. */
     {
         nya_render_features_set(&window, (NYA_RenderFeatures){ 0 });
 
@@ -29,9 +27,7 @@ s32 main(void) {
         }
     }
 
-    /*
-     * ── Off wins over what a feature's own options asked for, and on overrides them.
-     */
+    /* ── Off wins over what a feature's own options asked for, and on overrides them. */
     {
         nya_render_features_set(&window, (NYA_RenderFeatures){ .bloom = NYA_RENDER_TOGGLE_OFF, .ink = NYA_RENDER_TOGGLE_ON });
 
@@ -46,9 +42,7 @@ s32 main(void) {
         nya_check(nya_render_feature_on(&window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, false) == false, "so is ambient occlusion");
     }
 
-    /*
-     * ── The switches read back as they were set, and the disabled row names exactly the ones that are off.
-     */
+    /* ── The switches read back as they were set, and the disabled row names exactly the ones that are off. */
     {
         NYA_RenderFeatures features = {
             .frustum_culling = NYA_RENDER_TOGGLE_OFF,
@@ -80,9 +74,7 @@ s32 main(void) {
         nya_check(strlen(small) < sizeof(small), "and writes a terminated string, got '%s'", small);
     }
 
-    /*
-     * ── Nothing is off once they are put back, so a caller can restore the default with a zeroed struct.
-     */
+    /* ── Nothing is off once they are put back, so a caller can restore the default with a zeroed struct. */
     {
         nya_render_features_set(&window, (NYA_RenderFeatures){ 0 });
 
@@ -92,9 +84,7 @@ s32 main(void) {
         nya_check(text[0] == '\0', "and the row is empty, got '%s'", text);
     }
 
-    /*
-     * ── Every feature has a name, and no two share one. The names are what an overlay row and a log line say.
-     */
+    /* ── Every feature has a name, and no two share one. The names are what an overlay row and a log line say. */
     {
         for (u32 feature = 0; feature < NYA_RENDER_FEATURE_COUNT; feature++) {
             NYA_ConstCString name = nya_render_feature_name((NYA_RenderFeature)feature);

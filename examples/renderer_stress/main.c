@@ -31,11 +31,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define WINDOW_TITLE  "nyangine — renderer stress"
 #define WINDOW_WIDTH  1280
@@ -97,11 +93,7 @@ static_assert(TERRAIN_VERTICES <= 65536, "the terrain mesh must fit sixteen-bit 
 /** Deterministic scatter seed, so a given scale draws the same scene every run. */
 #define SCATTER_SEED 0x5715C3u
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** This example's own input actions, continuing the engine's numbering. Unnamed to stay NYA_InputAction. */
 enum {
@@ -271,11 +263,7 @@ NYA_INTERNAL const StressScale* scale_of(const Stress* state) {
     return &STRESS_SCALES[state->scale % STRESS_SCALE_COUNT];
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TERRAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TERRAIN */
 
 /** The ground height at a world xz, a sum of sines standing in for eroded hills. */
 NYA_INTERNAL f32 terrain_height(f32 x, f32 z) {
@@ -497,11 +485,7 @@ NYA_INTERNAL void megalith_box(u32 index, OUT f32x3* out_center, OUT f32x3* out_
     *out_center = (f32x3){ x, terrain_height(x, z) + (height * 0.5F), z };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PARTICLES AND FLUID
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PARTICLES AND FLUID */
 
 /** The world point the fire and its simulated column sit over. */
 NYA_INTERNAL f32x3 hearth(void) {
@@ -556,11 +540,7 @@ NYA_INTERNAL void systems_build(void) {
     state->built_scale = state->scale;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * POST PIPELINES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* POST PIPELINES */
 
 /** Queues the custom grade / CRT / grayscale post pipelines. Safe to call more than once. */
 NYA_INTERNAL void post_pipelines_ensure(NYA_Window* window) {
@@ -635,11 +615,7 @@ NYA_INTERNAL void post_pipelines_ensure(NYA_Window* window) {
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = PARTICLE_TEXTURE });
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ON CREATE / DESTROY / EVENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ON CREATE / DESTROY / EVENT */
 
 void stress_layer_on_create(NYA_Window* window) {
     nya_assert(window != nullptr);
@@ -807,11 +783,7 @@ void stress_layer_on_event(NYA_Window* window, NYA_Event* event) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ON UPDATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ON UPDATE */
 
 /** The camera's forward from its yaw and pitch. */
 NYA_INTERNAL f32x3 camera_forward(const Stress* state) {
@@ -951,11 +923,7 @@ void stress_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     if (state->max_frames > 0 && state->frame_count >= state->max_frames) nya_app_get()->should_quit = true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DRAW
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* DRAW */
 
 /** The colour prop `index` is tinted, from a small palette by its material bucket. */
 NYA_INTERNAL NYA_Color prop_color(u32 index) {
@@ -1350,11 +1318,7 @@ void stress_layer_on_render(NYA_Window* window) {
                                    });
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 /** The scale named on the command line or in NYA_STRESS_SCALE, or `large` when neither says. */
 NYA_INTERNAL u32 initial_scale(s32 argc, NYA_CString* argv) {

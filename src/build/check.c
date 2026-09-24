@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** One translation unit to check, and the flags it is really compiled with. */
 typedef struct {
@@ -24,11 +20,7 @@ typedef struct {
  * */
 NYA_INTERNAL u32 _check_append_vendor_flags(NYA_ConstCString* arguments, u32 at);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void check_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -124,9 +116,7 @@ void check_runner(NYA_ArgCommand* command) {
         u32 at = 0;
         while (rule->command.arguments[at] != nullptr) at++;
 
-        /*
-         * Findings are warnings by default, and clang-tidy exits zero on warnings.
-         */
+        /* Findings are warnings by default, and clang-tidy exits zero on warnings. */
         if (strict->value.as_b8) rule->command.arguments[at++] = "--warnings-as-errors=*";
 
         // Everything past here is the compile command line, not clang-tidy's own.
@@ -158,11 +148,7 @@ void check_runner(NYA_ArgCommand* command) {
     nya_log_info("Checked " FMTu64 " translation units.", rules->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 u32 _check_append_vendor_flags(NYA_ConstCString* arguments, u32 at) {
     // The host's own target, because that is the one whose vendor archives and generated headers

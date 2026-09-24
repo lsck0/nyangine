@@ -7,11 +7,7 @@
  */
 extern NYA_ArgParameter server_flag;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /**
  * Every directory under EXAMPLE_DIRECTORY that holds an EXAMPLE_ENTRY_POINT, sorted by name.
@@ -23,11 +19,7 @@ NYA_INTERNAL s32 _example_compare(const NYA_String* a, const NYA_String* b);
 /** Prints the available examples on stderr. What a missing or misspelled name gets. */
 NYA_INTERNAL void _example_list(NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void example_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -47,9 +39,7 @@ void example_runner(NYA_ArgCommand* command) {
 
     NYA_CString name = example_name->value.as_string;
 
-    /*
-     * The name is a directory component, not a path.
-     */
+    /* The name is a directory component, not a path. */
     if (name[0] == '\0' || nya_string_contains(name, "/") || nya_string_contains(name, "\\") || nya_string_equals(name, "..")) {
         (void)fprintf(stderr, "Error: '%s' is not a valid example name; it must be a single directory name.\n", name);
         _example_list(arena);
@@ -270,11 +260,7 @@ NYA_ConstCString example_completion_name(u32 index) {
     return nya_string_to_cstring(arena, &examples->items[index]);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 NYA_ArrayᐸNYA_Stringᐳ* _example_discover(NYA_Arena* arena) {
     NYA_ArrayᐸNYA_Stringᐳ* examples = nya_array_create(arena, NYA_String);

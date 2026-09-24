@@ -20,11 +20,7 @@
 #define NOW_S 1700000000ULL
 #define TTL_S 10ULL
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE HANDLER AND ITS SIDE EFFECT
- * ─────────────────────────────────────────────────────────
- */
+/* THE HANDLER AND ITS SIDE EFFECT */
 
 /** How many times the real handler has run. The whole point of the layer is that a replay does not move it. */
 static u32 SIDE_EFFECTS = 0;
@@ -96,11 +92,7 @@ static const NYA_HttpRouter ROUTER = {
     .route_count = nya_carray_length(ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * ONE EXCHANGE
- * ─────────────────────────────────────────────────────────
- */
+/* ONE EXCHANGE */
 
 /** Builds a request by hand: the parser has its own test and this one is about what runs after it. */
 static void make_request(OUT NYA_HttpRequest* request, NYA_HttpMethod method, NYA_ConstCString body, NYA_ConstCString key) {
@@ -192,11 +184,7 @@ static void body_text(const NYA_HttpResponse* response, OUT char* out, u64 capac
     out[shown] = '\0';
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TESTS
- * ─────────────────────────────────────────────────────────
- */
+/* THE TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

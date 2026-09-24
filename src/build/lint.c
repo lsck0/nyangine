@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** One source file, lexed once and shared by every rule. */
 typedef struct {
@@ -56,11 +52,7 @@ NYA_INTERNAL const NYA_ConstCString _LINT_ROOTS[] = {
 };
 NYA_INTERNAL const NYA_ConstCString _LINT_FILES[] = { "./src/main.c", "./build.c" };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 NYA_INTERNAL const _LintBannedCall _LINT_BANNED_CALLS[] = {
     { "malloc",   "arenas own memory here; take an NYA_Arena" },
@@ -194,11 +186,7 @@ NYA_INTERNAL void _lint_rule_web_profile(Lint* lint);
 // The allowances: what each rule knowingly lets through today, and why. After the declarations it reads.
 #include "build/lint_allowances.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 u32 lint_run(void) {
     u64 started = nya_clock_get_monotonic_ns();
@@ -227,11 +215,7 @@ u32 lint_run(void) {
     return lint.findings;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RULES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* RULES */
 
 /*
  * Every other rule trusts the tokens, so a file the lexer misread is a finding of its own rather than a silent gap:
@@ -687,11 +671,7 @@ void _lint_rule_web_profile(Lint* lint) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 void _lint_report(Lint* lint, NYA_ConstCString rule, const NYA_String* path, u32 line, NYA_ConstCString format, ...) {
     nya_assert(lint != nullptr && rule != nullptr && path != nullptr && format != nullptr);

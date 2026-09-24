@@ -38,11 +38,7 @@ static void sleep_ms(u32 milliseconds) {
   (void)nanosleep(&request, nullptr);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TEST SERVER
- * ─────────────────────────────────────────────────────────
- */
+/* THE TEST SERVER */
 
 /** Writes a server side frame: never masked, which is what RFC 6455 requires of a server. */
 static void server_send(Server* server, u8 opcode, b8 fin, const u8* payload, u64 size) {
@@ -195,11 +191,7 @@ static void server_destroy(Server* server) {
   *server = (Server){ 0 };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * PUMPING BOTH ENDS
- * ─────────────────────────────────────────────────────────
- */
+/* PUMPING BOTH ENDS */
 
 typedef struct {
   u32 opens;

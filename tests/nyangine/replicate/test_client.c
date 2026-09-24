@@ -111,9 +111,7 @@ s32 main(void) {
     nya_assert(_nya_net_elapsed_ms(1000, 400) == 600, "the ordinary direction still subtracts");
     nya_assert(_nya_net_elapsed_ms(1000, 1000) == 0, "equal reads are no time at all");
 
-    /*
-     * The case that broke the handshake.
-     */
+    /* The case that broke the handshake. */
     nya_assert(_nya_net_elapsed_ms(1000, 1001) == 0, "a later `then` saturates to zero rather than wrapping");
     nya_assert(_nya_net_elapsed_ms(0, U64_MAX) == 0, "and so does the extreme of it");
   }
@@ -138,9 +136,7 @@ s32 main(void) {
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING);
     nya_assert(nya_net_client_peer().index == 3, "the client learned its peer id");
 
-    /*
-     * The server's handle for its entity, which is not usable locally.
-     */
+    /* The server's handle for its entity, which is not usable locally. */
     nya_assert(nya_net_client_entity_remote().index == 7, "the client learned the server's handle for its entity");
 
     nya_net_client_disconnect();
@@ -199,9 +195,7 @@ s32 main(void) {
 
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_DISCONNECTED, "a rejected client is not in a game");
 
-    /*
-     * The reason survives the reset.
-     */
+    /* The reason survives the reset. */
     nya_assert(nya_net_client_disconnect_reason() == NYA_NET_DISCONNECT_VERSION, "the rejection reason was lost");
 
     nya_net_transport_destroy(server_end);

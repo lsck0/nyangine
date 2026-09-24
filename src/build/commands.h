@@ -27,11 +27,7 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where the examples live, and what a directory must contain to be one. */
 #define EXAMPLE_DIRECTORY   "./examples"
@@ -82,11 +78,7 @@
 #define AGENT_SOURCE "./tests/gnyame/test_agent.c"
 #define AGENT_BINARY "./tests/gnyame/test_agent"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS AND MACROS */
 
 /**
  * Builds and runs the benchmarks under bench/, optionally filtered by substring.

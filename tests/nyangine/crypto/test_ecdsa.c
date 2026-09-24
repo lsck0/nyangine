@@ -11,11 +11,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE FIXTURE
- * ─────────────────────────────────────────────────────────
- */
+/* THE FIXTURE */
 
 static const u8 FIXTURE_X[] = {
   0xE4, 0x38, 0x5A, 0x9C, 0x4B, 0xB9, 0x37, 0xBB, 0xF5, 0xCC, 0x7D, 0xCB,

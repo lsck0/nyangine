@@ -5,9 +5,7 @@
 
 // clang-format off
 
-/*
- * Cross compiling to Windows, so clang has to be pointed at the target explicitly.
- * */
+/* Cross compiling to Windows, so clang has to be pointed at the target explicitly. */
 /**
  * mingw-w64 headers before 12 (Ubuntu's) define __cpuidex in every translation unit that includes intrin.h, which
  * clang's own cpuid.h redefines static: a compile error in C++ and a duplicate symbol at link in C. Marking it

@@ -25,11 +25,7 @@
 #include <windows.h>
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SHARED BUILD SETTINGS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SHARED BUILD SETTINGS */
 
 #define CC "clang"
 
@@ -141,11 +137,7 @@ NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
     (void)snprintf(NYA_NPROCS, sizeof(NYA_NPROCS), FMTu32, cores);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SHARED CMAKE SETTINGS
- * ─────────────────────────────────────────────────────────
- */
+/* SHARED CMAKE SETTINGS */
 
 // clang-format off
 
@@ -182,17 +174,9 @@ NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
 
 // clang-format on
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VENDORS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* VENDORS */
 
-/*
- * ─────────────────────────────────────────────────────────
- * STEAMWORKS
- * ─────────────────────────────────────────────────────────
- */
+/* STEAMWORKS */
 
 /*
  * Valve ships the Steamworks SDK prebuilt, so there is nothing to build and no file of its own to put

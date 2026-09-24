@@ -44,11 +44,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Round trips the client asks for before it disconnects. */
 #define ROUNDS 5
@@ -62,11 +58,7 @@
 /** Longest message this example sends or prints, terminator included. */
 #define MESSAGE_MAX 64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PEERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PEERS */
 
 /** What one end has seen so far, so the loops below read as a state machine rather than as flags. */
 typedef struct {
@@ -180,11 +172,7 @@ NYA_INTERNAL void endpoint_report(NYA_NetTransport* transport, const Endpoint* e
                  (unsigned long long)stats.bytes_sent, (unsigned long long)stats.bytes_received, (f64)stats.rtt_ms);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_backtrace_init();

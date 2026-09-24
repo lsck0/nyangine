@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* INTERNALS */
 
 /** The same shape as _test_collect_sources, and for the same reasons. See test.c. */
 NYA_INTERNAL b8 _bench_collect_sources(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
@@ -33,11 +29,7 @@ NYA_INTERNAL s32 _bench_compare_paths(const NYA_String* a, const NYA_String* b) 
     return a->length < b->length ? -1 : 1;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void bench_runner(NYA_ArgCommand* command) {
     nya_assert(command != nullptr);
@@ -124,9 +116,7 @@ void bench_runner(NYA_ArgCommand* command) {
             .output_file      = binary,
         };
 
-        /*
-         * Built and run one at a time, deliberately.
-         */
+        /* Built and run one at a time, deliberately. */
         NYA_EXPECT(nya_build(build_rule));
         NYA_EXPECT(nya_build(run_rule));
     }

@@ -49,9 +49,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_string_menu_start(), "start"), "got '%s'", nya_string_menu_start());
     nya_assert(nya_string_equals(nya_string_hud_paused(), "PHYSICS PAUSED"), "got '%s'", nya_string_hud_paused());
 
-    /*
-     * The typed accessors, which is the whole design.
-     */
+    /* The typed accessors, which is the whole design. */
     nya_assert(nya_string_equals(nya_string_hud_greeting("Ada"), "Hello, Ada!"), "got '%s'", nya_string_hud_greeting("Ada"));
     nya_assert(nya_string_equals(nya_string_hud_score("Ada", 4200), "Ada scored 4200 points"), "got '%s'", nya_string_hud_score("Ada", 4200));
     nya_assert(nya_string_equals(nya_string_hud_boxes(12, 3), "boxes 12 (3 awake)"), "got '%s'", nya_string_hud_boxes(12, 3));

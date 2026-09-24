@@ -102,9 +102,7 @@ s32 main(void) {
 
   // TEST: a gene naming a node the genome does not have is ignored
   {
-    /*
-     * Reachable from a loaded genome, or from a crossover against one with fewer nodes.
-     */
+    /* Reachable from a loaded genome, or from a crossover against one with fewer nodes. */
     NYA_NeatNetwork* network = nya_nn_neat_network_create(arena);
     nya_nn_neat_network_push_sensor(network, "in");
     nya_nn_neat_network_push_output(network, "out");

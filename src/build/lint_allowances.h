@@ -7,11 +7,7 @@
  * */
 #pragma once
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYERING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYERING */
 
 /**
  * Include edges against the module order, with the number of `#include` lines making each today. What is left is
@@ -26,11 +22,7 @@ NYA_INTERNAL const _LintEdge _LINT_LAYERING_ALLOWED[] = {
     { "renderer", "debug",    3 },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VERB PAIRS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* VERB PAIRS */
 
 /** Public verbs with no partner in their header when the rule landed, grouped by why. */
 NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
@@ -121,11 +113,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_account_passkey_remove", "a credential is added by the register ceremony, not an add; this drops one by id" },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CALLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CALLERS */
 
 /**
  * Public functions nothing calls. Empty: the 81 the first run found were each given a caller or a test, or

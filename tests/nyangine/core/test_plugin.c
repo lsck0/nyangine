@@ -25,11 +25,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * WRITING PLUGINS TO DISK
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* WRITING PLUGINS TO DISK */
 
 /** Writes `contents` to `<root>/<plugin>/<relative>`, creating every directory on the way. */
 static void plugin_file_write(NYA_ConstCString plugin, NYA_ConstCString relative, NYA_ConstCString contents) {
@@ -68,11 +64,7 @@ static void plugin_manifest_write(NYA_ConstCString directory, NYA_ConstCString n
     plugin_file_write(directory, NYA_PLUGIN_MANIFEST_FILE, manifest);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE TREE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE TREE */
 
 static void plugins_write_all(void) {
     (void)nya_filesystem_delete_recursive(TEST_PLUGIN_ROOT);
@@ -127,11 +119,7 @@ static void plugins_write_all(void) {
     plugin_file_write("twin_b", NYA_PLUGIN_ENTRY_FILE, "function spawn() return 'b' end\n");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
     plugins_write_all();

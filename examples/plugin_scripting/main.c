@@ -41,11 +41,7 @@
 #error "This example needs -DNYA_PLUGIN_LUA, which ./build run example passes. See src/build/flags.h."
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE BINDING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE BINDING */
 
 /** What the script has scored so far, summed by the binding below. */
 typedef struct {
@@ -81,11 +77,7 @@ NYA_INTERNAL void binding_score_add(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE SCRIPT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE SCRIPT */
 
 /**
  * Inline rather than loaded from assets/: nya_lua_run_asset goes through the asset system, which
@@ -100,11 +92,7 @@ NYA_INTERNAL NYA_ConstCString SCRIPT =
     "  return total\n"
     "end\n";
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

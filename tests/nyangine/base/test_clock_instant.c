@@ -19,11 +19,7 @@
 /** How far a law moves a date, in months. */
 #define MONTHS_SPAN_MAX 2'400
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 static b8 date_equals(NYA_Date a, NYA_Date b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
@@ -53,11 +49,7 @@ static NYA_Instant fixed_instant(void* context) {
     return *(const NYA_Instant*)context;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** A date is the day count it converts to, and back. */
 static b8 law_days_round_trip(NYA_Property* property) {
@@ -179,11 +171,7 @@ static b8 law_duration_inverts(NYA_Property* property) {
     return back.ns == instant.ns && fits && between.ns == duration.ns;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SIMULATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SIMULATION */
 
 typedef struct {
     NYA_Instant seen[8];

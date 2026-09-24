@@ -9,9 +9,7 @@
 
 #include <time.h>
 
-/*
- * The wire layout, restated here rather than shared with the implementation.
- */
+/* The wire layout, restated here rather than shared with the implementation. */
 #define PROTOCOL        0x6E796106U
 #define HEADER_SIZE     12
 #define FRAGMENT_HEADER 9
@@ -360,9 +358,7 @@ s32 main(void) {
 
   printf("TEST: an oversized datagram is dropped, not parsed\n");
   {
-    /*
-     * `buflen` can be up to 65507 because SDL_net's receive buffer is 64 kB, so this is reachable.
-     */
+    /* `buflen` can be up to 65507 because SDL_net's receive buffer is 64 kB, so this is reachable. */
     u64 body_size = FRAGMENT_HEADER + 60000;
     u8* body      = nya_arena_alloc(arena, body_size);
 
@@ -523,9 +519,7 @@ s32 main(void) {
 
   printf("TEST: a stalled reliable stream drops the peer rather than growing\n");
   {
-    /*
-     * Send ids 1, 2, 3... and never 0, the one the receiver waits for, and nothing is ever delivered or freed.
-     */
+    /* Send ids 1, 2, 3... and never 0, the one the receiver waits for, and nothing is ever delivered or freed. */
     for (u32 round = 0; round < 6; round++) {
       u8  body[NYA_NET_MAX_DATAGRAM - HEADER_SIZE - MAC_SIZE];
       u64 at = 0;

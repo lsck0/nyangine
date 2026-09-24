@@ -47,9 +47,7 @@ s32 main(void) {
 
     nya_assert(!nya_discord_init(1).ok, "a second init without a deinit is refused");
 
-    /*
-     * Pumping is safe whether or not a client is there, and that is all this can assert.
-     */
+    /* Pumping is safe whether or not a client is there, and that is all this can assert. */
     for (u32 i = 0; i < 8; i++) nya_discord_pump();
 
     NYA_DiscordStatus status = nya_discord_status();
@@ -300,9 +298,7 @@ s32 main(void) {
 
   // TEST: a dropped connection backs off instead of reconnecting immediately
   {
-    /*
-     * The reconnect storm, found by pointing the plugin at a real Discord client.
-     */
+    /* The reconnect storm, found by pointing the plugin at a real Discord client. */
     nya_discord_deinit();
     nya_assert(nya_discord_init(123456789012345678ULL).ok);
 
@@ -323,9 +319,7 @@ s32 main(void) {
 
     nya_assert(_NYA_DISCORD.retry_delay_ms == _NYA_DISCORD_RETRY_MAX_MS, "the backoff stops at its ceiling rather than overflowing");
 
-    /*
-     * And the pump respects it: with the retry armed into the future, nothing reconnects.
-     */
+    /* And the pump respects it: with the retry armed into the future, nothing reconnects. */
     for (u32 i = 0; i < 16; i++) nya_discord_pump();
     nya_assert(nya_discord_status() == NYA_DISCORD_STATUS_DISCONNECTED, "pumping inside the backoff window does not reconnect");
 

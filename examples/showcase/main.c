@@ -37,11 +37,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define WINDOW_TITLE  "nyangine — showcase"
 #define WINDOW_WIDTH  1280
@@ -145,11 +141,7 @@ enum {
     ENTITY_BALL,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* STATE */
 
 typedef struct TrailMark TrailMark;
 
@@ -225,11 +217,7 @@ NYA_INTERNAL NYA_ConstCString tile_handle_far(char* out, u64 out_size, u32 col, 
     return out;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TERRAIN & RIVER GEOMETRY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TERRAIN & RIVER GEOMETRY */
 
 /** A smooth 0..1 ramp between two edges, the Hermite the shaders use; the math module has no scalar one. */
 NYA_INTERNAL f32 example_smoothstep(f32 edge0, f32 edge1, f32 x) {
@@ -483,11 +471,7 @@ NYA_INTERNAL u32 build_branch(NYA_Vertex3D* vertices) {
     return count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SCATTER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SCATTER */
 
 /** A hashed value in [0, 1] for plant `index`, channel `k`. nya_ihash2 returns [-1, 1], so fold it up. */
 NYA_INTERNAL f32 plant_unit(u32 index, s32 k) {
@@ -514,11 +498,7 @@ NYA_INTERNAL f32x3 plant_position(u32 index, OUT b8* out_on_bank) {
     return (f32x3){ x, y, z };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DUST / POLLEN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* DUST / POLLEN */
 
 /**
  * Steers each pollen mote after its integration: ease its velocity toward the shared wind field's push at its own
@@ -538,11 +518,7 @@ NYA_INTERNAL void dust_ride_wind(NYA_Particle* particle, f32 t, f32 delta_time_s
     particle->velocity = nya_lerp(particle->velocity, target, nya_min(delta_time_s * 1.5F, 1.0F));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DECAL PROBE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* DECAL PROBE */
 
 /**
  * Where a downward-projected decal lands: the valley surface at the decal's xz. Decals only probe straight down,
@@ -569,11 +545,7 @@ NYA_INTERNAL b8 ground_decal_probe(f32x3 origin, f32x3 direction, void* user_dat
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BALLS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* BALLS */
 
 /** A deterministic bank spawn for ball `index`: spread along the valley, on one bank or the other. */
 NYA_INTERNAL f32x3 ball_spawn(u32 index) {
@@ -585,11 +557,7 @@ NYA_INTERNAL f32x3 ball_spawn(u32 index) {
     return (f32x3){ x, terrain_height(x, z) + BALL_RADIUS + 0.5F, z };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER: CREATE / DESTROY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER: CREATE / DESTROY */
 
 void showcase_layer_on_create(NYA_Window* window) {
     nya_assert(window != nullptr);
@@ -750,11 +718,7 @@ void showcase_layer_on_destroy(NYA_Window* window) {
     nya_log_info("showcase: shutting down after %u frames, last %.1f fps.", state->frame_count, (f64)state->last_fps);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER: UPDATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER: UPDATE */
 
 void showcase_layer_on_event(NYA_Window* window, NYA_Event* event) {
     nya_unused(window);
@@ -885,11 +849,7 @@ void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     if (state->max_frames > 0 && state->frame_count >= state->max_frames) nya_app_get()->should_quit = true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER: RENDER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER: RENDER */
 
 /** Which way the sun's light travels. Kept in one place so the sky disc, the shading and the shafts agree. */
 NYA_INTERNAL f32x3 sun_travel(void) {
@@ -1154,11 +1114,7 @@ void showcase_layer_on_render(NYA_Window* window) {
                                  "wind · water · balls · trails · crystals · light beams   %.1f fps   Esc quit", (f64)state->last_fps);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

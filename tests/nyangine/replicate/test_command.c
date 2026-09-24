@@ -217,9 +217,7 @@ s32 main(void) {
 
     nya_assert(command.actions == ((1ULL << 7) | (1ULL << 40)), "the actions word is %llu", (unsigned long long)command.actions);
 
-    /*
-     * Past the width of the word.
-     */
+    /* Past the width of the word. */
     u64 before = command.actions;
 
     nya_net_command_set(&command, 64, true);

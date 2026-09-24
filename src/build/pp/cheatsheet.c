@@ -2,11 +2,7 @@
 
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /**
  * One module of the engine, in the order the cheatsheet lists them: what a reader needs first
@@ -92,11 +88,7 @@ NYA_INTERNAL void _nya_cheatsheet_read_declaration(_NYA_CheatReader* reader, NYA
 /** The `@file` block's first prose line, or an empty string. Read from the top of the header. */
 NYA_INTERNAL void _nya_cheatsheet_file_blurb(NYA_ConstCString text, u64 length, OUT char* out, u64 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "base",     "base",     "Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No SDL." },
@@ -119,11 +111,7 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "os",       "os",       "The syscalls themselves: files, pages, the two clocks, random bytes, processes."          },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_cheatsheet_generate(void) {
     NYA_ConstCString inputs[]  = { NYA_CHEATSHEET_DIRECTORY, "./src/build/pp/cheatsheet.c", nullptr };
@@ -183,11 +171,7 @@ void nya_cheatsheet_generate(void) {
     nya_log_info("nya_cheatsheet_generate: %llu headers into %s.", (unsigned long long)header_count, NYA_CHEATSHEET_OUTPUT);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_cheatsheet_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     NYA_ArrayᐸNYA_Stringᐳ* headers = user_data;

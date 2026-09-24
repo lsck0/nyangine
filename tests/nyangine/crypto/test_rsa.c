@@ -12,11 +12,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE FIXTURE
- * ─────────────────────────────────────────────────────────
- */
+/* THE FIXTURE */
 
 static const u8 FIXTURE_MODULUS[] = {
   0xB6, 0xA4, 0x37, 0x45, 0xFE, 0xF9, 0x90, 0xD7, 0x50, 0xC0, 0x53, 0x1F,

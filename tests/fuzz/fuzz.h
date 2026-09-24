@@ -145,9 +145,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
     return EXIT_SUCCESS;
 #else
-    /*
-     * A file per argument: what a triage run does with a crash AFL found.
-     */
+    /* A file per argument: what a triage run does with a crash AFL found. */
     if (argc > 1) {
         for (s32 i = 1; i < argc; i++) {
             NYA_Arena* arena = nya_arena_create(.name = "fuzz_input");

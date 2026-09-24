@@ -17,11 +17,7 @@
 #define BYTES_MAX 96
 #define TEXT_MAX  (NYA_CRYPTO_BASE32_LENGTH(BYTES_MAX) + 1)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 static void check_encode(NYA_ConstCString data, NYA_ConstCString expected) {
     char text[64] = { 0 };
@@ -59,11 +55,7 @@ static void check_refused(NYA_ConstCString text, NYA_ErrorKind kind) {
     for (u32 i = 0; i < sizeof(data); i++) nya_assert(data[i] == 0xA5, "'%s' was refused after writing", text);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** Any bytes encode to text that decodes to the same bytes. */
 static b8 law_bytes_round_trip(NYA_Property* property) {
@@ -115,11 +107,7 @@ static b8 law_accepted_text_is_canonical(NYA_Property* property) {
     return again_length == length && nya_memcmp(again, text, length) == 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

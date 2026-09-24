@@ -13,11 +13,7 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where the locale files live. Every `.json` directly inside is a locale. */
 #define NYA_I18N_DIRECTORY "./assets/i18n"
@@ -36,11 +32,7 @@
 /** Most format arguments one string may take. Past four, a string wants a struct rather than a call. */
 #define NYA_I18N_MAX_ARGUMENTS 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS */
 
 /**
  * Reads every locale, validates them against the base, and writes NYA_I18N_OUTPUT.

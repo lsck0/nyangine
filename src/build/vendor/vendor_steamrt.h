@@ -31,11 +31,7 @@
 #include "build/vendor/vendor_sqlvec.h"
 #include "build/vendor/vendor_ufbx.h"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SYSROOT
- * ─────────────────────────────────────────────────────────
- */
+/* THE SYSROOT */
 
 // clang-format off
 
@@ -109,11 +105,7 @@ NYA_VendorRule vendor_steamrt_sysroot = {
     },
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE DERIVED VENDORS
- * ─────────────────────────────────────────────────────────
- */
+/* THE DERIVED VENDORS */
 
 NYA_VendorRule vendor_sdl_steamrt_x86_64;
 NYA_VendorRule vendor_sdl_image_steamrt_x86_64;

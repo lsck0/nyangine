@@ -200,9 +200,7 @@ s32 main(void) {
         nya_check(nya_font_width(ui, "Hello there") > width, "a longer string should be wider");
         nya_check(nya_font_height(ui, "one\ntwo") > nya_font_height(ui, "one"), "two lines should be taller than one");
 
-        /*
-         * Measuring a named font must not leave it current.
-         */
+        /* Measuring a named font must not leave it current. */
         nya_font_default_set(ui);
         (void)nya_font_metrics(nya_font(FACE, 48.0F));
 

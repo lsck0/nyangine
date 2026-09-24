@@ -174,9 +174,7 @@ s32 main(void) {
      */
     nya_assert(filtered == 4, "expected the player plus three crates within 250 units, got %u", filtered);
 
-    /*
-     * The peer's own entity is always sent, whatever the rule says.
-     */
+    /* The peer's own entity is always sent, whatever the rule says. */
     {
       NYA_Entity* player = nya_entity_get(SPAWNED[peer.index]);
       nya_assert(player != nullptr);
@@ -200,9 +198,7 @@ s32 main(void) {
   // TEST: hysteresis stops an entity on the boundary flickering
   printf("TEST: an entity on the relevance boundary does not flicker\n");
   {
-    /*
-     * The failure this exists to prevent.
-     */
+    /* The failure this exists to prevent. */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .relevance_radius = 100.0F, .relevance_hysteresis = 50.0F }, &tick);
 
     NYA_EntityHandle wanderer = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 200.0F, 0.0F, 0.0F });
@@ -227,9 +223,7 @@ s32 main(void) {
     nya_assert(baseline_entity_count(peer, tick) == 2, "an entity at 90 should have entered a 100 unit radius");
     tick++;
 
-    /*
-     * And now it stays in at 120, where it was refused before.
-     */
+    /* And now it stays in at 120, where it was refused before. */
     nya_entity_get(wanderer)->position.x = 120.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
     nya_system_sim_apply_commands();
@@ -243,9 +237,7 @@ s32 main(void) {
     nya_assert(baseline_entity_count(peer, tick) == 1, "an entity at 160 should have left a 150 unit leave radius");
     tick++;
 
-    /*
-     * The measurement that matters: jitter across the enter threshold produces no transitions at all.
-     */
+    /* The measurement that matters: jitter across the enter threshold produces no transitions at all. */
     nya_entity_get(wanderer)->position.x = 50.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
     nya_system_sim_apply_commands();
@@ -285,9 +277,7 @@ s32 main(void) {
     nya_assert(baseline_entity_count(peer, tick) == 2, "the entity starts in range");
     tick++;
 
-    /*
-     * 110 is outside the radius and inside the default band, so it must stay.
-     */
+    /* 110 is outside the radius and inside the default band, so it must stay. */
     nya_entity_get(edge)->position.x = 110.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
     nya_system_sim_apply_commands();
@@ -307,9 +297,7 @@ s32 main(void) {
   // TEST: the baseline is the filtered snapshot, not the whole world
   printf("TEST: the baseline records what was actually sent\n");
   {
-    /*
-     * The subtle half of interest management.
-     */
+    /* The subtle half of interest management. */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .relevance_radius = 250.0F }, &tick);
 
     (void)nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 100.0F, 0.0F, 0.0F });   // in range
@@ -337,9 +325,7 @@ s32 main(void) {
   // TEST: a bandwidth cap skips snapshots and does not advance the baseline
   printf("TEST: a bandwidth cap skips rather than queues\n");
   {
-    /*
-     * A cap that a snapshot of this world brushes against, exercised in real time.
-     */
+    /* A cap that a snapshot of this world brushes against, exercised in real time. */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .bandwidth_bytes_per_second = 40000 }, &tick);
 
     for (u32 i = 0; i < 200; i++) {
@@ -370,14 +356,10 @@ s32 main(void) {
 
     nya_assert(skipped > 0, "a 40 kB/s cap skipped nothing over 30 ticks of a 200 entity world");
 
-    /*
-     * Progress is guaranteed, which is the property that took a design fix to get.
-     */
+    /* Progress is guaranteed, which is the property that took a design fix to get. */
     nya_assert(sent > 0, "the cap starved the peer completely; it must always make progress");
 
-    /*
-     * A skipped snapshot must not become the baseline.
-     */
+    /* A skipped snapshot must not become the baseline. */
 
     stop_everything();
   }
@@ -435,14 +417,10 @@ s32 main(void) {
     printf("  target at %.1f now, %.1f when the client last acknowledged (tick %llu, %llu back)\n", (f64)present, (f64)past,
            (unsigned long long)acked, (unsigned long long)nya_net_server_rewind_ticks());
 
-    /*
-     * The target really moved back.
-     */
+    /* The target really moved back. */
     nya_assert(past < present, "the target was not rewound (%f vs %f)", (f64)past, (f64)present);
 
-    /*
-     * How far back it went, which has to be a real number rather than zero.
-     */
+    /* How far back it went, which has to be a real number rather than zero. */
     nya_assert(nya_net_server_rewind_ticks() > 0, "a rewind that moved the world reported going back zero ticks");
 
     // The shooter is not rewound: they predicted themselves and are already where they aimed from.

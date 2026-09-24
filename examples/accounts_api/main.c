@@ -107,11 +107,7 @@
 // carry the guard that refuses to.
 #include "notes/note_so.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS AND STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS AND STATE */
 
 #define DEFAULT_PORT 47810
 
@@ -151,11 +147,7 @@ NYA_INTERNAL u8 LOGIN_SEAL_SECRET[32] = { 0 };
 #define NOTES_PATH    "/api/notes"
 #define SESSIONS_PATH "/api/sessions"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: NOTES, WHICH BELONG TO PEOPLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS: NOTES, WHICH BELONG TO PEOPLE */
 
 /**
  * One stored row as the JSON the client sees — the DTO, rendered through the DTO's own reflection.
@@ -265,11 +257,7 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_delete(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_NO_CONTENT;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS: SIGNED-IN DEVICES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS: SIGNED-IN DEVICES */
 
 /** The caller's own sessions, the "signed-in devices" list. Never a token, only where and when. */
 NYA_INTERNAL NYA_HttpStatus handle_sessions_list(NYA_HttpExchange* exchange) {
@@ -371,11 +359,7 @@ NYA_INTERNAL const NYA_HttpRouter SESSION_ROUTER = {
     .name = "sessions", .routes = SESSION_ROUTES, .route_count = nya_carray_length(SESSION_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 NYA_INTERNAL void stop(int signal_number) {
     nya_unused(signal_number);

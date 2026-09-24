@@ -19,11 +19,7 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The model checker, by name. Found on PATH, or skipped with a notice if it is not installed. */
 #define VERIFY_PROGRAM "cbmc"
@@ -41,11 +37,7 @@
  * */
 #define VERIFY_UNWIND "12"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Whether `cbmc --version` runs and exits cleanly, which is to say the tool is installed on PATH. */
 NYA_INTERNAL b8 _verify_program_exists(void) __attr_no_discard;
@@ -56,11 +48,7 @@ NYA_INTERNAL b8 _verify_collect_harnesses(NYA_ConstCString path, const NYA_Direc
 /** Byte order, so the run and its output are the same on every machine rather than the filesystem's. */
 NYA_INTERNAL s32 _verify_compare_paths(const NYA_String* a, const NYA_String* b);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void verify_runner(NYA_ArgCommand* command) {
     nya_unused(command);
@@ -137,11 +125,7 @@ void verify_runner(NYA_ArgCommand* command) {
     nya_log_info("Model checking: all " FMTu64 " proofs hold.", harnesses->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _verify_program_exists(void) {
     // A program missing from PATH still spawns — the forked child fails execvp and _exit(127)s, so

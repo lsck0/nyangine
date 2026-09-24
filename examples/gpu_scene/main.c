@@ -39,11 +39,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define WINDOW_TITLE  "nyangine — gpu scene"
 #define WINDOW_WIDTH  1280
@@ -82,11 +78,7 @@
 #define HUD_FONT      NYA_ASSET_FONTS_ALDRICH_TTF
 #define HUD_FONT_SIZE 16.0F
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* STATE */
 
 typedef struct GpuScene GpuScene;
 
@@ -140,11 +132,7 @@ NYA_INTERNAL GpuScene* gpu_scene(void) {
     return nya_world_user_data();
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FORCE FIELD
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FORCE FIELD */
 
 /**
  * Composes the column's motion out of three orthogonal fields, in place, the way render_force.h intends: a
@@ -196,11 +184,7 @@ NYA_INTERNAL void column_ride_forces(NYA_Particle* particle, f32 t, f32 delta_ti
     particle->velocity = particle->velocity + (acceleration * delta_time_s);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER: CREATE / DESTROY / EVENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER: CREATE / DESTROY / EVENT */
 
 void gpu_scene_layer_on_create(NYA_Window* window) {
     nya_assert(window != nullptr);
@@ -288,11 +272,7 @@ void gpu_scene_layer_on_event(NYA_Window* window, NYA_Event* event) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER: UPDATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER: UPDATE */
 
 void gpu_scene_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     GpuScene* state = gpu_scene();
@@ -343,11 +323,7 @@ void gpu_scene_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     if (state->max_frames > 0 && state->frame_count >= state->max_frames) nya_app_get()->should_quit = true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYER: RENDER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAYER: RENDER */
 
 /** Which way the sun's light travels. One place, so the sky disc and the shading agree. */
 NYA_INTERNAL f32x3 sun_travel(void) {
@@ -511,11 +487,7 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
 #endif
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc);

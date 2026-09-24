@@ -18,11 +18,7 @@
 /** Fixed, so the suite is the same run every time. */
 #define SEED 0x6861736865735F21ULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** Bytes as lowercase hex, which is how every standard writes its answers down. */
 static NYA_CString to_hex(NYA_Arena* arena, const u8* bytes, u64 size) {
@@ -91,11 +87,7 @@ __attr_no_sanitize("unsigned-integer-overflow") static void selftest_sequence(u8
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** Feeding a message in any pieces gives the digest of feeding it whole. */
 static b8 law_sha256_pieces_agree(NYA_Property* property) {
@@ -156,11 +148,7 @@ static b8 law_hmac_notices_a_flipped_bit(NYA_Property* property) {
            !nya_crypto_equals(before_1.bytes, after_1.bytes, sizeof(before_1.bytes));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TESTS */
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

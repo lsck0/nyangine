@@ -18,11 +18,7 @@ static char              src[1024] = "";
 static NYA_UICodeEditor  editor    = { 0 };
 static b8                changed   = false;
 
-/*
- * ─────────────────────────────────────────────────────────
- * SYNTHETIC INPUT
- * ─────────────────────────────────────────────────────────
- */
+/* SYNTHETIC INPUT */
 
 static void key(NYA_Keycode keycode, b8 down, NYA_KeyModFlag modifiers) {
     NYA_Event event = { .type = down ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP, .as_key_event = { .is_down = down, .key = keycode, .modifier_flags = modifiers } };
@@ -44,11 +40,7 @@ static void tick(void) {
     nya_world()->sim_system.tick++;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE EDITOR UNDER TEST
- * ─────────────────────────────────────────────────────────
- */
+/* THE EDITOR UNDER TEST */
 
 /** One pass over an editor that fills a fixed panel at the top left, tall enough to show a dozen lines. */
 static void pass(NYA_UIPass p) {

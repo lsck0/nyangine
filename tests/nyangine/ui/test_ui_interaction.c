@@ -15,11 +15,7 @@ static NYA_Window window = { .handle = { .index = 1, .generation = 1 }, .screen_
 
 static NYA_UIRecorder recorder;
 
-/*
- * ─────────────────────────────────────────────────────────
- * SYNTHETIC POINTER
- * ─────────────────────────────────────────────────────────
- */
+/* SYNTHETIC POINTER */
 
 static void pointer_move(f32x2 point) {
     f32x2     from  = nya_input_mouse_position();
@@ -56,11 +52,7 @@ static NYA_Rectf widget_rect(NYA_UIWidgetKind kind, NYA_ConstCString label) {
     return widget->rect;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE COMPONENTS UNDER TEST
- * ─────────────────────────────────────────────────────────
- */
+/* THE COMPONENTS UNDER TEST */
 
 /* what each pass wrote and read, so a check reads the outcome rather than guessing. */
 static b8  out_button    = false;

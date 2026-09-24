@@ -31,11 +31,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 #define WINDOW_TITLE  "nyangine — pong"
 #define WINDOW_WIDTH  960
@@ -77,11 +73,7 @@
 /** The layer's id. Compared by content, so it survives a code reload. */
 #define LAYER_ID "pong"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* TYPES */
 
 /** What a thing is. `type` on NYA_Entity, and what the draw switches on. */
 typedef enum {
@@ -122,11 +114,7 @@ NYA_INTERNAL Pong* pong(void) {
     return nya_world_user_data();
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MOVEMENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MOVEMENT */
 
 /** The court edge a paddle's centre may not pass. */
 #define PADDLE_LIMIT_Y (COURT_HALF_HEIGHT - (PADDLE_HEIGHT * 0.5F))
@@ -160,11 +148,7 @@ void pong_sample_command(OUT NYA_NetCommand* command) {
     nya_net_command_set(command, COMMAND_BIT(PONG_ACTION_DOWN), nya_input_action_pressed(PONG_ACTION_DOWN));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ENTITIES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ENTITIES */
 
 /**
  * Gives a joining player a paddle. The server's, called once per peer.
@@ -253,11 +237,7 @@ NYA_INTERNAL void ball_update(f32 delta_time_s) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE LAYER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE LAYER */
 
 void pong_layer_on_create(NYA_Window* window) {
     nya_unused(window);
@@ -363,11 +343,7 @@ void pong_layer_on_render(NYA_Window* window) {
                                  (f64)stats.rtt_ms, (f64)stats.packet_loss * 100.0, (unsigned long long)nya_net_client_correction_count());
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * WIRING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* WIRING */
 
 /** Connects as a client, or becomes the server. The four modes of net.h, in one function. */
 NYA_INTERNAL void pong_net_start(void) {
@@ -418,11 +394,7 @@ NYA_INTERNAL void pong_net_start(void) {
     }), "while attaching the local client");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_backtrace_init();

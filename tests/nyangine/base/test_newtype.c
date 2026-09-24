@@ -20,11 +20,7 @@ static void fill_string(char* buffer, char fill, u32 count) {
 }
 
 s32 main(void) {
-    /*
-     * ─────────────────────────────────────────────────────────
-     * EMAIL
-     * ─────────────────────────────────────────────────────────
-     */
+    /* EMAIL */
     {
         // a valid address constructs and round-trips through the accessor.
         NYA_Email email = { 0 };
@@ -71,11 +67,7 @@ s32 main(void) {
         nya_check(!nya_email_equals(&email, &deep), "different emails should compare unequal");
     }
 
-    /*
-     * ─────────────────────────────────────────────────────────
-     * USERNAME
-     * ─────────────────────────────────────────────────────────
-     */
+    /* USERNAME */
     {
         NYA_Username username = { 0 };
         NYA_Error    result   = nya_username_from_string("luca_42", &username);
@@ -115,11 +107,7 @@ s32 main(void) {
         nya_check(!nya_username_equals(&username, &shortest), "different usernames should compare unequal");
     }
 
-    /*
-     * ─────────────────────────────────────────────────────────
-     * USER ID
-     * ─────────────────────────────────────────────────────────
-     */
+    /* USER ID */
     {
         NYA_UserId id     = { 0 };
         NYA_Error  result = nya_user_id_from_string("1729", &id);

@@ -84,11 +84,7 @@
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_timer.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE STORE — todos are rows in a database, so a restart keeps them
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE STORE — todos are rows in a database, so a restart keeps them */
 
 #define DEFAULT_PORT 47830
 
@@ -149,11 +145,7 @@ NYA_INTERNAL NYA_Arena*    TODOS_ARENA = nullptr;
 NYA_INTERNAL NYA_Database* TODOS_DB    = nullptr;
 NYA_INTERNAL NYA_OrmTable* TODOS_TABLE = nullptr;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE — the UI systems, and the per-session bits that ride in a sealed cookie
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* STATE — the UI systems, and the per-session bits that ride in a sealed cookie */
 
 NYA_INTERNAL volatile sig_atomic_t RUNNING = 1;
 
@@ -191,11 +183,7 @@ typedef struct {
     u32  filter;
 } AppState;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE COMPONENT — one function, every surface. It reads and writes only Ctx, so it also compiles to wasm.
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE COMPONENT — one function, every surface. It reads and writes only Ctx, so it also compiles to wasm. */
 
 /** What a click in the UI meant, recorded by the component and applied to the store by the handler. */
 typedef enum {
@@ -309,11 +297,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, Ctx* ctx) {
     nya_ui_end(ui);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE STORE, READ AND WRITTEN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE STORE, READ AND WRITTEN */
 
 /** Loads every todo, oldest first, into `ctx` from the exchange's arena. A failed read shows an empty list. */
 NYA_INTERNAL void load_todos(Ctx* ctx, NYA_Arena* arena) {
@@ -386,11 +370,7 @@ NYA_INTERNAL void apply_action(Ctx* ctx, NYA_Arena* arena) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE LOOP — render, and turn an event into an input pass (the ui_ssr shape)
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE LOOP — render, and turn an event into an input pass (the ui_ssr shape) */
 
 /** One input pass with whatever has been injected, then a draw pass into HTML, then the frame's end. */
 NYA_INTERNAL void render(Ctx* ctx) {
@@ -480,11 +460,7 @@ NYA_INTERNAL void inject_field_text(Ctx* ctx, NYA_Rectf box, NYA_ConstCString va
     input_pass(ctx);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SEALED-COOKIE SESSION STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* SEALED-COOKIE SESSION STATE */
 
 /** Reads a session's UI state out of its sealed cookie, or a fresh zeroed one when there is no valid cookie. */
 NYA_INTERNAL AppState app_from_cookie(NYA_HttpExchange* exchange) {
@@ -529,11 +505,7 @@ NYA_INTERNAL b8 app_to_cookie(NYA_HttpExchange* exchange, const AppState* app) {
         .ok;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS */
 
 /** The first load: the whole page, so a browser has the surface, the stylesheet and the client. */
 NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
@@ -671,11 +643,7 @@ NYA_INTERNAL NYA_HttpStatus handle_api_todos(NYA_HttpExchange* exchange) {
     return nya_http_response_json(exchange->response, exchange->arena, out).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ROUTES AND MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* ROUTES AND MAIN */
 
 /*
  * Every route is NYA_HTTP_AFFINITY_MAIN and the server runs no workers: the UI and the input system are

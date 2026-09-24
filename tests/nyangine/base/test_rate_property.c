@@ -24,11 +24,7 @@
 /** A clock base well away from zero, so a "now" and a small offset from it are both ordinary numbers. */
 #define NOW_BASE_NS (1000000000000ULL)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** A rate in (0, 1000] and a burst in [1, 500]: the shape of a real published limit, kept small enough to loop. */
 static void draw_shape(NYA_Property* property, OUT f64* out_per_second, OUT f64* out_burst) {
@@ -38,11 +34,7 @@ static void draw_shape(NYA_Property* property, OUT f64* out_per_second, OUT f64*
     *out_burst = (f64)(1 + (u32)nya_property_draw_below(property, 500));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /** From a full bucket, with no time allowed to pass, exactly floor(burst) calls go and then none do. */
 static b8 law_no_more_than_burst_in_a_window(NYA_Property* property) {

@@ -1,10 +1,6 @@
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * COMMAND HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* COMMAND HANDLERS */
 
 /**
  * Builds every vendored dependency, not just the ones the engine currently links against.
@@ -200,11 +196,7 @@ NYA_INTERNAL void completions_runner(NYA_ArgCommand* command) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PARAMETERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PARAMETERS */
 
 NYA_INTERNAL NYA_ArgParameter bench_files = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
@@ -485,11 +477,7 @@ NYA_INTERNAL NYA_ArgParameter completions_shell = {
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &nya_args_completion_shell_name, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * COMMANDS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* COMMANDS */
 
 NYA_INTERNAL NYA_ArgCommand run = {
     .name = "run",
@@ -860,11 +848,7 @@ NYA_INTERNAL NYA_ArgCommand completions = {
     .parameters  = { &completions_shell, },
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PARSER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE PARSER */
 
 NYA_INTERNAL NYA_ArgParser parser = {
     .name    = "nyangine build system",

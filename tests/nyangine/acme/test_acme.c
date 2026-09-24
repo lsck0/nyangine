@@ -50,11 +50,7 @@ static NYA_String* self_signed_cert(NYA_Arena* arena, s32 days_valid) {
   return pem;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * JWS HELPERS SHARED BY THE MOCK CA AND THE UNIT TESTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* JWS HELPERS SHARED BY THE MOCK CA AND THE UNIT TESTS */
 
 /** Decodes a base64url member of an object into `out`, returning how many bytes it held (0 on absence). */
 static u64 b64url_member(const NYA_Object* object, NYA_ConstCString key, u8* out, u64 capacity) {
@@ -158,11 +154,7 @@ static b8 verify_jws(NYA_Arena* arena, const NYA_String* body, NYA_ConstCString 
   return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * A SCRIPTED CA THAT VERIFIES EVERY SIGNATURE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* A SCRIPTED CA THAT VERIFIES EVERY SIGNATURE */
 
 #define CA_DIR      "https://ca.test/dir"
 #define CA_NONCE    "https://ca.test/new-nonce"
@@ -287,11 +279,7 @@ static NYA_Error mock_perform(void* userdata, NYA_Arena* arena, const NYA_AcmeHt
   return reply(ca, out, 404, "{\"detail\":\"no such resource\"}", nullptr);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MAIN
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* MAIN */
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);

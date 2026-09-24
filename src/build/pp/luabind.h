@@ -44,11 +44,7 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The tree scanned for annotations. Headers for `@lua`, sources for `@lua_manual`. */
 #define NYA_LUABIND_DIRECTORY "./src/nyangine"
@@ -87,11 +83,7 @@
 /** A doc comment's first sentence is carried over only when it fits whole; a longer one is left out. */
 #define NYA_LUABIND_MAX_SUMMARY 140
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS */
 
 /**
  * Scans the tree and writes both outputs. Stale checked, so it costs nothing when no header moved.

@@ -95,9 +95,7 @@ s32 main(void) {
 
     nya_bench_begin("shaping");
 
-    /*
-     * The headline: one frame of a HUD, shaped from nothing.
-     */
+    /* The headline: one frame of a HUD, shaped from nothing. */
     nya_bench("hud frame, 20 lines", hud_glyphs, {
         for (u32 i = 0; i < hud_line_count; i++) {
             nya_bench_keep(nya_text_shape(hud, hud_lines[i], 0, 0, &run));

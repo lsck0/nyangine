@@ -57,11 +57,7 @@
 
 #include "nyangine/nyangine.c"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS AND STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS AND STATE */
 
 /** Default port. Loopback only; the sibling web servers sit on 47800, 47810 and 47820, this one after them. */
 #define DEFAULT_PORT 47830
@@ -100,11 +96,7 @@ NYA_INTERNAL void stop(int signal_number) {
     RUNNING = 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HANDLERS */
 
 /** Serves the embedded page. The bytes are `.rodata`, copied into the response as they are. */
 NYA_INTERNAL NYA_HttpStatus index_get(NYA_HttpExchange* exchange) {
@@ -130,11 +122,7 @@ NYA_INTERNAL NYA_HttpStatus status_get(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE ROUTE TABLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE ROUTE TABLE */
 
 /*
  * Both are NYA_HTTP_AFFINITY_MAIN so they are answered on the loop this program owns rather than a worker,
@@ -173,11 +161,7 @@ NYA_INTERNAL const NYA_HttpRouter SERVER_ROUTER = {
     .route_count = nya_carray_length(SERVER_ROUTES),
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HEADLESS SELF-TEST
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE HEADLESS SELF-TEST */
 
 /** How long the self-test waits on any one socket step before giving up. Loopback needs none of it. */
 #define SELF_TEST_TIMEOUT_MS 2000
@@ -290,11 +274,7 @@ NYA_INTERNAL void self_test_thread(void* data) {
     *args->out         = self_test(args->port);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PROGRAM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* THE PROGRAM */
 
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;

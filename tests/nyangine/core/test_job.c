@@ -74,9 +74,7 @@ s32 main(void) {
   NYA_EXPECT(nya_system_events_init());
   NYA_EXPECT(nya_system_job_init());
 
-  /*
-   * Torn down job system first, which means declaring its defer last.
-   */
+  /* Torn down job system first, which means declaring its defer last. */
   defer nya_system_callback_deinit();
   defer nya_system_events_deinit();
   defer nya_system_job_deinit();
@@ -147,9 +145,7 @@ s32 main(void) {
   {
     atomic_store(&completed, 0);
 
-    /*
-     * Deliberately not asserting execution *order*.
-     */
+    /* Deliberately not asserting execution *order*. */
     NYA_JobHandle low    = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_LOW, .function = nya_callback(job_noop) });
     NYA_JobHandle normal = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_NORMAL, .function = nya_callback(job_noop) });
     NYA_JobHandle high   = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_HIGH, .function = nya_callback(job_noop) });
@@ -232,9 +228,7 @@ s32 main(void) {
     for (u32 i = 0; i < COUNT; i++) nya_job_wait(handles[i]);
     nya_assert(atomic_load(&completed) == COUNT, "expected " FMTu32 ", got " FMTu32, (u32)COUNT, atomic_load(&completed));
 
-    /*
-     * And the same property once the slots have been recycled.
-     */
+    /* And the same property once the slots have been recycled. */
     NYA_JobHandle recycled[COUNT];
     for (u32 i = 0; i < COUNT; i++) {
       recycled[i] = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_NORMAL, .function = nya_callback(job_noop) });
@@ -249,9 +243,7 @@ s32 main(void) {
 
   // TEST: waiting publishes the job's writes, not just its exit
   {
-    /*
-     * nya_job_wait has to be a synchronisation edge, not merely a liveness check.
-     */
+    /* nya_job_wait has to be a synchronisation edge, not merely a liveness check. */
     enum { COUNT = 8 };
 
     atomic_store(&completed, 0);

@@ -18,11 +18,7 @@
  * */
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** Where the generated changelog goes. dist.c reads it back and ships a copy in every distribution. */
 #define CHANGELOG_FILE "./CHANGELOG.md"
@@ -78,11 +74,7 @@ NYA_INTERNAL const struct { NYA_ConstCString type; NYA_ConstCString heading; } C
     { "revert",   "Reverts"                 },
 };
 
-/*
- * ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 /** Writes CHANGELOG.md, or prints only the newest release's section on stdout. What both callers share. */
 NYA_INTERNAL void _changelog_write(NYA_Arena* arena, b8 release_only);
@@ -99,11 +91,7 @@ u32 _changelog_read(NYA_Arena* arena, ChangelogEntry* entries, ChangelogRelease*
 /** Renders one release as markdown into `out`. */
 NYA_INTERNAL void _changelog_render(NYA_Arena* arena, NYA_String* out, const ChangelogEntry* entries, const ChangelogRelease* release);
 
-/*
- * ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void version_runner(NYA_ArgCommand* command) {
     nya_unused(command);
@@ -199,11 +187,7 @@ void _changelog_write(NYA_Arena* arena, b8 release_only) {
     nya_log_info("Wrote " CHANGELOG_FILE ": " FMTu32 " releases, " FMTu32 " entries.", release_count, entry_count);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 u32 _changelog_read(NYA_Arena* arena, ChangelogEntry* entries, ChangelogRelease* releases, u32* out_entry_count) {
     nya_assert(entries != nullptr);

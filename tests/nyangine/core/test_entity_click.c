@@ -112,9 +112,7 @@ s32 main(void) {
     nya_assert(hit.index == cube.index && hit.generation == cube.generation);
     nya_assert(last_button == NYA_MOUSE_BUTTON_LEFT);
 
-    /*
-     * The point is on the struck surface, not the ray's origin.
-     */
+    /* The point is on the struck surface, not the ray's origin. */
     nya_assert(last_point.z > 0.5F && last_point.z < 1.5F, "the hit point is on the near_plane face, not at the ray origin");
     nya_assert(last_point.z < 10.0F, "and is certainly not where the ray started");
 

@@ -19,11 +19,7 @@
 /** "keyring." in ASCII. Fixed, so every run is the same run. */
 #define SEED 0x6B657972696E672EULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* HELPERS */
 
 /** A clock value far from the epoch, so a key can be dated before or after it without underflow. */
 #define NOW_BASE_S (1000000000ULL)
@@ -44,11 +40,7 @@ static void draw_ring(NYA_Property* property, OUT NYA_HttpKeyring* ring, u32 cou
     ring->key_count = count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* LAWS */
 
 /**
  * A token sealed by any key on the ring opens through the ring, whatever that key's position; and once

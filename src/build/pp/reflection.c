@@ -2,11 +2,7 @@
 
 #include "build/build.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API DECLARATION */
 
 typedef enum {
     _NYA_REFLECT_DECL_STRUCT,
@@ -118,11 +114,7 @@ NYA_INTERNAL b8 _nya_reflect_is_sdl_bound(NYA_ConstCString source_file);
  * */
 NYA_INTERNAL b8 _nya_reflect_is_db_module(NYA_ConstCString source_file);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PUBLIC API IMPLEMENTATION */
 
 void nya_reflection_generate(void) {
     NYA_ConstCString inputs[] = {
@@ -314,11 +306,7 @@ void nya_reflection_generate(void) {
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_SOURCE, out), "while writing the generated reflection source");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_reflect_is_sdl_bound(NYA_ConstCString source_file) {
     // A whitelist of the modules that name SDL, the renderer or core, checked against the type's source
@@ -398,9 +386,7 @@ b8 _nya_reflect_comment_has(const NYA_Lexer* lexer, u32 index, NYA_ConstCString 
 
     if (token.length < marker_length) return false;
 
-    /*
-     * Searched, but only at the start of a line within the comment.
-     */
+    /* Searched, but only at the start of a line within the comment. */
     for (u64 i = 0; i + marker_length <= token.length; i++) {
         if (nya_memcmp(lexer->source + token.source_location + i, marker, marker_length) != 0) continue;
 
@@ -709,9 +695,7 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
                 index++;
             }
 
-            /*
-             * The extent is copied as *source text*, spaces and all.
-             */
+            /* The extent is copied as *source text*, spaces and all. */
             if (index > extent_start) {
                 NYA_Token first = lexer->tokens->items[extent_start];
                 NYA_Token last  = lexer->tokens->items[index - 1];
@@ -913,9 +897,7 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
             cursor++;
         }
 
-        /*
-         * An explicit underlying type, as in `enum GNY_EntityFlags : u64 {`.
-         */
+        /* An explicit underlying type, as in `enum GNY_EntityFlags : u64 {`. */
         if (cursor < lexer.tokens->length && lexer.tokens->items[cursor].type == NYA_TOKEN_SYMBOL &&
             lexer.tokens->items[cursor].symbol == ':') {
             while (cursor < lexer.tokens->length &&
@@ -1054,9 +1036,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                                   "    .kind = NYA_REFLECT_ENUM,\n"
                                   "    .size = sizeof(%s),\n"
                                   "    .alignment = alignof(%s),\n"
-                                  /*
-                                   * The underlying integer is chosen by size, as a constant expression.
-                                   */
+                                  /* The underlying integer is chosen by size, as a constant expression. */
                                   "    .primitive = (sizeof(%s) == 8 ? NYA_TYPE_S64\n"
                                   "                : sizeof(%s) == 2 ? NYA_TYPE_S16\n"
                                   "                : sizeof(%s) == 1 ? NYA_TYPE_S8\n"
@@ -1071,9 +1051,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
         return;
     }
 
-    /*
-     * Array wrappers are synthesised per field rather than deduplicated.
-     */
+    /* Array wrappers are synthesised per field rather than deduplicated. */
     for (u32 i = 0; i < decl->field_count; i++) {
         const _NYA_ReflectFieldDecl* field = &decl->fields[i];
 

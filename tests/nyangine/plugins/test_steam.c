@@ -15,11 +15,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE FAKE
- * ─────────────────────────────────────────────────────────
- */
+/* THE FAKE */
 
 #define FAKE_USER_ID   0x1100001234ABCDEFULL
 #define FAKE_USER_NAME "a test account"

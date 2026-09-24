@@ -31,11 +31,7 @@ static void sleep_ms(u32 milliseconds) {
   (void)nanosleep(&request, nullptr);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WHAT BOTH SIDES NEED TO BE A GAME AT ALL
- * ─────────────────────────────────────────────────────────
- */
+/* WHAT BOTH SIDES NEED TO BE A GAME AT ALL */
 
 static void apply_movement(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s) {
   nya_unused(entity, command, delta_time_s);
@@ -51,11 +47,7 @@ static NYA_EntityHandle spawn_player(NYA_NetPeerId peer, NYA_ConstCString name) 
   return nya_entity_spawn(.name = "player", .flags = FLAG_REPLICATED, .position = { 0.0F, 0.0F, 0.0F });
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CHAT HOOKS, WHICH ARE THE WHOLE INTEGRATION
- * ─────────────────────────────────────────────────────────
- */
+/* THE CHAT HOOKS, WHICH ARE THE WHOLE INTEGRATION */
 
 /** How many chat events the server has been handed. Counts attempts, including ones the limit refused. */
 static u32 SERVER_CHAT_SEEN = 0;
@@ -75,11 +67,7 @@ static void on_game_event(const NYA_Object* event) {
   // Where the game's own events would go.
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CLIENT SIDE, RUN IN A CHILD
- * ─────────────────────────────────────────────────────────
- */
+/* THE CLIENT SIDE, RUN IN A CHILD */
 
 static u64 CHILD_TICK = 1;
 
@@ -226,9 +214,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
   // ── phase one: everyone says one thing ────────────────────────────────────
   nya_assert(wait_for_system("go"), "[%s] never received the go system line", name);
 
-  /*
-   * The system line itself, checked here rather than in a phase of its own.
-   */
+  /* The system line itself, checked here rather than in a phase of its own. */
   {
     const NYA_NetChatMessage* system_line = find_line("go");
 
@@ -274,9 +260,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
     nya_assert(nya_string_equals(line->name, "bob"), "[%s] bob impersonated \"%s\"", name, line->name);
     nya_assert(line->sender.index != 999, "[%s] bob chose his own peer id", name);
 
-    /*
-     * And he does not get to be the server either.
-     */
+    /* And he does not get to be the server either. */
     nya_assert(!line->is_system, "[%s] a client made itself the server", name);
   }
 
@@ -316,11 +300,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
   return 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SERVER SIDE, RUN IN THE PARENT
- * ─────────────────────────────────────────────────────────
- */
+/* THE SERVER SIDE, RUN IN THE PARENT */
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
@@ -406,9 +386,7 @@ s32 main(void) {
   // TEST: two clients and a server
   printf("TEST: two clients and a server exchange chat over UDP\n");
 
-  /*
-   * Forked before the server binds anything.
-   */
+  /* Forked before the server binds anything. */
   s32 pipes[2][2] = { 0 };
   pid_t children[2] = { 0 };
 
@@ -430,9 +408,7 @@ s32 main(void) {
 
       s32 status = child_main(i, pipes[i][0]);
 
-      /*
-       * _exit rather than exit or a return.
-       */
+      /* _exit rather than exit or a return. */
       _exit(status);
     }
 
@@ -491,9 +467,7 @@ s32 main(void) {
 
   nya_assert(SERVER_CHAT_SEEN >= 2, "the server saw %u chat events, expected both players to speak", SERVER_CHAT_SEEN);
 
-  /*
-   * A beat before the next phase, so both relays are on the wire before the flood starts.
-   */
+  /* A beat before the next phase, so both relays are on the wire before the flood starts. */
   for (u32 i = 0; i < 30; i++) {
     nya_net_server_tick(tick, TICK_SECONDS);
     tick++;

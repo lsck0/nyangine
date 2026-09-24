@@ -16,11 +16,7 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The marker. Anywhere inside a comment directly above a type declaration. */
 #define NYA_REFLECT_MARKER "@reflect"
@@ -55,11 +51,7 @@
 #define NYA_REFLECT_MAX_VARIANTS 256
 #define NYA_REFLECT_MAX_NAME     128
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS */
 
 /**
  * Walks both trees, parses every annotated type, and writes the generated pair.

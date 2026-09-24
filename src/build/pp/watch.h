@@ -45,11 +45,7 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* CONSTANTS */
 
 /** The annotation. On its own line in a comment directly above the function definition. */
 #define NYA_WATCH_MARKER "@watch"
@@ -88,11 +84,7 @@
 #define NYA_WATCH_MAX_NAME      128
 #define NYA_WATCH_MAX_PATH      256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+/* FUNCTIONS */
 
 /**
  * Walks every tree, reads every annotated function, and writes one companion per source file plus the
