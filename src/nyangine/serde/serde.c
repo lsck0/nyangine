@@ -1,3 +1,4 @@
+#include "nyangine/serde/serde_cbor.c"
 #include "nyangine/serde/serde_dispatch.c"
 #include "nyangine/serde/serde_json.c"
 #include "nyangine/serde/serde_jsonc.c"

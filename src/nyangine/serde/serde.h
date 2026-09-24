@@ -51,6 +51,7 @@ NYA_API NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString
  * */
 NYA_API NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_SerdeFlags flags, OUT NYA_Object** out_object) __attr_no_discard;
 
+#include "nyangine/serde/serde_cbor.h"
 #include "nyangine/serde/serde_json.h"
 #include "nyangine/serde/serde_jsonc.h"
 #include "nyangine/serde/serde_nya.h"
