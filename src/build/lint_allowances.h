@@ -114,6 +114,9 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_sql_transaction_begin", "ends by itself or by another verb (a capture stops after its frames, a transaction commits or rolls back)" },
     { "nya_trace_capture_begin", "ends by itself or by another verb (a capture stops after its frames, a transaction commits or rolls back)" },
     { "nya_steam_lobby_create", "left rather than destroyed: nya_steam_lobby_leave" },
+    { "nya_account_passkey_register_begin", "the WebAuthn ceremony's own verb; the pair is register_finish, not an end" },
+    { "nya_account_passkey_assert_begin", "the WebAuthn ceremony's own verb; the pair is assert_finish, not an end" },
+    { "nya_account_passkey_remove", "a credential is added by the register ceremony, not an add; this drops one by id" },
 };
 
 /*

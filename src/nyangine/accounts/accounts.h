@@ -8,6 +8,7 @@
  * accounts_throttle.h  what a wrong password costs the next one, so guessing is not free
  * accounts_identity.h  the same person arriving through Steam, through Discord, or with a password
  * accounts_recovery.h  the codes that get somebody back in when the password is gone
+ * accounts_passkey.h   a WebAuthn credential as a second factor: a key the device holds, never the server
  * accounts_invite.h    who may make an account: everyone, only with a code, or nobody but an admin
  * accounts_audit.h     an append-only record of who did what to whom
  *
@@ -68,6 +69,7 @@
 #include "nyangine/accounts/accounts_audit.h"
 #include "nyangine/accounts/accounts_identity.h"
 #include "nyangine/accounts/accounts_invite.h"
+#include "nyangine/accounts/accounts_passkey.h"
 #include "nyangine/accounts/accounts_recovery.h"
 #include "nyangine/accounts/accounts_session.h"
 #include "nyangine/accounts/accounts_throttle.h"

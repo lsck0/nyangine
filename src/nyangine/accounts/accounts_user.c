@@ -4,6 +4,7 @@
 #include "nyangine/accounts/accounts_audit.h"
 #include "nyangine/accounts/accounts_identity.h"
 #include "nyangine/accounts/accounts_invite.h"
+#include "nyangine/accounts/accounts_passkey.h"
 #include "nyangine/accounts/accounts_recovery.h"
 #include "nyangine/accounts/accounts_session.h"
 #include "nyangine/accounts/accounts_throttle.h"
@@ -39,6 +40,8 @@ typedef struct {
     NYA_OrmTable* sessions;
     NYA_OrmTable* identities;
     NYA_OrmTable* recovery_codes;
+    NYA_OrmTable* passkeys;
+    NYA_OrmTable* passkey_challenges;
     NYA_OrmTable* invites;
     NYA_OrmTable* audit;
 
@@ -118,6 +121,12 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountRecoveryCode), "account_recovery_codes", &_NYA_ACCOUNTS.recovery_codes));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.recovery_codes));
 
+    NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountPasskey), "account_passkeys", &_NYA_ACCOUNTS.passkeys));
+    NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.passkeys));
+
+    NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountPasskeyChallenge), "account_passkey_challenges", &_NYA_ACCOUNTS.passkey_challenges));
+    NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.passkey_challenges));
+
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountInvite), "account_invites", &_NYA_ACCOUNTS.invites));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.invites));
 
@@ -154,6 +163,8 @@ void nya_accounts_close(void) {
 
     nya_orm_close(_NYA_ACCOUNTS.audit);
     nya_orm_close(_NYA_ACCOUNTS.invites);
+    nya_orm_close(_NYA_ACCOUNTS.passkey_challenges);
+    nya_orm_close(_NYA_ACCOUNTS.passkeys);
     nya_orm_close(_NYA_ACCOUNTS.recovery_codes);
     nya_orm_close(_NYA_ACCOUNTS.identities);
     nya_orm_close(_NYA_ACCOUNTS.sessions);

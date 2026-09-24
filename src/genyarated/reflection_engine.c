@@ -132,6 +132,77 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AccountInvite = {
     .field_count = 7,
 };
 
+/* NYA_AccountPasskey, src/nyangine/accounts/accounts_passkey.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskey_credential_id_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountPasskey*)nullptr)->credential_id),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_PASSKEY_CRED_ID_TEXT),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskey_public_key_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountPasskey*)nullptr)->public_key),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_PASSKEY_PUBLIC_KEY_TEXT),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskey_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountPasskey*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_PASSKEY_NAME_TEXT),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountPasskey_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, user_id), .hint = NYA_HINT_NONE },
+    { .name = "credential_id", .type = &_NYA_REFLECT_NYA_AccountPasskey_credential_id_ARRAY, .offset = nya_offsetof(NYA_AccountPasskey, credential_id), .hint = NYA_HINT_NONE },
+    { .name = "public_key", .type = &_NYA_REFLECT_NYA_AccountPasskey_public_key_ARRAY, .offset = nya_offsetof(NYA_AccountPasskey, public_key), .hint = NYA_HINT_NONE },
+    { .name = "algorithm", .type = &_NYA_REFLECT_s64, .offset = nya_offsetof(NYA_AccountPasskey, algorithm), .hint = NYA_HINT_NONE },
+    { .name = "sign_count", .type = &_NYA_REFLECT_s64, .offset = nya_offsetof(NYA_AccountPasskey, sign_count), .hint = NYA_HINT_NONE },
+    { .name = "name", .type = &_NYA_REFLECT_NYA_AccountPasskey_name_ARRAY, .offset = nya_offsetof(NYA_AccountPasskey, name), .hint = NYA_HINT_NONE },
+    { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, created_at_s), .hint = NYA_HINT_NONE },
+    { .name = "used_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, used_at_s), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskey = {
+    .name = "NYA_AccountPasskey",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountPasskey),
+    .alignment = alignof(NYA_AccountPasskey),
+    .fields = _NYA_REFLECT_NYA_AccountPasskey_FIELDS,
+    .field_count = 9,
+};
+
+/* NYA_AccountPasskeyChallenge, src/nyangine/accounts/accounts_passkey.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskeyChallenge_challenge_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountPasskeyChallenge*)nullptr)->challenge),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_PASSKEY_CHALLENGE_TEXT),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountPasskeyChallenge_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, user_id), .hint = NYA_HINT_NONE },
+    { .name = "purpose", .type = &_NYA_REFLECT_s64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, purpose), .hint = NYA_HINT_NONE },
+    { .name = "challenge", .type = &_NYA_REFLECT_NYA_AccountPasskeyChallenge_challenge_ARRAY, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, challenge), .hint = NYA_HINT_NONE },
+    { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, created_at_s), .hint = NYA_HINT_NONE },
+    { .name = "expires_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, expires_at_s), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskeyChallenge = {
+    .name = "NYA_AccountPasskeyChallenge",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountPasskeyChallenge),
+    .alignment = alignof(NYA_AccountPasskeyChallenge),
+    .fields = _NYA_REFLECT_NYA_AccountPasskeyChallenge_FIELDS,
+    .field_count = 6,
+};
+
 /* NYA_AccountRecoveryCode, src/nyangine/accounts/accounts_recovery.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ARRAY = {
@@ -2091,6 +2162,8 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,
+    &_NYA_REFLECT_NYA_AccountPasskey,
+    &_NYA_REFLECT_NYA_AccountPasskeyChallenge,
     &_NYA_REFLECT_NYA_AccountRecoveryCode,
     &_NYA_REFLECT_NYA_AccountSession,
     &_NYA_REFLECT_NYA_AccountUser,

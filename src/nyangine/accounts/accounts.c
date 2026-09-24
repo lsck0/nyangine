@@ -10,5 +10,7 @@
 #include "nyangine/accounts/accounts_identity.c"
 // last: it names the recovery table on the state the user half owns, and the throttle.
 #include "nyangine/accounts/accounts_recovery.c"
+// after the user half, whose tables it names, and over crypto's Ed25519 verify and serde's CBOR reader.
+#include "nyangine/accounts/accounts_passkey.c"
 #include "nyangine/accounts/accounts_invite.c"
 #include "nyangine/accounts/accounts_audit.c"

@@ -154,6 +154,8 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,
+    &_NYA_REFLECT_NYA_AccountPasskey,
+    &_NYA_REFLECT_NYA_AccountPasskeyChallenge,
     &_NYA_REFLECT_NYA_AccountRecoveryCode,
     &_NYA_REFLECT_NYA_AccountSession,
     &_NYA_REFLECT_NYA_AccountUser,
