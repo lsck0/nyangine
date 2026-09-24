@@ -23,6 +23,7 @@
  * ```c
  * nya_post_ink_set(window, (NYA_PostInk){ .enabled = true });
  * nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.4F });
+ * nya_post_ssao_set(window, (NYA_PostSsao){ .enabled = true, .strength = 0.5F });
  * nya_post_antialias_set(window, (NYA_PostAntialias){ .enabled = true });
  * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
  * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed, .motion = camera_velocity });
@@ -32,11 +33,11 @@
  * nya_post_motion_blur_set(window, (NYA_PostMotionBlur){ .enabled = true });
  * ```
  *
- * They run inside nya_post_end before the caller's passes, occlusion then ink then motion blur then depth of field then
- * light shafts then eye adaptation then antialiasing, and the debug view after them. Depth of field follows the ink, so
+ * They run inside nya_post_end before the caller's passes, occlusion then ssao then ink then motion blur then depth of
+ * field then light shafts then eye adaptation then antialiasing, and the debug view after them. Depth of field follows the ink, so
  * a line blurs with the surface it is drawn on, and comes before antialiasing, which smooths the cut between sharp and
- * blurred. A feature that is off has no pass, no pipeline and no target. Ink, occlusion, motion blur, light shafts and
- * distance focus read the scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only
+ * blurred. A feature that is off has no pass, no pipeline and no target. Ink, occlusion, ssao, motion blur, light shafts
+ * and distance focus read the scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only
  * while one of them or a debug view is on, and they skip a frame whose capture drew no 3D. Bloom and speed lines are
  * drawn after the caller's passes, so a grade shapes what glows and leaves the lines as drawn.
  * */
@@ -84,6 +85,24 @@
  * enough to read as a band, wide enough not to alias; toward one it becomes a plain gradient.
  * */
 #define NYA_POST_OCCLUSION_SOFTNESS 0.08F
+
+/** How far the SSAO hemisphere reaches for occluders, in world units, when NYA_PostSsao.radius is zero. */
+#define NYA_POST_SSAO_RADIUS 0.5F
+
+/**
+ * How far a sample has to sit behind the stored surface, in world units, before it counts, when NYA_PostSsao.bias is
+ * zero. Lifts a flat surface off itself so it does not self-occlude into a grey haze.
+ * */
+#define NYA_POST_SSAO_BIAS 0.03F
+
+/** How dark the occlusion goes when NYA_PostSsao.strength is zero, in [0, 1]. Subtle on purpose for the flat art. */
+#define NYA_POST_SSAO_STRENGTH 0.5F
+
+/** Hemisphere samples per pixel when NYA_PostSsao.samples is zero. The shader clamps the count to thirty-two. */
+#define NYA_POST_SSAO_SAMPLES 16
+
+/** The most samples the gather takes, matching SSAO_MAX_SAMPLES in effect_ssao.frag.hlsl. */
+#define NYA_POST_SSAO_SAMPLES_MAX 32
 
 /** FXAA's sub-pixel smoothing when NYA_PostAntialias.subpixel is zero. Higher softens more. */
 #define NYA_POST_ANTIALIAS_SUBPIXEL 0.75F
@@ -172,6 +191,7 @@ typedef struct NYA_PostPass             NYA_PostPass;
 typedef struct NYA_PostChain            NYA_PostChain;
 typedef struct NYA_PostInk              NYA_PostInk;
 typedef struct NYA_PostAmbientOcclusion NYA_PostAmbientOcclusion;
+typedef struct NYA_PostSsao             NYA_PostSsao;
 typedef struct NYA_PostAntialias        NYA_PostAntialias;
 typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
 typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
@@ -251,6 +271,30 @@ struct NYA_PostAmbientOcclusion {
 
     /** How soft the band's edge is, in [0, 1]. See NYA_POST_OCCLUSION_SOFTNESS. */
     f32 softness;
+};
+
+/**
+ * Classic hemisphere-kernel ambient occlusion, the textbook SSAO: a ring of samples lifted into each surface's
+ * hemisphere, projected back to the screen and tested against the distance the normal buffer stored, so a crevice
+ * darkens by how much of its hemisphere is filled. Gathered at half resolution and blurred against depth when it is
+ * applied. Kept off by default; it and the stylised NYA_PostAmbientOcclusion share the half resolution buffer, so a
+ * scene wants one or the other rather than both.
+ * */
+// @reflect
+struct NYA_PostSsao {
+    b8 enabled;
+
+    /** How far occluders are looked for, in world units. See NYA_POST_SSAO_RADIUS. */
+    f32 radius;
+
+    /** How far a sample sits behind the surface before it counts, in world units. See NYA_POST_SSAO_BIAS. */
+    f32 bias;
+
+    /** How dark the occlusion goes, in [0, 1]. See NYA_POST_SSAO_STRENGTH. */
+    f32 strength;
+
+    /** Hemisphere samples per pixel, clamped to NYA_POST_SSAO_SAMPLES_MAX. See NYA_POST_SSAO_SAMPLES. */
+    u32 samples;
 };
 
 /**
@@ -524,6 +568,10 @@ NYA_API NYA_PostInk nya_post_ink(NYA_Window* window) __attr_no_discard;
 /** Sets this window's ambient occlusion, clamped like the ink. */
 NYA_API void                     nya_post_ambient_occlusion_set(NYA_Window* window, NYA_PostAmbientOcclusion occlusion);
 NYA_API NYA_PostAmbientOcclusion nya_post_ambient_occlusion(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's classic SSAO, clamped like the ink. */
+NYA_API void         nya_post_ssao_set(NYA_Window* window, NYA_PostSsao ssao);
+NYA_API NYA_PostSsao nya_post_ssao(NYA_Window* window) __attr_no_discard;
 
 /** Sets this window's antialiasing, clamped like the ink. */
 NYA_API void              nya_post_antialias_set(NYA_Window* window, NYA_PostAntialias antialias);

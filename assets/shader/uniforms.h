@@ -326,6 +326,18 @@ struct NYA_ShaderAmbientOcclusionUniform {
     f32 pad_0, pad_1, pad_2;
 };
 
+/** effect_ssao.frag.hlsl and effect_ssao_blur.frag.hlsl. See NYA_PostSsao. */
+struct NYA_ShaderSsaoUniform {
+    struct NYA_ShaderSceneView view;
+
+    f32 radius;
+    f32 bias;
+    f32 strength;
+
+    /** The hemisphere sample count, as a float for the row. The gather clamps it to SSAO_MAX_SAMPLES. */
+    f32 samples;
+};
+
 /** effect_antialias.frag.hlsl. See NYA_PostAntialias. */
 struct NYA_ShaderAntialiasUniform {
     f32 texel_x, texel_y;

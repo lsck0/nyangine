@@ -162,6 +162,9 @@ typedef struct {
     b8            post_on;
     b8            shadows_on;
     b8            occlusion_on;
+
+    /** Classic SSAO in place of the stylised ambient occlusion, from NYA_STRESS_SSAO. Off leaves the stylised one. */
+    b8            ssao_on;
     b8            crt_on;
     b8            grade_on;
     b8            grayscale_on;
@@ -1189,12 +1192,22 @@ NYA_INTERNAL void apply_scene_features(NYA_Window* window, Stress* state) {
         nya_post_eye_adaptation_set(window, (NYA_PostEyeAdaptation){ 0 });
         nya_post_light_shafts_set(window, (NYA_PostLightShafts){ 0 });
         nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
+        nya_post_ssao_set(window, (NYA_PostSsao){ 0 });
         return;
     }
 
     // bloom and ambient occlusion at every level; the rest only at the heavy levels.
     nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true, .threshold = 0.9F, .intensity = 1.0F });
-    nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.45F });
+
+    // classic SSAO stands in for the stylised occlusion when asked; the two share the half resolution buffer, so only
+    // one runs at a time.
+    if (state->ssao_on) {
+        nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
+        nya_post_ssao_set(window, (NYA_PostSsao){ .enabled = true, .strength = 0.6F });
+    } else {
+        nya_post_ssao_set(window, (NYA_PostSsao){ 0 });
+        nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.45F });
+    }
 
     if (sc->heavy_post) {
         // motion blur reads the camera's motion between frames; the speed comes from the previous eye.
@@ -1330,6 +1343,9 @@ s32 main(s32 argc, NYA_CString* argv) {
     // an optional frame budget, so a headless or CI run draws a fixed number of frames and then quits.
     NYA_ConstCString frames = getenv("NYA_STRESS_FRAMES");
     if (frames != nullptr) state->max_frames = (u32)strtoul(frames, nullptr, 10);
+
+    // classic SSAO in place of the stylised occlusion, for comparing the two or a headless SSAO run.
+    state->ssao_on = getenv("NYA_STRESS_SSAO") != nullptr;
 
     nya_world_user_data_set(state);
 

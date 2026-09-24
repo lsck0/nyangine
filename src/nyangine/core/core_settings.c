@@ -414,6 +414,11 @@ void nya_settings_graphics_apply(NYA_Window* window) {
     occlusion.enabled                  = occlusion.enabled && graphics->ambient_occlusion;
     nya_post_ambient_occlusion_set(window, occlusion);
 
+    // classic SSAO answers to the same ambient-occlusion quality switch as the stylised occlusion.
+    NYA_PostSsao ssao = nya_post_ssao(window);
+    ssao.enabled      = ssao.enabled && graphics->ambient_occlusion;
+    nya_post_ssao_set(window, ssao);
+
     NYA_PostBloom bloom = nya_post_bloom(window);
     bloom.enabled       = bloom.enabled && graphics->bloom;
     nya_post_bloom_set(window, bloom);

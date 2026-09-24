@@ -11,6 +11,8 @@
 /* The scene passes' pipelines, queued the first time their feature runs. */
 #define _NYA_POST_PIPELINE_OCCLUSION       "nya_post_occlusion_pipeline"
 #define _NYA_POST_PIPELINE_OCCLUSION_APPLY "nya_post_occlusion_apply_pipeline"
+#define _NYA_POST_PIPELINE_SSAO            "nya_post_ssao_pipeline"
+#define _NYA_POST_PIPELINE_SSAO_BLUR       "nya_post_ssao_blur_pipeline"
 #define _NYA_POST_PIPELINE_INK             "nya_post_ink_pipeline"
 #define _NYA_POST_PIPELINE_ANTIALIAS       "nya_post_antialias_pipeline"
 #define _NYA_POST_PIPELINE_BLUR            "nya_post_depth_of_field_blur_pipeline"
@@ -63,10 +65,10 @@ typedef struct {
 } _NYA_PostStep;
 
 /**
- * The built-in passes one frame can queue before the caller's: occlusion twice, ink, motion blur, depth of field
- * twice, light shafts twice, eye adaptation twice, antialiasing.
+ * The built-in passes one frame can queue before the caller's: occlusion twice, ssao twice, ink, motion blur, depth
+ * of field twice, light shafts twice, eye adaptation twice, antialiasing.
  * */
-#define _NYA_POST_BUILT_IN_MAX 11
+#define _NYA_POST_BUILT_IN_MAX 13
 
 /**
  * Whether one pass runs: its own options, then the window's switches. NYA_RENDER_FEATURE_POST is the master, so
@@ -82,6 +84,7 @@ NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_Window* window) {
 
     return _nya_post_on(window, NYA_RENDER_FEATURE_INK, render->post_ink.enabled)
         || _nya_post_on(window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, render->post_ambient_occlusion.enabled)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_SSAO, render->post_ssao.enabled)
         || (nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE)
         || _nya_post_on(window, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE)
         || _nya_post_on(window, NYA_RENDER_FEATURE_LIGHT_SHAFTS, render->post_light_shafts.enabled)
@@ -93,6 +96,7 @@ NYA_INTERNAL b8 _nya_post_wants_half(const NYA_Window* window, const NYA_PostCha
     const NYA_RenderSystemWindow* render = &window->render_system;
 
     return (_nya_post_on(window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, render->post_ambient_occlusion.enabled)
+            || _nya_post_on(window, NYA_RENDER_FEATURE_SSAO, render->post_ssao.enabled)
             || (nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE))
         && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
 }
@@ -537,6 +541,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     struct NYA_ShaderSceneView                view      = scene ? _nya_post_scene_view(window, chain) : (struct NYA_ShaderSceneView){ 0 };
     struct NYA_ShaderAmbientOcclusionUniform  occlusion = { 0 };
+    struct NYA_ShaderSsaoUniform              ssao       = { 0 };
     struct NYA_ShaderInkUniform               ink       = { 0 };
     struct NYA_ShaderAntialiasUniform         antialias = { 0 };
     struct NYA_ShaderDepthOfFieldUniform      focus     = { 0 };
@@ -585,6 +590,45 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .trace        = NYA_TRACE_OCCLUSION,
             .uniform      = &occlusion,
             .uniform_size = sizeof(occlusion),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_HALF,
+        };
+    }
+
+    // classic hemisphere SSAO, sharing the half resolution buffer the stylised occlusion uses: its gather writes the
+    // raw occlusion there and its blur reads it straight back, before the occlusion above could overwrite it.
+    const NYA_PostSsao* ssao_options = &render->post_ssao;
+
+    b8 ssao_written = false;
+
+    if (scene && _nya_post_on(window, NYA_RENDER_FEATURE_SSAO, ssao_options->enabled) && _nya_post_wants_half(window, chain)) {
+        ssao = (struct NYA_ShaderSsaoUniform){
+            .view     = view,
+            .radius   = ssao_options->radius > 0.0F ? ssao_options->radius : NYA_POST_SSAO_RADIUS,
+            .bias     = ssao_options->bias > 0.0F ? ssao_options->bias : NYA_POST_SSAO_BIAS,
+            .strength = ssao_options->strength > 0.0F ? ssao_options->strength : NYA_POST_SSAO_STRENGTH,
+            .samples  = (f32)(ssao_options->samples > 0 ? ssao_options->samples : NYA_POST_SSAO_SAMPLES),
+        };
+
+        if (_nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SSAO, NYA_ASSET_SHADER_EFFECT_SSAO_FRAG, 1, half)) {
+            before[before_count++] = (_NYA_PostStep){
+                .pipeline     = _NYA_POST_PIPELINE_SSAO,
+                .trace        = NYA_TRACE_OCCLUSION,
+                .uniform      = &ssao,
+                .uniform_size = sizeof(ssao),
+                .inputs       = _NYA_POST_INPUT_NORMALS,
+                .target       = &chain->half,
+            };
+
+            ssao_written = true;
+        }
+    }
+
+    if (ssao_written && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SSAO_BLUR, NYA_ASSET_SHADER_EFFECT_SSAO_BLUR_FRAG, 3, 0)) {
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_SSAO_BLUR,
+            .trace        = NYA_TRACE_OCCLUSION,
+            .uniform      = &ssao,
+            .uniform_size = sizeof(ssao),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_HALF,
         };
     }
@@ -983,6 +1027,24 @@ NYA_PostAmbientOcclusion nya_post_ambient_occlusion(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_ambient_occlusion;
+}
+
+void nya_post_ssao_set(NYA_Window* window, NYA_PostSsao ssao) {
+    nya_assert(window != nullptr);
+
+    ssao.radius   = nya_clamp(ssao.radius, 0.0F, 16.0F);
+    ssao.bias     = nya_clamp(ssao.bias, 0.0F, 4.0F);
+    ssao.strength = nya_clamp(ssao.strength, 0.0F, 1.0F);
+    // the gather's loop is bounded by SSAO_MAX_SAMPLES; anything past it reads the same.
+    if (ssao.samples > 0) ssao.samples = nya_clamp(ssao.samples, 1U, (u32)NYA_POST_SSAO_SAMPLES_MAX);
+
+    window->render_system.post_ssao = ssao;
+}
+
+NYA_PostSsao nya_post_ssao(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_ssao;
 }
 
 void nya_post_antialias_set(NYA_Window* window, NYA_PostAntialias antialias) {

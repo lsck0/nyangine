@@ -1599,6 +1599,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_RenderFeatures_FIELDS[] = {
     { .name = "post", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, post), .hint = NYA_HINT_NONE },
     { .name = "ink", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, ink), .hint = NYA_HINT_NONE },
     { .name = "ambient_occlusion", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, ambient_occlusion), .hint = NYA_HINT_NONE },
+    { .name = "ssao", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, ssao), .hint = NYA_HINT_NONE },
     { .name = "antialias", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, antialias), .hint = NYA_HINT_NONE },
     { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, depth_of_field), .hint = NYA_HINT_NONE },
     { .name = "speed_lines", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, speed_lines), .hint = NYA_HINT_NONE },
@@ -1615,7 +1616,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_RenderFeatures = {
     .size = sizeof(NYA_RenderFeatures),
     .alignment = alignof(NYA_RenderFeatures),
     .fields = _NYA_REFLECT_NYA_RenderFeatures_FIELDS,
-    .field_count = 28,
+    .field_count = 29,
 };
 
 /* NYA_RenderOutput, src/nyangine/renderer/render_output.h */
@@ -1672,6 +1673,25 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion = {
     .alignment = alignof(NYA_PostAmbientOcclusion),
     .fields = _NYA_REFLECT_NYA_PostAmbientOcclusion_FIELDS,
     .field_count = 6,
+};
+
+/* NYA_PostSsao, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostSsao_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostSsao, enabled), .hint = NYA_HINT_NONE },
+    { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSsao, radius), .hint = NYA_HINT_NONE },
+    { .name = "bias", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSsao, bias), .hint = NYA_HINT_NONE },
+    { .name = "strength", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSsao, strength), .hint = NYA_HINT_NONE },
+    { .name = "samples", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_PostSsao, samples), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostSsao = {
+    .name = "NYA_PostSsao",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostSsao),
+    .alignment = alignof(NYA_PostSsao),
+    .fields = _NYA_REFLECT_NYA_PostSsao_FIELDS,
+    .field_count = 5,
 };
 
 /* NYA_PostAntialias, src/nyangine/renderer/render_post.h */
@@ -2130,6 +2150,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_RenderOutput,
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,
+    &_NYA_REFLECT_NYA_PostSsao,
     &_NYA_REFLECT_NYA_PostAntialias,
     &_NYA_REFLECT_NYA_PostFocus,
     &_NYA_REFLECT_NYA_PostDepthOfField,
