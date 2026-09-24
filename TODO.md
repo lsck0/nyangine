@@ -43,7 +43,7 @@ The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 - **Accounts.** `[~]` No login route, no user store, no password hashing, no revocation, no cookies wired end-to-end. TOTP and PGP seams exist; PGP encryptor + preflight landed, TOTP verify path open.
 - **TLS in process + ACME.** `[ ]` mbedTLS/OpenSSL wrapped in `http` (1.3 floor 1.2), then ACME so one executable renews its own cert. Until then TLS is a proxy's job (missing HSTS across the scans is downstream of this).
 - **CI is red.** `[!]` Every master run since 2026-09-22 fails or is cancelled; Windows tests never compiled, fixed one push at a time. Blocks trusting any "green" claim.
-- **Renderer.** `[ ]` Compute passes (raymarched volumes, GPU fluids/particles, SSAO); screen-space + planar reflections; the realistic-but-stylized showcase scene composing wind+foliage+water+dust+light-shafts (user, 2026-09-24).
+- **Renderer.** `[ ]` Compute passes (raymarched volumes, GPU fluids/particles, SSAO); screen-space + planar reflections. (The realistic-but-stylized showcase scene composing wind+foliage+water+dust+light-shafts landed 2026-09-24, `a8037332`.)
 - **Model/SO/DTO web profile.** `[ ]` The conversion split in `http`/`db`, the `web` profile refusing model/SO headers, `@secret` encrypted fields.
 - **Smaller open items:** pentest pass over `http_server`; scheduled CI (fuzz/simulation/benchmarks); pinned vendor releases (SDL/Box3D untagged); clang-format gate; job queue; passkeys (WebAuthn); DOM presenter + shadcn-like widget set + node/code editors; structured logging; a parsed-newtype helper; typed route-table client calls; web hot reload.
 
@@ -1174,11 +1174,17 @@ The current track, reordered around one missing primitive.
     Example `foliage3d`, test `test_wind.c`. Verified on master: check 0/959, debug build + a foliage3d run under
     ASan+LSan+UBSan shut down clean (no leak — the reported leak did not reproduce). Follow-ups: instanced grass
     for density. `[x]` particles (`nya_particles_wind_set`, `d.../21bf7ec`) and fluids (`nya_fluid_wind_set`, `d3e5521`) now sample the same wind field, so foliage, water, particles and fluids all read one `NYA_WindField`.
-- `[ ]` **Realistic-but-stylized showcase scene (user, 2026-09-24)** — one scene composing wind + foliage +
-  flowing water + dust/particles + sky/atmosphere + volumetric light beams (light shafts) + fog, all reading the
-  one shared wind field, kept inside the flat stylized art style (never photoreal). Not three separate examples
-  (`renderer_stress`/`foliage3d`/`water3d`) but a single cohesive world that proves they compose. Reuse the
-  existing systems; add the light-shaft/god-ray pass hookup if not already wired into a scene.
+- `[x]` **Realistic-but-stylized showcase scene (user, 2026-09-24)** — `examples/showcase` is one cohesive valley
+  composing wind + foliage + flowing water + dust/pollen + sky/atmosphere + volumetric light beams (light shafts)
+  + aerial-perspective fog, all reading the one `NYA_WindField`, kept inside the flat stylized art style. It is not
+  three separate examples but a single world that proves `renderer_stress` + `foliage3d` + `water3d`'s systems
+  compose: a tiled LOD heightfield with a carved river, hashed bank foliage bent by the wind and parted by a herd of
+  physics balls, wind-ridden pollen, fading ground-decal trails, refractive crystals, cascaded shadows, and the
+  cube3d-style post chain (bloom, fog, light shafts, tonemap). Last gap closed (`a8037332`): the light-shaft pass
+  only gathers when the sun faces the camera, and the fly-through opened looking away from it, so the shafts never
+  drew — the sun now sits over the down-valley end the eye starts turned toward, so the beams greet the opening
+  frame. Verified: `NYA_SHOWCASE_FRAMES` headless run shuts down clean under ASan+LSan+UBSan, the light-shaft
+  pipeline loads and runs, and a Wayland capture reads bright (foliage, water, balls, trails, crystals all visible).
 - `[x]` Our own stereo panner for interaural delay and head shadow. Landed 2026-09-24 (`bd26b494`), opt-in:
   equal-power gains, Woodworth ITD and head shadow, replacing SDL_mixer's positioning on stereo devices. It does
   not remove SDL_mixer (still the decoder, resampler and mixer), so SDL_mixer stays in the vendor list.
