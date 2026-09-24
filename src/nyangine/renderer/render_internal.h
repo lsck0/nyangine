@@ -24,9 +24,7 @@ NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_render_pipeline(NYA_Window* window, N
 /** The present mode the app's vsync option asks for, falling back to vsync where the window lacks it. */
 NYA_INTERNAL __attr_allow_unused SDL_GPUPresentMode _nya_render_present_mode(NYA_Window* window);
 
-/*
- * Defined in render_output.c. Allow-unused because only the build with a device calls them.
- */
+// Defined in render_output.c; allow-unused because only the build with a device calls them.
 
 /** Switches the swapchain to what NYA_RenderOutput asks for, if that changed. Called before a frame acquires its image. */
 NYA_INTERNAL __attr_allow_unused void _nya_render_output_apply(NYA_Window* window);
@@ -37,10 +35,7 @@ NYA_INTERNAL __attr_allow_unused SDL_GPUTexture* _nya_render_output_target(NYA_W
 /** Encodes the frame onto the swapchain while presenting in HDR. Called with no pass open. */
 NYA_INTERNAL __attr_allow_unused void _nya_render_output_present(NYA_Window* window);
 
-/*
- * Defined in render3d_decal.c, which the unity build includes after render3d.c. Allow-unused because only the build
- * with a device calls them.
- */
+// Defined in render3d_decal.c (included after render3d.c); allow-unused because only the device build calls them.
 
 struct NYA_ShaderMesh3DUniform;
 
@@ -54,10 +49,7 @@ NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_upload(NYA_Window* wi
 NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
                                                                 const struct NYA_ShaderMesh3DUniform* uniform);
 
-/*
- * Defined in render_trace.c, GPU time by trace feature. Compiled out with tracing, where a frame submits one command
- * buffer as before.
- */
+// Defined in render_trace.c, GPU time by trace feature; compiled out with tracing, where a frame submits one command buffer as before.
 
 #if NYA_TRACE_ENABLED
 /** The command buffer a traced frame encodes into, or `swapchain_commands` itself while tracing is off. */

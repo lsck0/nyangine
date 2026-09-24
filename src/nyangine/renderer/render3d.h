@@ -69,11 +69,7 @@ typedef struct NYA_Render3DInstance NYA_Render3DInstance;
 /** The depth-only pipeline the shadow cascades draw with. See nya_render3d_shadow_set. */
 #define NYA_RENDER3D_PIPELINE_SHADOW "nya_mesh3d_shadow_pipeline"
 
-/*
- * Retained mesh pipelines. They differ from the ones above only in the vertex stage, which reads model-space
- * vertices plus a per-instance transform. The fragment stages are shared, so a model looks the same
- * whichever path drew it.
- */
+// Retained mesh pipelines: they differ only in the vertex stage (model-space vertices plus a per-instance transform); the shared fragment stages keep a model looking the same either way.
 
 /** Instanced, untextured. */
 #define NYA_RENDER3D_PIPELINE_INSTANCED "nya_mesh3d_instanced_pipeline"
@@ -87,11 +83,7 @@ typedef struct NYA_Render3DInstance NYA_Render3DInstance;
 /** The fullscreen sky. See nya_render3d_sky_draw. */
 #define NYA_RENDER3D_PIPELINE_SKY "nya_sky3d_pipeline"
 
-/*
- * Transparent pass. Same shaders as the opaque pipelines, but depth is tested and not written: a translucent
- * surface is still behind a wall, and writing depth would hide the pane behind it. Anything with alpha below
- * one goes here automatically and is sorted back to front. See NYA_Render3DStream.
- */
+// Transparent pass: the opaque shaders with depth tested but not written, so a pane does not hide the one behind; alpha below one goes here, sorted back to front (see NYA_Render3DStream).
 
 /** Untextured, depth-tested, no depth write. */
 /**
@@ -164,10 +156,7 @@ typedef struct NYA_Render3DInstance NYA_Render3DInstance;
  * */
 #define NYA_RENDER3D_WATER_DEPTH_SHORE 0.75F
 
-/*
- * Additive pass. Emission such as fire and glow has to brighten toward white rather than average like alpha
- * blending. Addition is commutative, so this pass needs no sorting.
- */
+// Additive pass: emission like fire brightens toward white rather than averaging, and addition being commutative needs no sorting.
 
 /** Untextured, additive, depth-tested, no depth write. */
 #define NYA_RENDER3D_PIPELINE_ADDITIVE "nya_mesh3d_additive_pipeline"

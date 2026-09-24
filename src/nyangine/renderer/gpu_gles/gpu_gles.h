@@ -22,9 +22,7 @@
 
 #include "nyangine/base/base_types.h"
 
-// Not NYA_API: these are the shim's own diagnostics, used only by the wasm demo/test in the one
-// unity translation unit that includes this shim (src/web/*.c, outside the engine's public surface and
-// outside the lint roots). Plain prototypes, so the caller rule does not read them as unbacked API.
+// Not NYA_API: the shim's own diagnostics, used only by the wasm demo/test; plain prototypes so the caller rule does not read them as unbacked API.
 
 /** True once a WebGL2 context is current. False under node (no canvas) and before the device is made. */
 b8 nya_gpu_gles_context_ok(void) __attr_no_discard;

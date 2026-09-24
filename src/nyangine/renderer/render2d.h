@@ -377,10 +377,7 @@ NYA_API void nya_render2d_textf(NYA_Window* window, f32 x, f32 y, NYA_Color colo
 NYA_API void nya_render2d_textf_with_font(NYA_Window* window, NYA_ConstCString font_path, f32 point_size, f32 x, f32 y, NYA_Color color,
                                       NYA_ConstCString format, ...) __attr_fmt_printf(7, 8);
 
-/*
- * Measurement, for layout before anything is drawn. Same metrics as drawing, and the atlas is built on demand,
- * so measuring first still gives real numbers.
- */
+// Measurement for layout before anything is drawn: same metrics as drawing, so measuring first still gives real numbers.
 
 /** Width and height of `text` in the current font, in pixels. Height counts every line. */
 /* Wrapped and aligned text. */

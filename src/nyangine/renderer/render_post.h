@@ -45,8 +45,7 @@
  * */
 #pragma once
 
-// Deliberately not renderer.h: this header is included from the end of it, once NYA_RenderTexture
-// and NYA_Window exist. Including it back would be a cycle.
+// Deliberately not renderer.h: this is included from the end of it once NYA_RenderTexture and NYA_Window exist, and including it back would cycle.
 #include "nyangine/base/base_types.h"
 #include "nyangine/debug/debug_trace.h"
 #include "nyangine/renderer/render_color.h"

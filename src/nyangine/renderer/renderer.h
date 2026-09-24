@@ -9,8 +9,7 @@
 #include "nyangine/renderer/render_color.h"
 // the window holds the switches, and nothing in here depends on the rest of this file.
 #include "nyangine/renderer/render_features.h"
-// the 3D batch embeds a light and a material by value, so their definitions are needed here.
-// render3d.h includes nothing from this file.
+// The 3D batch embeds a light and material by value, so their definitions are needed here; render3d.h includes nothing from this file.
 #include "nyangine/renderer/render3d.h"
 // here rather than at the bottom: the 3D batch holds an NYA_OcclusionBuffer pointer.
 #include "nyangine/renderer/render_occlusion.h"
@@ -92,8 +91,7 @@ enum NYA_Render2DFlushReason {
  * art sheet wants the same answer everywhere. Declared here because core_asset.h includes this header.
  * */
 enum NYA_TextureFilter {
-    // blends neighbouring texels, for photographic art, gradients and scaled UI. the default, and wrong for pixel
-    // art: it blurs and bleeds the neighbouring tile at a sheet edge.
+    // Blends neighbouring texels for photographic art, gradients and scaled UI; wrong for pixel art, where it bleeds the neighbouring tile at a sheet edge.
     NYA_TEXTURE_FILTER_LINEAR,
 
     /** Nearest texel, no blending. What pixel art and tile sheets want. */
@@ -366,10 +364,7 @@ struct NYA_Render2DBatch {
     SDL_GPUBuffer*         vertex_buffer;
     SDL_GPUTransferBuffer* transfer_buffer;
 
-    /*
-     * Indices. A quad is four vertices instead of six and a circle one per segment instead of three, for the
-     * price of a second buffer.
-     */
+    // Indices: a quad is four vertices not six and a circle one per segment not three, for a second buffer.
     SDL_GPUBuffer*         index_buffer;
     SDL_GPUTransferBuffer* index_transfer_buffer;
 
@@ -399,10 +394,7 @@ struct NYA_Render2DBatch {
     /** Painted low to high. Snapshotted into each range as it closes. */
     s32 layer;
 
-    /*
-     * Per frame counters, reset by nya_render_begin. `flushes` is the number to watch: each one is a draw call
-     * forced by a state change.
-     */
+    // Per-frame counters, reset by nya_render_begin; `flushes` is the one to watch, a draw call forced by a state change.
     u32 frame_flushes;
     u32 frame_vertices;
     u32 frame_indices;
@@ -428,10 +420,7 @@ struct NYA_Render2DBatch {
      * */
     u32 frame_dropped_draws;
 
-    /*
-     * Batch state. A draw needing anything different flushes first, because a draw call has one pipeline and
-     * one texture.
-     */
+    // Batch state: a draw needing anything different flushes first, since a draw call has one pipeline and one texture.
 
     /**
      * The pipeline the queued vertices want, null when nothing is queued. NYA_CString rather than
@@ -451,20 +440,14 @@ struct NYA_Render2DBatch {
      * */
     NYA_CString shader_override;
 
-    /*
-     * Custom shader uniforms, pushed to fragment slot 0 of the overriding pipeline (vertex slot 0 is the
-     * projection). Stored inline, since the push happens at flush, after the caller's data is gone.
-     */
+    // Custom shader uniforms, pushed to fragment slot 0 (vertex slot 0 is the projection); stored inline since the push happens at flush after the caller's data is gone.
     u8  shader_uniform[NYA_RENDER2D_MAX_UNIFORM_BYTES];
     u32 shader_uniform_size;
 
     /** Bound at t1 beside the drawn texture, for a custom shader that samples a second image. */
     SDL_GPUTexture* shader_texture;
 
-    /*
-     * Render target. The swapchain until nya_render_texture_begin, held here because the projection has to
-     * match the target size.
-     */
+    // Render target: the swapchain until nya_render_texture_begin, held here because the projection must match the target size.
     /** Where the finished pixels go: the swapchain image or a render texture's resolved side. */
     SDL_GPUTexture* target_texture;
 
@@ -827,10 +810,7 @@ struct NYA_Render3DBatch {
     /** The finished view-projection. Constant between a begin and an end. */
     f32_4x4 view_projection;
 
-    /*
-     * The camera as given. Rebuilding a ray from the basis is cheaper and better conditioned than inverting the
-     * view-projection; see nya_render3d_screen_ray.
-     */
+    // The camera as given: rebuilding a ray from the basis beats inverting the view-projection (see nya_render3d_screen_ray).
     NYA_Camera3DPerspective  camera;
     NYA_Camera3DOrthographic camera_orthographic;
     b8                       camera_is_ortho;
@@ -852,12 +832,7 @@ struct NYA_Render3DBatch {
     SDL_GPUBuffer*         instance_buffer;
     SDL_GPUTransferBuffer* instance_transfer_buffer;
 
-    /*
-     * Instanced grass path: its own instance stream, separate from the retained one above, so a dense field
-     * does not spend the retained mesh budget and gets its own, larger ceiling. Blades are NYA_Render3DInstance
-     * too (a model matrix and a tint), uploaded once per playback and drawn with the foliage sway shader. See
-     * nya_render3d_grass.
-     */
+    // Instanced grass path: its own instance stream and larger ceiling so a dense field does not spend the retained budget; blades are NYA_Render3DInstance drawn with the foliage sway shader (see nya_render3d_grass).
     NYA_Render3DInstance* grass_instances;
     u32                   grass_instance_count;
 
@@ -962,10 +937,7 @@ struct NYA_RenderSystemWindow {
     u32                msaa_height;
     SDL_GPUSampleCount msaa_sample_count;
 
-    /*
-     * The window's depth buffer, attached to every window pass so 2D and 3D share one pass; the attachment is
-     * fixed when a pass opens. A 2D-only game pays one unused texture.
-     */
+    // The window's depth buffer, attached to every window pass so 2D and 3D share one; a 2D-only game pays one unused texture.
     SDL_GPUTexture*    depth_texture;
     u32                depth_width;
     u32                depth_height;
@@ -1042,10 +1014,7 @@ struct NYA_Vertex3D {
     f16 color[4];
 };
 
-// The GPU vertex layout is exact on native, where f16 is two bytes. A wasm build widens f16 to a
-// four-byte float (base_types.h, since wasm32-unknown-emscripten rejects _Float16) and has no GPU to
-// upload a vertex buffer to, so the byte count differs there by exactly that widening and the check is
-// moot. Guarded so native asserts the real layout unchanged.
+// The GPU vertex layout is exact on native (f16 is two bytes); a wasm build widens f16 to four bytes and has no GPU, so the check is guarded to native.
 #if !OS_WASM
 static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c describes a 36 byte vertex");
 #endif

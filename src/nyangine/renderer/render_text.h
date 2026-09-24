@@ -23,9 +23,7 @@
  * */
 #pragma once
 
-// SDL_textengine.h is where TTF_TextData and the draw operations live. Included here rather
-// than in the .c because NYA_TextGlyph is a translation of TTF_CopyOperation and the two
-// have to be read side by side.
+// SDL_textengine.h has TTF_TextData and the draw operations; included here since NYA_TextGlyph translates TTF_CopyOperation and the two are read side by side.
 #include "SDL3_ttf/SDL_textengine.h"
 #include "SDL3_ttf/SDL_ttf.h"
 
@@ -150,11 +148,7 @@ NYA_API b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32
  * */
 NYA_API f32x2 nya_text_measure_font(TTF_Font* font, NYA_ConstCString text, s32 wrap_width) __attr_no_discard;
 
-/*
- * Vertical metrics
- *
- * Wrapped so callers never have to remember which of these SDL reports negative.
- */
+// Vertical metrics, wrapped so callers need not remember which SDL reports negative.
 
 /** Baseline to baseline: what to advance y by for the next line. */
 NYA_API f32 nya_text_line_height(TTF_Font* font) __attr_no_discard;
@@ -165,11 +159,7 @@ NYA_API f32 nya_text_ascent(TTF_Font* font) __attr_no_discard;
 /** Baseline to the deepest descender, positive. SDL reports it negative. */
 NYA_API f32 nya_text_descent(TTF_Font* font) __attr_no_discard;
 
-/*
- * Faces through the asset system
- *
- * Here rather than in render2d.c because the headless renderer needs faces too and has no atlas.
- */
+// Faces through the asset system, here rather than render2d.c because the headless renderer needs faces and has no atlas.
 
 /**
  * The asset handle for a face at a size: `"./assets/fonts/x.ttf@19"`.

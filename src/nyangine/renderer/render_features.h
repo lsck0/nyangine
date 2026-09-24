@@ -181,10 +181,7 @@ struct NYA_RenderFeatures {
     NYA_RenderToggle volumetrics;
 };
 
-/*
- * The struct is read as an array of switches indexed by NYA_RenderFeature, so adding a feature is one enum entry
- * and one field. These catch a field added in the wrong place or left out.
- */
+// The struct is read as an array indexed by NYA_RenderFeature; these static asserts catch a field added in the wrong place or left out.
 static_assert(sizeof(NYA_RenderFeatures) == (u64)NYA_RENDER_FEATURE_COUNT * sizeof(NYA_RenderToggle),
               "NYA_RenderFeatures has exactly one switch per NYA_RenderFeature");
 
