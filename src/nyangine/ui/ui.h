@@ -11,6 +11,7 @@
  *   nya_ui_panel_begin, nya_ui_panel_end        a container stacking its children down or across, framed or plain
  *   nya_ui_window_begin, nya_ui_window_end      a panel with a title bar: a menu, a collapse chevron, a close X, a resize grip
  *   nya_ui_section_begin, nya_ui_section_end    a labelled part of a panel the caller can fold away
+ *   nya_ui_card_begin, nya_ui_card_end          a framed container with a heading, a subtitle and a rule
  *   nya_ui_size                                 the next child's size along its container's direction
  *   nya_ui_space                                room in the layout for custom drawing, or a spacer
  *   nya_ui_scrim                                dims the whole window
@@ -29,6 +30,9 @@
  *   nya_ui_color_picker                         a colour by saturation and value, hue, alpha and hex
  *   nya_ui_chart                                a line or bar plot of a caller's values
  *   nya_ui_icon                                 a picture cut from a texture
+ *   nya_ui_badge                                a small tag, fitted to its text
+ *   nya_ui_progress                             a slim bar, part of it filled
+ *   nya_ui_breadcrumb                           a trail of crumbs, one of them the page in view
  *   nya_ui_disabled_begin, nya_ui_disabled_end  widgets between them are dimmed, skipped by focus, and never act
  *   nya_ui_style_push, nya_ui_style_pop         another look for what follows, until popped
  *   nya_ui_cancelled                            whether cancel was pressed this pass
@@ -254,6 +258,9 @@ typedef struct NYA_Window NYA_Window;
 #define NYA_UI_SCROLL_STEP 40.0F
 #define NYA_UI_SCROLLBAR   4.0F
 #define NYA_UI_FOCUS_BAR   3.0F
+
+/** A progress bar's thickness, in pixels at scale 1: a slim strip that reads as a bar without taking a row's height. */
+#define NYA_UI_PROGRESS_HEIGHT 8.0F
 
 /**
  * A window's resize grip, and the least it may be dragged to, in pixels at scale 1. The minimum is a title bar and
@@ -803,6 +810,25 @@ NYA_API void nya_ui_window_end(NYA_UI* ui);
 NYA_API b8   nya_ui_section_begin(NYA_UI* ui, NYA_ConstCString label, b8* open) __attr_no_discard;
 NYA_API void nya_ui_section_end(NYA_UI* ui);
 
+/**
+ * A titled container: a framed panel with a heading, an optional subtitle under it in the dim colour, and a rule
+ * setting the header apart from the body that follows until the end. `title` is the heading; `subtitle` may be null
+ * or empty for none. Built from a panel and labels, so it draws wherever they do and follows the theme with nothing
+ * of its own hardcoded.
+ *
+ * False, with nothing opened and no end to call, when the container table is full.
+ *
+ * ```c
+ * if (nya_ui_card_begin(ui, "stats", "Session", "since you signed in")) {
+ *     nya_ui_label(ui, "42 requests");
+ *     nya_ui_progress(ui, 0.6F);
+ *     nya_ui_card_end(ui);
+ * }
+ * ```
+ * */
+NYA_API b8   nya_ui_card_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, NYA_ConstCString subtitle) __attr_no_discard;
+NYA_API void nya_ui_card_end(NYA_UI* ui);
+
 /** The size of the next child, widget or container, along its container's direction. */
 NYA_API void nya_ui_size(NYA_UI* ui, NYA_UISize size);
 
@@ -950,6 +976,26 @@ NYA_API void nya_ui_chart(NYA_UI* ui, NYA_ConstCString label, NYA_UIChart chart)
 
 /** A square `size` pixels at scale 1 on a side, cut from a texture. Zero takes the container's line height. */
 NYA_API void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size);
+
+/**
+ * A small tag: `label` at the small size inside a fitted frame, so several sit in a line rather than one filling
+ * the row. It carries no colour of its own — the frame is the theme's panel and the text its style — so a badge
+ * follows a restyle like the rest of the UI. Nothing focuses or clicks it.
+ * */
+NYA_API void nya_ui_badge(NYA_UI* ui, NYA_ConstCString label);
+
+/**
+ * A slim bar, `fraction` of it filled in the accent over the track, clamped to [0, 1]. It takes a row of its own,
+ * draws only, and nothing focuses it, so a progress that changes every frame costs two fills a pass.
+ * */
+NYA_API void nya_ui_progress(NYA_UI* ui, f32 fraction);
+
+/**
+ * A trail of `count` crumbs in a row, separated by a mark. `*current` is the crumb the trail is at, drawn as plain
+ * text; every other crumb is a button that focuses and clicks like any other. Activating one writes its index to
+ * `*current`. True when it changed.
+ * */
+NYA_API b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* items, u32 count, u32* current);
 
 /**
  * `label` and a swatch, a field of saturation across and value down with a hue bar beside it, an alpha bar under it,

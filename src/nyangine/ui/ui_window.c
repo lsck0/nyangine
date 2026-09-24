@@ -224,6 +224,51 @@ void nya_ui_section_end(NYA_UI* ui) {
     nya_ui_panel_end(ui);
 }
 
+b8 nya_ui_card_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, NYA_ConstCString subtitle) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(id != nullptr, "a card is named, so its contents keep their ids when the list around it is reordered");
+    nya_assert(title != nullptr, "a card is a titled container; a plain panel is the one without");
+
+    // a framed panel, which is the card's body and stays open for the caller's content until nya_ui_card_end.
+    if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ 0 })) return false;
+
+    const NYA_UILook* look = _nya_ui_look();
+
+    /*
+     * The heading, at the title size and left aligned rather than centred the way a window's title bar is:
+     * a card reads down the page, not across a bar. The size comes from a nested frameless panel that
+     * lifts the text role to TITLE, so the label follows the theme's title face and colour with nothing
+     * hardcoded. The subtitle is the same trick at the small size in the dim colour.
+     */
+    if (title[0] != '\0' && nya_ui_panel_begin(ui, "title", (NYA_UIPanel){ .text = NYA_UI_TEXT_TITLE, .frameless = true })) {
+        nya_ui_label(ui, title);
+        nya_ui_panel_end(ui);
+    }
+
+    if (subtitle != nullptr && subtitle[0] != '\0' && nya_ui_panel_begin(ui, "subtitle", (NYA_UIPanel){ .text = NYA_UI_TEXT_SMALL, .frameless = true })) {
+        nya_ui_label(ui, subtitle, look->style.text_dim);
+        nya_ui_panel_end(ui);
+    }
+
+    // a rule under the header, which is what sets the heading apart from the body the caller is about to add.
+    NYA_Rectf rule = nya_ui_space(ui, 0.0F, 1.0F);
+
+    if (_nya_ui_drawn(rule)) {
+        NYA_UIWidgetDraw draw = { .kind = NYA_UI_WIDGET_RULE, .rect = rule, .color = look->style.text_dim };
+
+        _nya_ui_draw(ui, &draw);
+    }
+
+    return true;
+}
+
+void nya_ui_card_end(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(_nya_ui.depth > 1, "nya_ui_card_end without a card_begin");
+
+    nya_ui_panel_end(ui);
+}
+
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

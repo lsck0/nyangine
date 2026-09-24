@@ -460,6 +460,90 @@ void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size) {
     _nya_ui_draw(ui, &draw);
 }
 
+void nya_ui_badge(NYA_UI* ui, NYA_ConstCString label) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(label != nullptr);
+
+    const NYA_UILook* look = _nya_ui_look();
+
+    /*
+     * A chip that fits its own text rather than filling the row, so a handful sit in a line. It is a
+     * framed panel — the frame carries the theme's panel fill and rounding on every backend — sized to
+     * the small text inside it and padded tight, which is all a tag is. Nothing here names a colour: the
+     * panel and the label each read the style, so a badge follows the theme like everything else.
+     */
+    if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){
+            .width   = nya_ui_fit(),
+            .text    = NYA_UI_TEXT_SMALL,
+            .align   = NYA_UI_ALIGN_CENTER,
+            .padding = roundf(look->style.padding * 0.5F),
+        })) {
+        nya_ui_label(ui, label);
+        nya_ui_panel_end(ui);
+    }
+}
+
+void nya_ui_progress(NYA_UI* ui, f32 fraction) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+
+    const NYA_UILook* look = _nya_ui_look();
+
+    // a slim bar of its own, filling the row across; nothing focuses it, so the input pass leaves early like a label.
+    NYA_Rectf rect = nya_ui_space(ui, 0.0F, NYA_UI_PROGRESS_HEIGHT);
+    if (!_nya_ui_drawn(rect)) return;
+
+    f32 t = nya_clamp(fraction, 0.0F, 1.0F);
+
+    // the empty track first and the filled part over it, the two fill kinds every presenter already draws: the track
+    // in the style's track colour, the fill in its accent, so the bar is the theme's and not this widget's.
+    NYA_UIWidgetDraw track = { .kind = NYA_UI_WIDGET_STRIPE, .rect = rect, .color = look->style.track };
+    _nya_ui_draw(ui, &track);
+
+    if (t > 0.0F) {
+        NYA_UIWidgetDraw fill = {
+            .kind  = NYA_UI_WIDGET_UNDERLINE,
+            .rect  = { rect.x, rect.y, roundf(rect.width * t), rect.height },
+            .color = look->style.accent,
+        };
+
+        _nya_ui_draw(ui, &fill);
+    }
+}
+
+b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* items, u32 count, u32* current) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(id != nullptr && items != nullptr && current != nullptr);
+    nya_assert(count > 0, "a breadcrumb trail has at least one crumb");
+
+    // named by the caller's id, so two trails offering the same words keep their own focus and ids.
+    if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .align = NYA_UI_ALIGN_CENTER, .frameless = true })) return false;
+
+    const NYA_UILook* look    = _nya_ui_look();
+    u32               here    = nya_min(*current, count - 1);
+    b8                changed = false;
+
+    for (u32 i = 0; i < count; i++) {
+        // a separator between crumbs, a plain dim mark that takes no focus and no click.
+        if (i > 0) nya_ui_label(ui, "/", look->style.text_dim);
+
+        /*
+         * The crumb the trail is at is the page in view, so it is a label rather than a link: nothing to
+         * click, nothing to focus. Every crumb before or after it is a button, which is what carries the
+         * focus, the keyboard and the click for free. Activating one navigates there.
+         */
+        if (i == here) {
+            nya_ui_label(ui, items[i]);
+        } else if (nya_ui_button(ui, items[i])) {
+            *current = i;
+            changed  = true;
+        }
+    }
+
+    nya_ui_panel_end(ui);
+
+    return changed;
+}
+
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
