@@ -522,6 +522,21 @@ NYA_TlsProgress _nya_tls_progress(NYA_TlsSession* session, s32 result, NYA_Const
 
             return _nya_tls_fail(session, what);
 
+        case SSL_ERROR_SSL:
+            /*
+             * The same peer-went-away-without-close_notify as the syscall case above, moved onto the
+             * error queue as its own reason in OpenSSL 3.0: a TCP FIN before the close_notify. It is the
+             * clean end this server itself produces — nya_tls_shutdown is deliberately not sent when a
+             * connection is dropped, see tls.h — so its own client has to read it as a close rather than
+             * a break, for the length-framing reason the syscall case gives. Any other SSL error is real.
+             */
+            if (ERR_GET_REASON(ERR_peek_error()) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
+                ERR_clear_error();
+                return NYA_TLS_CLOSED;
+            }
+
+            return _nya_tls_fail(session, what);
+
         default: return _nya_tls_fail(session, what);
     }
 }
