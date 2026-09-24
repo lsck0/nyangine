@@ -133,13 +133,29 @@ typedef enum {
     NYA_TLS_FAILED,
 } NYA_TlsProgress;
 
-/** What a context is made of. Both paths are PEM and both are required. */
+/** What a context is made of. What each field means depends on which side `client` puts it on. */
 typedef struct {
-    /** The certificate chain: the leaf first, then whatever signs it. */
+    /**
+     * A server context by default; a client one — the side that connects and verifies — when set.
+     *
+     * A client context needs no certificate or key of its own (client certificates are not done here,
+     * see the header), and instead of accepting a handshake it verifies the server's chain against a
+     * trust store. A session over it is started with nya_tls_session_connect, which names the host the
+     * certificate has to match.
+     * */
+    b8 client;
+
+    /** The certificate chain: the leaf first, then whatever signs it. Required for a server, unused for a client. */
     NYA_ConstCString certificate_path;
 
-    /** The private key for the leaf. Read once, at creation, and never held as bytes here. */
+    /** The private key for the leaf. Read once, at creation, and never held as bytes here. Server only. */
     NYA_ConstCString key_path;
+
+    /**
+     * A client context's trust store: a PEM bundle of certificate authorities to verify the server
+     * against, or null to use the system's own store. Ignored by a server context.
+     * */
+    NYA_ConstCString ca_path;
 } NYA_TlsContextOptions;
 
 /*
@@ -181,6 +197,20 @@ NYA_API void nya_tls_context_destroy(NYA_TlsContext* context);
  * NYA_ERROR_OUT_OF_MEMORY when the pool is full, which is a bound rather than a failure; see the header.
  * */
 NYA_API NYA_Error nya_tls_session_create(NYA_TlsContext* context, NYA_OsSocket socket, OUT NYA_TlsSession** out_session) __attr_no_discard;
+
+/**
+ * Starts a client session over a connected socket, verifying the peer is `host`.
+ *
+ * The mirror of nya_tls_session_create for the connecting side: `context` must be a client context (see
+ * NYA_TlsContextOptions), and `host` is both the name sent for SNI and the name the server's certificate
+ * is checked against, so a certificate for another host fails the handshake rather than being accepted.
+ * Like the server side, nothing is read or written here; nya_tls_handshake drives it.
+ *
+ * NYA_ERROR_INVALID_ARGUMENT when the context is a server one, NYA_ERROR_OUT_OF_MEMORY when the pool is
+ * full. Released, like any session, with nya_tls_session_destroy.
+ * */
+NYA_API NYA_Error nya_tls_session_connect(NYA_TlsContext* context, NYA_OsSocket socket, NYA_ConstCString host, OUT NYA_TlsSession** out_session)
+    __attr_no_discard;
 
 /**
  * Gives the session's slot back. Does not close the socket, which the caller opened and still owns.
