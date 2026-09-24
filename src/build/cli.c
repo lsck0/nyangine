@@ -169,12 +169,16 @@ NYA_INTERNAL void wasm_game_runner(NYA_ArgCommand* command) {
     // The export, by reading the loader back: the self-check the page and a headless node run both call.
     NYA_String* loader = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(WASM_GAME_JS_OUTPUT, loader), "while reading %s back", WASM_GAME_JS_OUTPUT);
-    if (!nya_string_contains(nya_string_to_cstring(arena, loader), WASM_GAME_SYMBOL)) {
+    NYA_ConstCString loader_text = nya_string_to_cstring(arena, loader);
+    if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL)) {
         nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL);
     }
+    if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL_3D)) {
+        nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL_3D);
+    }
 
-    nya_log_info("Built %s and %s; %s is exported. Serve %s over HTTP and open game.html.", WASM_GAME_JS_OUTPUT, WASM_GAME_WASM_OUTPUT,
-                 WASM_GAME_SYMBOL, WASM_OUTPUT_DIRECTORY);
+    nya_log_info("Built %s and %s; %s and %s are exported. Serve %s over HTTP and open game.html.", WASM_GAME_JS_OUTPUT,
+                 WASM_GAME_WASM_OUTPUT, WASM_GAME_SYMBOL, WASM_GAME_SYMBOL_3D, WASM_OUTPUT_DIRECTORY);
 }
 
 /** Writes the completion script for whatever the parser currently describes. See main, which short circuits to this. */

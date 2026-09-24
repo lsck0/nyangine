@@ -64,6 +64,9 @@
 #include "nyangine/base/base_object.c"
 #include "nyangine/base/base_reflection.c"
 #include "nyangine/base/base_string.c"
+// base_logging.c's fatal path calls _nya_supervisor_on_fatal; off Linux (this wasm build) that is a no-op,
+// but the symbol must still be defined, so the supervisor leaf compiles in alongside the other base leaves.
+#include "nyangine/base/base_supervisor.c"
 #include "nyangine/base/base_types.c"
 
 // ── math: the 2D flush's projection (math_matrix, now that it compiles on wasm — NYA_F16_IS_F32), the
@@ -584,6 +587,265 @@ int nyangine_game_selfcheck(void) {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * A MINIMAL 3D FRAME — off-screen depth + colour targets and an MSAA resolve, driven straight at the shim
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The 2D slice above compiles the engine's real render2d.c on top of the shim. The 3D renderer cannot follow
+ * the same way here: render3d.c's bring-up drags box3d and ufbx, which no wasm slice links, so a full 3D
+ * scene in wasm is still out of reach. What this section proves is the piece the port was missing — that the
+ * shim can now stand up the off-screen render-target, depth and MSAA machinery the 3D + shadow + post passes
+ * need. It issues, by hand, the exact SDL_GPU call sequence render3d's shadow pass (a colour + depth atlas),
+ * renderer.c's scene pass (a multisample colour target that resolves to a sampleable texture, over a depth
+ * buffer) and render3d's post/refraction blit (SDL_BlitGPUTexture) drive on native. Under node there is no GL,
+ * so — exactly as the 2D self-check does — this asserts the recorded shim call order, not pixels.
+ */
+
+#define SHADOW_MAP_SIZE  512
+#define SCENE_TARGET_SIZE 256
+
+typedef struct {
+    SDL_GPUTexture*          shadow_color;  // the shadow atlas: a sampleable colour target the scene pass reads
+    SDL_GPUTexture*          shadow_depth;  // its depth buffer: a depth-only target, never sampled
+    SDL_GPUTexture*          scene_msaa;    // the scene's multisample colour target
+    SDL_GPUTexture*          scene_depth;   // the scene's multisample depth target
+    SDL_GPUTexture*          scene_color;   // the single-sample texture the MSAA colour resolves into
+    SDL_GPUGraphicsPipeline* pipeline;      // one textured pipeline, reused by both passes
+    SDL_GPUSampleCount       sample_count;  // the MSAA level the shim reported support for
+    b8                       ready;
+} Game3DState;
+
+NYA_INTERNAL Game3DState GAME3D = { 0 };
+
+/** Stands up the off-screen targets a 3D + shadow + post frame needs, picking the MSAA level the shim allows. */
+NYA_INTERNAL void game3d_bringup(void) {
+    if (!GAME.ready) game_bringup(); // the device, the sampler and the batch buffers the 3D frame reuses.
+
+    // The MSAA level, chosen the way renderer.c chooses it: the highest the device reports support for, capped
+    // at 4x here. Headless reports support up to 4x, so node settles on 4x deterministically.
+    GAME3D.sample_count = SDL_GPU_SAMPLECOUNT_1;
+    if (SDL_GPUTextureSupportsSampleCount(GAME.device, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_SAMPLECOUNT_4)) {
+        GAME3D.sample_count = SDL_GPU_SAMPLECOUNT_4;
+    } else if (SDL_GPUTextureSupportsSampleCount(GAME.device, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_SAMPLECOUNT_2)) {
+        GAME3D.sample_count = SDL_GPU_SAMPLECOUNT_2;
+    }
+
+    // ── the shadow atlas: a colour target the scene pass samples, and a depth-only buffer beside it ──
+    GAME3D.shadow_color = SDL_CreateGPUTexture(GAME.device, &(SDL_GPUTextureCreateInfo){
+        .type                 = SDL_GPU_TEXTURETYPE_2D,
+        .format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width                = SHADOW_MAP_SIZE,
+        .height               = SHADOW_MAP_SIZE,
+        .layer_count_or_depth = 1,
+        .num_levels           = 1,
+        .sample_count         = SDL_GPU_SAMPLECOUNT_1,
+    });
+    GAME3D.shadow_depth = SDL_CreateGPUTexture(GAME.device, &(SDL_GPUTextureCreateInfo){
+        .type                 = SDL_GPU_TEXTURETYPE_2D,
+        .format               = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+        .usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+        .width                = SHADOW_MAP_SIZE,
+        .height               = SHADOW_MAP_SIZE,
+        .layer_count_or_depth = 1,
+        .num_levels           = 1,
+        .sample_count         = SDL_GPU_SAMPLECOUNT_1,
+    });
+
+    // ── the scene: a multisample colour + depth pair, and the single-sample texture the colour resolves to ──
+    GAME3D.scene_msaa = SDL_CreateGPUTexture(GAME.device, &(SDL_GPUTextureCreateInfo){
+        .type                 = SDL_GPU_TEXTURETYPE_2D,
+        .format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+        .width                = SCENE_TARGET_SIZE,
+        .height               = SCENE_TARGET_SIZE,
+        .layer_count_or_depth = 1,
+        .num_levels           = 1,
+        .sample_count         = GAME3D.sample_count,
+    });
+    GAME3D.scene_depth = SDL_CreateGPUTexture(GAME.device, &(SDL_GPUTextureCreateInfo){
+        .type                 = SDL_GPU_TEXTURETYPE_2D,
+        .format               = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+        .usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+        .width                = SCENE_TARGET_SIZE,
+        .height               = SCENE_TARGET_SIZE,
+        .layer_count_or_depth = 1,
+        .num_levels           = 1,
+        .sample_count         = GAME3D.sample_count,
+    });
+    GAME3D.scene_color = SDL_CreateGPUTexture(GAME.device, &(SDL_GPUTextureCreateInfo){
+        .type                 = SDL_GPU_TEXTURETYPE_2D,
+        .format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width                = SCENE_TARGET_SIZE,
+        .height               = SCENE_TARGET_SIZE,
+        .layer_count_or_depth = 1,
+        .num_levels           = 1,
+        .sample_count         = SDL_GPU_SAMPLECOUNT_1,
+    });
+
+    // The textured 2D pipeline stands in for a mesh pipeline: it has the one sampler the scene pass binds the
+    // shadow map to, and its geometry is the batch's buffers. A real mesh pipeline differs only above the shim.
+    NYA_Asset* textured = nya_asset_get(NYA_RENDER2D_PIPELINE_TEXTURED);
+    GAME3D.pipeline     = nya_asset_graphics_pipeline(textured, GAME3D.sample_count, false, false);
+
+    GAME3D.ready = true;
+}
+
+/**
+ * One 3D frame: a shadow pass into the depth+colour atlas, a scene pass into the multisample colour target
+ * (resolving to scene_color) over the depth buffer while sampling the shadow map, then a post blit of the
+ * resolved scene onto the swapchain. Each pass issues the same shim entry points render3d/renderer issue.
+ * */
+NYA_INTERNAL void draw_frame_3d(void) {
+    if (!GAME3D.ready) return;
+
+    NYA_RenderSystemWindow* render = &WINDOW.render_system;
+    NYA_Render2DBatch*      batch  = &render->draw_batch;
+
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(GAME.device);
+
+    SDL_GPUTexture* swapchain = nullptr;
+    u32             width = 0, height = 0;
+    if (!SDL_WaitAndAcquireGPUSwapchainTexture(commands, (SDL_Window*)&WINDOW, &swapchain, &width, &height)) {
+        SDL_SubmitGPUCommandBuffer(commands);
+        return;
+    }
+
+    // A trivial projection the passes push; the real values do not matter to the shim call sequence.
+    f32_4x4 projection = nya_matrix_orthographic(0.0F, (f32)SCENE_TARGET_SIZE, 0.0F, (f32)SCENE_TARGET_SIZE);
+
+    // ── shadow pass: clear the colour+depth atlas, set the cascade viewport, draw the casters ──
+    SDL_GPURenderPass* shadow = SDL_BeginGPURenderPass(commands,
+        &(SDL_GPUColorTargetInfo){
+            .texture     = GAME3D.shadow_color,
+            .clear_color = { 1.0F, 1.0F, 1.0F, 1.0F }, // white == far plane, as render3d's shadow pass clears it
+            .load_op     = SDL_GPU_LOADOP_CLEAR,
+            .store_op    = SDL_GPU_STOREOP_STORE,
+        },
+        1,
+        &(SDL_GPUDepthStencilTargetInfo){
+            .texture     = GAME3D.shadow_depth,
+            .clear_depth = 1.0F,
+            .load_op     = SDL_GPU_LOADOP_CLEAR,
+            .store_op    = SDL_GPU_STOREOP_STORE,
+        });
+    SDL_SetGPUViewport(shadow, &(SDL_GPUViewport){ .w = (f32)SHADOW_MAP_SIZE, .h = (f32)SHADOW_MAP_SIZE, .max_depth = 1.0F });
+    SDL_BindGPUGraphicsPipeline(shadow, GAME3D.pipeline);
+    SDL_BindGPUVertexBuffers(shadow, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer }, 1);
+    SDL_BindGPUIndexBuffer(shadow, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer }, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+    SDL_PushGPUVertexUniformData(commands, 0, &projection, sizeof(projection));
+    SDL_DrawGPUIndexedPrimitives(shadow, 6, 1, 0, 0, 0);
+    SDL_EndGPURenderPass(shadow);
+
+    // ── scene pass: draw into the multisample colour target (resolving to scene_color) over the depth
+    //    buffer, binding the shadow atlas as a fragment sampler the way a lit mesh pass reads its shadows ──
+    SDL_GPURenderPass* scene = SDL_BeginGPURenderPass(commands,
+        &(SDL_GPUColorTargetInfo){
+            .texture         = GAME3D.scene_msaa,
+            .resolve_texture = GAME3D.scene_color,
+            .clear_color     = { 0.10F, 0.12F, 0.16F, 1.0F },
+            .load_op         = SDL_GPU_LOADOP_CLEAR,
+            .store_op        = SDL_GPU_STOREOP_RESOLVE_AND_STORE,
+        },
+        1,
+        &(SDL_GPUDepthStencilTargetInfo){
+            .texture     = GAME3D.scene_depth,
+            .clear_depth = 1.0F,
+            .load_op     = SDL_GPU_LOADOP_CLEAR,
+            .store_op    = SDL_GPU_STOREOP_DONT_CARE,
+        });
+    SDL_SetGPUViewport(scene, &(SDL_GPUViewport){ .w = (f32)SCENE_TARGET_SIZE, .h = (f32)SCENE_TARGET_SIZE, .max_depth = 1.0F });
+    SDL_BindGPUGraphicsPipeline(scene, GAME3D.pipeline);
+    SDL_BindGPUVertexBuffers(scene, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer }, 1);
+    SDL_BindGPUIndexBuffer(scene, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer }, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+    SDL_PushGPUVertexUniformData(commands, 0, &projection, sizeof(projection));
+    SDL_BindGPUFragmentSamplers(scene, 0, &(SDL_GPUTextureSamplerBinding){ .texture = GAME3D.shadow_color, .sampler = GAME.sampler }, 1);
+    SDL_DrawGPUIndexedPrimitives(scene, 6, 1, 0, 0, 0);
+    SDL_EndGPURenderPass(scene);
+
+    // ── post: blit the resolved scene colour onto the swapchain, the copy render3d's refraction capture uses ──
+    SDL_BlitGPUTexture(commands, &(SDL_GPUBlitInfo){
+        .source      = { .texture = GAME3D.scene_color, .w = SCENE_TARGET_SIZE, .h = SCENE_TARGET_SIZE },
+        .destination = { .texture = swapchain, .w = width, .h = height },
+        .load_op     = SDL_GPU_LOADOP_DONT_CARE,
+        .filter      = SDL_GPU_FILTER_LINEAR,
+    });
+
+    SDL_SubmitGPUCommandBuffer(commands);
+}
+
+/** The shim entry points the 3D frame above issues, in order: acquire + swapchain, the shadow pass, the scene
+ *  pass (which binds the shadow map and resolves its MSAA colour at end-of-pass), the post blit, then submit. */
+NYA_INTERNAL NYA_ConstCString EXPECTED_3D[] = {
+    "SDL_AcquireGPUCommandBuffer",
+    "SDL_WaitAndAcquireGPUSwapchainTexture",
+    // shadow pass → depth+colour FBO
+    "SDL_BeginGPURenderPass",
+    "SDL_SetGPUViewport",
+    "SDL_BindGPUGraphicsPipeline",
+    "SDL_BindGPUVertexBuffers",
+    "SDL_BindGPUIndexBuffer",
+    "SDL_PushGPUVertexUniformData",
+    "SDL_DrawGPUIndexedPrimitives",
+    "SDL_EndGPURenderPass",
+    // scene pass → MSAA colour + depth FBO, samples the shadow map, resolves at end
+    "SDL_BeginGPURenderPass",
+    "SDL_SetGPUViewport",
+    "SDL_BindGPUGraphicsPipeline",
+    "SDL_BindGPUVertexBuffers",
+    "SDL_BindGPUIndexBuffer",
+    "SDL_PushGPUVertexUniformData",
+    "SDL_BindGPUFragmentSamplers",
+    "SDL_DrawGPUIndexedPrimitives",
+    "SDL_EndGPURenderPass",
+    // post: resolved scene → swapchain
+    "SDL_BlitGPUTexture",
+    "SDL_SubmitGPUCommandBuffer",
+};
+
+/**
+ * Runs the 3D bring-up (once) and one 3D frame with the trace reset around it, then asserts the recorded shim
+ * call sequence is exactly the shadow → scene(+resolve) → post-blit order, and that the shim reported a usable
+ * MSAA sample count. Returns 1 on success, 0 otherwise. Callable from node with
+ * ccall('nyangine_game3d_selfcheck','number',[],[]). Only a browser can confirm the off-screen pixels.
+ * */
+EMSCRIPTEN_KEEPALIVE
+int nyangine_game3d_selfcheck(void) {
+    if (!GAME3D.ready) game3d_bringup();
+
+    nya_gpu_gles_trace_reset();
+    draw_frame_3d();
+
+    u32 expected_count = (u32)nya_carray_length(EXPECTED_3D);
+    u32 actual_count   = nya_gpu_gles_trace_count();
+
+    b8 ok = actual_count == expected_count;
+    if (ok) {
+        for (u32 i = 0; i < expected_count; i++) {
+            if (strcmp(nya_gpu_gles_trace_at(i), EXPECTED_3D[i]) != 0) {
+                ok = false;
+                nya_log_error("wasm_game 3d selfcheck: call %u was '%s', expected '%s'.", i, nya_gpu_gles_trace_at(i), EXPECTED_3D[i]);
+            }
+        }
+    } else {
+        nya_log_error("wasm_game 3d selfcheck: recorded %u shim calls, expected %u.", actual_count, expected_count);
+        for (u32 i = 0; i < actual_count; i++) nya_log_info("  [%u] %s", i, nya_gpu_gles_trace_at(i));
+    }
+
+    // the MSAA path is meaningful only if the shim reported a multisample count to resolve from.
+    if (GAME3D.sample_count == SDL_GPU_SAMPLECOUNT_1) {
+        ok = false;
+        nya_log_error("wasm_game 3d selfcheck: no multisample count reported; the resolve path would be a no-op.");
+    }
+
+    nya_log_info("wasm_game 3d selfcheck: sequence %s (%ux MSAA); WebGL2 context %s.",
+                 ok ? "OK" : "MISMATCH", 1U << (u32)GAME3D.sample_count,
+                 nya_gpu_gles_context_ok() ? "live (drawing real pixels)" : "absent (trace-only, headless)");
+    return ok ? 1 : 0;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ENTRY
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -601,6 +863,7 @@ NYA_INTERNAL void tick(void) {
 int main(void) {
     game_bringup();
     (void)nyangine_game_selfcheck();
+    (void)nyangine_game3d_selfcheck(); // the off-screen depth/MSAA/resolve path, beside the 2D swapchain frame.
 
     // 0 fps = drive from requestAnimationFrame; do not block (simulate_infinite_loop = false), so the
     // module instantiation returns and node can call exports.

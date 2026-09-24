@@ -94,6 +94,19 @@ struct SDL_GPUDevice {
 
     /** The one sentinel that stands for the default framebuffer (fbo 0), handed back as the swapchain. */
     struct SDL_GPUTexture* default_target;
+
+    /**
+     * The three FBOs the off-screen 3D path needs, created lazily on first use and reused for the life of
+     * the device (WebGL2 has no per-pass framebuffer object in the SDL_GPU sense — attachments are just
+     * re-pointed each pass):
+     *   - render_fbo:  a render pass whose colour/depth targets are real textures, not the swapchain.
+     *   - resolve_fbo: the single-sample destination a RESOLVE store op blits the multisample colour into.
+     *   - blit_read/blit_draw: the read+draw pair SDL_BlitGPUTexture wraps around a texture→texture copy.
+     */
+    GLuint render_fbo;
+    GLuint resolve_fbo;
+    GLuint blit_read_fbo;
+    GLuint blit_draw_fbo;
 };
 
 struct SDL_GPUBuffer {
@@ -109,10 +122,20 @@ struct SDL_GPUTransferBuffer {
 };
 
 struct SDL_GPUTexture {
-    GLuint id;
+    GLuint id;   // a GL texture object, unless this is a renderbuffer or the default target
+    GLuint rbo;  // a GL renderbuffer object, non-zero when the target is multisampled or non-samplable
     u32    width;
     u32    height;
     b8     is_default_target; // fbo 0, not a real GL texture object
+
+    // Render-target / depth state, filled by SDL_CreateGPUTexture for the 3D + shadow + post path. A plain
+    // 2D sampler texture leaves all of these at their zeroed defaults and behaves exactly as before.
+    b8     is_renderbuffer;   // backed by `rbo` (multisample colour/depth, or a non-sampled attachment)
+    b8     is_color_target;   // usable as a colour attachment
+    b8     is_depth;          // a depth (or depth-stencil) target
+    b8     has_stencil;       // the depth format also carries stencil (D24_S8, D32F_S8)
+    u32    sample_count;      // 1, 2, 4 or 8 — the MSAA sample count the target was created with
+    GLenum gl_attachment;     // GL_DEPTH_ATTACHMENT / GL_DEPTH_STENCIL_ATTACHMENT for a depth target, else 0
 };
 
 struct SDL_GPUSampler {
@@ -160,6 +183,13 @@ struct SDL_GPURenderPass {
 
     u32 target_width;
     u32 target_height;
+
+    // Off-screen pass bookkeeping, read by SDL_EndGPURenderPass to run any MSAA resolve. Zeroed for the
+    // swapchain (fbo 0) path, which resolves nothing.
+    b8              offscreen;             // bound a real FBO, not fbo 0
+    u32             num_color_targets;
+    SDL_GPUTexture* color_target[2];       // the colour attachments, in order (index 1 is the normal buffer)
+    SDL_GPUTexture* resolve_target[2];     // where each colour attachment resolves, or null for no resolve
 };
 
 struct SDL_GPUCopyPass {
@@ -270,6 +300,55 @@ NYA_INTERNAL GLenum _nya_gles_address(SDL_GPUSamplerAddressMode mode) {
         case SDL_GPU_SAMPLERADDRESSMODE_REPEAT:          return GL_REPEAT;
         case SDL_GPU_SAMPLERADDRESSMODE_MIRRORED_REPEAT: return GL_MIRRORED_REPEAT;
         default:                                         return GL_CLAMP_TO_EDGE;
+    }
+}
+
+/**
+ * The GL sized internal format, upload format and type for one SDL_GPU texture format, and whether it is a
+ * depth (and depth-stencil) format. Only the formats the 2D + 3D + shadow + post path actually create are
+ * handled; anything else falls back to RGBA8 with a warning, so an unforeseen target still links a texture
+ * rather than crashing. WebGL2's renderable-format set is narrower than desktop GL: a single-channel colour
+ * target maps to R8 (core-renderable) rather than R16_UNORM, which WebGL2 cannot render to without an
+ * extension — a browser difference the shadow map's precision tolerates.
+ * */
+NYA_INTERNAL void _nya_gles_texture_format(SDL_GPUTextureFormat format, OUT GLenum* internal, OUT GLenum* upload, OUT GLenum* type,
+                                           OUT b8* is_depth, OUT b8* has_stencil) {
+    *is_depth = false;
+    *has_stencil = false;
+    switch (format) {
+        case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM: // WebGL2 has no renderable BGRA8; the shim stores RGBA8 either way.
+            *internal = GL_RGBA8; *upload = GL_RGBA; *type = GL_UNSIGNED_BYTE; return;
+        case SDL_GPU_TEXTUREFORMAT_R8_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_R16_UNORM: // the shadow map: R16 is not WebGL2-renderable, so R8 stands in.
+            *internal = GL_R8; *upload = GL_RED; *type = GL_UNSIGNED_BYTE; return;
+        case SDL_GPU_TEXTUREFORMAT_R16_FLOAT:
+            *internal = GL_R16F; *upload = GL_RED; *type = GL_HALF_FLOAT; return;
+        case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT:
+            *internal = GL_RGBA16F; *upload = GL_RGBA; *type = GL_HALF_FLOAT; return;
+        case SDL_GPU_TEXTUREFORMAT_D16_UNORM:
+            *internal = GL_DEPTH_COMPONENT16; *upload = GL_DEPTH_COMPONENT; *type = GL_UNSIGNED_SHORT; *is_depth = true; return;
+        case SDL_GPU_TEXTUREFORMAT_D24_UNORM:
+            *internal = GL_DEPTH_COMPONENT24; *upload = GL_DEPTH_COMPONENT; *type = GL_UNSIGNED_INT; *is_depth = true; return;
+        case SDL_GPU_TEXTUREFORMAT_D32_FLOAT:
+            *internal = GL_DEPTH_COMPONENT32F; *upload = GL_DEPTH_COMPONENT; *type = GL_FLOAT; *is_depth = true; return;
+        case SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT:
+            *internal = GL_DEPTH24_STENCIL8; *upload = GL_DEPTH_STENCIL; *type = GL_UNSIGNED_INT_24_8; *is_depth = true; *has_stencil = true; return;
+        case SDL_GPU_TEXTUREFORMAT_D32_FLOAT_S8_UINT:
+            *internal = GL_DEPTH32F_STENCIL8; *upload = GL_DEPTH_STENCIL; *type = GL_FLOAT_32_UNSIGNED_INT_24_8_REV; *is_depth = true; *has_stencil = true; return;
+        default:
+            nya_log_warn("gpu_gles: texture format %d unhandled, treating as RGBA8.", (int)format);
+            *internal = GL_RGBA8; *upload = GL_RGBA; *type = GL_UNSIGNED_BYTE; return;
+    }
+}
+
+/** How many samples an SDL sample-count enum names: SDL_GPU_SAMPLECOUNT_1/2/4/8 → 1/2/4/8. */
+NYA_INTERNAL u32 _nya_gles_sample_count(SDL_GPUSampleCount count) {
+    switch (count) {
+        case SDL_GPU_SAMPLECOUNT_2: return 2;
+        case SDL_GPU_SAMPLECOUNT_4: return 4;
+        case SDL_GPU_SAMPLECOUNT_8: return 8;
+        default:                    return 1;
     }
 }
 
@@ -417,28 +496,68 @@ SDL_GPUTexture* SDL_CreateGPUTexture(SDL_GPUDevice* device, const SDL_GPUTexture
     texture->width  = createinfo->width;
     texture->height = createinfo->height;
 
-    if (createinfo->format != SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM) {
-        nya_log_warn("gpu_gles: SDL_CreateGPUTexture format %d not RGBA8; the 2D path only needs RGBA8. TODO other formats.",
-                     (int)createinfo->format);
+    GLenum internal = 0, upload = 0, type = 0;
+    b8     is_depth = false, has_stencil = false;
+    _nya_gles_texture_format(createinfo->format, &internal, &upload, &type, &is_depth, &has_stencil);
+
+    u32 samples = _nya_gles_sample_count(createinfo->sample_count);
+
+    b8 sampler_use = (createinfo->usage & SDL_GPU_TEXTUREUSAGE_SAMPLER) != 0;
+    b8 color_use   = (createinfo->usage & SDL_GPU_TEXTUREUSAGE_COLOR_TARGET) != 0;
+    b8 depth_use   = (createinfo->usage & SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET) != 0;
+
+    texture->sample_count   = samples;
+    texture->is_color_target = color_use;
+    texture->is_depth        = is_depth || depth_use;
+    texture->has_stencil     = has_stencil;
+    if (texture->is_depth) {
+        texture->gl_attachment = texture->has_stencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
     }
 
-    if (device->gl_ok) {
-        glGenTextures(1, &texture->id);
-        glBindTexture(GL_TEXTURE_2D, texture->id);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei)createinfo->width, (GLsizei)createinfo->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        // Defaults; a bound sampler object overrides these at draw time.
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // A renderbuffer, not a texture, when the attachment is multisampled (WebGL2 has no multisample
+    // textures) or when it is a depth target with no sampling asked of it. Everything else — a plain 2D
+    // texture, a single-sampled colour target, a sampled depth target — is a GL texture, so it can be
+    // read by a later pass (the shadow map, the resolved scene colour a post pass samples).
+    texture->is_renderbuffer = samples > 1 || (texture->is_depth && !sampler_use);
+
+    if (!device->gl_ok) return texture; // headless (node): record the shape, issue no GL.
+
+    if (texture->is_renderbuffer) {
+        glGenRenderbuffers(1, &texture->rbo);
+        glBindRenderbuffer(GL_RENDERBUFFER, texture->rbo);
+        if (samples > 1) {
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, (GLsizei)samples, internal, (GLsizei)createinfo->width, (GLsizei)createinfo->height);
+        } else {
+            glRenderbufferStorage(GL_RENDERBUFFER, internal, (GLsizei)createinfo->width, (GLsizei)createinfo->height);
+        }
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        return texture;
     }
+
+    glGenTextures(1, &texture->id);
+    glBindTexture(GL_TEXTURE_2D, texture->id);
+    // A colour/depth target is allocated immutable-shaped with glTexStorage2D so it is complete before the
+    // first attachment; a plain sampler texture keeps glTexImage2D so SDL_UploadToGPUTexture can respecify it.
+    if (color_use || depth_use) {
+        glTexStorage2D(GL_TEXTURE_2D, 1, internal, (GLsizei)createinfo->width, (GLsizei)createinfo->height);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, (GLint)internal, (GLsizei)createinfo->width, (GLsizei)createinfo->height, 0, upload, type, nullptr);
+    }
+    // Defaults; a bound sampler object overrides these at draw time.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
     return texture;
 }
 
 void SDL_ReleaseGPUTexture(SDL_GPUDevice* device, SDL_GPUTexture* texture) {
     _nya_gles_trace("SDL_ReleaseGPUTexture");
     if (texture == nullptr) return;
-    if (device->gl_ok && texture->id != 0) glDeleteTextures(1, &texture->id);
+    if (!device->gl_ok) return;
+    if (texture->id != 0) glDeleteTextures(1, &texture->id);
+    if (texture->rbo != 0) glDeleteRenderbuffers(1, &texture->rbo);
 }
 
 SDL_GPUSampler* SDL_CreateGPUSampler(SDL_GPUDevice* device, const SDL_GPUSamplerCreateInfo* createinfo) {
@@ -685,9 +804,18 @@ void SDL_EndGPUCopyPass(SDL_GPUCopyPass* copy_pass) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** Attaches one colour/depth target (texture or renderbuffer) to the currently bound FBO at `attach_point`. */
+NYA_INTERNAL void _nya_gles_attach(GLenum attach_point, SDL_GPUTexture* texture, u32 mip_level) {
+    if (texture == nullptr) return;
+    if (texture->is_renderbuffer) {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, attach_point, GL_RENDERBUFFER, texture->rbo);
+    } else {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, attach_point, GL_TEXTURE_2D, texture->id, (GLint)mip_level);
+    }
+}
+
 SDL_GPURenderPass* SDL_BeginGPURenderPass(SDL_GPUCommandBuffer* command_buffer, const SDL_GPUColorTargetInfo* color_target_infos,
                                           Uint32 num_color_targets, const SDL_GPUDepthStencilTargetInfo* depth_stencil_target_info) {
-    nya_unused(depth_stencil_target_info);
     _nya_gles_trace("SDL_BeginGPURenderPass");
 
     SDL_GPUDevice*     device = command_buffer->device;
@@ -696,20 +824,100 @@ SDL_GPURenderPass* SDL_BeginGPURenderPass(SDL_GPUCommandBuffer* command_buffer, 
     pass->device = device;
     pass->cmd    = command_buffer;
 
-    pass->target_width  = device->default_target->width;
-    pass->target_height = device->default_target->height;
+    // Off-screen when the first colour target is a real texture (not the swapchain sentinel) or a depth
+    // target is bound. The 2D swapchain path passes the default target and no depth, so it stays on fbo 0.
+    b8 color_is_default = num_color_targets > 0 && color_target_infos[0].texture != nullptr && color_target_infos[0].texture->is_default_target;
+    pass->offscreen     = (num_color_targets > 0 && !color_is_default) || depth_stencil_target_info != nullptr;
 
-    if (device->gl_ok) {
-        // The 2D path renders to the swapchain: fbo 0. (A render-to-texture target would bind a real FBO;
-        // that is deferred with the rest of the 3D/post path — see the blocker list.)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, (GLsizei)pass->target_width, (GLsizei)pass->target_height);
-        glDisable(GL_SCISSOR_TEST);
+    // The target's size: a real colour target's own dimensions, else the depth target's, else the swapchain's.
+    if (num_color_targets > 0 && color_target_infos[0].texture != nullptr && !color_is_default) {
+        pass->target_width  = color_target_infos[0].texture->width;
+        pass->target_height = color_target_infos[0].texture->height;
+    } else if (depth_stencil_target_info != nullptr && depth_stencil_target_info->texture != nullptr) {
+        pass->target_width  = depth_stencil_target_info->texture->width;
+        pass->target_height = depth_stencil_target_info->texture->height;
+    } else {
+        pass->target_width  = device->default_target->width;
+        pass->target_height = device->default_target->height;
+    }
 
-        if (num_color_targets > 0 && color_target_infos[0].load_op == SDL_GPU_LOADOP_CLEAR) {
-            SDL_FColor c = color_target_infos[0].clear_color;
-            glClearColor(c.r, c.g, c.b, c.a);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (!pass->offscreen) {
+        // ── the swapchain: fbo 0, exactly as the 2D path has always driven it ──
+        if (device->gl_ok) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, (GLsizei)pass->target_width, (GLsizei)pass->target_height);
+            glDisable(GL_SCISSOR_TEST);
+
+            if (num_color_targets > 0 && color_target_infos[0].load_op == SDL_GPU_LOADOP_CLEAR) {
+                SDL_FColor c = color_target_infos[0].clear_color;
+                glClearColor(c.r, c.g, c.b, c.a);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            }
+        }
+        return pass;
+    }
+
+    // ── an off-screen target: bind the device's render FBO and re-point its attachments this pass ──
+    pass->num_color_targets = num_color_targets > 2 ? 2 : num_color_targets;
+    for (u32 i = 0; i < pass->num_color_targets; i++) {
+        pass->color_target[i] = color_target_infos[i].texture;
+        // A RESOLVE store op on a multisampled colour target sends it to resolve_texture at SDL_EndGPURenderPass.
+        b8 resolve = (color_target_infos[i].store_op == SDL_GPU_STOREOP_RESOLVE || color_target_infos[i].store_op == SDL_GPU_STOREOP_RESOLVE_AND_STORE);
+        pass->resolve_target[i] = (resolve && color_target_infos[i].texture != nullptr && color_target_infos[i].texture->sample_count > 1)
+                                      ? color_target_infos[i].resolve_texture
+                                      : nullptr;
+    }
+
+    if (!device->gl_ok) return pass; // headless: the attachment/resolve shape is recorded; no GL is issued.
+
+    if (device->render_fbo == 0) glGenFramebuffers(1, &device->render_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, device->render_fbo);
+
+    GLenum draw_buffers[2] = { GL_NONE, GL_NONE };
+    for (u32 i = 0; i < pass->num_color_targets; i++) {
+        _nya_gles_attach(GL_COLOR_ATTACHMENT0 + i, color_target_infos[i].texture, color_target_infos[i].mip_level);
+        draw_buffers[i] = GL_COLOR_ATTACHMENT0 + i;
+    }
+    // Detach a second slot a previous pass left bound, so a single-target pass does not inherit it.
+    if (pass->num_color_targets < 2) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, 0, 0);
+    glDrawBuffers((GLsizei)pass->num_color_targets, draw_buffers);
+
+    // Depth (or depth-stencil), attached at the point the format asked for; the other one is cleared off.
+    if (depth_stencil_target_info != nullptr && depth_stencil_target_info->texture != nullptr) {
+        SDL_GPUTexture* depth = depth_stencil_target_info->texture;
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+        _nya_gles_attach(depth->gl_attachment != 0 ? depth->gl_attachment : GL_DEPTH_ATTACHMENT, depth, depth_stencil_target_info->mip_level);
+    } else {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+    }
+
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        nya_log_error("gpu_gles: off-screen framebuffer incomplete (0x%x); the render pass will not draw.", (unsigned)status);
+    }
+
+    glViewport(0, 0, (GLsizei)pass->target_width, (GLsizei)pass->target_height);
+    glDisable(GL_SCISSOR_TEST);
+
+    // Per-attachment clears with glClearBuffer*, which target one attachment each — the right tool for an FBO
+    // with more than one colour attachment, unlike the single glClearColor the swapchain path uses.
+    for (u32 i = 0; i < pass->num_color_targets; i++) {
+        if (color_target_infos[i].load_op == SDL_GPU_LOADOP_CLEAR) {
+            SDL_FColor  c    = color_target_infos[i].clear_color;
+            const GLfloat rgba[4] = { c.r, c.g, c.b, c.a };
+            glClearBufferfv(GL_COLOR, (GLint)i, rgba);
+        }
+    }
+    if (depth_stencil_target_info != nullptr && depth_stencil_target_info->texture != nullptr
+        && depth_stencil_target_info->load_op == SDL_GPU_LOADOP_CLEAR) {
+        if (depth_stencil_target_info->texture->has_stencil) {
+            glClearBufferfi(GL_DEPTH_STENCIL, 0, depth_stencil_target_info->clear_depth, (GLint)depth_stencil_target_info->clear_stencil);
+        } else {
+            const GLfloat depth_value = depth_stencil_target_info->clear_depth;
+            glClearBufferfv(GL_DEPTH, 0, &depth_value);
         }
     }
     return pass;
@@ -863,9 +1071,138 @@ void SDL_DrawGPUPrimitives(SDL_GPURenderPass* render_pass, Uint32 num_vertices, 
 }
 
 void SDL_EndGPURenderPass(SDL_GPURenderPass* render_pass) {
-    nya_unused(render_pass);
     _nya_gles_trace("SDL_EndGPURenderPass");
-    // No deferred pass to resolve on GL; the draws already executed.
+
+    SDL_GPUDevice* device = render_pass->device;
+    if (!device->gl_ok || !render_pass->offscreen) return; // the swapchain draws already executed; nothing to resolve.
+
+    // Any colour target with a RESOLVE store op is a multisample renderbuffer whose contents must be blitted
+    // down to its single-sample resolve texture. WebGL2's glBlitFramebuffer does the resolve: a read FBO on
+    // the multisample attachment, a draw FBO on the resolve texture, same rectangle, GL_NEAREST.
+    for (u32 i = 0; i < render_pass->num_color_targets; i++) {
+        SDL_GPUTexture* source  = render_pass->color_target[i];
+        SDL_GPUTexture* resolve = render_pass->resolve_target[i];
+        if (source == nullptr || resolve == nullptr) continue;
+
+        if (device->resolve_fbo == 0) glGenFramebuffers(1, &device->resolve_fbo);
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, device->render_fbo);
+        glReadBuffer(GL_COLOR_ATTACHMENT0 + i);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, device->resolve_fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, resolve->id, 0);
+        const GLenum draw_one = GL_COLOR_ATTACHMENT0;
+        glDrawBuffers(1, &draw_one);
+
+        GLsizei w = (GLsizei)nya_min(source->width, resolve->width);
+        GLsizei h = (GLsizei)nya_min(source->height, resolve->height);
+        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+
+    // Leave fbo 0 current, so the swapchain 2D path that follows finds the state it expects.
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * BLIT & CAPABILITY QUERIES — the texture→texture copy the post/refraction path issues, and the sample-count
+ * and format probes the renderer uses to pick an MSAA level and a depth format
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** Binds one texture or renderbuffer as GL_COLOR_ATTACHMENT0 of the given framebuffer, or fbo 0 for the swapchain. */
+NYA_INTERNAL void _nya_gles_blit_bind(GLenum framebuffer_target, GLuint fbo, SDL_GPUTexture* texture, u32 mip_level) {
+    if (texture != nullptr && texture->is_default_target) {
+        glBindFramebuffer(framebuffer_target, 0); // the swapchain: blit straight to/from the default framebuffer.
+        return;
+    }
+    glBindFramebuffer(framebuffer_target, fbo);
+    if (texture == nullptr) return;
+    if (texture->is_renderbuffer) {
+        glFramebufferRenderbuffer(framebuffer_target, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, texture->rbo);
+    } else {
+        glFramebufferTexture2D(framebuffer_target, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->id, (GLint)mip_level);
+    }
+}
+
+void SDL_BlitGPUTexture(SDL_GPUCommandBuffer* command_buffer, const SDL_GPUBlitInfo* info) {
+    _nya_gles_trace("SDL_BlitGPUTexture");
+
+    SDL_GPUDevice* device = command_buffer->device;
+    if (!device->gl_ok) return; // headless: the copy is recorded in the trace; no GL runs.
+
+    if (device->blit_read_fbo == 0) glGenFramebuffers(1, &device->blit_read_fbo);
+    if (device->blit_draw_fbo == 0) glGenFramebuffers(1, &device->blit_draw_fbo);
+
+    _nya_gles_blit_bind(GL_READ_FRAMEBUFFER, device->blit_read_fbo, info->source.texture, info->source.mip_level);
+    if (info->source.texture == nullptr || !info->source.texture->is_default_target) glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+    _nya_gles_blit_bind(GL_DRAW_FRAMEBUFFER, device->blit_draw_fbo, info->destination.texture, info->destination.mip_level);
+    if (info->destination.texture == nullptr || !info->destination.texture->is_default_target) {
+        const GLenum draw_one = GL_COLOR_ATTACHMENT0;
+        glDrawBuffers(1, &draw_one);
+    }
+
+    if (info->load_op == SDL_GPU_LOADOP_CLEAR) {
+        SDL_FColor c = info->clear_color;
+        glClearColor(c.r, c.g, c.b, c.a);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+
+    // The source rectangle, y-flipped when the flip mode asks for it, into the destination rectangle. NEAREST
+    // unless a smooth downscale was requested — a resolve is always NEAREST, which is what the callers pass.
+    GLint  sx0 = (GLint)info->source.x, sy0 = (GLint)info->source.y;
+    GLint  sx1 = sx0 + (GLint)info->source.w, sy1 = sy0 + (GLint)info->source.h;
+    GLint  dx0 = (GLint)info->destination.x, dy0 = (GLint)info->destination.y;
+    GLint  dx1 = dx0 + (GLint)info->destination.w, dy1 = dy0 + (GLint)info->destination.h;
+    GLenum filter = info->filter == SDL_GPU_FILTER_LINEAR ? GL_LINEAR : GL_NEAREST;
+
+    glBlitFramebuffer(sx0, sy0, sx1, sy1, dx0, dy0, dx1, dy1, GL_COLOR_BUFFER_BIT, filter);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+bool SDL_GPUTextureSupportsSampleCount(SDL_GPUDevice* device, SDL_GPUTextureFormat format, SDL_GPUSampleCount sample_count) {
+    nya_unused(format);
+    _nya_gles_trace("SDL_GPUTextureSupportsSampleCount");
+
+    u32 want = _nya_gles_sample_count(sample_count);
+    if (want <= 1) return true; // single-sampled is always available.
+
+    if (!device->gl_ok) {
+        // Headless (node): report a plausible fixed ceiling of 4x, so the renderer's MSAA pick is deterministic
+        // without a GL context. A browser answers from GL_MAX_SAMPLES below.
+        return want <= 4;
+    }
+
+    GLint max_samples = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &max_samples);
+    return (GLint)want <= max_samples;
+}
+
+bool SDL_GPUTextureSupportsFormat(SDL_GPUDevice* device, SDL_GPUTextureFormat format, SDL_GPUTextureType type, SDL_GPUTextureUsageFlags usage) {
+    nya_unused(device), nya_unused(type), nya_unused(usage);
+    _nya_gles_trace("SDL_GPUTextureSupportsFormat");
+
+    // The shim maps every format _nya_gles_texture_format handles onto a WebGL2-renderable GL format, so it
+    // reports support for exactly those. Only 2D targets exist here; a 3D/array/cube request is unsupported.
+    if (type != SDL_GPU_TEXTURETYPE_2D) return false;
+    switch (format) {
+        case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_R8_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_R16_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_R16_FLOAT:
+        case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT:
+        case SDL_GPU_TEXTUREFORMAT_D16_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_D24_UNORM:
+        case SDL_GPU_TEXTUREFORMAT_D32_FLOAT:
+        case SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT:
+        case SDL_GPU_TEXTUREFORMAT_D32_FLOAT_S8_UINT:
+            return true;
+        default:
+            return false;
+    }
 }
 
 /*
