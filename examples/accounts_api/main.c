@@ -49,6 +49,27 @@
  *
  * A recovery code off paper is accepted at `/api/login/totp` in place of a code, and spent when it is.
  *
+ * ## Passkeys: a passwordless login, not a second step
+ *
+ * Because this mount names a WebAuthn relying party (`passkey_rp_id` and `passkey_origin`), the accounts
+ * router also carries four `/api/passkey/…` routes: a passkey is a *primary* way to log in here, not only a
+ * second factor. An account can be created with a passkey and never hold a password, and one that has a
+ * password can add a passkey and log in with either.
+ *
+ * ```
+ * POST /api/passkey/register/begin   # signed out: opens a passwordless account, returns the create options
+ * POST /api/passkey/register/finish  # stores the credential; on the signed-out path, logs the new account in
+ * POST /api/passkey/login/begin      # {"username":"ada"} -> an assertion challenge and ada's credentials
+ * POST /api/passkey/login/finish     # the browser's assertion -> the __Host-session cookie, no password
+ * ```
+ *
+ * The begin routes answer the JSON `navigator.credentials.create`/`.get` need — the challenge, the relying
+ * party id, and (on login) the account's credential ids; the browser signs, and the finish routes hand the
+ * clientDataJSON, attestationObject / authenticatorData and signature back as base64url. There is no curl
+ * transcript for it the way there is for the password flow: the signing is the authenticator's, so it is a
+ * browser or a test with a key of its own (see tests/nyangine/accounts/test_passkey_login_flow.c) that
+ * drives it. The session cookie the login sets is the very one the password login sets, with the same flags.
+ *
  * ## The thing worth reading for: notes belong to people
  *
  * Every note has an `owner`. A note is only ever shown to, or deleted by, the account that wrote it —
@@ -99,6 +120,17 @@
 
 /** The program's name, as it appears in the authenticator's list beside the account. */
 #define TOTP_ISSUER "accounts_api"
+
+/**
+ * The WebAuthn relying party the passkey routes bind every credential to.
+ *
+ * The RP id is the effective domain a browser scopes the credential to; `localhost` is the one host a
+ * browser lets WebAuthn run on without TLS, so the example works over plain http. The origin is the RP id
+ * with the scheme and port, and the passkey routes check the browser's clientDataJSON against it exactly.
+ * A deployed server sets these to its real domain and https origin; here the origin is built from the port
+ * the example is actually listening on, so the check matches whatever `--port` chose.
+ * */
+#define PASSKEY_RP_ID "localhost"
 
 NYA_INTERNAL volatile sig_atomic_t RUNNING = 1;
 
@@ -432,8 +464,15 @@ s32 main(s32 argc, char** argv) {
                "while starting the server");
     defer nya_system_http_deinit();
 
-    // The login flow, mounted from the accounts module: register, login, login/totp, logout, session,
-    // and the TOTP enrol/confirm pair. Everything this example does not have to write itself.
+    // The origin the passkey routes check against: the scheme, the host, and the port actually chosen.
+    // Built here rather than hardcoded so it matches whatever `--port` picked; a real server would name its
+    // own https domain instead. localhost is the one host a browser runs WebAuthn on without TLS.
+    char passkey_origin[64] = { 0 };
+    (void)snprintf(passkey_origin, sizeof(passkey_origin), "%s://%s:%u", secure ? "https" : "http", PASSKEY_RP_ID, nya_http_server_port());
+
+    // The login flow, mounted from the accounts module: register, login, login/totp, logout, session, the
+    // TOTP enrol/confirm pair, and — because a relying party is named — the passwordless passkey routes.
+    // Everything this example does not have to write itself.
     const NYA_HttpRouter* accounts = nya_http_accounts_open((NYA_HttpAccountsConfig){
         .arena                  = DB_ARENA,
         .database               = DB,
@@ -441,6 +480,8 @@ s32 main(s32 argc, char** argv) {
         .totp_issuer            = TOTP_ISSUER,
         .login_seal_secret      = LOGIN_SEAL_SECRET,
         .login_seal_secret_size = sizeof(LOGIN_SEAL_SECRET),
+        .passkey_rp_id          = PASSKEY_RP_ID,
+        .passkey_origin         = passkey_origin,
     });
     if (accounts == nullptr) {
         nya_log_error("Could not mount the accounts routes.");
