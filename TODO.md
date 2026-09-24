@@ -1151,7 +1151,7 @@ The current track, reordered around one missing primitive.
     box3d body's position so a ball parts the grass. `foliage.vert` cross-compiles to GLSL ES 300 (web-ready).
     Example `foliage3d`, test `test_wind.c`. Verified on master: check 0/959, debug build + a foliage3d run under
     ASan+LSan+UBSan shut down clean (no leak — the reported leak did not reproduce). Follow-ups: instanced grass
-    for density; particles and fluid emitters sampling the same wind field.
+    for density. `[x]` particles (`nya_particles_wind_set`, `d.../21bf7ec`) and fluids (`nya_fluid_wind_set`, `d3e5521`) now sample the same wind field, so foliage, water, particles and fluids all read one `NYA_WindField`.
 - `[ ]` **Realistic-but-stylized showcase scene (user, 2026-09-24)** — one scene composing wind + foliage +
   flowing water + dust/particles + sky/atmosphere + volumetric light beams (light shafts) + fog, all reading the
   one shared wind field, kept inside the flat stylized art style (never photoreal). Not three separate examples
