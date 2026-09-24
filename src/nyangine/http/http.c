@@ -54,6 +54,10 @@
 // net, which is compiled before http: a browser peer of a native server.
 #include "nyangine/http/http_net_websocket.c"
 /**/
+// development-only live reload: a push stream on the websocket server above and the change watch over the
+// static bundle's fingerprint, so it comes after both. Compiled out of a shipping build.
+#include "nyangine/http/http_livereload.c"
+/**/
 // after the router, which it dispatches through, and before openapi, which reads its mount table.
 #include "nyangine/http/http_server.c"
 /**/
