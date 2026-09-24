@@ -80,11 +80,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/os/os_socket.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Sessions one context may hold at once.
@@ -100,11 +96,7 @@
 /** Bytes of the last error a session can report, terminator included. */
 #define NYA_TLS_MAX_ERROR 192
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_TlsContext NYA_TlsContext;
 typedef struct NYA_TlsSession NYA_TlsSession;
@@ -158,11 +150,7 @@ typedef struct {
     NYA_ConstCString ca_path;
 } NYA_TlsContextOptions;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Whether this build has a TLS library at all. False on a build with no OpenSSL; see the header. */
 NYA_API b8 nya_tls_available(void) __attr_no_discard;

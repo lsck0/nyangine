@@ -10,11 +10,7 @@
 #include <openssl/opensslv.h>
 #include <openssl/ssl.h>
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 struct NYA_TlsSession {
     SSL* ssl;
@@ -39,22 +35,13 @@ struct NYA_TlsContext {
     u32            session_count;
 };
 
-/*
- * What a client may speak on TLS 1.2. Forward secrecy and AEAD only: every ECDHE suite with GCM or
- * ChaCha20-Poly1305 behind it, and nothing with CBC, RSA key exchange or a MAC-then-encrypt
- * construction in it. TLS 1.3's suites are not named here because 1.3 does not let them be turned off
- * one by one, and all three of them are already this list's shape.
- */
+// What a client may speak on TLS 1.2: forward-secret AEAD only (ECDHE with GCM or ChaCha20-Poly1305), no CBC/RSA/MAC-then-encrypt.
 #define _NYA_TLS_CIPHERS_1_2 "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305"
 
 /** What this server speaks, as ALPN writes it: one byte of length, then the name. */
 NYA_INTERNAL const u8 _NYA_TLS_ALPN[] = { 8, 'h', 't', 't', 'p', '/', '1', '.', '1' };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Builds the connecting, verifying context: TLS_client_method, a trust store, and peer verification on. */
 NYA_INTERNAL NYA_Error _nya_tls_client_context_create(NYA_Arena* arena, OUT NYA_TlsContext** out_context, NYA_TlsContextOptions options) __attr_no_discard;
@@ -73,11 +60,7 @@ NYA_INTERNAL s32 _nya_tls_alpn_select(
     SSL* ssl, const u8** out_selected, u8* out_size, const u8* offered, u32 offered_size, void* user_data
 );
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_tls_available(void) {
     return true;
@@ -109,21 +92,13 @@ NYA_Error _nya_tls_context_create(NYA_Arena* arena, NYA_TlsContext** out_context
         return nya_error(NYA_ERROR_NOT_OK, "the TLS context could not be made: %s", text);
     }
 
-    /*
-     * The floor is 1.2. Everything below it is broken in public — SSLv3 by POODLE, 1.0 and 1.1 by
-     * their MAC-then-encrypt construction and SHA-1 signatures — and a server that offers a broken
-     * version offers it to whoever asks for it first.
-     */
+    // The floor is 1.2: SSLv3 (POODLE) and 1.0/1.1 (MAC-then-encrypt, SHA-1) are broken in public.
     if (SSL_CTX_set_min_proto_version(ssl_context, TLS1_2_VERSION) != 1) {
         SSL_CTX_free(ssl_context);
         return nya_error(NYA_ERROR_NOT_OK, "TLS 1.2 could not be set as the floor");
     }
 
-    /*
-     * Renegotiation is a request a client can make over and over, each one costing a handshake: it is
-     * the oldest denial of service TLS has and 1.3 removed it outright. Compression is CRIME.
-     * Server preference means the cipher is this list's order and not the client's.
-     */
+    // Renegotiation is a DoS (1.3 removed it), compression is CRIME, server preference picks this list's order.
     (void)SSL_CTX_set_options(
         ssl_context,
         SSL_OP_NO_RENEGOTIATION | SSL_OP_NO_COMPRESSION | SSL_OP_CIPHER_SERVER_PREFERENCE | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1
@@ -134,17 +109,11 @@ NYA_Error _nya_tls_context_create(NYA_Arena* arena, NYA_TlsContext** out_context
         return nya_error(NYA_ERROR_NOT_OK, "no cipher this build allows is available");
     }
 
-    /*
-     * No resumption, for the reason tls.h gives: a session cache is memory a peer decides the size of,
-     * and a ticket key is a secret that outlives a connection and has to be rotated by somebody.
-     */
+    // No resumption (see tls.h): a session cache is peer-sized memory and a ticket key is a secret to rotate.
     SSL_CTX_set_session_cache_mode(ssl_context, SSL_SESS_CACHE_OFF);
     (void)SSL_CTX_set_options(ssl_context, SSL_OP_NO_TICKET);
 
-    /*
-     * Partial writes and a moving buffer are what make nya_tls_send honest about short writes, and
-     * releasing buffers gives a quiet connection's 32 KiB back rather than holding it per connection.
-     */
+    // Partial writes and a moving buffer make nya_tls_send honest about short writes; releasing buffers frees a quiet connection's 32 KiB.
     (void)SSL_CTX_set_mode(ssl_context, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_RELEASE_BUFFERS);
 
     SSL_CTX_set_alpn_select_cb(ssl_context, _nya_tls_alpn_select, nullptr);
@@ -165,8 +134,7 @@ NYA_Error _nya_tls_context_create(NYA_Arena* arena, NYA_TlsContext** out_context
         return nya_error(NYA_ERROR_NOT_OK, "'%s' is not a private key: %s", options.key_path, text);
     }
 
-    // Worth its own check: a certificate and a key that are not a pair is a server that starts and then
-    // fails every handshake, which is a fault that only shows up on somebody else's browser.
+    // Worth its own check: a mismatched certificate and key would start fine and fail every handshake.
     if (SSL_CTX_check_private_key(ssl_context) != 1) {
         SSL_CTX_free(ssl_context);
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not the key for '%s'", options.key_path, options.certificate_path);
@@ -265,19 +233,13 @@ NYA_Error nya_tls_session_connect(NYA_TlsContext* context, NYA_OsSocket socket, 
         return nya_error(NYA_ERROR_NOT_OK, "the socket could not be given to TLS");
     }
 
-    // SNI: which name this is asking for, so a host serving many gets it right. A name, not a literal —
-    // OpenSSL rejects an IP address here, which is correct, since SNI is a host name extension.
+    // SNI: which name this asks for, so a host serving many gets it right (OpenSSL rejects an IP here).
     if (SSL_set_tlsext_host_name(ssl, host) != 1) {
         SSL_free(ssl);
         return nya_error(NYA_ERROR_NOT_OK, "the server name could not be set for '%s'", host);
     }
 
-    /*
-     * The one line that makes this verify anything: SSL_set1_host tells OpenSSL the name the certificate
-     * must be for, and with SSL_VERIFY_PEER already on the context a certificate for another host, or one
-     * no trusted authority signed, fails the handshake rather than being quietly accepted. Without it,
-     * verification would check the chain but not that the chain is *this server's*.
-     */
+    // SSL_set1_host names the certificate's required host; with SSL_VERIFY_PEER on, a wrong-host or untrusted cert fails the handshake.
     if (SSL_set1_host(ssl, host) != 1) {
         SSL_free(ssl);
         return nya_error(NYA_ERROR_NOT_OK, "the host to verify could not be set to '%s'", host);
@@ -318,8 +280,7 @@ NYA_TlsProgress nya_tls_handshake(NYA_TlsSession* session) {
     if (!session->live) return NYA_TLS_FAILED;
     if (session->established) return NYA_TLS_OK;
 
-    // The connecting side drives the handshake with SSL_connect, the accepting side with SSL_accept; the
-    // state was set to match at session creation, so this only picks which name to call it by.
+    // Connecting side drives with SSL_connect, accepting side with SSL_accept; the state was set at creation.
     s32 result = session->context->client ? SSL_connect(session->ssl) : SSL_accept(session->ssl);
 
     if (result == 1) {
@@ -344,8 +305,7 @@ NYA_TlsProgress nya_tls_receive(NYA_TlsSession* session, u8* out_data, u64 capac
     if (!session->live) return NYA_TLS_FAILED;
     if (capacity == 0) return NYA_TLS_OK;
 
-    // The handshake first, always: a caller that reads before it is done would otherwise have to know
-    // the difference between a handshake byte and a payload one, which is the whole job of this module.
+    // The handshake first, always, so a caller never has to tell a handshake byte from a payload one.
     if (!session->established) {
         NYA_TlsProgress handshake = nya_tls_handshake(session);
         if (handshake != NYA_TLS_OK) return handshake;
@@ -397,8 +357,7 @@ NYA_TlsProgress nya_tls_shutdown(NYA_TlsSession* session) {
 
     s32 result = SSL_shutdown(session->ssl);
 
-    // Zero means our close_notify went and the peer's has not come back. That is enough: this server
-    // does not wait for a peer to agree that a finished connection is finished.
+    // Zero means our close_notify went but the peer's has not; enough, this server does not wait for it.
     if (result >= 0) return NYA_TLS_OK;
 
     return _nya_tls_progress(session, result, "the shutdown");
@@ -435,11 +394,7 @@ u32 nya_tls_session_count(const NYA_TlsContext* context) {
     return context->session_count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_tls_client_context_create(NYA_Arena* arena, NYA_TlsContext** out_context, NYA_TlsContextOptions options) {
     SSL_CTX* ssl_context = SSL_CTX_new(TLS_client_method());
@@ -450,7 +405,7 @@ NYA_Error _nya_tls_client_context_create(NYA_Arena* arena, NYA_TlsContext** out_
         return nya_error(NYA_ERROR_NOT_OK, "the TLS client context could not be made: %s", text);
     }
 
-    // The same floor and the same suite shape as the server side: 1.2 or 1.3, forward secrecy and AEAD.
+    // Same floor and suite shape as the server side: 1.2 or 1.3, forward secrecy and AEAD.
     if (SSL_CTX_set_min_proto_version(ssl_context, TLS1_2_VERSION) != 1) {
         SSL_CTX_free(ssl_context);
         return nya_error(NYA_ERROR_NOT_OK, "TLS 1.2 could not be set as the floor");
@@ -467,12 +422,7 @@ NYA_Error _nya_tls_client_context_create(NYA_Arena* arena, NYA_TlsContext** out_
     (void)SSL_CTX_set_options(ssl_context, SSL_OP_NO_TICKET);
     (void)SSL_CTX_set_mode(ssl_context, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_RELEASE_BUFFERS);
 
-    /*
-     * The trust store, either a bundle the caller named — a private authority for an in-house server —
-     * or the system's own, which is what a public submission server is signed under. A load that finds
-     * nothing to trust is a context that would reject every certificate, so it is a failure here rather
-     * than a surprise at the first handshake.
-     */
+    // The trust store: a caller-named bundle or the system's own; a load that trusts nothing fails here, not at the first handshake.
     if (options.ca_path != nullptr && options.ca_path[0] != '\0') {
         if (SSL_CTX_load_verify_locations(ssl_context, options.ca_path, nullptr) != 1) {
             char text[NYA_TLS_MAX_ERROR] = { 0 };
@@ -486,8 +436,7 @@ NYA_Error _nya_tls_client_context_create(NYA_Arena* arena, NYA_TlsContext** out_
         return nya_error(NYA_ERROR_NOT_OK, "the system's trust store could not be loaded");
     }
 
-    // Verify the peer, and fail the handshake when it does not verify. The host to match is per-session,
-    // set in nya_tls_session_connect; this only says that verification happens at all.
+    // Verify the peer and fail the handshake otherwise; the host to match is set per-session in nya_tls_session_connect.
     SSL_CTX_set_verify(ssl_context, SSL_VERIFY_PEER, nullptr);
 
     NYA_TlsContext* context = nya_arena_alloc(arena, sizeof(NYA_TlsContext));
@@ -512,24 +461,13 @@ NYA_TlsProgress _nya_tls_progress(NYA_TlsSession* session, s32 result, NYA_Const
         case SSL_ERROR_ZERO_RETURN: return NYA_TLS_CLOSED;
 
         case SSL_ERROR_SYSCALL:
-            /*
-             * End of file with nothing on the error queue: the peer went away without a close_notify.
-             * Common enough from a browser closing a tab that it is not worth calling a failure, and
-             * indistinguishable from a truncation attack only on a protocol that needs length framing —
-             * HTTP has Content-Length, so this server already knows whether it got everything.
-             */
+            // EOF with an empty error queue: the peer left without a close_notify, harmless since HTTP has Content-Length.
             if (ERR_peek_error() == 0) return NYA_TLS_CLOSED;
 
             return _nya_tls_fail(session, what);
 
         case SSL_ERROR_SSL:
-            /*
-             * The same peer-went-away-without-close_notify as the syscall case above, moved onto the
-             * error queue as its own reason in OpenSSL 3.0: a TCP FIN before the close_notify. It is the
-             * clean end this server itself produces — nya_tls_shutdown is deliberately not sent when a
-             * connection is dropped, see tls.h — so its own client has to read it as a close rather than
-             * a break, for the length-framing reason the syscall case gives. Any other SSL error is real.
-             */
+            // OpenSSL 3.0 moves that same close-without-close_notify onto the queue as its own reason; any other SSL error is real.
             if (ERR_GET_REASON(ERR_peek_error()) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
                 ERR_clear_error();
                 return NYA_TLS_CLOSED;
@@ -564,8 +502,7 @@ void _nya_tls_last_error(char* out_text, u64 capacity) {
 
     ERR_error_string_n(error, out_text, capacity);
 
-    // The queue holds every reason, and a caller only ever shows one. The rest are dropped here so the
-    // next failure cannot report this one's.
+    // The rest of the queue is dropped so the next failure cannot report this one's reasons.
     ERR_clear_error();
 }
 
@@ -573,32 +510,20 @@ s32 _nya_tls_alpn_select(SSL* ssl, const u8** out_selected, u8* out_size, const 
     (void)ssl;
     (void)user_data;
 
-    /*
-     * OpenSSL writes the chosen protocol through a `u8**` and hands it back to the caller as a
-     * `const u8**`, so one of the two has to lose its const. It is written here and read there, and
-     * what it points at is this file's own static table.
-     */
+    // OpenSSL writes the chosen protocol through a `u8**` but returns it as `const u8**`, so one loses const; it points at this file's static table.
     u8* selected = nullptr;
 
     s32 chosen = SSL_select_next_proto(&selected, out_size, _NYA_TLS_ALPN, (u32)sizeof(_NYA_TLS_ALPN), offered, offered_size);
 
     *out_selected = selected;
 
-    // A client that offered a list with nothing this server speaks in it gets no ALPN rather than a
-    // guess: OpenSSL's "no overlap" answer names the client's first choice, which this cannot serve.
+    // A client offering nothing this server speaks gets no ALPN rather than OpenSSL's "no overlap" guess.
     return chosen == OPENSSL_NPN_NEGOTIATED ? SSL_TLSEXT_ERR_OK : SSL_TLSEXT_ERR_ALERT_FATAL;
 }
 
 #else
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * WITHOUT A TLS LIBRARY
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Every call answers rather than failing to link, so a program can ask whether TLS is here and carry on
- * without it — which is what a Windows build does today; see tls.h.
- */
+// WITHOUT A TLS LIBRARY: every call answers rather than failing to link, so a program can ask whether TLS is here (a Windows build today; see tls.h).
 
 struct NYA_TlsContext {
     u32 session_count;
