@@ -80,6 +80,14 @@ void example_runner(NYA_ArgCommand* command) {
     b8 server = server_flag.value.as_b8;
 #endif
 
+    // A per-example opt-in: a `.headless` file beside its main.c says this example is a no-core server and
+    // wants the headless link — NYA_NO_SDL + NYA_SERVER and the server vendor subset, not the full engine
+    // graph dead-stripped. The marker rather than a second flag keeps the knowledge with the example that
+    // knows it can build that way; every other server example still takes the full-graph path below. Only
+    // meaningful under --server, and so never checked on a Windows host, where there is no server target.
+    NYA_String* headless_marker = nya_string_sprintf(arena, "%s/%s/.headless", EXAMPLE_DIRECTORY, name);
+    b8          headless        = server && nya_filesystem_exists(nya_string_to_cstring(arena, headless_marker));
+
     NYA_BuildRule build_example = {
         .name        = nya_string_to_cstring(arena, build_name),
         .policy      = NYA_BUILD_ALWAYS,
@@ -165,7 +173,57 @@ void example_runner(NYA_ArgCommand* command) {
         .dependencies    = { &bundle_assets, },
     };
 
+    /*
+     * The headless build of a `.headless` example: the same shipping shape as build_server_example —
+     * release, stripped, dead-code collected, Linux-hardened — but compiled with FLAGS_SERVER_HEADLESS
+     * (NYA_NO_SDL + NYA_SERVER, so no core and no renderer are in the graph) and linked against the server
+     * vendor subset rather than the full project set. No SDL, box2d, box3d, ufbx or shadercross is on the
+     * line, so `ldd` on the result names no libSDL3 — the wall the deploy README describes as the one
+     * remaining. No FLAGS_PLUGINS: the module set FLAGS_SERVER_HEADLESS carries is the server's, and the
+     * plugin list would pull the core-bound Lua plugin. No asset dependency either: a headless example
+     * carries its own bytes (see examples/headless_server/main.c) rather than reading the bundle, so there
+     * is no shader or blob to build first.
+     */
+    NYA_BuildRule build_headless_server_example = {
+        .name        = nya_string_to_cstring(arena, build_name),
+        .policy      = NYA_BUILD_ALWAYS,
+        .output_file = binary_cstr,
+
+        .command = {
+            .program   = CC,
+            .arguments = {
+                source_cstr,
+                "-o", binary_cstr,
+                CFLAGS,
+                WARNINGS,
+                INCLUDE_PATHS,
+                LINKER_FLAGS,
+                FLAGS_SERVER_HEADLESS,
+                FLAGS_RELEASE,
+                FLAGS_RELEASE_LINK,
+                FLAGS_RELEASE_LINK_LINUX_X86_64,
+                FLAGS_LINUX_X86_64,
+                // Strip, for the same reason and with the same safety as build_server_example: this
+                // example carries no integrity hash for the strip to invalidate.
+                "-s",
+            },
+        },
+
+        .pre_build_hooks = { &hook_add_version_flag, },
+        .vendors         = { NYA_SERVER_VENDORS_LINUX_X86_64, },
+        // No dependencies: nothing here reads an asset, so there is no bundle or shader to build.
+    };
+
     if (server) {
+        if (headless) {
+            // Built, not run, like the full-graph server below: a server image is made from the binary.
+            NYA_EXPECT(nya_build(&build_headless_server_example), "while building headless example '%s' to ship", name);
+
+            nya_log_info("Built %s headless: release, stripped, no SDL and no core linked. Run it with --port 8000; `ldd` names no libSDL3.", binary_cstr);
+
+            return;
+        }
+
         // Built, not run: a server image is made from the binary, and running it here would block the
         // build on a process that only stops on a signal.
         NYA_EXPECT(nya_build(&build_server_example), "while building example '%s' to ship", name);

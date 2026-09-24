@@ -229,6 +229,15 @@
 // the tool would need SDL on the link line to build SDL, which is a bootstrap it cannot satisfy.
 #define FLAGS_BUILD_TOOL "-DNYA_NO_SDL"
 
+// A headless server: no SDL and no core, the http/net half of the engine only. NYA_SERVER opens the
+// seam nyangine.h and nyangine.c both cut around crypto/tls/net/acme/http, so those compile while core
+// and the renderer do not. The module set is the server's — db, tls and HTTP compression, exactly what
+// NYA_SERVER_VENDORS_LINUX_X86_64 has libraries for — but deliberately not FLAGS_PLUGIN_LIST: the Lua
+// plugin reaches nya_app_get, which is core, so a plugin build would drag the wall back in. An example
+// opts into this with a `.headless` marker beside its main.c; see build_headless_server_example in
+// example.c and docs/layering-core-split.md, steps 6–7.
+#define FLAGS_SERVER_HEADLESS "-DNYA_NO_SDL", "-DNYA_SERVER", "-DNYA_MODULE_TLS" FLAGS_MODULE_COMPRESSION_LINUX_X86_64
+
 /*
  * The WebAssembly target, the seed of the CSR path. Off the critical path and its own command like
  * `./build vendor`: emcc is not part of the default toolchain and not every checkout has it, so
