@@ -174,10 +174,11 @@ NYA_INTERNAL NYA_HttpParse _nya_http_decode_chunked(
 /** Appends to a rendered head, refusing to write past `capacity`. */
 NYA_INTERNAL b8 _nya_http_head_append(OUT u8* buffer, u64 capacity, OUT u64* size, NYA_ConstCString text);
 
+#ifdef NYA_HTTP_COMPRESSION
+
 /** Whether a body of this type is worth compressing: text and the document formats, never the already-compressed binaries. */
 NYA_INTERNAL b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) __attr_no_discard;
 
-#ifdef NYA_HTTP_COMPRESSION
 
 /** The content codings this server can produce, in no order; the negotiation picks between them. */
 typedef enum {
@@ -1303,6 +1304,7 @@ b8 _nya_http_head_append(u8* buffer, u64 capacity, u64* size, NYA_ConstCString t
     return true;
 }
 
+#ifdef NYA_HTTP_COMPRESSION
 b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) {
     switch (media_type) {
         // Text and the document formats: every one of these is markup or characters, where deflate finds
@@ -1326,8 +1328,6 @@ b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) {
         default: return false;
     }
 }
-
-#ifdef NYA_HTTP_COMPRESSION
 
 s32 _nya_http_qvalue(const char* text, const char* end) {
     // Leading OWS, then "0"/"1" and an optional "." with up to three digits. Anything the grammar does
