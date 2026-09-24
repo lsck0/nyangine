@@ -70,6 +70,14 @@ void nya_particles_on_update_set(NYA_ParticleSystem* system, NYA_ParticleUpdateF
     system->on_update_user_data = user_data;
 }
 
+void nya_particles_wind_set(NYA_ParticleSystem* system, const NYA_WindField* field, f32 influence) {
+    nya_assert(system != nullptr);
+
+    system->wind           = field;
+    system->wind_influence = influence;
+    // wind_time_s is left where it is, so turning the wind off and on again does not jump the field's phase.
+}
+
 void nya_particles_seed(NYA_ParticleSystem* system, u64 seed) {
     nya_assert(system != nullptr);
 
@@ -183,6 +191,9 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
     system->dropped = 0;
     system->tick_s  = delta_time_s;
 
+    // The wind field's own clock, advanced only while a field is set, so the drift animates on its own.
+    if (system->wind != nullptr) system->wind_time_s += delta_time_s;
+
     for (u32 i = 0; i < system->count;) {
         NYA_Particle* particle = &system->particles[i];
 
@@ -199,6 +210,13 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
 
         /* Damping as an exponential, not a subtraction, so it is frame-rate independent and never overshoots zero. */
         if (particle->damping > 0.0F) particle->velocity *= expf(-particle->damping * delta_time_s);
+
+        // Ride the wind: ease the velocity toward what the field pushes here, so the particle catches up to the air
+        // over time rather than snapping to it. The rate is frame-rate independent and clamped so it never overshoots.
+        if (system->wind != nullptr) {
+            f32x3 wind = nya_wind_at(system->wind, particle->position, system->wind_time_s);
+            particle->velocity = nya_lerp(particle->velocity, wind, nya_min(delta_time_s * system->wind_influence, 1.0F));
+        }
 
         particle->position += particle->velocity * delta_time_s;
         particle->rotation += particle->angular_velocity * delta_time_s;

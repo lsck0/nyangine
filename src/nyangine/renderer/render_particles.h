@@ -42,6 +42,9 @@ typedef struct NYA_Particle        NYA_Particle;
 typedef struct NYA_ParticleBurst   NYA_ParticleBurst;
 typedef struct NYA_ParticleSystem  NYA_ParticleSystem;
 
+/** A wind field the particles may drift on. Defined in render_wind.h; only ever held here by pointer. */
+typedef struct NYA_WindField       NYA_WindField;
+
 enum NYA_ParticleSpace {
     /**
      * Drawn through render2d, in world pixels, ignoring z. The default.
@@ -204,6 +207,18 @@ struct NYA_ParticleSystem {
 
     /** The last update's step, which a draw between ticks takes a fraction of. */
     f32 tick_s;
+
+    /**
+     * An optional wind field the particles drift on, borrowed from the caller, and how quickly they follow it.
+     *
+     * Null is the default and means no wind — the system integrates exactly as before. Set it and every particle
+     * eases its velocity toward what the field pushes at its position, so dust and smoke ride the same air that
+     * moves the foliage and the water. `wind_time_s` is the field clock this system advances itself, so the wind
+     * animates whether or not the caller also advances the shared field. See nya_particles_wind_set, [[render_wind]].
+     * */
+    const NYA_WindField* wind;
+    f32                  wind_influence;
+    f32                  wind_time_s;
 };
 
 /*
@@ -228,6 +243,13 @@ NYA_API void nya_particles_casts_shadow_set(NYA_ParticleSystem* system, b8 casts
 
 /** Installs the per particle callback. Null removes it. */
 NYA_API void nya_particles_on_update_set(NYA_ParticleSystem* system, NYA_ParticleUpdateFn on_update, void* user_data);
+
+/**
+ * Makes the system drift on `field`, at `influence` (roughly how fast a particle catches up to the wind, per
+ * second). A null `field` turns it off, which is the default and the exact old behaviour. The field is borrowed —
+ * the caller owns it and keeps it alive — so several systems and the foliage can share one wind.
+ * */
+NYA_API void nya_particles_wind_set(NYA_ParticleSystem* system, const NYA_WindField* field, f32 influence);
 
 /**
  * Makes the system reproducible: the same seed and the same calls give the same effect.
