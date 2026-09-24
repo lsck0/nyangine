@@ -32,9 +32,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     NYA_Arena* arena = nya_arena_create(.name = "test_deadline");
     defer nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a hang fails at its deadline, names itself, and reports where it was
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Command child = {
             .arena     = arena,
@@ -60,9 +58,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a deadline stopped in time never fires
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_test_deadline_start("test_deadline", CHILD_DEADLINE_S);
         nya_test_deadline_stop();

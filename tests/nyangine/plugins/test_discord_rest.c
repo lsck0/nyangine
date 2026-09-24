@@ -107,9 +107,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_discord_rest");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a response header is found by name, whatever case it arrived in
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Response response = canned(
       arena, 200,
@@ -134,9 +132,7 @@ s32 main(void) {
     nya_assert(!nya_response_header(&response, "x-ratelimit-bucket", tiny, sizeof(tiny)));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a bucket is learned from a reply and closes when it is spent
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_DiscordRateLimit limits = { 0 };
     u64                  wait   = 0;
@@ -165,9 +161,7 @@ s32 main(void) {
     nya_assert(nya_discord_rate_limit_ready(&limits, "POST /channels/1/messages", 3500, &wait), "the window passed, so the server refilled it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a 429 closes its own bucket, and a global one closes everything
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_DiscordRateLimit limits = { 0 };
     u64                  wait   = 0;
@@ -191,9 +185,7 @@ s32 main(void) {
     nya_assert(nya_discord_rate_limit_ready(&limits, "POST /channels/9/messages", 12000, &wait), "and it lifts when it said it would");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a reply with no rate limit headers leaves the bucket where it was
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_DiscordRateLimit limits = { 0 };
     u64                  wait   = 0;
@@ -211,9 +203,7 @@ s32 main(void) {
     nya_assert(wait == 4000ULL, "and the window it was in is still the one that counts");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a call that cannot work is refused where it is made
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;
@@ -246,9 +236,7 @@ s32 main(void) {
     nya_assert_eq(fake.performed, 0U);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a message goes out as Discord expects it, with the bot scheme and no token in the result
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;
@@ -289,9 +277,7 @@ s32 main(void) {
     nya_assert(nya_string_equals((NYA_ConstCString)limits->buckets[0].id, "abcd1234"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a slash command and an interaction reply, which is a whole bot's worth of REST
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;
@@ -325,9 +311,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(result.route, "POST /interactions/{id}/{token}/callback"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a 429 is waited out rather than retried into the ground
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;
@@ -357,9 +341,7 @@ s32 main(void) {
     nya_assert_eq(nya_discord_rest_pending(rest), 0U);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a request that keeps being refused is given back rather than retried forever
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;
@@ -387,9 +369,7 @@ s32 main(void) {
     nya_assert_eq(nya_discord_rest_pending(rest), 0U);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a full queue is a refusal at the call, not a growing allocation
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;
@@ -404,9 +384,7 @@ s32 main(void) {
     nya_assert(id == 0ULL, "and it gets no handle for a request that was not taken");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: one closed bucket does not hold up a request that shares nothing with it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake             fake = { .now_ms = 1000 };
     NYA_DiscordRest* rest = nullptr;

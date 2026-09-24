@@ -12,9 +12,7 @@
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty ring is filled once and then left alone.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_HttpKeyring ring = { 0 };
 
@@ -27,9 +25,7 @@ s32 main(void) {
     nya_check(nya_http_keyring_count(&ring) == 1, "and still one key, got %u", nya_http_keyring_count(&ring));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a round trip through the ring, and the empty-ring error.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_HttpKeyring ring = { 0 };
 
@@ -47,9 +43,7 @@ s32 main(void) {
     nya_check(back == 4200 && size == sizeof(who), "to the same bytes, got %llu", (unsigned long long)back);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a token sealed before a rotation still opens after it. The whole point.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_HttpKeyring ring = { 0 };
     NYA_EXPECT(nya_http_keyring_rotate(&ring) ? NYA_OK : nya_error(NYA_ERROR_NOT_OK, "rotate"));
@@ -82,9 +76,7 @@ s32 main(void) {
     nya_check(back == 88, "to its own state, got %llu", (unsigned long long)back);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an expired key is dropped, and its tokens stop opening.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_HttpKeyring ring = { 0 };
     NYA_EXPECT(nya_http_keyring_rotate(&ring) ? NYA_OK : nya_error(NYA_ERROR_NOT_OK, "rotate"));
@@ -109,9 +101,7 @@ s32 main(void) {
               "a token whose key aged off the ring no longer opens");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the ring never grows past its bound, dropping the oldest.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_HttpKeyring ring = { 0 };
 

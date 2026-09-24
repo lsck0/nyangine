@@ -64,9 +64,7 @@ s32 main(void) {
 
   nya_log_info("SQLite %s", nya_sql_version());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: N jobs, W workers — each job runs exactly once and completes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_jobworker_fanout.db";
     remove_database(path);
@@ -108,9 +106,7 @@ s32 main(void) {
     nya_assert(stats.total == job_count, "and no phantom jobs appeared");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a handler that fails once is retried with backoff, then succeeds
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_jobworker_retry.db";
     remove_database(path);
@@ -148,9 +144,7 @@ s32 main(void) {
     nya_assert(stats.done == 1 && stats.dead == 0, "the job is done, not dead-lettered");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stop drains the in-flight job (nothing left claimed) and joins cleanly
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_jobworker_drain.db";
     remove_database(path);
@@ -191,9 +185,7 @@ s32 main(void) {
     nya_assert(runs == stats.done, "the handler completed exactly the jobs the queue counts as done");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a kind with no registered handler is dead-lettered, not crashed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_jobworker_unhandled.db";
     remove_database(path);
@@ -232,9 +224,7 @@ s32 main(void) {
     nya_assert(atomic_load_explicit(&ran, memory_order_relaxed) == 1, "the handled job ran once");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: registration guards its inputs and its bound
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_jobworker_unregister_all();
 
@@ -251,9 +241,7 @@ s32 main(void) {
     nya_jobworker_unregister_all();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: start rejects a nonsensical worker count, and a double stop is safe
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));

@@ -50,9 +50,7 @@ nya_derive_heap(TestItem);
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_heap");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: basic heap creation
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_assert(heap->length == 0);
   nya_assert(heap->capacity == _NYA_HEAP_DEFAULT_CAPACITY);
@@ -61,17 +59,13 @@ s32 main(void) {
   nya_assert(heap->compare == compare_s32_asc);
   nya_heap_destroy(heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: creation with custom capacity
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* heap_cap = nya_heap_create_with_capacity(arena, s32, compare_s32_asc, 128);
   nya_assert(heap_cap->length == 0);
   nya_assert(heap_cap->capacity == 128);
   nya_heap_destroy(heap_cap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_push (basic)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* push_heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_heap_push(push_heap, 5);
   nya_assert(push_heap->length == 1);
@@ -86,9 +80,7 @@ s32 main(void) {
   nya_assert(push_heap->items[0] == 3); // 3 still at root
   nya_heap_destroy(push_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: heap property maintenance after multiple pushes
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* prop_heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_heap_push(prop_heap, 5);
   nya_heap_push(prop_heap, 3);
@@ -110,9 +102,7 @@ s32 main(void) {
   }
   nya_heap_destroy(prop_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_pop (basic)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* pop_heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_heap_push(pop_heap, 5);
   nya_heap_push(pop_heap, 3);
@@ -129,9 +119,7 @@ s32 main(void) {
   nya_assert(pop_heap->items[0] == 8);
   nya_heap_destroy(pop_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: complete heap pop sequence (sorted output)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* seq_heap = nya_heap_create(arena, s32, compare_s32_asc);
   s32      values[] = { 5, 3, 8, 1, 4, 2, 7, 6 };
   for (u64 i = 0; i < nya_carray_length(values); i++) { nya_heap_push(seq_heap, values[i]); }
@@ -144,9 +132,7 @@ s32 main(void) {
   nya_assert(seq_heap->length == 0);
   nya_heap_destroy(seq_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: max-heap (descending order)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* max_heap     = nya_heap_create(arena, s32, compare_s32_desc);
   s32      max_values[] = { 1, 3, 8, 5, 2, 4, 7, 6 };
   for (u64 i = 0; i < nya_carray_length(max_values); i++) { nya_heap_push(max_heap, max_values[i]); }
@@ -159,9 +145,7 @@ s32 main(void) {
   nya_assert(max_heap->length == 0);
   nya_heap_destroy(max_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_from_carray
-  // ─────────────────────────────────────────────────────────────────────────────
   s32            carray_values[] = { 5, 3, 8, 1, 4, 2 };
   NYA_Heapᐸs32ᐳ* from_array      = nya_heap_from_carray(arena, s32, carray_values, nya_carray_length(carray_values), compare_s32_asc);
   nya_assert(from_array->length == 6);
@@ -175,9 +159,7 @@ s32 main(void) {
   nya_assert(from_array->length == 0);
   nya_heap_destroy(from_array);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: u32 heap
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸu32ᐳ* u32_heap     = nya_heap_create(arena, u32, compare_u32_asc);
   u32      u32_values[] = { 10, 5, 15, 2, 12 };
   for (u64 i = 0; i < nya_carray_length(u32_values); i++) { nya_heap_push(u32_heap, u32_values[i]); }
@@ -190,9 +172,7 @@ s32 main(void) {
   nya_assert(u32_heap->length == 0);
   nya_heap_destroy(u32_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f32 heap
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸf32ᐳ* f32_heap     = nya_heap_create(arena, f32, compare_f32_asc);
   f32      f32_values[] = { 3.5F, 1.2F, 4.8F, 0.5F, 2.7F };
   for (u64 i = 0; i < nya_carray_length(f32_values); i++) { nya_heap_push(f32_heap, f32_values[i]); }
@@ -205,9 +185,7 @@ s32 main(void) {
   nya_assert(f32_heap->length == 0);
   nya_heap_destroy(f32_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: custom struct heap
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_HeapᐸTestItemᐳ* item_heap = nya_heap_create(arena, TestItem, compare_test_item);
   TestItem      items[]   = {
     { .id = 1, .priority = 3.5F },
@@ -232,9 +210,7 @@ s32 main(void) {
   nya_assert(item_heap->length == 0);
   nya_heap_destroy(item_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_clear
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* clear_heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_heap_push(clear_heap, 5);
   nya_heap_push(clear_heap, 3);
@@ -252,9 +228,7 @@ s32 main(void) {
   nya_assert(clear_heap->items[0] == 10);
   nya_heap_destroy(clear_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: automatic resize on capacity overflow
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* resize_heap = nya_heap_create_with_capacity(arena, s32, compare_s32_asc, 4);
   nya_assert(resize_heap->capacity == 4);
 
@@ -272,9 +246,7 @@ s32 main(void) {
   }
   nya_heap_destroy(resize_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_reserve
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* reserve_heap = nya_heap_create_with_capacity(arena, s32, compare_s32_asc, 4);
   nya_heap_push(reserve_heap, 10);
   nya_heap_push(reserve_heap, 20);
@@ -292,9 +264,7 @@ s32 main(void) {
   nya_assert(reserve_heap->capacity == cap);
   nya_heap_destroy(reserve_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: edge case - empty heap operations
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* empty_heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_assert(empty_heap->length == 0);
 
@@ -303,9 +273,7 @@ s32 main(void) {
   nya_assert(empty_heap->length == 0);
   nya_heap_destroy(empty_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: edge case - single element heap
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* single_heap = nya_heap_create(arena, s32, compare_s32_asc);
   nya_heap_push(single_heap, 42);
   nya_assert(single_heap->length == 1);
@@ -316,9 +284,7 @@ s32 main(void) {
   nya_assert(single_heap->length == 0);
   nya_heap_destroy(single_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stress test with many elements
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ*  stress_heap  = nya_heap_create(arena, s32, compare_s32_asc);
   const s32 stress_count = 1000;
 
@@ -337,9 +303,7 @@ s32 main(void) {
   nya_assert(stress_heap->length == 0);
   nya_heap_destroy(stress_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: duplicate values
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* dup_heap     = nya_heap_create(arena, s32, compare_s32_asc);
   s32      dup_values[] = { 5, 3, 5, 1, 3, 1, 4, 2 };
   for (u64 i = 0; i < nya_carray_length(dup_values); i++) { nya_heap_push(dup_heap, dup_values[i]); }
@@ -352,9 +316,7 @@ s32 main(void) {
   nya_assert(dup_heap->length == 0);
   nya_heap_destroy(dup_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: negative values (s32 heap)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Heapᐸs32ᐳ* neg_heap     = nya_heap_create(arena, s32, compare_s32_asc);
   s32      neg_values[] = { 5, -3, 8, -1, 4, -2, 0, -5 };
   for (u64 i = 0; i < nya_carray_length(neg_values); i++) { nya_heap_push(neg_heap, neg_values[i]); }
@@ -367,9 +329,7 @@ s32 main(void) {
   nya_assert(neg_heap->length == 0);
   nya_heap_destroy(neg_heap);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the heap property survives arbitrary interleaved pushes and pops
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The cases above push a batch and drain it. This covers popping the last element to the root of a
@@ -435,9 +395,7 @@ s32 main(void) {
     nya_heap_destroy(churn);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

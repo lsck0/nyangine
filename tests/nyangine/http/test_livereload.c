@@ -240,18 +240,14 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_livereload");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: this build has live reload at all. Everything below depends on it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_livereload_available(), "a test build is not a shipping build; live reload is compiled in");
 
         printf("  live reload is compiled into this build\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the change detector fires exactly when the fingerprint moves, and never otherwise.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_livereload_reset();
 
@@ -277,9 +273,7 @@ s32 main(void) {
         printf("  the change detector fired on every move of the fingerprint and on nothing else\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the bundle fingerprint is the bytes' — it moves when they do and not when they do not.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_static_fingerprint() == 0, "an unmounted bundle has no fingerprint");
 
@@ -306,9 +300,7 @@ s32 main(void) {
         printf("  the bundle fingerprint tracked the bytes: stable across an identical remount, moved on a different one\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: poll() reflects the served bundle, firing once when a remount changes the bytes.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_livereload_reset();
 
@@ -330,9 +322,7 @@ s32 main(void) {
         printf("  poll() read the served bundle and fired once, on the remount that changed the bytes\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the client snippet is the shape a page depends on.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString js = nya_http_livereload_client_js();
         nya_assert(js != nullptr && js[0] != '\0', "the client snippet is served, so it exists");
@@ -361,9 +351,7 @@ s32 main(void) {
         printf("  the client snippet opens the socket, reloads on the message, backs off, and parses\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the router serves that snippet at /livereload.js as JavaScript.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRouter* router = nya_http_livereload_router();
         nya_assert(router != nullptr && router->route_count == 1, "the router serves one file");
@@ -373,9 +361,7 @@ s32 main(void) {
         printf("  the router mounts one GET at %s\n", NYA_HTTP_LIVERELOAD_SCRIPT_PATH);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a signalled change pushes "reload" to a page on /livereload, and an unchanged one does not.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // The route cannot be mounted before there is a server, like every websocket route.
         nya_assert(!nya_http_livereload_route_add().ok, "a stream needs a server");

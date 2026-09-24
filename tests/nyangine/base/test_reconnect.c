@@ -14,9 +14,7 @@
 #include "nyangine/nyangine.c"
 
 int main(void) {
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a zeroed policy is off, and an off reconnect never schedules anything.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect off;
         nya_reconnect_init(&off, (NYA_ReconnectPolicy){ 0 });
@@ -27,9 +25,7 @@ int main(void) {
         nya_assert(!nya_reconnect_waiting(&off), "nothing was scheduled");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the window doubles from base_ms and stops at cap_ms.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect reconnect;
         nya_reconnect_init(&reconnect, (NYA_ReconnectPolicy){ .enabled = true, .base_ms = 100, .cap_ms = 1000 });
@@ -45,9 +41,7 @@ int main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the defaults fill in when a bound is left at zero.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect reconnect;
         nya_reconnect_init(&reconnect, (NYA_ReconnectPolicy){ .enabled = true });
@@ -59,9 +53,7 @@ int main(void) {
         nya_assert(nya_reconnect_window_ms(&reconnect) == (u64)NYA_RECONNECT_CAP_MS, "a huge attempt is the cap, not undefined");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a scheduled retry is due only once now_ms reaches it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect reconnect;
         nya_reconnect_init(&reconnect, (NYA_ReconnectPolicy){ .enabled = true, .base_ms = 500, .cap_ms = 30000 });
@@ -76,9 +68,7 @@ int main(void) {
         nya_assert(nya_reconnect_remaining_ms(&reconnect, 1500) == 0, "nothing left once due");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a good connect resets the backoff to base_ms.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect reconnect;
         nya_reconnect_init(&reconnect, (NYA_ReconnectPolicy){ .enabled = true, .base_ms = 100, .cap_ms = 1000 });
@@ -93,9 +83,7 @@ int main(void) {
         nya_assert(nya_reconnect_window_ms(&reconnect) == 100, "and the next drop starts over at base_ms");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: max_attempts gives up after exactly that many retries.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect reconnect;
         nya_reconnect_init(&reconnect, (NYA_ReconnectPolicy){ .enabled = true, .base_ms = 10, .cap_ms = 100, .max_attempts = 3 });
@@ -110,9 +98,7 @@ int main(void) {
         nya_assert(nya_reconnect_dropped_after(&reconnect, 0, 10), "the attempt budget is spent per run of failures, not for the socket's life");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the jittered delay stays inside the window, whatever it draws.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Reconnect reconnect;
         nya_reconnect_init(&reconnect, (NYA_ReconnectPolicy){ .enabled = true, .base_ms = 200, .cap_ms = 4000 });

@@ -286,9 +286,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_tls");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what this build says about itself before anything is opened.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_check(nya_tls_version()[0] != '\0', "there is always a version string, even with no library");
 
@@ -316,9 +314,7 @@ s32 main(void) {
 
   defer (void)nya_filesystem_delete_recursive(pair.directory);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a context refuses, which is everything it cannot serve with.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_TlsContext* context = nullptr;
 
@@ -347,9 +343,7 @@ s32 main(void) {
     nya_tls_context_destroy(context);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an HTTPS request, which is the only thing that proves any of this works.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u16 port = 0;
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
@@ -404,10 +398,8 @@ s32 main(void) {
     nya_check(!refused.ok || ignored.status == 0, "plaintext to an https port gets nothing back");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the round trip with this program's own TLS client, verifying the certificate rather than
   // skipping it — the two halves of this module against each other, which curl cannot prove.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u16 port = 0;
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
@@ -462,10 +454,8 @@ s32 main(void) {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: no certificate is plaintext, not a refusal — the loopback development server, which speaks
   // HTTP over a bare socket and sends no HSTS because there is no TLS for a browser to pin to.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u16 port = 0;
     NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");

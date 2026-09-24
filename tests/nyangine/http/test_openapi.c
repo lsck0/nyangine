@@ -57,9 +57,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_openapi");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a DTO's schema describes what the serializer writes, not the C layout.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Object* schema = nya_http_openapi_schema(arena, nya_reflect_of(NYA_HttpCeilingDto));
         nya_assert(schema != nullptr);
@@ -89,9 +87,7 @@ s32 main(void) {
         nya_assert(array_contains(schema, "required", "fullness"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a fixed array of structs, and a boolean.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Object* schema = nya_http_openapi_schema(arena, nya_reflect_of(NYA_HttpCeilingsDto));
         nya_assert(schema != nullptr);
@@ -116,9 +112,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(string_at(boolean, "type"), "boolean"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an integer of flags is a list of names, because that is what is written.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Object* schema = nya_http_openapi_schema(arena, nya_reflect_of(NYA_HttpIdentity));
         nya_assert(schema != nullptr);
@@ -136,9 +130,7 @@ s32 main(void) {
         nya_assert(!array_contains(items, "enum", "NYA_HTTP_SCOPE_NONE"), "a zero flag never appears in a list of set flags");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the document describes what is mounted, and nothing else.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // nothing mounted, nothing to describe.
         NYA_String* early = nullptr;
@@ -228,9 +220,7 @@ s32 main(void) {
         nya_assert(!nya_string_contains(smaller, NYA_HTTP_METRICS_PATH), "the document describes what is mounted now, not what once was");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the page is generated from the same walk and escapes what it prints.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server();
         defer nya_system_http_deinit();

@@ -46,9 +46,7 @@ s32 main(void) {
   g_now_ns = 1700000000LL * NYA_NS_PER_SECOND;
   nya_instant_source_set((NYA_InstantSource){ .now = test_clock });
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: enqueue -> claim -> complete round-trip
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -96,9 +94,7 @@ s32 main(void) {
     nya_assert(again.kind == NYA_ERROR_NOT_FOUND, "a second completion finds no claimed job");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failed job retries with exponential backoff, then dead-letters at max_attempts
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -162,9 +158,7 @@ s32 main(void) {
     nya_assert(!revived_flag, "a dead-lettered job is not claimable");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a non-retryable failure dead-letters immediately, whatever the attempt count
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -190,9 +184,7 @@ s32 main(void) {
     nya_assert(dead == 1, "an unrecoverable failure dead-letters at once");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a unique_key enqueued twice yields one job; the key frees when the job ends
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -232,9 +224,7 @@ s32 main(void) {
     nya_assert(fresh != job.id && fresh > 0, "a finished key can be enqueued again");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: replace overwrites a still-pending unique job instead of a no-op
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -258,9 +248,7 @@ s32 main(void) {
     nya_assert(claimed && job.payload_size == 3 && memcmp(job.payload, "new", 3) == 0, "replace swapped in the new payload");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a scheduled (future run_at) job is not claimed early
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -284,9 +272,7 @@ s32 main(void) {
     nya_assert(claimed && job.id == id, "once its time comes it is claimable");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a claimed job is not double-claimed, across two workers on two connections
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_jobs_race.db";
     remove_database(path);
@@ -340,9 +326,7 @@ s32 main(void) {
     nya_assert(!more, "with both jobs claimed the next claim finds nothing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a lease-expired claim is reclaimable (a crashed worker's job comes back)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -374,9 +358,7 @@ s32 main(void) {
     nya_assert(steal.attempts == 2, "the reclaim counts as another attempt");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a job past its deadline is expired, not run
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -413,9 +395,7 @@ s32 main(void) {
     nya_assert(expired == 2, "both perishable jobs are expired now");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: jobs survive close + reopen (the whole point of a persistent queue)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_jobs_persist.db";
     remove_database(path);

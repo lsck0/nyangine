@@ -10,9 +10,7 @@
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty backtrace into every capacity from 1 upward
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: empty backtrace into a short buffer\n");
   {
     NYA_Backtrace empty = { .count = 0 };
@@ -39,9 +37,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a real captured backtrace into every capacity
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a captured backtrace into a short buffer\n");
   {
     NYA_Backtrace trace = { 0 };
@@ -65,9 +61,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a capacity of zero writes nothing at all
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: zero capacity\n");
   {
     NYA_Backtrace empty = { .count = 0 };

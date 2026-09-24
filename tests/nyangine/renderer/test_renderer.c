@@ -13,9 +13,7 @@ static b8 color_equals(NYA_Color a, NYA_Color b) {
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a window clears to opaque black, not to the zeroed struct's transparent
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_system_renderer_for_window_init(&window);
 
@@ -25,9 +23,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the colour reads back as set, and setting it touches nothing else
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Color clear = { 0.0F, 0.0F, 0.0F, 0.0F };
 
@@ -48,9 +44,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: tearing the window's render state down puts the default back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_system_renderer_for_window_deinit(&window);
 

@@ -233,9 +233,7 @@ s32 main(void) {
 
     char answer[NYA_HTTP_MAX_RESPONSE_BYTES] = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: six peers at once, all answered, without anybody driving the drain.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16 port = start_server((NYA_HttpConfig){ .workers = 4, .max_connections = 8, .max_connections_per_address = 8 });
         defer nya_system_http_deinit();
@@ -260,9 +258,7 @@ s32 main(void) {
         nya_assert(nya_http_server_request_count() == nya_carray_length(clients));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a handler that takes its time holds up its own connection and nothing else.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16 port = start_server((NYA_HttpConfig){ .workers = 2, .max_connections = 4, .max_connections_per_address = 4 });
         defer nya_system_http_deinit();
@@ -296,9 +292,7 @@ s32 main(void) {
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a worker route runs on a worker and is held to what that means; a main route gets the tick.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16 port = start_server((NYA_HttpConfig){ .workers = 2 });
         defer nya_system_http_deinit();
@@ -327,9 +321,7 @@ s32 main(void) {
         nya_assert(!nya_system_accounting_is_enabled(), "the main route left the registry as it found it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the connection bounds are the same bounds, with threads behind them.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16 port = start_server((NYA_HttpConfig){ .workers = 4, .max_connections = 8, .max_connections_per_address = 2 });
         defer nya_system_http_deinit();
@@ -347,9 +339,7 @@ s32 main(void) {
         nya_assert(nya_http_server_connection_count() == 2, "a thread does not get to hold more connections than a frame could");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: and so is the address's budget, spent from several connections at once.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16 port = start_server((NYA_HttpConfig){
             .workers                     = 4,
@@ -386,9 +376,7 @@ s32 main(void) {
         nya_assert(refused == 2, "and everything past it is refused, got %u", refused);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: shutdown with a handler still inside. It waits for it, and it comes back.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16 port = start_server((NYA_HttpConfig){ .workers = 2 });
 

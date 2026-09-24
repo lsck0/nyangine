@@ -61,9 +61,7 @@ s32 main(void) {
 
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a fresh system is empty, and nothing invalid resolves
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_entity_count() == 0, "nothing spawned yet");
 
@@ -77,9 +75,7 @@ s32 main(void) {
     nya_assert(nya_entity_count() == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a spawned entity is valid, counted, and carries what it was given
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle handle = nya_entity_spawn(
       .name     = "player",
@@ -103,9 +99,7 @@ s32 main(void) {
     nya_assert(!nya_entity_is_valid(handle), "and the handle stops resolving");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a stale handle does not address whoever took the slot
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The reason handles carry a generation at all. Spawn, despawn, spawn again: the second entity
     // almost certainly lands in the freed slot, and the first handle must not reach it.
@@ -127,9 +121,7 @@ s32 main(void) {
     nya_entity_despawn(second);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: many entities, each independently addressable
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     enum { COUNT = 256 };
     NYA_EntityHandle handles[COUNT];
@@ -159,9 +151,7 @@ s32 main(void) {
     nya_assert(nya_entity_count() == 0, "clear removes everything");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the table commits as it fills, keeps pointers, and refuses past its capacity
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntitySystem* system = &nya_world()->entity_system;
     u32 committed_before     = system->committed_slots;
@@ -193,9 +183,7 @@ s32 main(void) {
     nya_assert(nya_entity_count() == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: deferred despawn waits, immediate despawn does not
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle handle = nya_entity_spawn(.name = "deferred", .state = NYA_ENTITY_STATE_ACTIVE);
 
@@ -214,9 +202,7 @@ s32 main(void) {
     nya_assert(nya_entity_count() == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: lifecycle callbacks fire, and only for active entities
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     spawn_calls = despawn_calls = update_calls = 0;
 
@@ -249,9 +235,7 @@ s32 main(void) {
     nya_assert(despawn_calls == 1, "the entity with no on_despawn did not invent one");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: integration moves an entity by its velocity
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle handle = nya_entity_spawn(
       .name     = "moving",
@@ -273,9 +257,7 @@ s32 main(void) {
     nya_entity_despawn(handle);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a static entity does not integrate
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle handle = nya_entity_spawn(
       .name     = "static",
@@ -289,9 +271,7 @@ s32 main(void) {
     nya_entity_despawn(handle);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: slot iteration sees exactly the live entities
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_entity_clear();
 
@@ -316,9 +296,7 @@ s32 main(void) {
     nya_entity_despawn(c);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the spatial grid answers rectangle, radius and kind queries
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_entity_clear();
 
@@ -377,9 +355,7 @@ s32 main(void) {
     nya_entity_clear();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the kind and flag index is correct the moment it is changed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_entity_clear();
 
@@ -466,9 +442,7 @@ s32 main(void) {
     nya_entity_clear();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: interpolated motion
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle handle = nya_entity_spawn(.name = "mover", .position = { 0.0F, 0.0F, 0.0F });
     NYA_Entity*      entity = nya_entity_get(handle);
@@ -513,9 +487,7 @@ s32 main(void) {
     nya_entity_clear();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the draw-order key, and y-sorting deriving it from where the feet are
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle handle = nya_entity_spawn(.name = "sorted", .position = { 0.0F, 40.0F, 0.0F });
     NYA_Entity*      entity = nya_entity_get(handle);

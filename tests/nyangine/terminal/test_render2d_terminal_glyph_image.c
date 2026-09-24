@@ -36,10 +36,8 @@ s32 main(void) {
 
   const u32 paper = nya_terminal_ink(0.0F, 0.0F, 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a glyph is one cell, with its colour and its attributes, on the paper
   //       that was already there
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -61,9 +59,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every length of UTF-8 comes back as the one code point it encodes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // two, three and four bytes: an accented letter, a block element, and one past the basic plane.
     const u32 codepoints[] = { 0x00E9U, 0x2588U, 0x1F525U };
@@ -80,9 +76,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a terminal without the kitty protocol says so and draws nothing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     static u8 rgba[PICTURE_SIDE * PICTURE_SIDE * 4];
     for (u32 i = 0; i < sizeof(rgba); i++) rgba[i] = 0xFF;

@@ -77,14 +77,10 @@ int main(void) {
     nya_http_response_create(&response, body, sizeof(body));
     defer nya_http_response_destroy(&response);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the table is one the server will serve.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_assert(nya_http_router_check(nya_http_health_router()).ok, "the health routes are well formed");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: liveness is 200 and depends on nothing, even with a failing readiness check registered.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_health_checks_clear();
         CHECK_OK = false;
@@ -96,9 +92,7 @@ int main(void) {
         nya_http_health_checks_clear();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: readiness with no checks is ready.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_health_checks_clear();
         nya_assert(nya_http_health_check_count() == 0);
@@ -108,9 +102,7 @@ int main(void) {
         assert_body_ready(arena, &response, true);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: readiness flips 200 ↔ 503 as a check passes and fails.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_health_checks_clear();
         nya_assert(nya_http_health_check_register("db", controllable_ready, nullptr).ok);
@@ -131,9 +123,7 @@ int main(void) {
         assert_body_ready(arena, &response, true);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one failing check among several passing ones is enough for a 503.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_health_checks_clear();
         nya_assert(nya_http_health_check_register("keyring", always_ready, nullptr).ok);
@@ -146,9 +136,7 @@ int main(void) {
         assert_body_ready(arena, &response, false);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a base_circuit breaker composes in — OPEN reads as not-ready.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_CircuitBreaker* breaker = nullptr;
         nya_assert(nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 2, .open_ms = 60000).ok);
@@ -177,9 +165,7 @@ int main(void) {
         assert_body_ready(arena, &response, false);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the registry refuses what it cannot hold.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_health_checks_clear();
 

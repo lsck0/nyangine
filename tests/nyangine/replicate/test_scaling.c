@@ -130,9 +130,7 @@ s32 main(void) {
   arena_for_events = nya_arena_create(.name = "test_scaling_events");
   defer nya_arena_destroy(arena_for_events);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: interest management shrinks what a peer is sent
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a relevance radius filters what a peer is sent\n");
   {
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ 0 }, &tick);
@@ -199,9 +197,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hysteresis stops an entity on the boundary flickering
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an entity on the relevance boundary does not flicker\n");
   {
     /*
@@ -308,9 +304,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the baseline is the filtered snapshot, not the whole world
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the baseline records what was actually sent\n");
   {
     /*
@@ -340,9 +334,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a bandwidth cap skips snapshots and does not advance the baseline
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a bandwidth cap skips rather than queues\n");
   {
     /*
@@ -390,9 +382,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an unlimited server sends every tick
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: no cap means no skipping\n");
   {
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ 0 }, &tick);
@@ -414,9 +404,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: lag compensation rewinds and restores
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: lag compensation moves the world to what a client saw\n");
   {
     NYA_NetPeerId shooter = start_listen_server((NYA_NetServerConfig){ .lag_history_ticks = 32 }, &tick);
@@ -483,9 +471,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: compensation is off by default
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rewinding is refused when no history is kept\n");
   {
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ 0 }, &tick);
@@ -504,9 +490,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a custom relevance rule, and the hysteresis it has to implement itself
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a game's own relevance rule\n");
   {
     /*
@@ -555,9 +539,7 @@ s32 main(void) {
     stop_everything();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: kicking, and events to one peer or to everyone
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: kick and send_event\n");
   {
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ 0 }, &tick);

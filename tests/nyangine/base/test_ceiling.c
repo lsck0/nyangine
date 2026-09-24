@@ -17,9 +17,7 @@ static void count_warnings(NYA_LogLevel level, NYA_ConstCString message, u32 len
 }
 
 s32 main(void) {
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: registering a few ceilings and reading them back.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_ceiling_registry_reset_for_test();
 
@@ -47,9 +45,7 @@ s32 main(void) {
         nya_assert(nya_ceiling_live_at(0) == 500);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: fullness ordering holds regardless of registration order.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_ceiling_registry_reset_for_test();
 
@@ -71,9 +67,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(nya_ceiling_name_at(1), "mostly_full"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: unregistering removes a ceiling so a freed counter is never read back.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_ceiling_registry_reset_for_test();
 
@@ -108,9 +102,7 @@ s32 main(void) {
         nya_assert(nya_ceiling_count() == 3, "a name can be registered again after it was removed");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the registry's own ceiling warns and refuses rather than growing.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_ceiling_registry_reset_for_test();
 
@@ -151,9 +143,7 @@ s32 main(void) {
         nya_log_sink_clear();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: gauges read their byte count live, keep registration order, and refuse past their own ceiling.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_ceiling_registry_reset_for_test();
 

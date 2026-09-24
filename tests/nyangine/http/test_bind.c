@@ -15,9 +15,7 @@
 #include "nyangine/nyangine.c"
 
 s32 main(void) {
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an unset address defaults to loopback, never to every interface
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString bound = _nya_http_bind_address(&(NYA_HttpConfig){ 0 });
 
@@ -26,10 +24,8 @@ s32 main(void) {
         nya_check(strcmp(bound, "0.0.0.0") != 0, "the default must never be the every-interface address");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a named address is bound verbatim, so opting off loopback stays a choice
     //       the caller makes on purpose
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpConfig config = { 0 };
         (void)snprintf(config.address, sizeof(config.address), "0.0.0.0");

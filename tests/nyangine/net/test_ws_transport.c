@@ -364,9 +364,7 @@ s32 main(void) {
     u8 zero[NYA_NET_KEY_SIZE] = { 0 };
     nya_assert(nya_net_transport_ws_allow(TRANSPORT, zero).kind == NYA_ERROR_INVALID_ARGUMENT, "an all-zero key is not a key");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an allowlisted key and the matching version connects and round-trips a message.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CONNECTS = MESSAGES = DISCONNECTS = 0;
 
@@ -412,9 +410,7 @@ s32 main(void) {
         printf("  an allowlisted key and the matching version connected, round-tripped, and disconnected\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a key that is not on the allowlist is refused at the join, with a reason.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CONNECTS = MESSAGES = DISCONNECTS = 0;
 
@@ -436,9 +432,7 @@ s32 main(void) {
         printf("  a key off the allowlist was refused with 1008 and the reason, and never connected\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a version that does not match disconnects at once, with the reason.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CONNECTS = MESSAGES = DISCONNECTS = 0;
 
@@ -459,9 +453,7 @@ s32 main(void) {
         printf("  a version mismatch closed with 1008 and the reason, before any state was exchanged\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a first frame that is not a well-formed join is refused as a protocol error.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CONNECTS = MESSAGES = DISCONNECTS = 0;
 

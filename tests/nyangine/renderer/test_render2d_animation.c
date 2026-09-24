@@ -64,9 +64,7 @@ s32 main(void) {
 
   NYA_SpriteAnimationSignal signals[NYA_SPRITE_ANIMATION_MAX_SIGNALS];
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: play emits STARTED once, before anything else
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &attack);
@@ -91,9 +89,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a long tick still visits every frame, so no marker is skipped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &attack);
@@ -112,9 +108,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a non-looping animation finishes exactly once and stops
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &attack);
@@ -139,9 +133,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a looping animation wraps and counts its loops
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &walk);
@@ -159,9 +151,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: ping-pong turns around instead of snapping back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &flicker);
@@ -183,9 +173,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pause, resume and speed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &walk);

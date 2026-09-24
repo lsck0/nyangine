@@ -136,10 +136,8 @@ static void plugins_write_all(void) {
 s32 main(void) {
     plugins_write_all();
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the compile time grant is what the build says and nothing reads it from
     // anywhere else.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_PluginPermission granted = nya_plugin_permissions_granted();
 
@@ -150,9 +148,7 @@ s32 main(void) {
                    "a permission is named the way a manifest spells it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a manifest is read through the reflection tables, every field of it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_PluginManifest manifest = { 0 };
         NYA_Error          read     = nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/good", &manifest);
@@ -165,11 +161,9 @@ s32 main(void) {
         nya_assert(manifest.permissions == NYA_PLUGIN_PERMISSION_NONE, "a manifest that asks for nothing gets nothing");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a misspelled permission refuses the manifest. Skipping it in silence
     // would read as a permission the plugin never asked for, which is the one
     // mistake this boundary exists to catch.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_PluginManifest manifest = { 0 };
         NYA_Error          read     = nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/typo", &manifest);
@@ -178,10 +172,8 @@ s32 main(void) {
         nya_assert(read.kind == NYA_ERROR_PARSE);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a plugin loads, runs its src/ before its main.lua, and becomes one entry
     // in the system registry owned by its own name.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_plugin_reset_for_test();
 
@@ -215,9 +207,7 @@ s32 main(void) {
         nya_assert(stats.memory_bytes > 0, "a live LuaJIT state is holding something");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: calling into a plugin, and what the host knows while it is running.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_plugin_call");
         defer      nya_arena_destroy(arena);
@@ -238,10 +228,8 @@ s32 main(void) {
         nya_assert(nya_plugin_find("good")->error_count == 0, "and is not held against the plugin");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a plugin that wants more than the build grants is refused, and nothing
     // of it is left behind.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Error refused = nya_plugin_load(TEST_PLUGIN_ROOT "/greedy");
 
@@ -251,10 +239,8 @@ s32 main(void) {
         nya_assert(nya_plugin_count() == 1, "and takes no slot");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a binding a plugin was not granted is not a refusal, it is a name that
     // is not there. `nosy` reaches for nya.entity and its chunk dies.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Error refused = nya_plugin_load(TEST_PLUGIN_ROOT "/nosy");
 
@@ -262,9 +248,7 @@ s32 main(void) {
         nya_assert(nya_plugin_find("nosy") == nullptr);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the directory is the identity, and a name is claimed once.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Error mismatched = nya_plugin_load(TEST_PLUGIN_ROOT "/mismatch");
         nya_assert(!mismatched.ok, "a manifest may not name itself something other than its own folder");
@@ -273,9 +257,7 @@ s32 main(void) {
         nya_assert(!twice.ok && twice.kind == NYA_ERROR_ALREADY_EXISTS, "a name is answered by one plugin");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: dependencies, conflicts and the engine version, each refused by name.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Error needy = nya_plugin_load(TEST_PLUGIN_ROOT "/needy");
         nya_assert(!needy.ok && needy.kind == NYA_ERROR_NOT_FOUND, "a dependency that is not installed refuses the load");
@@ -287,9 +269,7 @@ s32 main(void) {
         nya_assert(!futuristic.ok, "an engine version nobody has refuses the load");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: two plugins may both define `spawn`, because neither can see the other.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_plugin_twins");
         defer      nya_arena_destroy(arena);
@@ -312,10 +292,8 @@ s32 main(void) {
                    "the engine's own registrations are in nobody's namespace");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a plugin that keeps throwing is switched off rather than left to fill
     // the log, and the error is the plugin's, never the engine's.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_plugin_load(TEST_PLUGIN_ROOT "/thrower").ok);
         nya_assert(nya_plugin_is_enabled("thrower"));
@@ -336,9 +314,7 @@ s32 main(void) {
         nya_assert(nya_plugin_is_enabled("thrower") && nya_plugin_find("thrower")->error_count == 0);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: unloading takes the plugin's systems with it, and is idempotent.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u32 before = nya_system_registry_count();
 
@@ -351,10 +327,8 @@ s32 main(void) {
         nya_plugin_unload("never_existed");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: discovery. Every directory with a manifest is tried, the ones that are
     // refused are reported and stepped over, and the rest still load.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_plugin_reset_for_test();
 
@@ -371,9 +345,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a missing plugins directory is not a failure, it is the normal case.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_plugin_reset_for_test();
 

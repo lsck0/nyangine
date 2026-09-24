@@ -39,9 +39,7 @@ s32 main(void) {
     (void)nya_filesystem_delete_recursive(FIXTURE_DIRECTORY);
     NYA_EXPECT(nya_filesystem_create_directory(FIXTURE_DIRECTORY));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a described struct through a file and back is the same struct
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_save_file and nya_reflect_load_file\n");
     {
         NYA_SettingsGraphics written = {
@@ -71,9 +69,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the low-level pair underneath it says the same thing
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_to_object and nya_reflect_from_object\n");
     {
         NYA_SettingsGraphics written = NYA_SETTINGS_GRAPHICS_DEFAULT;
@@ -96,9 +92,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a good document has nothing to report
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_check on a good document\n");
     {
         NYA_SettingsGraphics graphics = NYA_SETTINGS_GRAPHICS_DEFAULT;
@@ -113,9 +107,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a key that names no field is named and does not stop the rest
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_check on an unknown key\n");
     {
         NYA_Object* document = nya_object_create(arena);
@@ -141,9 +133,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a value of the wrong kind says what was found and what was wanted
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_check on a wrong value\n");
     {
         NYA_Object* document = nya_object_create(arena);
@@ -160,9 +150,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an enum name nothing in this build has
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_check on an unknown enum variant\n");
     {
         NYA_Object* document = nya_object_create(arena);
@@ -185,9 +173,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: text longer than the array that holds it
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: over-long text into a char array\n");
     {
         static char long_name[NYA_SCENE_NAME_MAX * 2];
@@ -213,9 +199,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a set of flags travels as names, not as a number
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: bitflags round trip\n");
     {
         NYA_SceneEntity written = { .state = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_STATIC };
@@ -233,9 +217,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a file that is not there, and one that is not the format
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_reflect_load_file on bad input\n");
     {
         NYA_SettingsGraphics graphics = NYA_SETTINGS_GRAPHICS_DEFAULT;

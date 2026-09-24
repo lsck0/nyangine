@@ -37,9 +37,7 @@ s32 main(void) {
 
   nya_log_info("SQLite %s", nya_sql_version());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a hot backup of a live, open, still-writable database is a consistent snapshot
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString source_path = "./_test_backup_src.db";
     NYA_ConstCString dest_path   = "./_test_backup_dst.db";
@@ -85,9 +83,7 @@ s32 main(void) {
     nya_assert(result.rows->length == 1 && nya_object_get(result.rows->items[0], "score")->as_s64 == 420, "a copied row holds its value");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a smaller page step still copies the whole database
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString source_path = "./_test_backup_step_src.db";
     NYA_ConstCString dest_path   = "./_test_backup_step_dst.db";
@@ -114,9 +110,7 @@ s32 main(void) {
     nya_assert(count_rows(arena, dest_path, "t") == 200, "one page per step copies every row all the same");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a backup refuses an existing destination and an empty path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString source_path = "./_test_backup_refuse_src.db";
     NYA_ConstCString dest_path   = "./_test_backup_refuse_dst.db";
@@ -140,9 +134,7 @@ s32 main(void) {
     nya_assert(clobber.kind == NYA_ERROR_INVALID_ARGUMENT, "a backup refuses to overwrite an existing file");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a WAL-mode database backs up its committed frames, and the checkpoint runs
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString source_path = "./_test_backup_wal_src.db";
     NYA_ConstCString dest_path   = "./_test_backup_wal_dst.db";
@@ -183,9 +175,7 @@ s32 main(void) {
     nya_assert(bogus.kind == NYA_ERROR_INVALID_ARGUMENT, "an unknown checkpoint mode is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: VACUUM INTO copies a live database as the single-statement alternative
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString source_path = "./_test_backup_vacuum_src.db";
     NYA_ConstCString dest_path   = "./_test_backup_vacuum_dst.db";
@@ -211,9 +201,7 @@ s32 main(void) {
     nya_assert(clobber.kind == NYA_ERROR_INVALID_ARGUMENT, "VACUUM INTO refuses an existing file too");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the encrypted-source path is handled, not silently defeated
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // This build vendors plain SQLite, so nya_sql_encryption_available() is false and no source can
     // be opened under a key (nya_sql_open refuses it). The keyed backup round-trip is therefore not

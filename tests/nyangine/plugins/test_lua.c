@@ -302,10 +302,8 @@ s32 main(void) {
         nya_lua_destroy(doomed);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the script the game actually ships runs, and hands back what the game
     //       reads out of it
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         /*
          * Nothing tested this. Its only caller is gny_world_script_tick, which runs when a world

@@ -24,9 +24,7 @@ int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_force");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the defaults, and uniform is a constant push everywhere and always
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ForceField plain = nya_force_field((NYA_ForceOptions){ 0 });
         nya_check(plain.kind == NYA_FORCE_UNIFORM, "the default kind is uniform");
@@ -47,9 +45,7 @@ int main(void) {
         nya_check(same_vector(vortex.direction, (f32x3){ 0.0F, 1.0F, 0.0F }), "an unset vortex axis is +y");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a point force attracts toward its centre and repels away from it
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         f32x3 point = { 3.0F, 0.0F, 0.0F };
 
@@ -76,9 +72,7 @@ int main(void) {
         nya_check(further < near, "inverse-square keeps falling past the rim, %f < %f", (f64)further, (f64)near);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a vortex force is tangential — perpendicular to the axis and to the spoke
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ForceField vortex = nya_force_field((NYA_ForceOptions){ .kind = NYA_FORCE_VORTEX, .center = { 0, 0, 0 }, .direction = { 0, 1, 0 }, .strength = 2.0F, .radius = 10.0F, .falloff = NYA_FORCE_FALLOFF_NONE });
 
@@ -93,9 +87,7 @@ int main(void) {
         nya_check(swirl.z < 0.0F, "the swirl winds the right way about +y, got z=%f", (f64)swirl.z);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: drag opposes the sampled velocity, exactly -k * velocity
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ForceField drag = nya_force_field((NYA_ForceOptions){ .kind = NYA_FORCE_DRAG, .strength = 0.5F });
 
@@ -109,9 +101,7 @@ int main(void) {
         nya_check(same_vector(nya_force_at(&drag, (f32x3){ 5, 6, 7 }, f32x3_zero, 3.0F), f32x3_zero), "no velocity, no drag");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: turbulence is deterministic, a copy samples identically, bounded, and ~divergence-free
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ForceField turb = nya_force_field((NYA_ForceOptions){ .kind = NYA_FORCE_TURBULENCE, .strength = 1.0F, .scale = 0.3F, .seed = 7.0F });
 
@@ -156,9 +146,7 @@ int main(void) {
         nya_check(max_divergence < 0.05F, "the stir is ~divergence-free, got max |divergence| = %f", (f64)max_divergence);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a set sums its fields, and its clock feeds nya_forces_sample
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ForceField push = nya_force_field((NYA_ForceOptions){ .kind = NYA_FORCE_UNIFORM, .direction = { 0, 0, 1 }, .strength = 3.0F });
         NYA_ForceField well = nya_force_field((NYA_ForceOptions){ .kind = NYA_FORCE_POINT, .center = { 0, 0, 0 }, .strength = -1.0F, .radius = 100.0F, .falloff = NYA_FORCE_FALLOFF_NONE });
@@ -181,9 +169,7 @@ int main(void) {
         nya_check(same_vector(nya_forces_at(&empty, p, v, 0.0F), f32x3_zero), "an empty set is zero force");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the self-advanced clocks accumulate and are read by _sample
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ForceField turb = nya_force_field((NYA_ForceOptions){ .kind = NYA_FORCE_TURBULENCE, .strength = 1.0F, .seed = 2.0F });
         nya_check(turb.time == 0.0F, "a fresh field starts at time zero");
@@ -203,9 +189,7 @@ int main(void) {
         nya_check(same_vector(nya_forces_sample(&set, p, f32x3_zero), nya_forces_at(&set, p, f32x3_zero, 0.75F)), "the set sample reads the set clock");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a particle system under a point attractor is pulled inward over a few steps
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ParticleSystem* system = nya_particles_create(arena, 16);
 
@@ -235,9 +219,7 @@ int main(void) {
         nya_check(system->particles[0].velocity.x < 0.0F, "and it is moving inward, got vx=%f", (f64)system->particles[0].velocity.x);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a fluid volume under a vortex gains the expected swirl
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Fluid* fluid = nya_fluid_create(arena, (NYA_FluidOptions){
                                                        .space     = NYA_FLUID_SPACE_3D,

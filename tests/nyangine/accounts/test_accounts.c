@@ -39,9 +39,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_accounts");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a name is folded to, which is what uniqueness is decided on
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char folded[NYA_ACCOUNTS_MAX_USERNAME] = { 0 };
 
@@ -57,9 +55,7 @@ s32 main(void) {
     nya_check(!nya_account_username_normalize(too_long, folded, sizeof(folded)), "a name past the bound is refused rather than cut short");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: creating an account, and every reason one is refused
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -94,9 +90,7 @@ s32 main(void) {
     nya_check(nya_account_count(&after).ok && after == 1, "and only the one account exists, got %llu", (unsigned long long)after);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a login, and the one answer every failure has
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -124,9 +118,7 @@ s32 main(void) {
     nya_check(nya_account_find(arena, "nobody", &looked_up).kind == NYA_ERROR_NOT_FOUND, "a lookup says plainly that there is no such account");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: disabling an account refuses it in the same words and ends its sessions
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -159,9 +151,7 @@ s32 main(void) {
     nya_check(!nya_account_session_validate(arena, session.token, &live).ok, "while the session that was ended stays ended");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a session's token, and what a row keeps of it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -205,9 +195,7 @@ s32 main(void) {
     nya_check(nya_account_session_validate(arena, second.token, &validated).ok, "while the other one still is");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: changing a password ends every session there is
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -235,9 +223,7 @@ s32 main(void) {
     nya_check(!nya_account_session_validate(arena, session.token, &still).ok, "every session is over, which is the whole reason to change one");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the cost a hash was made with, and when one is worth replacing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -266,9 +252,7 @@ s32 main(void) {
     nya_check(nya_account_password_needs_rehash(&empty), "and an empty one");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a user holds only so many sessions, and the oldest goes first
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -294,9 +278,7 @@ s32 main(void) {
     nya_check(nya_account_session_validate(arena, over_the_limit.token, &alive).ok, "which is still valid");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: revoking everything, and clearing out what nobody will look at again
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -330,9 +312,7 @@ s32 main(void) {
     nya_check(nya_account_session_list(arena, ada.id, &listed, &count).ok && count == 0, "leaving nothing behind, got %u", count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: deleting an account, which is the thing disabling one is not
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -370,9 +350,7 @@ s32 main(void) {
     nya_check(nya_account_session_list(arena, again.id, &listed, &count).ok && count == 0, "holding no sessions, got %u", count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: guessing is slowed, and a right password clears what the wrong ones cost
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -439,9 +417,7 @@ s32 main(void) {
     nya_check(nya_account_throttle_count() == 0, "and forgets all of it when asked");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: roles are a field here and a question `permission` answers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -457,9 +433,7 @@ s32 main(void) {
     nya_check(reloaded.roles == 0b1010, "as what was written, got %llu", (unsigned long long)reloaded.roles);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the same person arriving through Steam, and then through Discord
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -544,9 +518,7 @@ s32 main(void) {
     nya_check(nya_account_find_by_identity(arena, "steam", "76561198000000001", &found).kind == NYA_ERROR_NOT_FOUND, "and its Steam login with it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: recovery codes get somebody back in, once each, and the throttle covers them
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -615,9 +587,7 @@ s32 main(void) {
     nya_check(!nya_account_recovery_consume(arena, "ada", again[2], ADDRESS, &back).ok, "and its codes are gone with it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: registration policy — open, invite-only, and closed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -679,9 +649,7 @@ s32 main(void) {
     nya_check(nya_account_invite_prune(arena, 0, &removed).ok && removed >= 1, "a prune clears the spent invite, got %u", removed);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a person can take everything about their account with them
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -725,9 +693,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the sweep ends abandoned sessions and bounds the dead ones kept
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -767,9 +733,7 @@ s32 main(void) {
     nya_check(count <= NYA_ACCOUNTS_SESSION_KEEP_REVOKED + 1, "the list is bounded now, got %u", count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the audit records what was done, append-only, and survives the account
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -813,9 +777,7 @@ s32 main(void) {
     nya_check(nya_account_audit_prune(arena, 0, &removed).ok && removed > 0, "a prune clears the old entries, got %u", removed);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: refresh rotation, and a stolen token takes the session down
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_accounts(arena);
     defer nya_accounts_close();
@@ -861,9 +823,7 @@ s32 main(void) {
     nya_check(nya_account_session_validate(arena, bob.token, &check).ok, "and an unrelated session is untouched");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_check(!nya_accounts_is_open(), "the tables are closed between tests");
 

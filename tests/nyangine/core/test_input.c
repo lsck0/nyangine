@@ -16,27 +16,21 @@ s32 main(void) {
   NYA_EXPECT(nya_system_events_init());
   nya_system_input_init();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Initial state - no keys pressed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(!nya_input_key_pressed(NYA_KEY_A), "No key should be pressed initially");
     nya_assert(!nya_input_key_just_pressed(NYA_KEY_A));
     nya_assert(!nya_input_key_just_released(NYA_KEY_A));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Initial state - no mouse buttons pressed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(!nya_input_mouse_button_pressed(1));
     nya_assert(!nya_input_mouse_button_just_pressed(1));
     nya_assert(!nya_input_mouse_button_just_released(1));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Key down sets pressed and just_pressed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event event = {
       .type         = NYA_EVENT_KEY_DOWN,
@@ -49,9 +43,7 @@ s32 main(void) {
     nya_assert(!nya_input_key_just_released(NYA_KEY_A));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Key up clears pressed, sets just_released
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event event = {
       .type         = NYA_EVENT_KEY_UP,
@@ -63,9 +55,7 @@ s32 main(void) {
     nya_assert(nya_input_key_just_released(NYA_KEY_A), "Key A should be just released");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Update ended clears just_pressed and just_released
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event key_down = {
       .type         = NYA_EVENT_KEY_DOWN,
@@ -82,9 +72,7 @@ s32 main(void) {
     nya_assert(!nya_input_key_just_released(NYA_KEY_A), "just_released should be cleared");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Multiple keys tracked simultaneously
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -99,9 +87,7 @@ s32 main(void) {
     nya_assert(!nya_input_key_pressed(NYA_KEY_D), "D should not be pressed");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Holding a key doesn't re-trigger just_pressed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -117,9 +103,7 @@ s32 main(void) {
     nya_assert(!nya_input_key_just_pressed(NYA_KEY_W), "Repeat should not set just_pressed");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Mouse button down/up
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -144,9 +128,7 @@ s32 main(void) {
     nya_assert(nya_input_mouse_button_just_released(1));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Mouse movement updates position and delta
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -164,9 +146,7 @@ s32 main(void) {
     nya_assert(delta[0] == 10.0F && delta[1] == 20.0F, "Mouse delta should be updated");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Mouse delta accumulates within a frame
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -189,9 +169,7 @@ s32 main(void) {
     nya_assert(pos[0] == 105.0F && pos[1] == 103.0F, "Position should be the latest value");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Mouse wheel scroll
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -206,9 +184,7 @@ s32 main(void) {
     nya_assert(scroll[0] == 0.0F && scroll[1] == 3.0F, "Wheel delta should be set");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Mouse wheel accumulates within a frame
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event update_ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&update_ended);
@@ -228,9 +204,7 @@ s32 main(void) {
     nya_assert(scroll[0] == 4.0F && scroll[1] == 6.0F, "Wheel should accumulate: 1+3=4, 2+4=6");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Update ended resets mouse deltas
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event mouse_move = {
       .type                 = NYA_EVENT_MOUSE_MOVED,
@@ -248,9 +222,7 @@ s32 main(void) {
     nya_assert(scroll[0] == 0.0F && scroll[1] == 0.0F, "Wheel delta should reset after update");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Update ended resets mouse button just_pressed/just_released
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event mouse_down = {
       .type                  = NYA_EVENT_MOUSE_BUTTON_DOWN,

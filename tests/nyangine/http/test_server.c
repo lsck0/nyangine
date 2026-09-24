@@ -120,9 +120,7 @@ s32 main(void) {
 
     char answer[NYA_HTTP_MAX_RESPONSE_BYTES] = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: nothing exists until the server is started.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(!nya_http_server_is_running());
         nya_assert(nya_http_server_port() == 0);
@@ -143,9 +141,7 @@ s32 main(void) {
         nya_assert(!nya_system_http_init((NYA_HttpConfig){ .port = 8080, .secret = SECRET, .secret_size = 4 }).ok);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a QUERY, answered, which is what a read of this server looks like.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
         defer nya_system_http_deinit();
@@ -226,9 +222,7 @@ s32 main(void) {
         nya_assert(nya_string_ends_with(received, "\r\n\r\n"), "a HEAD answer stops at the blank line");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the authenticated route, from outside.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
         defer nya_system_http_deinit();
@@ -348,9 +342,7 @@ s32 main(void) {
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 415 "));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a request the parser refuses is answered and the connection closes.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -376,9 +368,7 @@ s32 main(void) {
         nya_assert(nya_http_server_connection_count() == 0);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a peer that connects and says nothing is dropped, not held.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .max_connections = 2 });
         defer nya_system_http_deinit();
@@ -417,9 +407,7 @@ s32 main(void) {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one more peer than there are slots is closed rather than queued.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .max_connections = 1 });
         defer nya_system_http_deinit();
@@ -443,9 +431,7 @@ s32 main(void) {
         nya_assert(nya_http_server_connection_count() == 1, "the table is the bound, and a peer past it is not queued against it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one address cannot take every slot, however many there are.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .max_connections = 8, .max_connections_per_address = 2 });
         defer nya_system_http_deinit();
@@ -464,9 +450,7 @@ s32 main(void) {
         nya_assert(nya_http_server_connection_count() == 2, "the third from the same address is closed while five slots are free");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an address past its budget is told 429 and when to come back.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // one a second is slow enough that nothing refills while the burst is spent.
         u16   port = start_server((NYA_HttpConfig){ .requests_per_second = 1, .request_burst = 3 });
@@ -498,9 +482,7 @@ s32 main(void) {
         nya_assert(strstr(answer, "X-Request-Id: ") != nullptr, "a refusal has an id too, so it can be reported");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every answer has its own id, and the request's log line carries it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
@@ -548,9 +530,7 @@ s32 main(void) {
         nya_assert(nya_log_tag_get()[0] == '\0', "the tag is gone once the request is");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the schema and the page, served by the program they describe.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -592,9 +572,7 @@ s32 main(void) {
         nya_assert(nya_string_count(page, "Content-Security-Policy") == 1, "and replaces the default instead of adding to it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a secret out of the environment, which is the only place one comes from.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8  buffer[NYA_HTTP_MAX_SECRET_BYTES] = { 0 };
         u64 size                              = 0;

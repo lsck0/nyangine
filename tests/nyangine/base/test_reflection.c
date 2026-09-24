@@ -243,9 +243,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_reflection");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: fields, paths and offsets
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: lookup\n");
   {
     const NYA_ReflectField* health = nya_reflect_field(&_NYA_REFLECT_TestEntity, "health");
@@ -280,9 +278,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: reading and writing primitives
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: primitives\n");
   {
     TestEntity entity = sample();
@@ -307,9 +303,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: enums by name
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: enums\n");
   {
     nya_assert(nya_string_equals(nya_reflect_variant_name(&_NYA_REFLECT_TestKind, 7), "TEST_KIND_BOX"));
@@ -328,9 +322,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: to_object walks all the way down
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: to_object\n");
   {
     TestEntity  entity = sample();
@@ -377,9 +369,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the round trip is lossless
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: round trip\n");
   {
     TestEntity  original = sample();
@@ -420,9 +410,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: loading is partial, deliberately
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: partial load\n");
   {
     // What an older save looks like against a newer struct: it mentions one field and knows nothing
@@ -443,9 +431,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a string longer than the array is truncated, not overrun
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: bounded char array\n");
   {
     NYA_Object* object = nya_object_create(arena);
@@ -462,9 +448,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: on_apply runs last
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: apply hook\n");
   {
     // A copy of the table with the hook set, so the other tests stay free of it.
@@ -485,9 +469,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: @redact
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: redaction\n");
   {
     TestAccount account = {

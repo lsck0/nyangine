@@ -81,9 +81,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_job_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a single job runs and reports done
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     atomic_store(&completed, 0);
 
@@ -100,9 +98,7 @@ s32 main(void) {
     nya_assert(nya_job_is_done(handle), "and the system agrees it is finished");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: input reaches the job and output comes back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     atomic_store(&completed, 0);
 
@@ -127,9 +123,7 @@ s32 main(void) {
     nya_assert(result == 42, "expected 21 doubled, got %d", result);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: many jobs all run, none dropped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     enum { COUNT = 64 };
 
@@ -149,9 +143,7 @@ s32 main(void) {
     for (u32 i = 0; i < COUNT; i++) nya_assert(nya_job_is_done(handles[i]), "job " FMTu32 " is not marked done", i);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every priority is accepted and runs
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     atomic_store(&completed, 0);
 
@@ -169,9 +161,7 @@ s32 main(void) {
     nya_assert(atomic_load(&completed) == 3, "all three priorities ran, got " FMTu32, atomic_load(&completed));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the concurrency limit is respected
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     atomic_store(&completed, 0);
     atomic_store(&running_now, 0);
@@ -200,9 +190,7 @@ s32 main(void) {
     nya_log_info("job concurrency: peak %u of a limit of %u across " FMTu32 " jobs", peak, limit, (u32)COUNT);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: waiting on something already finished returns immediately
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     atomic_store(&completed, 0);
 
@@ -218,9 +206,7 @@ s32 main(void) {
     nya_assert(atomic_load(&completed) == 1, "and it did not run twice");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: identical submissions get distinct handles
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Two submissions of the same function with the same arguments must get distinct handles. That is the
@@ -261,9 +247,7 @@ s32 main(void) {
     for (u32 i = 0; i < COUNT; i++) nya_assert(nya_job_is_done(handles[i]), "a finished job must stay finished once its slot is reused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: waiting publishes the job's writes, not just its exit
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * nya_job_wait has to be a synchronisation edge, not merely a liveness check.
@@ -306,9 +290,7 @@ s32 main(void) {
     nya_assert(atomic_load(&completed) == COUNT, "expected " FMTu32 ", got " FMTu32, (u32)COUNT, atomic_load(&completed));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an unknown handle is done rather than a hang
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A handle from a previous run, or a zeroed struct field. Neither corresponds to queued work,
     // so the honest answer is "there is nothing to wait for" rather than blocking forever.

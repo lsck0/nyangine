@@ -13,9 +13,7 @@ s32 main(void) {
   NYA_RNG   rng   = nya_rng_create(.seed = "A1B2C3D4E5F60789");
   NYA_Noise noise = nya_noise_create(&rng);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: perlin1 returns values in [-1, 1] and is deterministic
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 v1 = nya_noise_perlin1(&noise, 0.5F);
     f32 v2 = nya_noise_perlin1(&noise, 0.5F);
@@ -27,9 +25,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: perlin2 returns values in [-1, 1] and varies spatially
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 min_v = 1.0F, max_v = -1.0F;
     for (f32 x = -5.0F; x <= 5.0F; x += 0.37F) {
@@ -44,9 +40,7 @@ s32 main(void) {
     nya_assert(max_v - min_v > 0.5F, "perlin2 range too narrow: [%.4f, %.4f]", min_v, max_v);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: perlin3 returns values in [-1, 1]
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (f32 x = -3.0F; x <= 3.0F; x += 0.7F) {
       for (f32 y = -3.0F; y <= 3.0F; y += 0.7F) {
@@ -58,9 +52,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: perlin noise at integer coordinates is 0 (gradients cross zero)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (s32 i = -5; i <= 5; i++) {
       f32 v = nya_noise_perlin1(&noise, (f32)i);
@@ -68,9 +60,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: simplex2 returns values in [-1, 1] and varies
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 min_v = 1.0F, max_v = -1.0F;
     for (f32 x = -5.0F; x <= 5.0F; x += 0.31F) {
@@ -84,9 +74,7 @@ s32 main(void) {
     nya_assert(max_v - min_v > 0.3F, "simplex2 range too narrow: [%.4f, %.4f]", min_v, max_v);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: simplex3 returns finite values and varies
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 min_v = 1.0F, max_v = -1.0F;
     for (f32 x = -2.0F; x <= 2.0F; x += 0.5F) {
@@ -102,9 +90,7 @@ s32 main(void) {
     nya_assert(max_v - min_v > 0.1F, "simplex3 range too narrow");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: value2 is deterministic and varies
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 v1 = nya_noise_value2(&noise, 1.23F, 4.56F);
     f32 v2 = nya_noise_value2(&noise, 1.23F, 4.56F);
@@ -114,18 +100,14 @@ s32 main(void) {
     nya_assert(v1 != v3, "value2 same at different positions");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: value3 is deterministic
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 v1 = nya_noise_value3(&noise, 1.0F, 2.0F, 3.0F);
     f32 v2 = nya_noise_value3(&noise, 1.0F, 2.0F, 3.0F);
     nya_assert(v1 == v2, "value3 not deterministic");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: FBM1 returns bounded values
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NoiseParams params = { .octaves = 4, .lacunarity = 2.0F, .gain = 0.5F };
     for (f32 x = -10.0F; x <= 10.0F; x += 0.3F) {
@@ -134,9 +116,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: FBM2 with different octave counts produces different results
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NoiseParams p1 = { .octaves = 1, .lacunarity = 2.0F, .gain = 0.5F };
     NYA_NoiseParams p6 = { .octaves = 6, .lacunarity = 2.0F, .gain = 0.5F };
@@ -150,9 +130,7 @@ s32 main(void) {
     nya_assert(any_differ, "fbm2 with different octaves should produce different output");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: FBM3
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NoiseParams params = { .octaves = 4, .lacunarity = 2.0F, .gain = 0.5F };
     f32 v = nya_noise_fbm3(&noise, 1.0F, 2.0F, 3.0F, params);
@@ -161,18 +139,14 @@ s32 main(void) {
     nya_assert(v == v2, "fbm3 not deterministic");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: remap01
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(fabsf(nya_noise_remap01(-1.0F) - 0.0F) < EPSILON);
     nya_assert(fabsf(nya_noise_remap01(0.0F)  - 0.5F) < EPSILON);
     nya_assert(fabsf(nya_noise_remap01(1.0F)  - 1.0F) < EPSILON);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: ridged2 returns values in [0, 1]
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NoiseParams params = { .octaves = 4, .lacunarity = 2.0F, .gain = 0.5F };
     for (f32 x = -5.0F; x <= 5.0F; x += 0.37F) {
@@ -183,9 +157,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: turbulence2 returns values in [0, 1]
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NoiseParams params = { .octaves = 4, .lacunarity = 2.0F, .gain = 0.5F };
     for (f32 x = -5.0F; x <= 5.0F; x += 0.37F) {
@@ -196,9 +168,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: noise is continuous (nearby inputs → nearby outputs)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 step = 0.001F;
     for (f32 x = 0.0F; x < 5.0F; x += 0.1F) {
@@ -209,9 +179,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: same seed produces identical noise patterns
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG   rng_a   = nya_rng_create(.seed = "DEADBEEF01234567");
     NYA_Noise noise_a = nya_noise_create(&rng_a);
@@ -235,9 +203,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: different seeds produce different noise patterns
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG   rng_a   = nya_rng_create(.seed = "AAAA1111BBBB2222");
     NYA_Noise noise_a = nya_noise_create(&rng_a);

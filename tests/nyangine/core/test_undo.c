@@ -105,9 +105,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_undo");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: three states, undo twice reaches state 1, redo reaches state 2
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: record, undo, redo\n");
   {
     NYA_History* history = nya_history_create(arena, &_NYA_REFLECT_UndoState, 8);
@@ -147,9 +145,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a record after an undo drops the redo tail
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: record after undo truncates the tail\n");
   {
     NYA_History* history = nya_history_create(arena, &_NYA_REFLECT_UndoState, 8);
@@ -180,9 +176,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: overflowing the ring evicts the oldest entry
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: overflow evicts the oldest\n");
   {
     const u32    capacity = 3;
@@ -206,9 +200,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a capacity of one keeps only the newest, and clamps a huge request
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: degenerate capacities\n");
   {
     NYA_History* single = nya_history_create(arena, &_NYA_REFLECT_UndoState, 1);

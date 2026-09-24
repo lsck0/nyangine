@@ -71,24 +71,18 @@ s32 main(void) {
 
     NYA_ConstCString body = nya_ui_html_body(&html);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: something was drawn, into positioned elements with stable ids.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_ui_html_count(&html) > 0, "the pass drew widgets, got %u", nya_ui_html_count(&html));
     nya_check(!nya_ui_html_overflowed(&html), "and did not overflow the buffer");
     nya_check(nya_string_contains(body, "id=\"w0\""), "the first widget is w0");
     nya_check(nya_string_contains(body, "position") == false, "elements are positioned by the stylesheet, not inline position");
     nya_check(nya_string_contains(body, "left:") && nya_string_contains(body, "top:"), "each element is placed from the computed rect");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the label cannot inject markup — the whole point of escaping.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(!nya_string_contains(body, "<script>alert"), "a label's markup does not reach the page as markup");
     nya_check(nya_string_contains(body, "&lt;script&gt;alert(1)&lt;/script&gt;"), "it is escaped to text");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the interactive widgets carry the event a client sends back.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_string_contains(body, "class=\"nya-button\""), "the button is a button");
     nya_check(nya_string_contains(body, "data-nya=\"click\""), "and carries a click event");
     nya_check(nya_string_contains(body, "class=\"nya-toggle\""), "the toggle is a toggle");
@@ -110,9 +104,7 @@ s32 main(void) {
     nya_check(nya_string_contains(body, "data-nya=\"text\""), "and the field reports a text write-back");
     nya_check(nya_string_contains(body, "maxlength=\"255\""), "with its length bounded to the field's capacity");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same tree renders to the same ids twice — a patch needs that.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u32 first = nya_ui_html_count(&html);
 
@@ -123,9 +115,7 @@ s32 main(void) {
         nya_check(nya_string_contains(nya_ui_html_body(&html), "id=\"w0\""), "with the same first id");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the document wraps the body in a page with the stylesheet and the client.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         static char page[NYA_UI_HTML_MAX + 4096];
         u32         written = nya_ui_html_document(&html, page, sizeof(page), "settings & more", "");
@@ -139,11 +129,9 @@ s32 main(void) {
         nya_check(nya_string_contains(page, "&lt;script&gt;alert(1)"), "with the widget body still escaped inside it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a program's custom style reaches the browser as inline CSS. A distinctive
     // accent and panel colour and a larger radius must show on the right elements,
     // and a colour left at alpha zero must fall through to the stylesheet, unwritten.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // The button body colour is deliberately alpha zero on every state: opaque blue would be unmistakable
         // in the output, so its absence proves the presenter honours "alpha zero means the default".

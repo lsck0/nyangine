@@ -43,9 +43,7 @@ static const char FIXTURE_MESSAGE[] = "the message this fixture signs";
 s32 main(void) {
   u64 message_size = sizeof(FIXTURE_MESSAGE) - 1;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a signature openssl made verifies, and nothing else does.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CryptoEcdsaPublicKey key = { 0 };
 
@@ -74,9 +72,7 @@ s32 main(void) {
               "a signature of the wrong length is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: r and s must be in 1..n-1, which is where the cheap forgeries live.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CryptoEcdsaPublicKey key = { 0 };
     nya_check(nya_crypto_ecdsa_public_key_from_xy(FIXTURE_X, sizeof(FIXTURE_X), FIXTURE_Y, sizeof(FIXTURE_Y), &key).ok, "the key is read");
@@ -107,9 +103,7 @@ s32 main(void) {
     nya_check(!nya_crypto_ecdsa_verify_sha256(&key, (const u8*)FIXTURE_MESSAGE, message_size, half, sizeof(half)), "r equal to the order is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a key may not be, which is the invalid-curve check.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CryptoEcdsaPublicKey key = { 0 };
 

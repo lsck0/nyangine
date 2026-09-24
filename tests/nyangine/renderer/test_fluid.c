@@ -296,9 +296,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_fluid");
   defer nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the grid is the shape the options asked for
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Fluid* flat = nya_fluid_create(arena, (NYA_FluidOptions){ .space = NYA_FLUID_SPACE_2D, .width = 16, .height = 8, .depth = 99 });
 
@@ -326,9 +324,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a zero volume's up axis follows the space it is in
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Fluid* flat = nya_fluid_create(arena, (NYA_FluidOptions){ .space = NYA_FLUID_SPACE_2D, .width = 4, .height = 4 });
     NYA_Fluid* box  = nya_fluid_create(arena, (NYA_FluidOptions){ .space = NYA_FLUID_SPACE_3D, .width = 4, .height = 4, .depth = 4 });
@@ -345,9 +341,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: emission puts density where it was asked for and nowhere else
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Fluid* fluid = nya_fluid_create(arena, (NYA_FluidOptions){ .width = 16, .height = 16, .cell_size = 1.0F });
 
@@ -390,9 +384,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a step keeps the field divergence free and never creates density
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // no confinement: its force is a cell-scale field whose divergence a collocated projection
     // cannot see, so leaving it on would measure that instead of the pressure solve. See
@@ -454,9 +446,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: buoyancy lifts hot fluid along the volume's own up axis
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (u32 space = 0; space < NYA_FLUID_SPACE_COUNT; space++) {
       NYA_Fluid* fluid = nya_fluid_create(arena, (NYA_FluidOptions){
@@ -491,9 +481,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an obstacle stays empty and keeps the fluid out
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Fluid* fluid = nya_fluid_create(arena, (NYA_FluidOptions){ .width = 20, .height = 20, .cell_size = 1.0F });
 
@@ -545,9 +533,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the same inputs give the same state, and a different one does not
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_FluidOptions options = {
       .width       = 16,
@@ -606,9 +592,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a 3D volume one cell deep is the 2D solver
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // the claim the whole "one solver" design rests on: with depth one and no z motion, the three
     // dimensional code reduces term for term to the two dimensional one. If this ever fails, the
@@ -648,9 +632,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a window draws no fluid until it asks, and keeps what it asked for
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_system_renderer_for_window_init(&window);
 
@@ -673,9 +655,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the simulation harness drives it, and the same seed replays
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const u64 seed = 0xF10D1D5EEDULL;
 

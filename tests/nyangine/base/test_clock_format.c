@@ -169,9 +169,7 @@ static b8 law_rfc9110_round_trips(NYA_Property* property) {
 s32 main(void) {
     u32 failures = 0;
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: RFC 3339, its own examples and every rule it can fail
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: RFC 3339 parsing\n");
     {
         const ParseCase cases[] = {
@@ -248,9 +246,7 @@ s32 main(void) {
     }
     printf("  PASSED\n");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: RFC 9110 IMF-fixdate
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: RFC 9110 parsing\n");
     {
         const ParseCase cases[] = {

@@ -19,9 +19,7 @@ struct TestStruct {
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_memory");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_is_zeroed macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test with zero-initialized struct
     TestStruct zero_struct = { 0 };
@@ -45,9 +43,7 @@ s32 main(void) {
     nya_assert(nya_is_zeroed(struct_ptr) == false);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_typeof_field macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test that the macro returns the correct type
     // We can't directly test the type, but we can use it in assignments
@@ -69,9 +65,7 @@ s32 main(void) {
     (void)float_val; // Suppress unused warnings
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_sizeof_field macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test that the macro returns the correct sizes
     nya_assert(nya_sizeof_field(TestStruct, byte_field) == sizeof(u8));
@@ -82,9 +76,7 @@ s32 main(void) {
     nya_assert(nya_sizeof_field(TestStruct, next) == sizeof(TestStruct*));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_offsetof macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test that the macro returns the correct offsets
     TestStruct test_struct = { 0 };
@@ -116,9 +108,7 @@ s32 main(void) {
     nya_assert(*float_ptr == 3.14159f);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_container_of macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestStruct container = { .byte_field = 7, .int_field = 1234, .float_field = 2.5f, .long_field = 99 };
 
@@ -139,9 +129,7 @@ s32 main(void) {
     nya_assert(const_recovered == &container, "nya_container_of lost the struct through a const pointer");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_offsetof_end macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     size_t byte_end  = nya_offsetof_end(TestStruct, byte_field);
     size_t int_end   = nya_offsetof_end(TestStruct, int_field);
@@ -158,9 +146,7 @@ s32 main(void) {
     nya_assert(byte_end <= nya_offsetof(TestStruct, int_field));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Byte conversion macros
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test binary unit conversions
     u64 kib_result = nya_kibyte_to_byte(1024);
@@ -223,9 +209,7 @@ s32 main(void) {
     nya_memset(stack_mem, 0, 64);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Memory allocation wrappers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test that memory allocation macros work as expected
     void* ptr = nya_malloc(64);
@@ -248,9 +232,7 @@ s32 main(void) {
     nya_free(zero_ptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Memory operation wrappers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Test memcpy wrapper
     u8 src[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
@@ -274,9 +256,7 @@ s32 main(void) {
     nya_assert(nya_memcmp(overlap, expected, 16) == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_alloca is bounded
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // callers size stack allocations from data, so without the bound a long input overflows the stack
     // with no diagnostic.
@@ -308,9 +288,7 @@ s32 main(void) {
     nya_assert(empty != nullptr || empty == nullptr, "a zero sized allocation must not abort");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_alloca evaluates its size exactly once
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A plain comma-expression version of the bound would evaluate `size` twice, so a caller passing
     // anything with a side effect would allocate one length and advance the other. The statement
@@ -324,9 +302,7 @@ s32 main(void) {
     nya_assert(evaluations == 1, "nya_alloca evaluated its size " FMTu64 " times, expected once", evaluations);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

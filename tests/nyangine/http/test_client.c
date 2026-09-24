@@ -209,9 +209,7 @@ s32 main(void) {
 
     const NYA_HttpClientTransport loopback = { .perform = loopback_perform };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a typed call round-trips through the real dispatch, fields intact.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         RoomQuery           request = { .room = 21 };
         RoomReply           reply   = { 0 };
@@ -227,9 +225,7 @@ s32 main(void) {
         nya_assert(!result.problem_parsed, "a success carries no problem");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a base URL with an authority and a trailing slash joins cleanly to the path.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         RoomQuery request = { .room = 5 };
         RoomReply reply   = { 0 };
@@ -240,9 +236,7 @@ s32 main(void) {
         nya_assert(reply.doubled == 10);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a non-2xx is an error, and carries the server's problem, never a mis-parsed DTO.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         RoomQuery            request = { .room = 1 };
         RoomReply            reply   = { .room = -7, .doubled = -7 };
@@ -257,9 +251,7 @@ s32 main(void) {
         nya_assert(reply.room == -7 && reply.doubled == -7, "the response DTO was left untouched by the refusal");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a 2xx body that does not parse is a clean parse error, not a half-written DTO.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         Canned                        canned    = { .status = NYA_HTTP_STATUS_OK, .body = "{ this is not json", .media_type = NYA_HTTP_MEDIA_JSON };
         const NYA_HttpClientTransport transport = { .perform = canned_perform, .userdata = &canned };
@@ -274,9 +266,7 @@ s32 main(void) {
         nya_assert(reply.room == 99, "nothing was written over the caller's DTO");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an empty 2xx body where a DTO was expected is a parse error.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         Canned                        canned    = { .status = NYA_HTTP_STATUS_OK, .body = "", .media_type = NYA_HTTP_MEDIA_JSON };
         const NYA_HttpClientTransport transport = { .perform = canned_perform, .userdata = &canned };
@@ -287,9 +277,7 @@ s32 main(void) {
         nya_assert(!nya_http_client_call(arena, &transport, "", &ROUTES[ROUTE_QUERY], &request, &reply, nullptr).ok, "no body, no DTO");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a non-2xx with no parseable problem body is still surfaced as an error.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         Canned                        canned    = { .status = NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, .body = nullptr, .media_type = NYA_HTTP_MEDIA_NONE };
         const NYA_HttpClientTransport transport = { .perform = canned_perform, .userdata = &canned };
@@ -303,9 +291,7 @@ s32 main(void) {
         nya_assert(!result.problem_parsed);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a transport failure that never got a reply is the transport's error, propagated.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpClientTransport transport = { .perform = broken_perform };
 
@@ -316,9 +302,7 @@ s32 main(void) {
         nya_assert(!status.ok && status.kind == NYA_ERROR_TIMEOUT, "the transport's own error reaches the caller");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a request that does not match the route it names is refused before any send.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         RoomReply reply = { 0 };
 

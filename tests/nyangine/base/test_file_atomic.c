@@ -221,9 +221,7 @@ s32 main(void) {
   u32 entries     = 0;
   u32 temporaries = 0;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a new file, a rewrite, and an empty one, each leaving only the target
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic round trip\n");
   {
     directory_reset();
@@ -241,9 +239,7 @@ s32 main(void) {
     nya_assert(entries == 1 && temporaries == 0, "%u entries, %u temps", entries, temporaries);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failure before any step keeps the old bytes and removes the temp
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic failing at every step\n");
   for (NYA_FileAtomicStep step = 0; step < NYA_FILE_ATOMIC_STEP_COUNT; step++) {
     directory_reset();
@@ -263,9 +259,7 @@ s32 main(void) {
     nya_assert(target_holds(new_bytes));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failure on a first write leaves no target at all, not an empty one
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic failing a first write\n");
   for (NYA_FileAtomicStep step = 0; step < NYA_FILE_ATOMIC_STEP_COUNT; step++) {
     directory_reset();
@@ -277,9 +271,7 @@ s32 main(void) {
     nya_assert(entries == 0, "failing a first write before %s left %u entries", STEP_NAMES[step], entries);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a crash before any step keeps the old bytes, and the next write works
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic crashing at every step\n");
   for (NYA_FileAtomicStep step = 0; step < NYA_FILE_ATOMIC_STEP_COUNT; step++) {
     directory_reset();
@@ -302,9 +294,7 @@ s32 main(void) {
   }
 
 #if OS_LINUX
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the target's permissions and a symlink to it both survive a write
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic keeps permissions and symlinks\n");
   {
     directory_reset();
@@ -327,9 +317,7 @@ s32 main(void) {
   }
 #endif
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: writers racing on one target never share a temp name or tear a file
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic with racing writers\n");
   {
     directory_reset();
@@ -349,9 +337,7 @@ s32 main(void) {
     nya_assert(entries == 1 && temporaries == 0, "%u entries, %u temps", entries, temporaries);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a simulated run of writes, failures and crashes in any order
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_file_write_atomic under simulation\n");
   for (u64 seed = 1; seed <= SIMULATION_SEED_COUNT; seed++) {
     u32 failures = simulate(seed);

@@ -72,9 +72,7 @@ typedef struct {
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_cache");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: hit, miss, and a key compared by content rather than by address.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         destroyed_reset();
 
@@ -118,9 +116,7 @@ s32 main(void) {
         nya_assert(destroyed_count == 1 && destroyed_ids[0] == 17, "destroy runs the destructor on what was left");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: keys are bytes, not strings. Integers and structs work as keys too.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Cache* cache = nya_cache_create(arena, u64, .capacity = 8, .key_size_max = sizeof(u32) * 2);
 
@@ -143,9 +139,7 @@ s32 main(void) {
         nya_cache_destroy(cache);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the tag is the invalidation input. Another tag reads as stale, and the next insert replaces it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         destroyed_reset();
 
@@ -179,9 +173,7 @@ s32 main(void) {
         nya_assert(destroyed_count == 2 && destroyed_ids[1] == 200);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: least recent eviction drops the entry hit or inserted longest ago.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         destroyed_reset();
 
@@ -218,9 +210,7 @@ s32 main(void) {
         nya_cache_destroy(cache);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: refuse when full, and room again after a removal.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         destroyed_reset();
 
@@ -265,10 +255,8 @@ s32 main(void) {
         nya_assert(destroyed_count == 2);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: removals keep every other key findable. Linear probing without tombstones has to close the gap
     // a removal leaves, so this churns a cache against a plain array of what should be there.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         enum { CAPACITY = 64, KEYS = 256, ROUNDS = 20000 };
 
@@ -317,9 +305,7 @@ s32 main(void) {
         nya_cache_destroy(cache);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: values are aligned for their type.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Cache* cache = nya_cache_create(arena, Wide, .capacity = 5, .key_size_max = 4);
 
@@ -338,9 +324,7 @@ s32 main(void) {
         nya_cache_destroy(cache);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a named cache shows as a ceiling, and its row follows the count.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Cache* cache = nya_cache_create(arena, u32, .name = "test_cache_ceiling", .capacity = 4, .key_size_max = 4);
 
@@ -381,9 +365,7 @@ s32 main(void) {
         nya_cache_destroy(again);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a destructor that calls back into its own cache asserts.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Cache* cache = nya_cache_create(arena, u32, .capacity = 2, .key_size_max = 4, .destructor = reentering_destroy);
         reentered        = cache;

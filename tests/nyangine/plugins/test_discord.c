@@ -28,9 +28,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_discord");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the lifecycle refuses what it should and tolerates what it must
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_discord_status() == NYA_DISCORD_STATUS_OFF);
     nya_assert(!nya_discord_connected());
@@ -63,9 +61,7 @@ s32 main(void) {
     nya_assert(nya_discord_activity_set((NYA_DiscordActivity){ .state = "menu" }).ok);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a full activity produces valid JSON with every field in place
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_DiscordActivity activity = {
       .details      = "Competitive | In a Match",
@@ -110,9 +106,7 @@ s32 main(void) {
     nya_assert(contains(text, "\"size\":[3,6]"), "the party count is a two element array, current then maximum");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: absent fields are omitted rather than sent empty
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // an empty string is a value to Discord and reserves a blank row, so empty fields must be omitted.
     NYA_DiscordActivity sparse = { .details = "Just this" };
@@ -136,9 +130,7 @@ s32 main(void) {
     nya_assert(!contains(nya_string_to_cstring(arena, second), "\"state\""));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: everything a player can type is escaped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A quote and a backslash end the string early; a newline and a tab are control characters JSON
     // has no literal form for. Any one of them produces a frame the client answers by hanging up.
@@ -178,9 +170,7 @@ s32 main(void) {
     nya_assert(contains(control_text, "\\u0007"), "a control character is escaped rather than emitted raw");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a clear is a null activity, not an empty one
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* payload = _nya_discord_activity_payload(arena, nullptr);
     NYA_CString text    = nya_string_to_cstring(arena, payload);
@@ -192,9 +182,7 @@ s32 main(void) {
     nya_assert(contains(text, "\"activity\":null"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the party count needs both numbers, and a backwards pair is dropped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_DiscordActivity half = { .party_id = "p", .party_size = 3 };
 
@@ -213,9 +201,7 @@ s32 main(void) {
     nya_assert(!contains(backwards_text, "\"size\""));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: buttons, and that secrets win when both are present
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_DiscordActivity buttons = {
       .state   = "playing",
@@ -254,9 +240,7 @@ s32 main(void) {
     nya_assert(!contains(both_text, "\"buttons\""), "the buttons are dropped, not the secret");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: change detection compares text, not pointers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The case that matters: a caller formatting into a stack buffer produces a different pointer
     // every frame with identical bytes behind it.
@@ -297,9 +281,7 @@ s32 main(void) {
     for (u32 i = 0; i < 6; i++) nya_assert(!_nya_discord_activity_equals(&base, &changed[i]), "field %u is part of the comparison", i);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: overlong text is truncated rather than sent whole
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Discord cuts at 128 bytes anyway. Cutting here keeps the frame valid instead of letting a peer
     // reject the entire activity.
@@ -316,9 +298,7 @@ s32 main(void) {
     nya_assert(strlen(text) < sizeof(long_text), "the payload is shorter than the text handed in");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a dropped connection backs off instead of reconnecting immediately
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The reconnect storm, found by pointing the plugin at a real Discord client.
@@ -352,9 +332,7 @@ s32 main(void) {
     nya_discord_deinit();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: deinit is idempotent and returns the module to its starting state
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_discord_status() == NYA_DISCORD_STATUS_OFF);
 

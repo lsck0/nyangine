@@ -258,9 +258,7 @@ s32 main(void) {
     char answer[NYA_HTTP_MAX_RESPONSE_BYTES] = { 0 };
     char token[NYA_ACCOUNTS_TOKEN_TEXT_BYTES] = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a right password logs in and hands back a session cookie with every flag a session needs
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket client = connect_to(port);
         defer        nya_os_socket_close(client);
@@ -286,9 +284,7 @@ s32 main(void) {
         nya_check(nya_string_contains(answer, "Path=/"), "the cookie is scoped to the whole origin");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the cookie alone is who you are on the next request
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket client = connect_to(port);
         defer        nya_os_socket_close(client);
@@ -304,9 +300,7 @@ s32 main(void) {
         nya_check(nya_string_contains(answer, "\"username\":\"ada\""), "and names the account it belongs to");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: no cookie is nobody
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket client = connect_to(port);
         defer        nya_os_socket_close(client);
@@ -315,9 +309,7 @@ s32 main(void) {
         nya_check(status_of(answer) == 401, "a request with no cookie is nobody, got '%.15s'", answer);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: logging out revokes the row, so the very same cookie is nobody afterwards
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket client = connect_to(port);
         defer        nya_os_socket_close(client);
@@ -341,9 +333,7 @@ s32 main(void) {
         nya_check(status_of(answer) == 401, "and the revoked cookie is nobody, got '%.15s'", answer);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a wrong password is refused, with no cookie handed out to guess with
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_account_throttle_reset();
 

@@ -11,9 +11,7 @@
 #include "nyangine/nyangine.h"
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the default is single player, and applying nothing leaves it there.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NetLaunchConfig config = nya_net_config_default();
 
@@ -28,9 +26,7 @@ s32 main(void) {
     nya_check(config.role == NYA_NET_ROLE_SERVER && !config.dedicated && config.listen_port == 0, "and settling changes none of that");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: one flag at a time, the way a parsed command line hands them over.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NetLaunchConfig config = nya_net_config_default();
 
@@ -53,9 +49,7 @@ s32 main(void) {
     nya_check(!nya_net_config_apply(&config, "not-a-flag", "x"), "and something that is not a flag is refused rather than ignored");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the resolution, which is what needs every flag rather than one.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NetLaunchConfig config = nya_net_config_default();
 
@@ -92,9 +86,7 @@ s32 main(void) {
     nya_check(!client.dedicated, "and never dedicated");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a value that is not usable is reported, not refused.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NetLaunchConfig config = nya_net_config_default();
 

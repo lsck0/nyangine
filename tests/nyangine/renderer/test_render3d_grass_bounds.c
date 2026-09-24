@@ -28,11 +28,9 @@ s32 main(void) {
   const f32 blade_radius = 0.5F;
   const f32 sway_reach   = 0.25F;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: one blade, well away from the origin, so reading the translation from the
   //       wrong place cannot pass by luck. The sphere sits on it, padded by the blade
   //       and the sway.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Render3DInstance one = blade_at((f32x3){ 10.0F, 4.0F, -6.0F }, 1.0F);
 
@@ -51,10 +49,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a row of blades: the centre is the midpoint of the box their bases make,
   //       and every base is inside the sphere.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Render3DInstance blades[] = {
       blade_at((f32x3){ -4.0F, 0.0F, -4.0F }, 1.0F),
@@ -83,10 +79,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a scaled-up blade grows the padding, or a tall blade's tip would hang
   //       outside the sphere and be clipped as the camera turns.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Render3DInstance plain  = blade_at(f32x3_zero, 1.0F);
     const NYA_Render3DInstance scaled = blade_at(f32x3_zero, 3.0F);
@@ -105,10 +99,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the largest instance scale decides the margin, since one scale grows it
   //       for the whole field, and the sphere must cover that blade too.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Render3DInstance mixed[] = {
       blade_at((f32x3){ -2.0F, 0.0F, 0.0F }, 1.0F),

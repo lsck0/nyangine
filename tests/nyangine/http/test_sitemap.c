@@ -47,9 +47,7 @@ int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_sitemap");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a sitemap builds, is well-formed, and escapes an & in a loc.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpSitemapUrl urls[] = {
             { .loc = "https://example.com/", .changefreq = NYA_HTTP_SITEMAP_DAILY, .priority = 1.0F, .has_priority = true,
@@ -72,9 +70,7 @@ int main(void) {
         nya_assert(strstr(xml, "q=cats&sort=new") == nullptr, "no raw & survives in a loc");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a non-web loc refuses the whole build (a javascript: injection cannot reach the document).
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpSitemapUrl urls[] = { { .loc = "https://example.com/" }, { .loc = "javascript:alert(1)" } };
 
@@ -83,9 +79,7 @@ int main(void) {
         nya_assert(xml == nullptr, "and nothing is emitted");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a priority outside 0.0..1.0 is refused.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpSitemapUrl urls[] = { { .loc = "https://example.com/", .priority = 2.0F, .has_priority = true } };
 
@@ -93,17 +87,13 @@ int main(void) {
         nya_assert(!nya_http_sitemap_build(arena, (NYA_HttpSitemapConfig){ .urls = urls, .count = nya_carray_length(urls) }, &xml).ok, "a priority past 1.0 is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: too many URLs is refused before anything is built.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString xml = nullptr;
         nya_assert(!nya_http_sitemap_build(arena, (NYA_HttpSitemapConfig){ .urls = nullptr, .count = NYA_HTTP_SITEMAP_MAX_URLS + 1 }, &xml).ok, "past the URL ceiling is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: mount serves it at /sitemap.xml as application/xml.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_doc_clear();
 

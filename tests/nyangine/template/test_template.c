@@ -26,9 +26,7 @@ static NYA_Value str_value(NYA_ConstCString s) { return (NYA_Value){ .type = NYA
 int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_template");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: interpolation, dotted paths and array indices
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: interpolation and paths\n");
     {
         NYA_Object* user = nya_object_create(arena);
@@ -51,9 +49,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: if / else over a real object
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: if/else\n");
     {
         NYA_Object* ctx = nya_object_create(arena);
@@ -71,9 +67,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: for, item fields, and the loop cursor
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: for\n");
     {
         NYA_ArrayᐸNYA_Valueᐳ* items = nya_array_create(arena, NYA_Value);
@@ -98,18 +92,14 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: comments
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: comments\n");
     {
         nya_check(strcmp(render(arena, "a{# hidden {{ x }} #}b", nullptr, NYA_TEMPLATE_ESCAPE_NONE), "ab") == 0, "comment removed");
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: filters
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: filters\n");
     {
         NYA_Object* ctx = nya_object_create(arena);
@@ -129,9 +119,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: HTML autoescaping — injection is neutralised
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: HTML escaping\n");
     {
         NYA_Object* ctx = nya_object_create(arena);
@@ -153,9 +141,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: LaTeX autoescaping — command injection is neutralised
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: LaTeX escaping\n");
     {
         NYA_Object* ctx = nya_object_create(arena);
@@ -168,9 +154,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: malformed templates are refused whole
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: refusals\n");
     {
         nya_check(render_fails(arena, "{% if x %}no end", nullptr, NYA_TEMPLATE_ESCAPE_NONE), "unclosed if");
@@ -182,9 +166,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: deep nesting is refused, not a stack overflow
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: deep nesting refused\n");
     {
         NYA_String* deep = nya_string_create(arena);
@@ -197,9 +179,7 @@ int main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an explosive loop is bounded by the output cap
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: output cap\n");
     {
         // A big list whose body appends a chunk each iteration would blow past the output cap.

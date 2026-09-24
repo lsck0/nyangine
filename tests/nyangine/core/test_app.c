@@ -53,9 +53,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: uptime is measured from started_ns and only goes forward
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 first = nya_app_uptime_ns();
     u64 second = nya_app_uptime_ns();
@@ -69,9 +67,7 @@ s32 main(void) {
     nya_assert(second <= now - app->frame_stats.started_ns + 1'000'000, "uptime tracks the wall clock");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: advancing the clock books elapsed time against the update debt
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     app->frame_stats.time_behind_ns  = 0;
     app->frame_stats.prev_frame_time_ns = nya_clock_get_monotonic_ns() - nya_time_ms_to_ns(10);
@@ -89,9 +85,7 @@ s32 main(void) {
     nya_assert(fabs((f64)app->frame_stats.uptime_s - expected_s) < 0.0005, "uptime_s mirrors uptime_ns");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the fixed step consumes whole ticks and keeps the remainder
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The invariant the whole simulation rests on: a frame runs floor(debt / step) updates and
     // carries what is left into the next frame, so the tick rate stays independent of the frame
@@ -108,9 +102,7 @@ s32 main(void) {
     nya_assert(app->frame_stats.time_behind_ns == (s64)remainder, "the partial step is carried, not dropped");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a debt smaller than one step runs nothing at all
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 tick_before = nya_world()->sim_system.tick;
     app->frame_stats.time_behind_ns = (s64)(app->options.time_step_ns - 1);
@@ -121,9 +113,7 @@ s32 main(void) {
     nya_assert(app->frame_stats.time_behind_ns == (s64)(app->options.time_step_ns - 1), "and nothing was consumed");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: delta_time_s is the fixed step, not however long the frame took
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The point of a fixed timestep: an update is told the step it represents, so simulation
     // results do not change when the machine gets slower.
@@ -136,9 +126,7 @@ s32 main(void) {
     nya_assert(app->frame_stats.delta_time_s == expected, "the update sees the step, not the wall clock");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a nested frame step swaps the allocator and puts it back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Frames produced during a window drag are nested inside an outer frame that is parked in the
     // event pump, so they must not touch the arena that outer frame is using.
@@ -156,9 +144,7 @@ s32 main(void) {
     nya_assert(arena_used(outer) == outer_used_before, "the outer frame's allocations are untouched");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a long drag does not grow memory
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The reason live_resize_allocator exists at all. Each nested step empties it first, so thirty
     // seconds of dragging costs one frame's worth of scratch rather than thirty seconds of it.
@@ -181,9 +167,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an ordinary frame step leaves the drag arena alone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     (void)nya_arena_alloc(app->live_resize_allocator, 1024);
     u64 drag_used_before = arena_used(app->live_resize_allocator);
@@ -194,9 +178,7 @@ s32 main(void) {
     nya_assert(arena_used(app->live_resize_allocator) == drag_used_before, "a normal frame does not reset the drag arena");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a nested step keeps the fixed timestep honest
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The bookkeeping a nested step does exists so the drag's whole duration does not arrive as one
     // delta when the mouse comes up, which the accumulator would then pay off as a burst of catch
@@ -216,9 +198,7 @@ s32 main(void) {
     nya_assert(app->frame_stats.prev_frame_time_ns > 0, "each nested step advances the frame clock");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: updating options recomputes the derived frame budget
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_app_options_update((NYA_AppOptions){
       .time_step_ns        = nya_time_ms_to_ns(8),
@@ -237,9 +217,7 @@ s32 main(void) {
     nya_assert(nya_world()->sim_system.tick - tick_before == 2, "the updated step drives the loop");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the game state seam
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The pointer a game parks so its state survives a hot reload. Only the contract is testable in

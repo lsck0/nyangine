@@ -15,9 +15,7 @@ s32 main(void) {
   nya_backtrace_init();
   defer nya_backtrace_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: constructors
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Either order of corners, because a drag selection produces both.
     NYA_Rectf forward  = nya_rect_from_corners((f32x2){ 10.0F, 20.0F }, (f32x2){ 40.0F, 60.0F });
@@ -35,9 +33,7 @@ s32 main(void) {
     nya_assert(center.x == 0.0F && center.y == 0.0F, "the centre survives the round trip");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: accessors
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Rectf rect = { 10.0F, 20.0F, 30.0F, 40.0F };
 
@@ -53,9 +49,7 @@ s32 main(void) {
     nya_assert(nya_rect_area(rect) == 1200.0F);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: containment is half open on every edge
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Rectf rect = { 0.0F, 0.0F, 10.0F, 10.0F };
 
@@ -83,9 +77,7 @@ s32 main(void) {
     nya_assert(!nya_rect_overlaps(first, second), "items laid edge to edge do not overlap");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty rectangle is inert
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Rectf zero     = { 0 };
     NYA_Rectf flat     = { 5.0F, 5.0F, 0.0F, 10.0F };
@@ -109,9 +101,7 @@ s32 main(void) {
     nya_assert(!nya_rect_contains_rect(real, zero));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: overlap, intersection and union
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Rectf a = { 0.0F, 0.0F, 10.0F, 10.0F };
     NYA_Rectf b = { 5.0F, 5.0F, 10.0F, 10.0F };
@@ -145,9 +135,7 @@ s32 main(void) {
     nya_assert(rect_equals(nya_rect_union((NYA_Rectf){ 0 }, (NYA_Rectf){ 0 }), (NYA_Rectf){ 0 }), "two empties union to an empty at the origin");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: containment of one rectangle in another
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Rectf outer = { 0.0F, 0.0F, 100.0F, 100.0F };
 
@@ -157,9 +145,7 @@ s32 main(void) {
     nya_assert(!nya_rect_contains_rect(outer, (NYA_Rectf){ -1.0F, 0.0F, 10.0F, 10.0F }));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: expand, translate and the closest point
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Rectf rect = { 10.0F, 10.0F, 20.0F, 20.0F };
 
@@ -182,9 +168,7 @@ s32 main(void) {
     nya_assert(corner.x == 10.0F && corner.y == 10.0F);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: circles
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Circlef circle = { .center = { 0.0F, 0.0F }, .radius = 10.0F };
 

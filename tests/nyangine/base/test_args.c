@@ -68,9 +68,7 @@ NYA_INTERNAL NYA_ConstCString fruit_choices(u32 index) {
   return index < 2 ? fruits[index] : nullptr;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: basic flag parameter
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_basic_flag_parameter(void) {
   NYA_ArgParameter flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -96,9 +94,7 @@ NYA_INTERNAL void test_basic_flag_parameter(void) {
   nya_assert(flag.value.as_b8 == true);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: flag with explicit value, which is attached rather than adjacent
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_flag_with_explicit_value(void) {
   /*
    * This used to read `{ "app", "--debug", "true" }`, and that spelling is gone on purpose.
@@ -132,9 +128,7 @@ NYA_INTERNAL void test_flag_with_explicit_value(void) {
   nya_assert(flag.value.as_b8 == false);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: integer flag parameter
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_integer_flag_parameter(void) {
   NYA_ArgParameter count = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -159,9 +153,7 @@ NYA_INTERNAL void test_integer_flag_parameter(void) {
   nya_assert(count.value.as_s64 == 42);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: float flag parameter
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_float_flag_parameter(void) {
   NYA_ArgParameter rate = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -186,9 +178,7 @@ NYA_INTERNAL void test_float_flag_parameter(void) {
   nya_assert(rate.value.as_f64 > 3.14 && rate.value.as_f64 < 3.15);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: string flag parameter
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_string_flag_parameter(void) {
   NYA_ArgParameter output = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -213,9 +203,7 @@ NYA_INTERNAL void test_string_flag_parameter(void) {
   nya_assert(strcmp(output.value.as_string, "file.txt") == 0);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: multiple flags
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_multiple_flags(void) {
   NYA_ArgParameter flag1 = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -252,9 +240,7 @@ NYA_INTERNAL void test_multiple_flags(void) {
   nya_assert(flag3.value.as_b8 == true);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: subcommand
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_subcommand(void) {
   NYA_ArgParameter verbose = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -286,9 +272,7 @@ NYA_INTERNAL void test_subcommand(void) {
   nya_assert(verbose.value.as_b8 == true);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: positional parameter
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_positional_parameter(void) {
   NYA_ArgParameter input = {
     .kind       = NYA_ARG_PARAMETER_KIND_POSITIONAL,
@@ -314,9 +298,7 @@ NYA_INTERNAL void test_positional_parameter(void) {
   nya_assert(strcmp(input.value.as_string, "input.txt") == 0);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: variadic positional parameter
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_variadic_positional_parameter(void) {
   NYA_ArgParameter files = {
     .kind       = NYA_ARG_PARAMETER_KIND_POSITIONAL,
@@ -346,9 +328,7 @@ NYA_INTERNAL void test_variadic_positional_parameter(void) {
   nya_assert(strcmp(files.values[2].as_string, "file3.txt") == 0);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: subcommand validation works for commands with zero parameters
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_subcommand_validation(void) {
   NYA_ArgCommand leaf = {
     .name        = "leaf",
@@ -379,9 +359,7 @@ NYA_INTERNAL void test_subcommand_validation(void) {
   nya_assert(cmd == &leaf);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: command path printing works multiple times (static state reset)
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_command_path_printing_repeats(void) {
   NYA_ArgParameter help1 = {
     .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -424,9 +402,7 @@ NYA_INTERNAL void test_command_path_printing_repeats(void) {
   // If we get here without crashing, the static state reset is working
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: command path joining
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_command_path_joining(void) {
   NYA_ArgCommand leaf = { .name = "debug", .handler = (void*)1 };
   NYA_ArgCommand mid  = { .name = "run", .subcommands = { &leaf } };
@@ -463,9 +439,7 @@ NYA_INTERNAL void test_command_path_joining(void) {
   nya_assert(strlen(small) < sizeof(small), "wrote past the end of the buffer");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: walking the command tree
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_walking_command_tree(void) {
   NYA_ArgParameter root_flag = { .kind = NYA_ARG_PARAMETER_KIND_FLAG, .value.type = NYA_TYPE_B8, .name = "help" };
   NYA_ArgParameter run_flag  = { .kind = NYA_ARG_PARAMETER_KIND_FLAG, .value.type = NYA_TYPE_B8, .name = "quiet" };
@@ -506,9 +480,7 @@ NYA_INTERNAL void test_walking_command_tree(void) {
   nya_assert(nya_string_equals(record.last_flags[4], "help"));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: shell registry
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_shell_registry(void) {
   nya_assert(nya_args_completion_shell_name(0) != nullptr, "no shell backend is registered");
   nya_assert(nya_string_equals(nya_args_completion_shell_name(0), "zsh"));
@@ -521,9 +493,7 @@ NYA_INTERNAL void test_shell_registry(void) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: unknown shell is an error, and writes nothing
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_unknown_shell_is_an_error(void) {
   NYA_ArgCommand root   = { .is_root = true, .handler = (void*)1 };
   NYA_ArgParser  parser = { .name = "test_app", .root_command = &root };
@@ -541,9 +511,7 @@ NYA_INTERNAL void test_unknown_shell_is_an_error(void) {
   (void)fclose(stream);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: generated zsh script covers the whole tree
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_generated_zsh_script_covers_whole_tree(void) {
   NYA_ArgParameter help_flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -580,9 +548,7 @@ NYA_INTERNAL void test_generated_zsh_script_covers_whole_tree(void) {
   nya_assert(strstr(strstr(script, "_mytool_run_debug() {"), "--help") != nullptr, "root flag missing from the deepest command");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: zsh escaping of descriptions
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_zsh_escaping_of_descriptions(void) {
   NYA_ArgParameter flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
@@ -608,9 +574,7 @@ NYA_INTERNAL void test_zsh_escaping_of_descriptions(void) {
   assert_contains(script, "'sub:Colons\\: and '\\''quotes'\\'''");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: completion descriptor to zsh action
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_completion_descriptor_to_zsh_action(void) {
   char spec[4096];
 
@@ -697,9 +661,7 @@ NYA_INTERNAL void test_completion_descriptor_to_zsh_action(void) {
   assert_not_contains(spec, "stale");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: the generated zsh script parses in a real zsh
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_generated_zsh_script_parses_in_zsh(NYA_Arena* arena) {
   // Asserting on substrings cannot catch an unbalanced quote three lines away, and a completion
   // script that does not parse fails silently at use. Skipped where there is no zsh to ask.
@@ -789,10 +751,7 @@ s32 main(void) {
   test_completion_descriptor_to_zsh_action();
   test_generated_zsh_script_parses_in_zsh(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a command that both does something and has more under it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * `./build` alone is not a thing to do, so a command with only subcommands is incomplete when it
@@ -833,7 +792,6 @@ s32 main(void) {
   }
 
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

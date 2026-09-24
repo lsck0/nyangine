@@ -47,9 +47,7 @@ s32 main(void) {
     const NYA_SerdeFormat formats[]    = { NYA_SERDE_FORMAT_NYA, NYA_SERDE_FORMAT_JSON };
     NYA_ConstCString      extensions[] = { "nya", "json" };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the reflection layer recognises @secret and tells @secret from @redact
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: @secret surfaces in the field's reflection info\n");
     {
         const NYA_TypeReflection* type = nya_reflect_of(NYA_SerdeSecretExample);
@@ -66,9 +64,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: crypto_seal round-trips, and fails closed on tamper, wrong key, wrong field
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: crypto_seal / crypto_unseal directly\n");
     {
         u8          plaintext[] = "the quick brown fox";
@@ -104,9 +100,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a @secret struct round-trips through a sealed save, in .nya and JSON
-    // ─────────────────────────────────────────────────────────────────────────────
     for (u32 f = 0; f < nya_carray_length(formats); f++) {
         printf("TEST: sealed round trip (%s)\n", extensions[f]);
 
@@ -140,9 +134,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: without a key, a save refuses rather than writing the secret in the clear
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: a keyless save of a @secret type refuses\n");
     {
         NYA_SerdeSecretExample record = { 0 };
@@ -159,9 +151,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a load with the wrong key, or none, fails closed
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: a load without the right key fails\n");
     {
         NYA_ConstCString path = FIXTURE_DIRECTORY "/wrongkey.nya";
@@ -180,9 +170,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a tampered file does not load
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: a tampered sealed value in the file fails to load\n");
     {
         NYA_ConstCString path = FIXTURE_DIRECTORY "/tampered.nya";
@@ -216,9 +204,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: @redact behaviour is unchanged, and @secret is masked in a log too
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: the redacting walk masks both @redact and @secret\n");
     {
         NYA_SerdeSecretExample record = { 0 };

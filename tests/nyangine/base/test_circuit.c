@@ -18,9 +18,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_circuit");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a fresh breaker is closed and lets everything through.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     nya_check(nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 3, .open_ms = 1000).ok, "a breaker builds");
@@ -31,9 +29,7 @@ s32 main(void) {
     nya_check(nya_circuit_state(breaker, "unseen") == NYA_CIRCUIT_CLOSED, "a key never seen reads closed");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: failures below the threshold do not trip, and a success ends the run.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 3, .open_ms = 1000);
@@ -52,9 +48,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the threshold-th consecutive failure trips OPEN, and OPEN fails fast.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 3, .open_ms = 1000);
@@ -71,9 +65,7 @@ s32 main(void) {
     nya_check(!_nya_circuit_allow_at(breaker, "up", now + 999 * MS), "open until the cooldown elapses");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: after the cooldown one probe goes (half_open_max = 1), the rest wait, a probe success closes it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 1, .success_threshold = 1, .open_ms = 1000);
@@ -92,9 +84,7 @@ s32 main(void) {
     nya_check(_nya_circuit_allow_at(breaker, "up", after), "and calls flow again");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failed probe trips straight back OPEN for another cooldown.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 1, .open_ms = 1000);
@@ -110,9 +100,7 @@ s32 main(void) {
     nya_check(_nya_circuit_allow_at(breaker, "up", probe + 1000 * MS), "then a new probe is allowed");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: half_open_max lets that many probes through at once.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 1, .success_threshold = 3, .half_open_max = 2, .open_ms = 1000);
@@ -126,9 +114,7 @@ s32 main(void) {
     nya_check(!_nya_circuit_allow_at(breaker, "up", after), "third refused past half_open_max");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: tripping is per key.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 1, .open_ms = 1000);
@@ -141,9 +127,7 @@ s32 main(void) {
     nya_check(nya_circuit_key_count(breaker) == 2, "two keys tracked, got %u", nya_circuit_key_count(breaker));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a 4xx-style success (the dependency answered) never trips it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 2, .open_ms = 1000);
@@ -156,9 +140,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the public API on the real clock, and destroy resets it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CircuitBreaker* breaker = nullptr;
     (void)nya_circuit_breaker_create(arena, &breaker, .failure_threshold = 2, .open_ms = 30000);

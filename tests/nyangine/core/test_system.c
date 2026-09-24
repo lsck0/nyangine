@@ -204,10 +204,8 @@ static void count_warnings(NYA_LogLevel level, NYA_ConstCString message, u32 len
 }
 
 s32 main(void) {
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: no ordering constraint anywhere: init, tick and deinit follow registration
     // order, and deinit is exactly that order reversed.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -230,9 +228,7 @@ s32 main(void) {
         nya_assert(log_equals(3, (NYA_ConstCString[]){ "c_deinit", "b_deinit", "a_deinit" }), "deinit should be exactly reversed, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an `after` chain resolves in dependency order, even registered out of order.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -252,10 +248,8 @@ s32 main(void) {
         nya_assert(log_equals(3, (NYA_ConstCString[]){ "a_init", "b_init", "c_init" }), "the chain should run a, then b, then c, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: `before` puts a system ahead of one registered earlier, which `after` alone
     // cannot express. This is what keeps the game's systems inside the engine's tick.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -272,10 +266,8 @@ s32 main(void) {
         nya_assert(log_equals(3, (NYA_ConstCString[]){ "a_tick", "b_tick", "c_tick" }), "before should pull b ahead of c, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the three phases are three lists over one order, and a system only appears
     // in the phases it has a callback for.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -297,10 +289,8 @@ s32 main(void) {
         nya_assert(log_equals(2, (NYA_ConstCString[]){ "a_render", "b_render" }), "both render, same order, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: disable stops the phase callbacks and nothing else. The system stays
     // registered, stays initialized, and picks up again on enable.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -335,10 +325,8 @@ s32 main(void) {
         nya_assert(log_equals(2, (NYA_ConstCString[]){ "b_deinit", "a_deinit" }), "a disabled system still tears down, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: unregister is the partner of register: it tears the system down, takes it
     // out of the order, is idempotent, and does nothing for a name nobody registered.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -371,10 +359,8 @@ s32 main(void) {
         nya_assert(log_equals(2, (NYA_ConstCString[]){ "a_tick", "c_tick" }), "b is gone from the tick, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a system registered after finalize lands in the order `after` asks for,
     // rather than on the end.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -391,10 +377,8 @@ s32 main(void) {
         nya_assert(log_equals(3, (NYA_ConstCString[]){ "a_tick", "b_tick", "c_tick" }), "a late registration still sorts, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a registration made from inside a run takes effect at the barrier, not
     // half way down the loop, so every system in one run sees the same schedule.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -414,10 +398,8 @@ s32 main(void) {
         nya_assert(log_equals(2, (NYA_ConstCString[]){ "registrar_tick", "late_tick" }), "and runs from the next one, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same for disabling. A system switched off from inside a run still runs
     // that run, because the decision belongs to the barrier.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -436,10 +418,8 @@ s32 main(void) {
         nya_assert(log_equals(1, (NYA_ConstCString[]){ "a_tick" }), "so it is skipped from the next run, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an optional system whose init fails is skipped, stays uninitialized so its
     // deinit is skipped too, and does not stop the systems after it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -466,10 +446,8 @@ s32 main(void) {
         nya_assert(log_equals(2, (NYA_ConstCString[]){ "c_deinit", "a_deinit" }), "and is not torn down either, got: %s", log_text());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a mandatory system whose init fails unwinds exactly what came up, in
     // reverse, and leaves nothing after it initialized.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -492,10 +470,8 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: systems are grouped by owner, and the owner's totals count its systems and
     // sum the memory they report.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -529,10 +505,8 @@ s32 main(void) {
         nya_assert(plugin.enabled_count == 0, "a disabled system still counts, but not as enabled");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: accounting is off until asked for, and then a run books time against the
     // system that spent it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -561,9 +535,7 @@ s32 main(void) {
         nya_system_accounting_disable();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: `after` naming a system that was never registered fails finalize loudly.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -578,9 +550,7 @@ s32 main(void) {
         nya_assert(strstr(message, "nobody") != nullptr, "and the target it could not find, got: %s", message);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same for `before`.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -595,9 +565,7 @@ s32 main(void) {
         nya_assert(strstr(message, "nobody") != nullptr, "and the target it could not find, got: %s", message);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a cycle fails finalize loudly and names the systems in it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -612,9 +580,7 @@ s32 main(void) {
         nya_assert(strstr(message, "y") != nullptr, "and 'y', got: %s", message);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a cycle spelled with `before` instead of `after` is caught the same way.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -629,9 +595,7 @@ s32 main(void) {
         nya_assert(strstr(message, "y") != nullptr, "and 'y', got: %s", message);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the ceiling warns and refuses rather than growing or corrupting state.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -660,9 +624,7 @@ s32 main(void) {
         nya_log_sink_clear();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a facility is what one system brings and another is checked against.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -690,10 +652,8 @@ s32 main(void) {
         nya_assert(nya_system_facilities() == 0, "a facility goes away with the system that provided it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a facility nothing provides. A mandatory system stops bring-up by name;
     // an optional one is stepped over, exactly as a failed init is.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -726,10 +686,8 @@ s32 main(void) {
         nya_system_registry_run_deinit();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a system's init may register more systems. The one it adds is brought up
     // too, even when the sort moves it ahead of the system that added it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
         log_reset();
@@ -748,9 +706,7 @@ s32 main(void) {
         nya_system_registry_run_deinit();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: running before finalize is a programmer error, not a quiet no-op.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -761,10 +717,8 @@ s32 main(void) {
         nya_expect_crash(nya_system_registry_run_deinit());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the contract's hard edges. A duplicate name, a system unregistered while
     // something is ordered against it, and enabling something that was never there.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 
@@ -782,10 +736,8 @@ s32 main(void) {
         nya_expect_crash(nya_system_register((NYA_SystemEntry){ .name = "nameless", .owner = { .kind = NYA_SYSTEM_OWNER_PLUGIN } }));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a phase run from inside a phase is refused. Last, because the crash is
     // caught mid-run and leaves the registry mid-run with it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();
 

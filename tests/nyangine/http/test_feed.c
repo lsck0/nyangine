@@ -64,9 +64,7 @@ int main(void) {
         .count       = nya_carray_length(items),
     };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: RSS builds well-formed, dates in RFC 822, text escaped, description in split CDATA.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString rss = nullptr;
         NYA_EXPECT(nya_http_feed_rss(arena, feed, &rss));
@@ -80,9 +78,7 @@ int main(void) {
         nya_assert(strstr(rss, "]]]]><![CDATA[>") != nullptr, "the embedded ]]> is split so it cannot close early");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Atom builds well-formed, feed <updated> in RFC 3339, summary escaped.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString atom = nullptr;
         NYA_EXPECT(nya_http_feed_atom(arena, feed, &atom));
@@ -94,9 +90,7 @@ int main(void) {
         nya_assert(strstr(atom, "<summary type=\"html\">hi &amp; &lt;b&gt;bold&lt;/b&gt; ]]&gt; done</summary>") != nullptr, "the summary is escaped, ]]> included");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a non-web item link refuses both builds.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpFeedItem bad_items[] = { { .title = "x", .link = "javascript:alert(1)" } };
         NYA_HttpFeedConfig     bad          = feed;
@@ -107,9 +101,7 @@ int main(void) {
         nya_assert(!nya_http_feed_rss(arena, bad, &rss).ok && rss == nullptr, "a javascript: link is refused, nothing emitted");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Atom refuses a feed with no date it can put in <updated>.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpFeedItem undated[] = { { .title = "x", .link = "https://example.com/x" } };
         NYA_HttpFeedConfig      no_date    = feed;
@@ -125,9 +117,7 @@ int main(void) {
         nya_assert(nya_http_feed_rss(arena, no_date, &rss).ok, "RSS builds without a feed date");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: mount serves RSS at /feed.xml and Atom at /atom.xml, each as its own media type.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_doc_clear();
         NYA_EXPECT(nya_http_feed_mount(feed));

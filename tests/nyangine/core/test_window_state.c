@@ -44,9 +44,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a handle that is not a window answers rather than crashing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The case a caller reaches by holding a handle across a close, which is the ordinary way to get
@@ -69,9 +67,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the count follows what is open
-  // ─────────────────────────────────────────────────────────────────────────────
   const u32 before = nya_window_count();
 
   NYA_WindowHandle window = nya_window_create("state", 320, 240, NYA_WINDOW_RESIZABLE);
@@ -83,9 +79,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a getter agrees with the flag the window was created with
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The one claim that does not depend on a compositor honouring anything: the window asked to be
@@ -98,9 +92,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: each getter answers about its own window and not about another
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_WindowHandle other = nya_window_create("other", 160, 120, NYA_WINDOW_NONE);
     nya_assert(nya_window_is_valid(other), "the second window was created");
@@ -120,9 +112,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the setters run and the getters keep answering
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Not "the request took". Every one of these is a request a window system may refuse, and the
@@ -163,9 +153,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the display queries answer, and their bounds are the right way round
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Rect bounds = nya_window_display_bounds(window);
     const NYA_Rect usable = nya_window_display_usable_bounds(window);
@@ -187,9 +175,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the cursor, which is four more calls nothing made
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * nya_cursor_set, nya_cursor, nya_cursor_visible_set and nya_cursor_visible had no caller. The
@@ -237,9 +223,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: geometry reads back, and requests answer for their own window only
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The second cluster the caller rule found: geometry, opacity, grab, flash and sync had no caller. As
@@ -304,9 +288,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the display mode and the driver name answer
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_DisplayMode mode = nya_window_display_mode(window);
     nya_check(mode.width >= 0 && mode.height >= 0 && mode.refresh_rate >= 0.0F, "the display mode is not negative, got %dx%d", mode.width, mode.height);
@@ -319,9 +301,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the region callback is what the platform's hit test asks
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The platform calls the hit test while the pointer moves, which no test can make it do, so it is
@@ -339,9 +319,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a layer is switched off and on by id, and only that layer
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_layer_push(window, _nya_layer_with_id((NYA_Layer){ .enabled = true }, "first"));
     nya_layer_push(window, _nya_layer_with_id((NYA_Layer){ .enabled = true }, "second"));
@@ -360,9 +338,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_window_destroy(window);
   nya_check(nya_window_count() == before, "closing them puts the count back, got " FMTu32, nya_window_count());
 

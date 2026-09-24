@@ -127,10 +127,8 @@ s32 main(s32 argc, NYA_CString argv[]) {
     const NYA_LogLevel original_level = nya_log_level_get();
     nya_log_level_set(NYA_LOG_LEVEL_TRACE);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the report carries the crash itself, where it came from, and the blocks
     //       a bug report is triaged from
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_ring_clear();
     nya_log_info("a line from before the crash, marker ZZTOP");
 
@@ -167,9 +165,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     nya_check(contains("\nStack trace\n"), "the report should have a stack trace block");
     nya_check(contains("ZZTOP"), "the report should carry the log lines from before the crash");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a fault and a thrown error each say the extra thing they know
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_CrashInfo fault      = crash_of(NYA_CRASH_SOURCE_FAULT, "Fault, signal 11");
         fault.signal             = 11;
@@ -190,10 +186,8 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(contains("NOT_FOUND"), "a thrown error report should name the error kind");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a buffer too small truncates and says so, rather than overrunning or
     //       ending mid sentence as though the program had simply stopped
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8        small[512] = { 0 };
         const u32 written    = nya_crash_report_compose(&assertion, small, sizeof(small));
@@ -203,10 +197,8 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(strstr((const char*)small, "[report truncated]") != nullptr, "a truncated report must say that it was truncated");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the scrub redacts the machine's identity from a report, deterministically,
     //       against known home, user and host values fed straight in
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString home = "/home/aria";
         NYA_ConstCString user = "aria";
@@ -242,10 +234,8 @@ s32 main(s32 argc, NYA_CString argv[]) {
                   "the home directory is redacted whole, not left as /home/[user]");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the scrub is a safe no-op when there is nothing to redact, and never runs
     //       off the end of the buffer it is given
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8        untouched[64] = { 0 };
         const u32 written       = (u32)snprintf((char*)untouched, sizeof(untouched), "no identity in here at all\n");
@@ -255,11 +245,9 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(strcmp((const char*)untouched, "no identity in here at all\n") == 0, "and change none of its bytes");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a real composed report carries no absolute home path, because compose
     //       scrubs it before returning. The identity comes from this machine, so the
     //       check only runs where there is a home directory to have leaked.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const char* real_home = getenv("HOME");
         if (real_home != nullptr && strlen(real_home) >= 2) {
@@ -275,9 +263,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: submitting with nowhere to write fails rather than inventing a path
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_log_directory_open(nullptr, 0));
     {
         u8              path[NYA_CRASH_REPORT_PATH_MAX] = { 0 };
@@ -288,10 +274,8 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(path[0] == '\0', "a failed submit should leave no path behind");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: submitting writes the whole report under the log directory and names
     //       the file it wrote
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 14));
 
     length = nya_crash_report_compose(&assertion, report, sizeof(report));
@@ -313,17 +297,13 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(nya_memcmp(written->items, report, length) == 0, "the file should hold the report verbatim");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the window declines to open where there is no video subsystem, rather
     //       than failing. A headless build and a test are both that case.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_crash_window_show(&assertion, (NYA_ConstCString)report);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: and opens, draws and closes where there is one. The quit comes from a
     //       thread because the window blocks until it is dismissed, which is what
     //       it is supposed to do.
-    // ─────────────────────────────────────────────────────────────────────────────
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         nya_log_warn("No video subsystem here, skipping the crash window: %s", SDL_GetError());
     } else {
@@ -359,18 +339,14 @@ s32 main(s32 argc, NYA_CString argv[]) {
         SDL_Quit();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the observer registers once and comes back out again
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_crash_reporter_init());
     NYA_EXPECT(nya_crash_reporter_init()); // idempotent, so a hot reload does not register a second
     nya_crash_reporter_deinit();
     nya_crash_reporter_deinit(); // and the teardown takes anything, including nothing
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a test that crashes writes the report and exits, rather than waiting
     //       in a window for a click nobody will make
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_crash_report_child");
         defer      nya_arena_destroy(arena);
@@ -389,11 +365,9 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
         if (nya_check_failures() > 0) (void)fprintf(stderr, "child stderr:\n%.*s\n", (int)child.stderr_content->length, child.stderr_content->items);
 
-        // ─────────────────────────────────────────────────────────────────────────────
         // TEST: and that report says what the program held, not only where it stopped:
         //       both operands of the comparison that failed, and every local of both
         //       watched frames, the innermost first
-        // ─────────────────────────────────────────────────────────────────────────────
         NYA_ArrayᐸNYA_DirectoryEntryᐳ* written = nullptr;
         NYA_EXPECT(nya_filesystem_list(arena, TEST_DIRECTORY "/child", &written));
 
@@ -430,9 +404,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // CLEANUP
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_log_directory_open(nullptr, 0));
     NYA_EXPECT(nya_filesystem_delete_recursive(TEST_DIRECTORY));
 

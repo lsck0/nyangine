@@ -137,9 +137,7 @@ s32 main(void) {
     nya_ui_recorder_init(&recorder, NYA_UI_RECORD_CELL);
     nya_ui_presenter_set(&window, nya_ui_recorder_presenter(&recorder));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a button activates on a click, once, and not on a hover.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         input(); // settle: no pointer over anything yet
         draw();
@@ -159,9 +157,7 @@ s32 main(void) {
         nya_check(!out_button, "and it does not activate again while the pointer just rests on it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a toggle owns its b8 and flips it on each click.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         state_toggle = false;
         draw();
@@ -176,9 +172,7 @@ s32 main(void) {
         nya_check(!state_toggle, "another click turns it off again");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a slider takes the value the pointer is over, and clamps to its bounds.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         state_volume = 0.5F;
         draw();
@@ -203,9 +197,7 @@ s32 main(void) {
         input();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a selectable reports its click and shows that it is chosen.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         state_choice = 0;
         draw();
@@ -226,9 +218,7 @@ s32 main(void) {
         nya_check(after->as_choice.on, "and once chosen it draws as chosen");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a disabled widget does nothing, whatever the pointer does to it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         make_disabled = true;
         state_toggle  = false;

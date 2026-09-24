@@ -22,9 +22,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_ring_edges");
   NYA_String* seen = nya_string_create(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: filling exactly to capacity
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: exactly full\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -41,9 +39,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pushing past capacity overwrites the oldest entry
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: overwrite when full\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -64,9 +60,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a wrapped layout, where head sits after tail in the backing array
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: wrapped layout\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -90,12 +84,10 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: growing a wrapped ring preserves order
   //
   // The existing resize test grows a ring that never wrapped, so the copy loop's modulo never did
   // anything. This is the case it exists for.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: resize a wrapped ring\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -120,13 +112,11 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: resizing to exactly the current length
   //
   // tail is set to the length after a resize, which is only a valid index while the capacity is
   // strictly greater. When they are equal, tail has to wrap to zero or the next push writes one
   // past the end of the buffer.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: resize to exactly the length\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 8);
@@ -150,9 +140,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: drain to empty and refill
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: drain and refill\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -175,9 +163,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: clear resets the layout, not just the length
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: clear\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -194,9 +180,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: at() is bounds checked against the length, not the capacity
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: bounds\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 8);
@@ -212,9 +196,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: copy is independent, and carries a wrapped layout correctly
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: copy\n");
   {
     NYA_RingᐸItemᐳ* ring = nya_ring_create_with_capacity(arena, Item, 4);
@@ -232,9 +214,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   printf("PASSED: test_ring_edges\n");

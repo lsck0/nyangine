@@ -324,9 +324,7 @@ s32 main(void) {
 
     char answer[4096] = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a route is mounted on a running server, and only there.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(!nya_http_websocket_route_add(&ECHO_ROUTE).ok, "a stream cannot be mounted before there is a server");
         nya_assert(nya_http_websocket_count() == 0);
@@ -352,9 +350,7 @@ s32 main(void) {
         printf("  a stream needs a server, an absolute path and a summary\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the handshake, a message each way, fragments, a ping, and a close.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -459,9 +455,7 @@ s32 main(void) {
         printf("  upgraded, echoed text and binary, joined three fragments, answered a ping and closed\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a push to everyone on a path, which is what a stream is for.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -491,9 +485,7 @@ s32 main(void) {
         printf("  a broadcast reached one path's peers, and unmounting it said goodbye\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a client that does not mask is refused, which RFC 6455 requires.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -519,9 +511,7 @@ s32 main(void) {
         printf("  an unmasked client frame closed the connection with 1002\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a frame larger than the bound is refused on its header alone.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -547,9 +537,7 @@ s32 main(void) {
         printf("  a frame announcing a megabyte closed the connection with 1009\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the handshakes this server refuses.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -625,9 +613,7 @@ s32 main(void) {
         printf("  eight handshakes refused: another site twice, no route, the version, the key twice, the verb, and early frames\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an upgrade spends a token like every other request.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .requests_per_second = 1, .request_burst = 1 });
         defer nya_system_http_deinit();
@@ -652,9 +638,7 @@ s32 main(void) {
         printf("  an upgrade past the address's budget is a 429 and not a socket\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one address may not take every socket.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();

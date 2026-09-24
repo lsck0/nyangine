@@ -11,9 +11,7 @@ s32 main(void) {
   const u8 SENTINEL_BEGIN[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE };
   const u8 SENTINEL_END[]   = { 0xBA, 0xBE, 0xCA, 0xFE, 0xDE, 0xAD, 0xBE, 0xEF };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sentinel constants are correct
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(_NYA_INTEGRITY_BLOCK.sentinel_begin[0] == 0xDE);
     nya_assert(_NYA_INTEGRITY_BLOCK.sentinel_begin[1] == 0xAD);
@@ -34,25 +32,19 @@ s32 main(void) {
     nya_assert(_NYA_INTEGRITY_BLOCK.sentinel_end[7] == 0xEF);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash slot is initialized to zeros
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (u64 i = 0; i < _NYA_INTEGRITY_HASH_SIZE; i++) { nya_assert(_NYA_INTEGRITY_BLOCK.hash[i] == 0); }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: struct is packed correctly (24 bytes total)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(sizeof(NYA_IntegrityBlock) == _NYA_INTEGRITY_BLOCK_SIZE);
     nya_assert((u8*)&_NYA_INTEGRITY_BLOCK.hash == (u8*)&_NYA_INTEGRITY_BLOCK.sentinel_begin + _NYA_INTEGRITY_SENTINEL_SIZE);
     nya_assert((u8*)&_NYA_INTEGRITY_BLOCK.sentinel_end == (u8*)&_NYA_INTEGRITY_BLOCK.hash + _NYA_INTEGRITY_HASH_SIZE);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sentinel block exists in this test binary
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* executable = nullptr;
     NYA_EXPECT(nya_filesystem_executable_path(arena, &executable));
@@ -73,9 +65,7 @@ s32 main(void) {
     nya_assert(found, "Sentinel block should be present in this binary.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the runtime checks do nothing outside a shipping build
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_integrity_start();
     nya_integrity_sweep(nya_clock_get_monotonic_ns());
@@ -83,9 +73,7 @@ s32 main(void) {
     nya_assert(!_nya_integrity_started, "a test build must not start the process checks");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the integrity hash is keyed, stable, and sees every byte
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const u8 bytes[] = { 'n', 'y', 'a' };
     nya_assert(nya_integrity_hash(bytes, sizeof(bytes)) == nya_integrity_hash(bytes, sizeof(bytes)));
@@ -93,9 +81,7 @@ s32 main(void) {
     nya_assert(nya_integrity_hash(bytes, 2) != nya_integrity_hash(bytes, 3));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a sweep over unchanged code completes passes that agree with the baseline
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // three and a half chunks, so the short last chunk is covered too.
     u64 size = (NYA_INTEGRITY_CODE_CHUNK_BYTES * 3) + (NYA_INTEGRITY_CODE_CHUNK_BYTES / 2);
@@ -117,9 +103,7 @@ s32 main(void) {
     nya_assert(state->last_pass_digest == state->baseline_digest);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a sweep reports a patched byte in the chunk that holds it, and code too large widens the chunks
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 size = NYA_INTEGRITY_CODE_CHUNK_BYTES * 4;
     u8* code = nya_arena_alloc(arena, size);
@@ -147,9 +131,7 @@ s32 main(void) {
     nya_assert(wide->chunk_bytes == NYA_INTEGRITY_CODE_CHUNK_BYTES * 2);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the watchdog holds the startup check and the sweep to their deadlines
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const u64 stamped = 0x1234;
     const u64 second  = 1'000'000'000ULL;
@@ -205,9 +187,7 @@ s32 main(void) {
     nya_assert(nya_integrity_watchdog_verdict(state, stamped, second) == NYA_INTEGRITY_CHECK_SKIPPED);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: simulated patch + verify on synthetic binary data
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // build a fake binary with some padding, sentinel block, more padding
     u64 prefix_len = 128;
@@ -242,9 +222,7 @@ s32 main(void) {
     nya_assert(stored == recomputed, "Patched CRC64 should match recomputed value.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: simulated tamper detection on synthetic binary data
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 prefix_len = 64;
     u64 suffix_len = 128;
@@ -276,9 +254,7 @@ s32 main(void) {
     nya_assert(stored != tampered_crc, "Tampered binary should NOT match stored CRC64.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sentinel search finds correct offset
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 prefix_len = 200;
     u64 suffix_len = 100;
@@ -307,9 +283,7 @@ s32 main(void) {
     nya_assert(found_offset == prefix_len + _NYA_INTEGRITY_SENTINEL_SIZE);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: no sentinel found in data without sentinels
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 len  = 512;
     u8* data = nya_arena_alloc(arena, len);
@@ -327,9 +301,7 @@ s32 main(void) {
     nya_assert(!found, "Should NOT find sentinel in random data.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: CRC64 consistency: same data always produces same hash
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u8  data[] = "The quick brown fox jumps over the lazy dog";
     u64 crc1   = nya_crc64(data, sizeof(data) - 1);
@@ -338,18 +310,14 @@ s32 main(void) {
     nya_assert(crc1 != 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sizes are correct
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(_NYA_INTEGRITY_SENTINEL_SIZE == 8);
     nya_assert(_NYA_INTEGRITY_HASH_SIZE == 8);
     nya_assert(_NYA_INTEGRITY_BLOCK_SIZE == 24);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: _nya_integrity_find_sentinel returns false for missing sentinel
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u8  data[64];
     memset(data, 0xAA, sizeof(data));
@@ -358,9 +326,7 @@ s32 main(void) {
     nya_assert(!found, "Should not find sentinel in uniform data.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: _nya_integrity_find_sentinel handles too-short data
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u8  data[8] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE };
     u64 offset  = 0;
@@ -368,18 +334,14 @@ s32 main(void) {
     nya_assert(!found, "Data too short to contain full block.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: _nya_integrity_find_sentinel with empty data
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 offset = 0;
     b8  found  = _nya_integrity_find_sentinel((u8*)"", 0, &offset);
     nya_assert(!found, "Should not find sentinel in empty data.");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_integrity_verify_file rejects what it cannot check
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(!nya_integrity_verify_file("./_no_such_file_at_all"), "a missing file cannot be valid");
 
@@ -395,9 +357,7 @@ s32 main(void) {
     (void)remove(path);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: _nya_integrity_pe_regions rejects an e_lfanew that would wrap its own bounds check
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // e_lfanew is read straight out of the file, so it is whatever a corrupt or hostile binary says
     // it is. Computed in u32, `pe_offset + 24` wraps for anything this large and the bounds check
@@ -417,9 +377,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a stamped PE stays valid once a signature is appended to it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * A minimal PE, only as real as the fields the hashing looks at: the e_lfanew pointer, the PE

@@ -35,9 +35,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_blob");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a put→get round trip returns identical bytes, and the id is the SHA-256
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -69,9 +67,7 @@ s32 main(void) {
     nya_assert(memcmp(out, bytes, sizeof(bytes)) == 0, "the bytes survived, zero byte included");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: putting the same bytes twice is one row and the same id (dedup)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -94,9 +90,7 @@ s32 main(void) {
     nya_assert(count == 1, "two puts of the same object left " FMTu32 " rows, not 1", count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: distinct bytes are distinct objects, and list walks them all
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -128,9 +122,7 @@ s32 main(void) {
     nya_assert(size == sizeof(b), "size reported " FMTu64, size);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: has, and get of an unknown id fails cleanly
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -165,9 +157,7 @@ s32 main(void) {
     nya_assert(no_delete.kind == NYA_ERROR_NOT_FOUND, "delete of an unknown id is NOT_FOUND");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: delete removes an object
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -190,9 +180,7 @@ s32 main(void) {
     nya_assert(gone.kind == NYA_ERROR_NOT_FOUND, "a deleted object is gone from get too");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty object is valid and round-trips
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -214,9 +202,7 @@ s32 main(void) {
     nya_assert(out != nullptr, "and still a non-null pointer, so it is told apart from missing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: get refuses an object whose stored bytes were tampered with
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -242,9 +228,7 @@ s32 main(void) {
     nya_assert(out == nullptr && out_size == 0, "and returned nothing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_blob_id_parse validates the shape, so no unchecked id reaches a statement
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_BlobId id = { 0 };
 
@@ -258,9 +242,7 @@ s32 main(void) {
     nya_assert(nya_blob_id_parse("zzzzef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", &id).kind == NYA_ERROR_INVALID_ARGUMENT, "a non-hex digit is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an oversized object and a bad table name are refused
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -280,9 +262,7 @@ s32 main(void) {
     nya_assert(injection.kind == NYA_ERROR_INVALID_ARGUMENT, "a non-identifier table name is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the store survives close and reopen on a file (persistence + custom table)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString path = "./_test_blob_persist.db";
     (void)remove(path);

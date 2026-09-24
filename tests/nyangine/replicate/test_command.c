@@ -14,9 +14,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_command");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a run round trips exactly
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a command run round trips\n");
   {
     NYA_NetCommand sent[NYA_NET_COMMAND_REDUNDANCY] = {
@@ -49,9 +47,7 @@ s32 main(void) {
     nya_assert(received[0].tick < received[3].tick, "the run came back out of order");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the encoder clamps rather than refusing
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: encoding more than the redundancy limit clamps\n");
   {
     /*
@@ -87,9 +83,7 @@ s32 main(void) {
     nya_assert(payload->length == 0, "a refused encode wrote to the buffer anyway");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the decoder refuses what would overrun the caller's array
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a count past the limit is refused before anything is written\n");
   {
     NYA_NetCommand received[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
@@ -199,9 +193,7 @@ s32 main(void) {
     nya_assert(count == 0, "a run of zero decoded to %u commands", count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: action bits
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: action bits, including past the end of the word\n");
   {
     NYA_NetCommand command = { 0 };
@@ -244,9 +236,7 @@ s32 main(void) {
     nya_assert(command.actions == before);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: random payloads never overrun
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: random payloads\n");
   {
     NYA_RNG             rng     = nya_rng_create(.seed = "C0DEC0DE");

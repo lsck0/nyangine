@@ -6,9 +6,7 @@
 #include "nyangine/nyangine.h"
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_min
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_min(3, 5) == 3);
   nya_assert(nya_min(5, 3) == 3);
   nya_assert(nya_min(5, 5) == 5);
@@ -23,9 +21,7 @@ s32 main(void) {
   nya_assert(nya_min(-1.5, 1.5) == -1.5);
   nya_assert(nya_min(0.0, 0.0) == 0.0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_max
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_max(3, 5) == 5);
   nya_assert(nya_max(5, 3) == 5);
   nya_assert(nya_max(5, 5) == 5);
@@ -39,9 +35,7 @@ s32 main(void) {
   nya_assert(nya_max(3.5, 5.5) == 5.5);
   nya_assert(nya_max(-1.5, 1.5) == 1.5);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_clamp
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_clamp(7, 0, 5) == 5);  // above max
   nya_assert(nya_clamp(-2, 0, 5) == 0); // below min
   nya_assert(nya_clamp(3, 0, 5) == 3);  // in range
@@ -61,9 +55,7 @@ s32 main(void) {
   nya_assert(nya_clamp(-0.5, 0.0, 1.0) == 0.0);
   nya_assert(nya_clamp(0.5, 0.0, 1.0) == 0.5);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_lerp
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_lerp(0.0, 10.0, 0.0) == 0.0);
   nya_assert(nya_lerp(0.0, 10.0, 0.5) == 5.0);
   nya_assert(nya_lerp(0.0, 10.0, 1.0) == 10.0);
@@ -85,21 +77,17 @@ s32 main(void) {
   nya_assert(nya_lerp(10.0, 0.0, 0.5) == 5.0);
   nya_assert(nya_lerp(10.0, 0.0, 1.0) == 0.0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_lerp extrapolates outside [0, 1] rather than rejecting it
   //
   // This used to assert that t outside the unit range panicked. It is now documented as deliberate:
   // overshoot is exactly what a spring or a back ease is built out of, so clamping or panicking
   // would make those impossible to express.
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_lerp(0.0, 10.0, -0.1) == -1.0);
   nya_assert(nya_lerp(0.0, 10.0, 1.1) == 11.0);
   nya_assert(nya_lerp(0.0, 10.0, -1.0) == -10.0);
   nya_assert(nya_lerp(0.0, 10.0, 2.0) == 20.0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: chained min/max operations
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_min(nya_max(3, 1), 5) == 3);
   nya_assert(nya_max(nya_min(7, 5), 3) == 5);
 

@@ -12,9 +12,7 @@
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: FNV-1a 64 against its published values
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: fnv1a known answers\n");
   {
     struct {
@@ -36,10 +34,8 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: wyhash against the copy vendored with box3d (verstable.h, default seed and secret). The inputs
   // cover each length branch: empty, under four, four to sixteen, under 48, and the 48 byte rounds.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: wyhash known answers\n");
   {
     struct {
@@ -62,9 +58,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: SipHash-2-4 against the reference vectors
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: siphash known answers\n");
   {
     u8 input[16];
@@ -96,9 +90,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the properties the integrity check depends on
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: siphash properties\n");
   {
     u8 data[64];

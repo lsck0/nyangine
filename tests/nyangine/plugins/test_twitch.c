@@ -247,9 +247,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_twitch");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the welcome is the session, and a notification carries its event.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Sockets sockets = { .now_ms = 1000, .now_s = 1'700'000'000 };
 
@@ -286,9 +284,7 @@ s32 main(void) {
     nya_twitch_eventsub_destroy(events);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a keepalive is not an event, and the same message twice is one event.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Sockets sockets = { .now_ms = 1000, .now_s = 1'700'000'000 };
 
@@ -315,9 +311,7 @@ s32 main(void) {
     nya_twitch_eventsub_destroy(events);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: silence past the keepalive interval ends the socket, with a backoff.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Sockets sockets = { .now_ms = 1000, .now_s = 1'700'000'000 };
 
@@ -358,9 +352,7 @@ s32 main(void) {
     nya_twitch_eventsub_destroy(events);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a reconnect moves to the new socket and loses nothing on the way.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Sockets sockets = { .now_ms = 1000, .now_s = 1'700'000'000 };
 
@@ -396,9 +388,7 @@ s32 main(void) {
     nya_twitch_eventsub_destroy(events);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a revoked subscription, a stale message, and a url that will not open.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Sockets sockets = { .now_ms = 1000, .now_s = 1'700'000'000 };
 
@@ -435,9 +425,7 @@ s32 main(void) {
     nya_twitch_eventsub_destroy(doomed);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a subscription names the session, the channel and the bot.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Helix fake = { .now_ms = 1000, .now_s = 1'700'000'000 };
     helix_push(&fake, 202, "ratelimit-limit: 800\r\nratelimit-remaining: 799\r\nratelimit-reset: 1700000060\r\n", "{\"data\":[{\"id\":\"sub-1\"}]}");
@@ -479,9 +467,7 @@ s32 main(void) {
     nya_twitch_helix_destroy(helix);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: chat goes over HTTP, and a spent bucket stops the client.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Helix fake = { .now_ms = 1000, .now_s = 1'700'000'000 };
     helix_push(&fake, 200, "ratelimit-limit: 800\r\nratelimit-remaining: 0\r\nratelimit-reset: 1700000060\r\n",
@@ -512,9 +498,7 @@ s32 main(void) {
     nya_twitch_helix_destroy(helix);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the refusal a bot actually hits is said in the words that fix it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Helix fake = { .now_ms = 1000, .now_s = 1'700'000'000 };
     helix_push(&fake, 401, "", "{\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"}");
@@ -536,9 +520,7 @@ s32 main(void) {
     nya_twitch_helix_destroy(helix);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a client refuses before it ever sends anything.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Helix fake = { .now_ms = 1000, .now_s = 1'700'000'000 };
 

@@ -105,9 +105,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_client");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the saturating clock helper
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: elapsed time saturates instead of wrapping\n");
   {
     nya_assert(_nya_net_elapsed_ms(1000, 400) == 600, "the ordinary direction still subtracts");
@@ -120,9 +118,7 @@ s32 main(void) {
     nya_assert(_nya_net_elapsed_ms(0, U64_MAX) == 0, "and so does the extreme of it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the handshake, and what it leaves the client knowing
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: WELCOME puts the client in a game\n");
   {
     NYA_NetTransport* server_end = attach_client(arena, (NYA_NetClientConfig){ 0 });
@@ -182,9 +178,7 @@ s32 main(void) {
     _NYA_APP_INSTANCE.options.time_step_ns = nya_time_ms_to_ns(16);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: REJECT carries a reason the player can be shown
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: REJECT reports why\n");
   {
     NYA_NetTransport* server_end = attach_client(arena, (NYA_NetClientConfig){ 0 });
@@ -234,9 +228,7 @@ s32 main(void) {
     nya_net_transport_destroy(server_end);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the roster hook
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: PEER_JOINED and PEER_LEFT reach the game\n");
   {
     PEERS_JOINED = 0;
@@ -292,9 +284,7 @@ s32 main(void) {
     nya_net_transport_destroy(server_end);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the game event hook
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: GAME_EVENT reaches the game\n");
   {
     GAME_EVENTS = 0;
@@ -342,9 +332,7 @@ s32 main(void) {
     nya_net_transport_destroy(server_end);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: snapshots before the handshake, and out of order
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: snapshots are ignored before PLAYING and when stale\n");
   {
     NYA_NetTransport* server_end = attach_client(arena, (NYA_NetClientConfig){ 0 });
@@ -411,9 +399,7 @@ s32 main(void) {
     nya_net_transport_destroy(server_end);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: interpolation and stats are safe to call in every state
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the query surface is safe when disconnected\n");
   {
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_DISCONNECTED);
@@ -440,9 +426,7 @@ s32 main(void) {
     nya_net_client_disconnect(); // twice, because a shutdown path is not always the one it thinks
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: attach refuses an incomplete configuration
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: attach validates its configuration\n");
   {
     NYA_NetTransport* a = nullptr;

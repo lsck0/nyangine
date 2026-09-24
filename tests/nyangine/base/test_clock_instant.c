@@ -205,9 +205,7 @@ static void action_read_the_date(NYA_SimulationRun* run) {
 s32 main(void) {
     u32 failures = 0;
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the edges of the instant range, as dates
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: instants as UTC dates and times\n");
     {
         struct {
@@ -243,9 +241,7 @@ s32 main(void) {
     }
     printf("  PASSED\n");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: arithmetic, and where it stops
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: instant and duration arithmetic\n");
     {
         NYA_Instant epoch  = { 0 };
@@ -269,9 +265,7 @@ s32 main(void) {
     }
     printf("  PASSED\n");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the calendar's edge cases
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: calendar arithmetic\n");
     {
         nya_assert(nya_date_is_leap_year(2000) && nya_date_is_leap_year(2024) && nya_date_is_leap_year(0));
@@ -335,9 +329,7 @@ s32 main(void) {
     }
     printf("  PASSED\n");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the laws
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: calendar and instant laws\n");
     {
         failures += nya_property_check("a date round trips through its day count", CASES, SEED, law_days_round_trip);
@@ -350,9 +342,7 @@ s32 main(void) {
     }
     if (failures == 0) printf("  PASSED\n");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: where nya_instant_now reads
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: the instant source\n");
     {
         NYA_InstantSource wall = nya_instant_source();

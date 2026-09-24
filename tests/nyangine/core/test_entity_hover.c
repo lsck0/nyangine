@@ -63,9 +63,7 @@ s32 main(void) {
   defer nya_world_destroy(world);
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nothing is hovered until something is
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -79,9 +77,7 @@ s32 main(void) {
     nya_assert(call_count == 0, "hovering empty space calls nothing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: arriving fires once, and resting on it does not fire again
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -103,9 +99,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: leaving for empty space fires the false edge
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -121,9 +115,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: moving between two entities delivers the leave before the enter
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -150,9 +142,7 @@ s32 main(void) {
     nya_entity_despawn(right);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an entity with no on_hover is still reported as hovered
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -170,9 +160,7 @@ s32 main(void) {
     nya_entity_despawn(terrain);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hover_clear releases whatever is held, and is idempotent
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -197,9 +185,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: despawning the hovered entity releases the hover without calling it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -227,9 +213,7 @@ s32 main(void) {
     nya_entity_despawn(other);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 3D: the ray overload drives the same edges
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -256,9 +240,7 @@ s32 main(void) {
     nya_entity_despawn(cube);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a handler that despawns its own entity does not leave a dangling hover
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 

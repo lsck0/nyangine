@@ -260,9 +260,7 @@ s32 main(void) {
                   (f64)released);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a big title with every piece of chrome: the bar holds it, and the bar drags.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // what gnyame's own style does: a title twice the body size.
         nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 22.0F, .title_size = 44.0F, .padding = FRAME, .spacing = GAP, .item_height = ITEM });
@@ -301,9 +299,7 @@ s32 main(void) {
         nya_check(moved.bounds.x > big.bounds.x, "the window moved with the pointer, from %.1f to %.1f", (f64)big.bounds.x, (f64)moved.bounds.x);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the grip follows the pointer whatever corner the window is anchored to.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         /*
          * An anchor that pins the right or bottom edge places the window from that edge, so growing it
@@ -342,9 +338,7 @@ s32 main(void) {
         offset = (f32x2){ 0 };
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: folding a window anchored to the bottom leaves its title bar where it is.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         /*
          * The same rule as growing: the origin moves by the anchor's share of every change in height,

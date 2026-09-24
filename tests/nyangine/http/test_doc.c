@@ -40,9 +40,7 @@ int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_doc");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: xml_text escapes & < >, and nothing else.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpDoc doc = nya_http_doc_over(arena, NYA_HTTP_DOC_MAX_BYTES);
         nya_http_doc_xml_text(&doc, "a & b < c > d \" e ' f");
@@ -52,9 +50,7 @@ int main(void) {
         nya_assert(strcmp(out, "a &amp; b &lt; c &gt; d \" e ' f") == 0, "text escapes & < > and leaves the quotes: %s", out);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: xml_attr escapes the two quotes as well.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpDoc doc = nya_http_doc_over(arena, NYA_HTTP_DOC_MAX_BYTES);
         nya_http_doc_xml_attr(&doc, "\"><script>&'");
@@ -65,9 +61,7 @@ int main(void) {
         nya_assert(strstr(out, "<script>") == nullptr, "no raw tag survives the attr escaper");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: cdata splits a literal ]]> so it cannot close the section early.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpDoc doc = nya_http_doc_over(arena, NYA_HTTP_DOC_MAX_BYTES);
         nya_http_doc_xml_cdata(&doc, "before]]>after");
@@ -78,9 +72,7 @@ int main(void) {
         nya_assert(strstr(out + 9, "]]>after") == nullptr, "no bare ]]> is left inside the section content");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the URL gate takes http and https, and refuses everything else.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_doc_url_is_web("https://example.com/"), "https is web");
         nya_assert(nya_http_doc_url_is_web("http://example.com/a?b=c&d=e"), "http with a query is web");
@@ -94,9 +86,7 @@ int main(void) {
         nya_assert(!nya_http_doc_url_is_web(nullptr), "null is not a URL");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the bound refuses the whole document rather than truncating it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // A doc that fills exactly builds; the next byte past the bound refuses whole.
         NYA_HttpDoc fits = nya_http_doc_over(arena, 8);
@@ -112,9 +102,7 @@ int main(void) {
         nya_assert(out == nullptr, "and nothing half-built is handed back");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the serve registry mounts a document and a GET answers with its bytes and media.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_doc_clear();
 

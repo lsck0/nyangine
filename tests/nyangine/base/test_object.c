@@ -53,9 +53,7 @@ static b8 objects_equal(const NYA_Object* a, const NYA_Object* b) {
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_object");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Basic primitive types serialization/deserialization
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an object gives its memory back when destroyed\n");
   {
     // the arena's free list hands a freed block to the next request of its size, so a second object
@@ -107,9 +105,7 @@ s32 main(void) {
 
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Nested objects
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Nested objects\n");
   {
     NYA_Object* inner = nya_object_create(arena);
@@ -139,9 +135,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Arrays of primitives
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* obj = nya_object_create(arena);
 
@@ -173,9 +167,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Arrays of objects (without object keyword in elements)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* obj = nya_object_create(arena);
 
@@ -222,9 +214,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Empty array
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object*    obj       = nya_object_create(arena);
     NYA_ArrayᐸNYA_Valueᐳ empty_arr = nya_array_create_on_stack(arena, NYA_Value);
@@ -241,9 +231,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Comments are stripped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const char* text_with_comments = "/* This is a comment */\n"
                                      "nya 2 12345\n"
@@ -268,9 +256,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Hex and binary numbers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const char* text_with_hex = "nya 2 12345\n"
                                 "{\n"
@@ -293,9 +279,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Trailing comma in arrays
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const char* text_with_trailing_comma = "nya 2 12345\n"
                                            "{ arr: u32[] [1,2,3,]; }\n";
@@ -315,9 +299,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Complex nested structure
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* config = nya_object_create(arena);
 
@@ -374,9 +356,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Version validation
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const char* wrong_version = "nya 99 12345\n{ key: u32 42; }\n";
     NYA_Object* restored = nullptr;
@@ -384,9 +364,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_object_remove
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Object remove\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -409,9 +387,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_object_reset
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Object reset\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -431,9 +407,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_object_create_on_stack / nya_object_destroy_on_stack
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Object on stack\n");
   {
     NYA_Object on_stack = nya_object_create_on_stack(arena);
@@ -447,9 +421,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Minify serialization flag
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Minify serialization\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -474,9 +446,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Object overwrite key
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Object overwrite key\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -489,9 +459,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Object get non-existent key
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Object get non-existent key\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -503,9 +471,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: CRC validation
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: CRC validation\n");
   {
     // tampered CRC should fail
@@ -547,9 +513,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Empty object serialization round-trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Empty object\n");
   {
     NYA_Object* obj     = nya_object_create(arena);
@@ -567,9 +531,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Integer boundary values
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Integer boundary values\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -595,9 +557,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Compact and pretty produce same data after round-trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Compact vs pretty equivalence\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -618,9 +578,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Single-element array
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Single-element array\n");
   {
     NYA_Object*    obj = nya_object_create(arena);
@@ -641,9 +599,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Deeply nested objects (3 levels)
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Deeply nested objects\n");
   {
     NYA_Object* level3 = nya_object_create(arena);
@@ -673,9 +629,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Minify round-trip with complex data
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Minify complex round-trip\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -709,9 +663,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Deserialize malformed input returns nullptr
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Malformed input\n");
   {
     // Empty input is now a reported error rather than a success that yields nothing, so these
@@ -744,9 +696,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Many keys stress test
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Many keys\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -775,9 +725,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Char type round-trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Char type\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -794,9 +742,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Array of booleans
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Array of booleans\n");
   {
     NYA_Object*    obj = nya_object_create(arena);
@@ -820,9 +766,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Array of strings
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Array of strings\n");
   {
     NYA_Object*    obj = nya_object_create(arena);
@@ -846,9 +790,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Object with nested object containing array
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Nested object with array\n");
   {
     NYA_ArrayᐸNYA_Valueᐳ scores = nya_array_create_on_stack(arena, NYA_Value);
@@ -878,9 +820,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Float special values
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Float values\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -897,9 +837,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Negative integer parsing in deserialization
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Negative integers from text\n");
   {
     const char* text = "nya 2 12345\n"
@@ -917,9 +855,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_s128_to_string handles S128_MIN without overflow
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* s = nya_s128_to_string(arena, S128_MIN);
     nya_assert(s != nullptr);
@@ -946,9 +882,7 @@ s32 main(void) {
     printf("  PASSED: s128_to_string edge cases\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: CRC computation works for 128-bit value types
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* obj = nya_object_create(arena);
 

@@ -58,9 +58,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the model in the tree parses into triangles
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = NYA_ASSET_MODELS_CUBIE_FBX }));
 
@@ -162,9 +160,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the second model reads too, and the two are different meshes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = NYA_ASSET_MODELS_PILL_FBX }));
 
@@ -186,9 +182,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a rigged model's skinned vertices carry their part's material colour
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type   = NYA_ASSET_TYPE_MESH,
@@ -249,9 +243,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: something that is not an FBX fails rather than being believed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a real file of the wrong kind, so ufbx rejects the contents rather than the filesystem the name.
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = NYA_ASSET_I18N_EN_JSON }));

@@ -18,9 +18,7 @@ s32 main(void) {
 
   nya_log_info("SQLite %s", nya_sql_version());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: opening rejects nothing sensible, and a closed handle is safe to close
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db     = nullptr;
     NYA_Error     result = nya_sql_open(arena, "", &db);
@@ -34,9 +32,7 @@ s32 main(void) {
     nya_sql_close(db);  // idempotent: the second close sees a null handle and returns
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a row comes back as an object keyed by column name
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -78,9 +74,7 @@ s32 main(void) {
     nya_assert(nya_object_get(row, "no_such_column") == nullptr, "a column that does not exist is absent");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: parameters are bound, so quotes in data cannot become syntax
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -100,9 +94,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_object_get(result.rows->items[0], "name")->as_string, hostile), "stored verbatim, as data");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a parameter count mismatch is caught before SQLite sees it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -127,9 +119,7 @@ s32 main(void) {
     NYA_EXPECT(nya_sql_query(db, arena, "SELECT * FROM t", nullptr, 0, &query));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: query refuses more than one statement
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -147,9 +137,7 @@ s32 main(void) {
     NYA_EXPECT(nya_sql_query(db, arena, "SELECT * FROM t", nullptr, 0, &check));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: exec takes multiple statements, which is what schema setup needs
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -164,9 +152,7 @@ s32 main(void) {
     nya_assert(result.rows->length == 0, "including the one that created an empty table");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: rows_affected and last_insert_id
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -190,9 +176,7 @@ s32 main(void) {
     nya_assert(update.rows_affected == 2, "both rows updated, got " FMTu64, update.rows_affected);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a rolled back transaction leaves nothing behind
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -216,9 +200,7 @@ s32 main(void) {
     nya_assert(result.rows->length == 1, "and the commit kept one");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: broken sql is an error rather than a crash, and leaves the handle usable
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -238,9 +220,7 @@ s32 main(void) {
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE fine (x INTEGER)"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a constraint violation is reported, not silently swallowed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -258,9 +238,7 @@ s32 main(void) {
     nya_assert(not_null.kind == NYA_ERROR_INVALID_ARGUMENT, "so is a NOT NULL violation");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: blobs survive the round trip, base64 encoded into the row
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -287,9 +265,7 @@ s32 main(void) {
     nya_assert(memcmp(decoded->items, bytes, sizeof(bytes)) == 0, "and the bytes survived, zero byte included");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a key is refused by a build with no cipher, and no file is left behind
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The encryption seam. Written so it stays true on the day SQLCipher lands: what is asserted is
     // that a key is either honoured or refused, never taken and then ignored.
@@ -320,9 +296,7 @@ s32 main(void) {
     nya_assert(!nya_filesystem_exists(path), "and it created nothing either");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a file backed database is created and persists across connections
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The one thing ":memory:" cannot show: that reopening a path finds what the last connection
     // wrote, which is the whole premise of a save file.
@@ -355,9 +329,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a row serializes as JSON, which is the reason it is an NYA_Object
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);

@@ -14,9 +14,7 @@
 #include "nyangine/nyangine.c"
 
 int main(void) {
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a zeroed policy is off, and an off supervisor never restarts.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor off;
         nya_supervisor_init(&off, (NYA_SupervisorPolicy){ 0 });
@@ -26,9 +24,7 @@ int main(void) {
         nya_assert(nya_supervisor_restart_count(&off) == 0, "and counts nothing");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a clean exit is never restarted, even when the policy is on.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .max_restarts = 3, .window_s = 60 });
@@ -37,9 +33,7 @@ int main(void) {
         nya_assert(nya_supervisor_restart_count(&supervisor) == 0, "and spends no budget");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: at most max_restarts inside the window, then give up so the crash surfaces.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .max_restarts = 3, .window_s = 60 });
@@ -52,9 +46,7 @@ int main(void) {
         nya_assert(nya_supervisor_restart_count(&supervisor) == 3, "and a refusal counts nothing");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the backoff window doubles from base_ms with each restart and stops at cap_ms.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .max_restarts = 50, .window_s = 100000, .base_ms = 100, .cap_ms = 1000 });
@@ -71,9 +63,7 @@ int main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the defaults fill in when a field is left at zero.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true });
@@ -92,9 +82,7 @@ int main(void) {
         nya_assert(!nya_supervisor_should_restart(&supervisor, 1000, false), "the default budget is spent");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a quiet window resets the budget, so a rare crash is always recovered.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .max_restarts = 2, .window_s = 10, .base_ms = 100, .cap_ms = 1000 });
@@ -110,9 +98,7 @@ int main(void) {
         nya_assert(nya_supervisor_window_ms(&supervisor) == 100, "as does the backoff");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a clock that runs backwards opens a fresh window rather than reading a stale one.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .max_restarts = 2, .window_s = 10 });
@@ -126,9 +112,7 @@ int main(void) {
         nya_assert(nya_supervisor_restart_count(&supervisor) == 1, "the window reopened");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the jittered delay stays inside the window, whatever it draws.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Supervisor supervisor;
         nya_supervisor_init(&supervisor, (NYA_SupervisorPolicy){ .enabled = true, .base_ms = 200, .cap_ms = 4000 });

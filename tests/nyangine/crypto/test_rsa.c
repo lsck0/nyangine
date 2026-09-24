@@ -74,9 +74,7 @@ static const char FIXTURE_MESSAGE[] = "the message this fixture signs";
 static const u8 FIXTURE_EXPONENT[] = { 0x01, 0x00, 0x01 };
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a signature openssl made verifies, and one byte of anything breaks it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CryptoRsaPublicKey key = { 0 };
 
@@ -117,9 +115,7 @@ s32 main(void) {
               "and so is the same signature with a zero in front of it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a key may not be.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CryptoRsaPublicKey key = { 0 };
 
@@ -167,9 +163,7 @@ s32 main(void) {
               "and it verifies the same signature");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a forgery shaped like the padding, which is what the comparison exists for.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CryptoRsaPublicKey key = { 0 };
     nya_check(nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,

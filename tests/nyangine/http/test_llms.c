@@ -24,9 +24,7 @@ int main(void) {
         .section_count = nya_carray_length(sections),
     };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the plain document has the H1, the blockquote, the section and the links.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString md = nullptr;
         NYA_EXPECT(nya_http_llms_build(arena, config, &md));
@@ -43,9 +41,7 @@ int main(void) {
         nya_assert(strstr(md, NYA_HTTP_LLMS_STRICT_NOTICE) == nullptr, "the plain build makes no restriction claim");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the strict document carries the restricted-use notice, near the top.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString md = nullptr;
         NYA_EXPECT(nya_http_llms_strict(arena, config, &md));
@@ -58,9 +54,7 @@ int main(void) {
         nya_assert(first_section != nullptr && notice < first_section, "the notice comes before the content");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a non-web URL, a URL with a parenthesis, and a control byte each refuse the build.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString md = (NYA_ConstCString) "unset";
 
@@ -81,9 +75,7 @@ int main(void) {
         nya_assert(!nya_http_llms_build(arena, ctrl, &md).ok, "a newline in the summary is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: both mounts land at /llms.txt as text/markdown.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRouter* routers[] = { nya_http_doc_router() };
         b8                    exists  = false;

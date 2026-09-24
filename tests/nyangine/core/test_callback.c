@@ -23,26 +23,20 @@ s32 main(void) {
 
   nya_system_callback_init();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Zero handle returns nullptr
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     void* fn = nya_callback_get(0);
     nya_assert(fn == nullptr, "Handle 0 should return nullptr");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Register and retrieve a callback
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CallbackHandle h = _nya_callback((NYA_Callback){ .name = "dummy_fn_a", .fn = (void*)dummy_fn_a });
     void* fn = nya_callback_get(h);
     nya_assert(fn == (void*)dummy_fn_a, "Should retrieve the registered function");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Multiple callbacks have unique handles
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CallbackHandle h1 = _nya_callback((NYA_Callback){ .name = "fn1", .fn = (void*)dummy_fn_a });
     NYA_CallbackHandle h2 = _nya_callback((NYA_Callback){ .name = "fn2", .fn = (void*)dummy_fn_b });
@@ -57,27 +51,21 @@ s32 main(void) {
     nya_assert(nya_callback_get(h3) == (void*)dummy_fn_c);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Handles are sequential
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CallbackHandle h1 = _nya_callback((NYA_Callback){ .name = "seq1", .fn = (void*)dummy_fn_a });
     NYA_CallbackHandle h2 = _nya_callback((NYA_Callback){ .name = "seq2", .fn = (void*)dummy_fn_b });
     nya_assert(h2 == h1 + 1, "Handles should be sequential");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Callback with nya_callback macro
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CallbackHandle h = nya_callback(dummy_fn_a);
     nya_assert(h != 0, "Macro should return a valid handle");
     nya_assert(nya_callback_get(h) == (void*)dummy_fn_a);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Many callbacks
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_CallbackHandle first = _nya_callback((NYA_Callback){ .name = "batch_0", .fn = (void*)dummy_fn_a });
 

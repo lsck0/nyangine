@@ -6,9 +6,7 @@
 #include "nyangine/nyangine.h"
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Type limits - unsigned
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(U8_MIN == 0);
   nya_assert(U8_MAX == 255);
   nya_assert(U16_MIN == 0);
@@ -18,9 +16,7 @@ s32 main(void) {
   nya_assert(U64_MIN == 0);
   nya_assert(U64_MAX == 18446744073709551615ULL);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Type limits - signed
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(S8_MAX == 127);
   nya_assert(S8_MIN == -128);
   nya_assert(S16_MAX == 32767);
@@ -30,9 +26,7 @@ s32 main(void) {
   nya_assert(S64_MAX == 9223372036854775807LL);
   nya_assert(S64_MIN == -9223372036854775807LL - 1);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Type limits - float
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(F16_MAX == 65504.0F);
   nya_assert(F16_MIN == -65504.0F);
   nya_assert(F32_MAX > 0);
@@ -42,9 +36,7 @@ s32 main(void) {
   nya_assert(F128_MAX > 0);
   nya_assert(F128_MIN < 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Safe cast - valid casts succeed
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(nya_cast_to_u8(0) == 0);
   nya_assert(nya_cast_to_u8(255) == 255);
   nya_assert(nya_cast_to_u16(0) == 0);
@@ -66,9 +58,7 @@ s32 main(void) {
   nya_assert(nya_cast_to_f64(0.0) == 0.0);
   nya_assert(nya_cast_to_f64(1.0) == 1.0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Safe cast - overflow panics
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash(nya_cast_to_u8(256));
   nya_expect_crash(nya_cast_to_u8(-1));
   nya_expect_crash(nya_cast_to_u16(65536));
@@ -80,9 +70,7 @@ s32 main(void) {
   nya_expect_crash(nya_cast_to_s16(32768));
   nya_expect_crash(nya_cast_to_s16(-32769));
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_TYPE_NAME_MAP - key types have names
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_NULL], "null") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_VOID], "void") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_U8], "u8") == 0);
@@ -100,15 +88,11 @@ s32 main(void) {
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_OBJECT], "object") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_ARRAY], "array") == 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_TYPE_COUNT - enum count is consistent
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(NYA_TYPE_COUNT > 0);
   nya_assert(NYA_TYPE_NULL == 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Type sizes
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(sizeof(u8) == 1);
   nya_assert(sizeof(u16) == 2);
   nya_assert(sizeof(u32) == 4);
@@ -124,9 +108,7 @@ s32 main(void) {
   nya_assert(sizeof(b32) == 4);
   nya_assert(sizeof(b64) == 8);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_type_parse - unsigned integers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u8  u8_val  = 0;
     u16 u16_val = 0;
@@ -158,9 +140,7 @@ s32 main(void) {
     nya_assert(u64_val == 18446744073709551615ULL);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_type_parse - signed integers
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     s8  s8_val  = 0;
     s16 s16_val = 0;
@@ -204,9 +184,7 @@ s32 main(void) {
     nya_assert(s64_val == -9223372036854775807LL - 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_type_parse - floats
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 f32_val = 0.0f;
     f64 f64_val = 0.0;
@@ -236,9 +214,7 @@ s32 main(void) {
     nya_assert(f64_val == -123.456);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_type_parse - invalid input
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u8 u8_val = 0;
     nya_assert(nya_type_parse(NYA_TYPE_U8, (u8*)"", 0, &u8_val) == false);
@@ -257,9 +233,7 @@ s32 main(void) {
     nya_assert(nya_type_parse(NYA_TYPE_F32, (u8*)"1..2", 4, &f32_val) == false);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_type_name_parse - valid type names
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Type         type = NYA_TYPE_NULL;
     NYA_ConstCString name = NULL;
@@ -302,9 +276,7 @@ s32 main(void) {
     nya_assert(type == NYA_TYPE_STRING);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_type_name_parse - invalid type names
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Type         type = NYA_TYPE_NULL;
     NYA_ConstCString name = NULL;

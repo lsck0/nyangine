@@ -44,9 +44,7 @@ static s32 syntax_check(NYA_Arena* arena, NYA_ConstCString header, b8 web_profil
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_model_so_dto");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: model -> so -> model is the identity. Nothing is lost across the db boundary.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         AccountNote row = { .id = 7, .owner = 42, .written_at_s = 1700000000 };
         (void)snprintf(row.text, sizeof(row.text), "%s", "a note that survives the round trip");
@@ -59,9 +57,7 @@ s32 main(void) {
         nya_assert(strcmp(back.text, row.text) == 0, "the text round-trips byte for byte");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: so -> dto drops the owner, and dto -> so takes the owner and the time from the server.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         Note      so  = { .id = 3, .owner = 99, .written_at_s = 1700000000u };
         (void)snprintf(so.text, sizeof(so.text), "%s", "mine");
@@ -79,9 +75,7 @@ s32 main(void) {
         nya_assert(strcmp(parsed.text, "mine") == 0, "the text is the one field the client does supply");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: note_so_from_dto is fallible, because a DTO off the wire is untrusted.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NoteDtoV1 empty  = { .id = 0 }; // no text
         Note      out    = { 0 };
@@ -90,10 +84,8 @@ s32 main(void) {
         nya_assert(!note_so_from_dto(&empty, 1, 1, nullptr).ok, "a null destination is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the DTO's reflection drives the wire and has no owner; the Model's reflection, which drives
     // the ORM, keeps it. A field reaches the wire only when a DTO names it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NoteDtoV1 dto = { .id = 5, .written_at_s = 10 };
         (void)snprintf(dto.text, sizeof(dto.text), "%s", "seen");
@@ -109,9 +101,7 @@ s32 main(void) {
         nya_assert(nya_object_get(stored, "owner") != nullptr, "the model keeps the owner: that is what the db stores");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the web-profile gate refuses a server-only header, and only a server-only header.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString model = "examples/accounts_api/notes/note_model.h";
         NYA_ConstCString so    = "examples/accounts_api/notes/note_so.h";

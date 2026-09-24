@@ -21,42 +21,32 @@ static NYA_ConstCString parse_one_string(NYA_Arena* arena, NYA_ConstCString docu
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_json_surrogate");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a high surrogate with nothing after it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString text = parse_one_string(arena, "{\"s\":\"a\\uD800b\"}", "s");
     nya_assert(strcmp(text, "a" REPLACEMENT "b") == 0, "got '%s'", text);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a lone low surrogate
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString text = parse_one_string(arena, "{\"s\":\"a\\uDC00b\"}", "s");
     nya_assert(strcmp(text, "a" REPLACEMENT "b") == 0, "got '%s'", text);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a high surrogate followed by an escape that is not a low one
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString text = parse_one_string(arena, "{\"s\":\"\\uD800\\u0041\"}", "s");
     nya_assert(strcmp(text, REPLACEMENT "A") == 0, "got '%s'", text);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a real pair still combines
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // U+1F600 GRINNING FACE.
     NYA_ConstCString text = parse_one_string(arena, "{\"s\":\"\\uD83D\\uDE00\"}", "s");
     nya_assert(strcmp(text, "\xF0\x9F\x98\x80") == 0, "a valid surrogate pair must still combine, got '%s'", text);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: ordinary BMP escapes are untouched
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString text = parse_one_string(arena, "{\"s\":\"\\u00E4\\u20AC\"}", "s");
     nya_assert(strcmp(text, "\xC3\xA4\xE2\x82\xAC") == 0, "got '%s'", text);

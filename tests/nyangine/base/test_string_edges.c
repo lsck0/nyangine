@@ -11,9 +11,7 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_string_edges");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_string_extend_sprintf, including onto an empty string
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: extend_sprintf\n");
   {
     NYA_String* s = nya_string_create(arena);
@@ -36,12 +34,10 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_string_extend_front_sprintf
   //
   // The prepend has to survive content already being there: the formatted text goes at the front
   // and everything that was in the string stays intact behind it.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: extend_front_sprintf\n");
   {
     // Onto an empty string first, which is the simplest case.
@@ -60,9 +56,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_string_push_back and the growth boundary
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: push_back\n");
   {
     NYA_String* s = nya_string_create_with_capacity(arena, 4);
@@ -83,9 +77,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_string_shrink_to_fit
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: shrink_to_fit\n");
   {
     NYA_String* s = nya_string_create_with_capacity(arena, 256);
@@ -103,9 +95,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: substring boundaries
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: substring boundaries\n");
   {
     NYA_String* s = nya_string_from(arena, "abcdef");
@@ -126,9 +116,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: contains / starts_with / ends_with at the edges
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: search edges\n");
   {
     NYA_String* s     = nya_string_from(arena, "abc");
@@ -151,9 +139,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: count, including overlapping candidates
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: count\n");
   {
     NYA_String* aaa = nya_string_from(arena, "aaaa");
@@ -170,9 +156,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: replace and remove at the edges
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: replace and remove\n");
   {
     // Replacement longer than the original, at the front and the back.
@@ -203,9 +187,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: strip_prefix / strip_suffix when the affix is the whole string
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: strip edges\n");
   {
     NYA_String* whole = nya_string_from(arena, "abc");
@@ -234,9 +216,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: trim_whitespace
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: trim_whitespace\n");
   {
     NYA_String* both = nya_string_from(arena, "  \t\n hi \r\n ");
@@ -259,9 +239,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: reverse
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: reverse\n");
   {
     NYA_String* odd = nya_string_from(arena, "abc");
@@ -288,9 +266,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: split edges
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: split edges\n");
   {
     // Leading and trailing separators produce empty fields rather than being swallowed.
@@ -322,9 +298,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: split_lines with the line ending styles that actually occur
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: split_lines\n");
   {
     NYA_String*            unix_style = nya_string_from(arena, "a\nb\nc");
@@ -342,9 +316,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: to_upper / to_lower leave non-letters alone
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: case conversion\n");
   {
     NYA_String* mixed = nya_string_from(arena, "aB1_ ~z");
@@ -359,9 +331,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: to_cstring is NUL terminated and does not alias the source
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: to_cstring\n");
   {
     NYA_String* s = nya_string_from(arena, "abc");
@@ -382,9 +352,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: clone and concat are independent of their sources
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: clone and concat independence\n");
   {
     NYA_String* original = nya_string_from(arena, "abc");
@@ -409,11 +377,9 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: extend with itself
   //
   // Self-extension has to read the original bytes even though the buffer may move underneath it.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: self extend\n");
   {
     NYA_String* s = nya_string_from(arena, "ab");
@@ -422,9 +388,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an oversized separator dies on the bound rather than on the stack
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     printf("TEST: oversized separator\n");
 
@@ -460,9 +424,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   printf("PASSED: test_string_edges\n");

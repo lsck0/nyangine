@@ -63,9 +63,7 @@ s32 main(void) {
 
   const NYA_UIStyle builtin = nya_ui_style_get(&window);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the shipped default theme loads and is the built-in look
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the shipped default theme loads into NYA_UIStyle as the built-in style\n");
   {
     NYA_EXPECT(nya_ui_theme_load(&window, NYA_UI_THEME_DEFAULT_FILE));
@@ -84,9 +82,7 @@ s32 main(void) {
 
   nya_ui_theme_clear(&window);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a valid theme overrides only the fields it names, the rest staying default
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a valid theme overrides the fields it names and defaults the rest\n");
   {
     write_fixture("nya 2 0\n"
@@ -114,9 +110,7 @@ s32 main(void) {
 
   nya_ui_theme_clear(&window);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a bad field is rejected and the built-in default kept, valid siblings applied
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an out-of-range or wrong-type field is rejected, keeping the built-in default\n");
   {
     // A radius below zero, an alpha above one, a size that is text not a number, and a key that names no
@@ -145,9 +139,7 @@ s32 main(void) {
 
   nya_ui_theme_clear(&window);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a resolved style round-trips through reflection unchanged
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: NYA_UIStyle round-trips through nya_reflect_to_object / from_object\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "theme_roundtrip");
@@ -176,9 +168,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an edit to the theme file re-applies to the window live
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_ui_theme_load watches the file and re-applies an edit\n");
   {
     write_fixture("nya 2 0\n{\n    radius: f32 3.0;\n}\n");

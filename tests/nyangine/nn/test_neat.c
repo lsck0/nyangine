@@ -66,9 +66,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_neat");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a network runs, and sensors reach the output through a connection
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NeatNetwork* network = nya_nn_neat_network_create(arena);
     nya_nn_neat_network_push_sensor(network, "in");
@@ -102,9 +100,7 @@ s32 main(void) {
     nya_assert(fabs(nya_nn_neat_network_get_output(network, "out") - nya_nn_neat_sigmoid(0.0)) < 0.0001, "a disabled gene must not conduct");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a gene naming a node the genome does not have is ignored
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Reachable from a loaded genome, or from a crossover against one with fewer nodes.
@@ -145,9 +141,7 @@ s32 main(void) {
     nya_assert(with_dangling == clean, "a dangling gene changed the result: %.17g against %.17g", with_dangling, clean);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a bias holds its value, and flush leaves it alone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NeatNetwork* network = nya_nn_neat_network_create(arena);
     nya_nn_neat_network_push_bias(network, "bias");
@@ -165,9 +159,7 @@ s32 main(void) {
     nya_assert(fabs(network->nodes->items[0].value - 1.0) < 0.0001, "flush must not clear the bias");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: cloning is deep, which is what makes a population possible
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NeatNetwork* original = nya_nn_neat_network_create(arena);
     nya_nn_neat_network_push_sensor(original, "in");
@@ -186,9 +178,7 @@ s32 main(void) {
     nya_assert(fabs(original->connections->items[0].weight - 1.0) < 0.0001, "a clone must own its genes");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: evolution solves XOR
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /* Several seeds, and a majority must solve. */
     NYA_ConstCString seeds[] = { "6E79616E67696E65", "1234567890ABCDEF", "FEDCBA0987654321" };
@@ -252,7 +242,6 @@ s32 main(void) {
     nya_assert(hidden_seen == solved, "every solved run must have grown a hidden node, since XOR needs one");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the observer sees every phase of every generation, in order
   {
     struct ObserverLog log = { 0 };
@@ -284,7 +273,6 @@ s32 main(void) {
   }
 
   // TEST: a genome survives a round trip through a file
-  // ─────────────────────────────────────────────────────────────────────────────
   {
 #define TEST_NEAT_PATH "./tests/nyangine/nn/test_neat_genome.json"
 
@@ -396,9 +384,7 @@ s32 main(void) {
 #undef TEST_NEAT_PATH
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the activations and the phase names nothing had called
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * nya_nn_neat_relu, nya_nn_neat_sigmoid_gentle and nya_nn_neat_phase_name had no caller anywhere.
@@ -442,9 +428,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stepping by time runs the configured rate, carries the fraction, and drops a stall's backlog
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Neat* neat = nya_nn_neat_create((NYA_NeatConfig){
       .seed                   = xor_seed(arena),

@@ -39,9 +39,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a handle nothing was ever loaded for is missing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_check(nya_asset_is_missing("./assets/texture/there_is_no_such_file.png"), "a handle with nothing behind it is missing");
     nya_check(nya_asset_status("./assets/texture/there_is_no_such_file.png") == NYA_ASSET_STATUS_UNLOADED, "and reports unloaded");
@@ -49,9 +47,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the warning comes once per handle, however many draws ask
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_asset_missing_forget();
     nya_log_sink_add(count_warnings, nullptr);
@@ -79,10 +75,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: past the ceiling it keeps warning rather than going quiet about a
   //       handle it never recorded
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_asset_missing_forget();
     nya_log_sink_add(count_warnings, nullptr);

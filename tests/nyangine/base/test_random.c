@@ -6,9 +6,7 @@
 #include "nyangine/nyangine.h"
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: RNG creation with various seeds
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG rng1 = nya_rng_create();
   NYA_RNG rng2 = nya_rng_create(.seed = rng1.seed);
   NYA_RNG rng3 = nya_rng_create(.seed = "BEEF");
@@ -20,9 +18,7 @@ s32 main(void) {
   (void)rng5;
   (void)rng6;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: RNG creation with invalid seeds should panic
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash({
     NYA_RNG bad_rng = nya_rng_create(.seed = "BEGgEFZ");
     (void)bad_rng;
@@ -36,9 +32,7 @@ s32 main(void) {
     (void)bad_rng;
   });
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Distribution definitions
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNGDistribution dist_uniform = {
     .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
     .uniform = { .min = 10.0, .max = 20.0 },
@@ -64,9 +58,7 @@ s32 main(void) {
     .geometric = { .p = 0.3 },
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Same seed produces same sequence
-  // ─────────────────────────────────────────────────────────────────────────────
   for (u32 counter = 0; counter < 1000; ++counter) {
     nya_assert(nya_rng_sample_f64(&rng1, dist_uniform) == nya_rng_sample_f64(&rng2, dist_uniform));
     nya_assert(nya_rng_sample_f64(&rng1, dist_normal) == nya_rng_sample_f64(&rng2, dist_normal));
@@ -76,9 +68,7 @@ s32 main(void) {
     nya_assert(nya_rng_sample_u32(&rng1, dist_geometric) == nya_rng_sample_u32(&rng2, dist_geometric));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Uniform distribution produces values in range
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG             range_rng  = nya_rng_create(.seed = "ABCD1234");
   NYA_RNGDistribution range_dist = {
     .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
@@ -89,9 +79,7 @@ s32 main(void) {
     nya_assert(val >= 0.0 && val <= 100.0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Uniform integer distribution
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNGDistribution int_dist = {
     .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
     .uniform = { .min = 0, .max = 255 },
@@ -109,9 +97,7 @@ s32 main(void) {
     nya_assert(val <= 255);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Signed integer sampling
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNGDistribution signed_dist = {
     .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
     .uniform = { .min = -50, .max = 50 },
@@ -121,9 +107,7 @@ s32 main(void) {
     nya_assert(val >= -50 && val <= 50);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Boolean generation
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG bool_rng   = nya_rng_create(.seed = "1234ABCD");
   u32     true_count = 0;
   u32     total      = 10000;
@@ -144,9 +128,7 @@ s32 main(void) {
   nya_assert(always_true_count == 100);
   nya_assert(always_false_count == 100);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Byte buffer generation
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG byte_rng    = nya_rng_create(.seed = "B0E0C123");
   u8      buffer1[64] = { 0 };
   u8      buffer2[64] = { 0 };
@@ -172,9 +154,7 @@ s32 main(void) {
   }
   nya_assert(buffers_differ);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Different seeds produce different sequences
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG             diff_rng1   = nya_rng_create(.seed = "AAAA");
   NYA_RNG             diff_rng2   = nya_rng_create(.seed = "BBBB");
   NYA_RNGDistribution simple_dist = {
@@ -190,9 +170,7 @@ s32 main(void) {
   }
   nya_assert(found_difference);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Binomial distribution bounds
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG             binom_rng  = nya_rng_create(.seed = "B1A0CD00");
   NYA_RNGDistribution binom_dist = {
     .type     = NYA_RNG_DISTRIBUTION_BINOMIAL,
@@ -203,9 +181,7 @@ s32 main(void) {
     nya_assert(val <= 20);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Exponential distribution is non-negative
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG             exp_rng  = nya_rng_create(.seed = "E0F00000");
   NYA_RNGDistribution exp_dist = {
     .type        = NYA_RNG_DISTRIBUTION_EXPONENTIAL,
@@ -216,9 +192,7 @@ s32 main(void) {
     nya_assert(val >= 0.0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Geometric distribution produces positive integers
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG             geo_rng  = nya_rng_create(.seed = "AE0E00AA");
   NYA_RNGDistribution geo_dist = {
     .type      = NYA_RNG_DISTRIBUTION_GEOMETRIC,
@@ -229,9 +203,7 @@ s32 main(void) {
     nya_assert(val >= 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Float types sampling
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_RNG             float_rng  = nya_rng_create(.seed = "F10A0000");
   NYA_RNGDistribution float_dist = {
     .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
@@ -242,9 +214,7 @@ s32 main(void) {
     nya_assert(val32 >= -1.0F && val32 <= 1.0F);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Normal distribution produces finite values (no NaN/inf from log(0))
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG             rng  = nya_rng_create(.seed = "FFFFFFFFFFFFFFFF");
     NYA_RNGDistribution dist = {
@@ -258,9 +228,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Exponential distribution produces finite values (no NaN/inf)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG             rng  = nya_rng_create(.seed = "FFFFFFFFFFFFFFFF");
     NYA_RNGDistribution dist = {
@@ -275,9 +243,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Geometric distribution produces finite values (no NaN/inf)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG             rng  = nya_rng_create(.seed = "FFFFFFFFFFFFFFFF");
     NYA_RNGDistribution dist = {
@@ -292,9 +258,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every sampled width, including the four nothing had ever called
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * s8, s16, s64 and f16 had no caller anywhere in the tree, and u16 had one. They are each a cast

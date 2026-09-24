@@ -100,9 +100,7 @@ s32 main(void) {
   write_fixture("before");
   defer (void)remove(FIXTURE_PATH);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a locale edited on disk is picked up without reloading anything else
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_i18n_load(FIXTURE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
 
@@ -136,9 +134,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a locale caught half written changes nothing and is retried
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     write_fixture("good");
 
@@ -179,9 +175,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a locale deleted and written again is picked up rather than given up on
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     write_fixture("present");
 

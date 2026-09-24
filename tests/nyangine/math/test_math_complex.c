@@ -8,9 +8,7 @@
 #define EPS 1.0e-5
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: construction and component access
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: construction\n");
   {
     c64 z = nya_complex_f64(3.0, 4.0);
@@ -33,9 +31,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: polar construction, and that it inverts cabs/carg
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: polar\n");
   {
     c64 z = nya_complex_from_polar(2.0, M_PI / 3.0);
@@ -53,9 +49,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_complex_unit is e^(iθ), and multiplying by it rotates
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: unit\n");
   {
     c64 u = nya_complex_unit(M_PI_2);
@@ -78,9 +72,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: magnitude_squared
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: magnitude_squared\n");
   {
     c64 z = nya_complex_f64(3.0, 4.0);
@@ -95,9 +87,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: normalize, including the zero case it promises not to divide by
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: normalize\n");
   {
     c64 z = nya_complex_normalize(nya_complex_f64(3.0, 4.0));
@@ -118,9 +108,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: lerp is the straight line between the two
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: lerp\n");
   {
     c64 a = nya_complex_f64(0.0, 0.0);
@@ -132,9 +120,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: slerp moves along the arc and takes the short way round
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: slerp\n");
   {
     c64 a = nya_complex_unit(0.0);
@@ -175,9 +161,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: approx_equals compares by distance
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: approx_equals\n");
   {
     c64 a = nya_complex_f64(1.0, 2.0);
@@ -190,9 +174,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: is_finite catches NaN and infinity in either component
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: is_finite\n");
   {
     nya_assert(nya_complex_is_finite(nya_complex_f64(1.0, 2.0)) == true);

@@ -17,9 +17,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_pgp");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what this answers on a machine with no gpg, which is most containers.
-  // ─────────────────────────────────────────────────────────────────────────────
   if (!nya_pgp_available()) {
     NYA_String* armored = nullptr;
     NYA_Error   refused = nya_pgp_encrypt(arena, "not a key", (const u8*)MESSAGE, strlen(MESSAGE), &armored);
@@ -119,9 +117,7 @@ s32 main(void) {
 
   NYA_ConstCString recipient = nya_string_to_cstring(arena, public_key);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the fingerprint, which is what a person checks and an account stores.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* fingerprint = nullptr;
     nya_check(nya_pgp_fingerprint(arena, recipient, &fingerprint).ok, "the key's fingerprint is read");
@@ -140,9 +136,7 @@ s32 main(void) {
               "something shaped like a key but not one is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the round trip, which is the only thing that proves any of this works.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* armored = nullptr;
     nya_check(nya_pgp_encrypt(arena, recipient, (const u8*)MESSAGE, strlen(MESSAGE), &armored).ok, "the message encrypts to that key");
@@ -178,9 +172,7 @@ s32 main(void) {
     nya_command_destroy(&decrypt);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what is refused before gpg is ever started.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* armored = nullptr;
 

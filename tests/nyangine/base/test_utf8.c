@@ -27,9 +27,7 @@ s32 main(void) {
 
   u32 out[32];
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the four lengths
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode_all("aé€𝄞", out, nya_carray_length(out));
 
@@ -43,9 +41,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed input makes progress and stays in bounds
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A lead byte claiming three bytes with nothing after it. Consuming the three it claimed would
     // read past the terminator; consuming zero would spin forever. One byte is the only safe answer.
@@ -67,9 +63,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: overlong encodings and surrogates are rejected
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // C0 80 is a two byte spelling of NUL. Accepting it is the classic way a decoder becomes a
     // security problem: a filter that checked for a literal 0x00 never sees this one.
@@ -89,9 +83,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: real text in several languages round trips
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // the strings an i18n file holds, each checked by codepoint count, since bytes and characters differ
     // for every one.

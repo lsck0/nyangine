@@ -98,9 +98,7 @@ s32 main(void) {
 
   u64 tick = 1;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: single player costs nothing
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: single player allocates nothing per tick\n");
   {
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
@@ -135,9 +133,7 @@ s32 main(void) {
     nya_assert(!nya_net_server_running());
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a listen server's host plays through the client code
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: listen server host joins over loopback\n");
   {
     SPAWN_CALLS   = 0;
@@ -209,9 +205,7 @@ s32 main(void) {
     nya_system_sim_apply_commands();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a real client joins over UDP and receives the world
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a UDP client joins and receives snapshots\n");
   {
     SPAWN_CALLS = 0;
@@ -344,9 +338,7 @@ s32 main(void) {
     nya_system_sim_apply_commands();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: prediction moves the player before the server answers
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a remote client predicts its own movement\n");
   {
     /*
@@ -415,9 +407,7 @@ s32 main(void) {
     nya_system_sim_apply_commands();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a version mismatch is refused before any state is exchanged
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a version mismatch is refused\n");
   {
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){

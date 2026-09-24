@@ -86,9 +86,7 @@ static const NYA_AudioEmitter* one_emitter(f32x3 position, f32 radius) {
 static NYA_AudioTracer tracer;
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: validation fills zeroes and keeps the budget within its ceiling
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioPropagation zero = _nya_audio_propagation_validate((NYA_AudioPropagation){ 0 });
 
@@ -103,9 +101,7 @@ s32 main(void) {
     nya_assert(stingy.ray_budget == NYA_AUDIO_PROPAGATION_ENVIRONMENT_SLICE + NYA_AUDIO_PROPAGATION_VOICE_RAYS + 1 + (2 * NYA_AUDIO_PROPAGATION_PROBES), "got %u", stingy.ray_budget);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: partial occlusion is the share of rays blocked, and thickness quietens what gets through
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioPropagation propagation = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .voice_rays = 5 });
     f32x3                source      = { 0.0F, 0.0F, -10.0F };
@@ -145,9 +141,7 @@ s32 main(void) {
     nya_assert(path->target_gain < expected * 0.5F, "four metres must transmit well under one does, got %f", (f64)path->target_gain);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: diffraction finds the way around a wall's edge and moves the sound toward it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a solid wall: little gets through, so the way round is what is heard.
     NYA_AudioPropagation without = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .transmission = 0.1F });
@@ -192,9 +186,7 @@ s32 main(void) {
     nya_assert(empty.rays == with.voice_rays + 1, "an open voice costs its own rays and the reverse, cast %u", empty.rays);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a closed box reads as a room, an open field barely, and the reverb follows
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioPropagation propagation = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .environment = true, .reflections = 0.5F });
     NYA_AudioEmitter     none[NYA_AUDIO_VOICES] = { 0 };
@@ -238,9 +230,7 @@ s32 main(void) {
     nya_assert(panned, "one of a box's echoes comes from the wall on the right");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the budget holds with every voice hidden, and the round robin reaches them all
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioPropagation propagation = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .diffraction = true, .environment = true, .ray_budget = 48 });
 
@@ -274,9 +264,7 @@ s32 main(void) {
     nya_assert(wall.largest_batch <= propagation.ray_budget);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: easing is bounded per update and settles
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioPropagation propagation = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .smoothing_ms = 100.0F });
     f32x3                source      = { 0.0F, 0.0F, -10.0F };
@@ -309,9 +297,7 @@ s32 main(void) {
     nya_assert(!tracer.paths[0].traced && tracer.paths[0].gain == 1.0F, "a stopped voice's path resets");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: through the audio system, off traces nothing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
     b8 sdl_ok         = SDL_Init(0);

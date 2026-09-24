@@ -98,9 +98,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_permission");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a fresh table denies everything, to everyone.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
         nya_check(guild != nullptr, "a table is made");
@@ -116,9 +114,7 @@ s32 main(void) {
         nya_check(nya_permission_subject_rank(guild, ALICE) == 0, "at rank zero");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a forbid is absolute — it beats an allow, an admin, and an overwrite.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -164,9 +160,7 @@ s32 main(void) {
         nya_check(nya_permission_subject_forbids(guild, BOB) == TEST_INVITE, "and it is recorded on him");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: edit-own beside edit-any, with the resource's owner as an input.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -198,9 +192,7 @@ s32 main(void) {
         nya_check(!nya_permission_may_act(guild, ALICE, VAULT, ALICE, EDIT_ANY, EDIT_OWN), "a per-resource deny reaches even the owner's own");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: roles union, and @everyone reaches a subject that was never added.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -219,9 +211,7 @@ s32 main(void) {
         nya_check(nya_permission_resolve(guild, ALICE, HALL) == TEST_SPEAK, "and the permission goes with it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the six steps, in the order the header states.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -262,9 +252,7 @@ s32 main(void) {
         nya_check(nya_permission_has(guild, ALICE, VAULT, TEST_KICK), "and she is both, so she may");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: administrator and the owner are the two short circuits.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -287,9 +275,7 @@ s32 main(void) {
         nya_check(nya_permissions_owner(guild) == BOB, "and did not");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the hierarchy refuses every way around it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -346,9 +332,7 @@ s32 main(void) {
         nya_check(!nya_permission_outranks(guild, BOB, BOB), "and nobody outranks themselves");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the audit says who did what, and admits what it dropped.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 
@@ -378,9 +362,7 @@ s32 main(void) {
         nya_check(nya_permission_audit_at(guild, 0, &entry) && entry.change == NYA_PERMISSION_CHANGE_OVERWRITE_SET, "the oldest kept is the newest kind");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // LAW: resolution agrees with a naive reading of the six steps, always.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_RNG rng = nya_rng_create(.seed = "9E3779B97F4A7C15");
 
@@ -438,9 +420,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // LAW: no sequence of operations gives anyone what its actor did not hold.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_RNG rng = nya_rng_create(.seed = "D1B54A32D192ED03");
 
@@ -504,9 +484,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a table is edited while it runs: labels, removal, and clearing.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Permissions* guild = nya_permissions_create(arena);
 

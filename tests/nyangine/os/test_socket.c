@@ -28,9 +28,7 @@ static b8 wait_readable(NYA_OsSocket socket, u32 timeout_ms) {
 s32 main(void) {
   nya_check(nya_os_socket_start() == NYA_OS_SOCKET_OK, "the host's socket library starts");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an address is a value, and reads back as what it was written from.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_OsAddress loopback = { 0 };
     nya_check(nya_os_address_resolve("127.0.0.1", 8080, NYA_OS_ADDRESS_V4, &loopback) == NYA_OS_SOCKET_OK, "a literal resolves without asking anybody");
@@ -65,9 +63,7 @@ s32 main(void) {
     nya_check(nya_os_address_resolve("", 80, NYA_OS_ADDRESS_NONE, &nothing) == NYA_OS_SOCKET_UNREACHABLE, "and an empty name resolves to nothing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a datagram round trip, on a port the host chose.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_OsSocket server = NYA_OS_SOCKET_NONE;
     NYA_OsSocket client = NYA_OS_SOCKET_NONE;
@@ -104,9 +100,7 @@ s32 main(void) {
     nya_os_socket_close(client);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a stream connection, accepted, written in both directions and ended.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_OsSocket listener = NYA_OS_SOCKET_NONE;
     nya_check(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, 0, 0, &listener) == NYA_OS_SOCKET_OK, "a listener opens on a port the host picks");
@@ -168,9 +162,7 @@ s32 main(void) {
     nya_os_socket_close(listener);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a send takes what it can, which is the whole reason a write queue exists.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_OsSocket listener = NYA_OS_SOCKET_NONE;
     nya_check(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, 0, 0, &listener) == NYA_OS_SOCKET_OK, "a listener opens");
@@ -225,9 +217,7 @@ s32 main(void) {
     nya_os_socket_close(listener);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the wait, over several sockets and over none.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_OsSocket quiet = NYA_OS_SOCKET_NONE;
     NYA_OsSocket busy  = NYA_OS_SOCKET_NONE;
@@ -271,9 +261,7 @@ s32 main(void) {
     nya_os_socket_close(busy);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what refuses, and what a socket that is not one answers.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_OsSocket first = NYA_OS_SOCKET_NONE;
     nya_check(nya_os_socket_open(NYA_OS_SOCKET_LISTENER, 0, 0, &first) == NYA_OS_SOCKET_OK, "a listener opens");

@@ -41,9 +41,7 @@ s32 main(void) {
 
     static char page[NYA_UI_HTML_MAX + 8192];
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a null and a zeroed metadata value change nothing about the default page.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         static char without[sizeof(page)];
         static char zeroed[sizeof(page)];
@@ -56,9 +54,7 @@ s32 main(void) {
         nya_check(!nya_string_contains(zeroed, "og:"), "and carries no OpenGraph tag");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a filled value emits the description, OpenGraph and Twitter Card tags.
-    // ─────────────────────────────────────────────────────────────────────────────
     u32 written = nya_ui_html_document_meta(&html, page, sizeof(page), "nyangine", "", &META);
     nya_check(written > 0, "the document is written");
 
@@ -77,9 +73,7 @@ s32 main(void) {
     nya_check(nya_string_contains(page, "<meta name=\"twitter:image\" content=\"https://example.com/preview.png\">"), "twitter:image carries the image URL");
     nya_check(nya_string_contains(page, "<link rel=\"alternate\" type=\"application/json+oembed\" href=\"https://example.com/oembed?url=x\""), "the oEmbed discovery link is emitted");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every value is escaped — no raw injection reaches the head.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(!nya_string_contains(page, "<tag>"), "a raw '<' from a field never reaches the page as markup");
     nya_check(!nya_string_contains(page, "<b>markup</b>"), "nor a raw markup blurb");
     nya_check(nya_string_contains(page, "Ada &amp; &quot;friends&quot; &lt;tag&gt;"), "the title's &, \" and <> come out escaped");
@@ -87,9 +81,7 @@ s32 main(void) {
     // the `<title>` element is still the caller's, escaped, unchanged.
     nya_check(nya_string_contains(page, "<title>nyangine</title>"), "the existing <title> behaviour is kept");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an unset field emits no tag, even alongside set ones.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_PageMeta partial = { .title = "Only a title", .type = "website" };
         static char  only[sizeof(page)];
@@ -103,9 +95,7 @@ s32 main(void) {
         nya_check(!nya_string_contains(only, "og:url"), "no og:url without a canonical URL");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a dangerous URL is refused by the gate and never reaches the head.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_check(nya_ui_page_meta_url_ok("https://example.com/x"), "an https URL passes the gate");
         nya_check(nya_ui_page_meta_url_ok("http://example.com/x"), "an http URL passes the gate");
@@ -125,9 +115,7 @@ s32 main(void) {
         nya_check(!nya_string_contains(out, "og:image"), "and og:image is not emitted at all");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the oEmbed helper builds a JSON document that parses back with the fields.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Object* document = nullptr;
         NYA_Error   built    = nya_ui_page_meta_oembed(arena, &META, &document);
@@ -158,9 +146,7 @@ s32 main(void) {
         nya_check(thumb != nullptr && nya_string_equals(thumb->as_string, "https://example.com/preview.png"), "thumbnail_url is the image URL");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an oEmbed built from a value whose image URL is dangerous carries no thumbnail.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_PageMeta evil     = { .title = "t", .image_url = "javascript:alert(1)" };
         NYA_Object*  document = nullptr;

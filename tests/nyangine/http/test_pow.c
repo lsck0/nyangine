@@ -172,9 +172,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_http_pow_init(arena, .difficulty = DIFFICULTY, .ttl_s = TTL_S), "while readying the store");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a request with no proof is handed a challenge, and its handler does not run.
-    // ─────────────────────────────────────────────────────────────────────────────
     char challenge_token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
     u8   nonce[NYA_HTTP_POW_NONCE_BYTES]          = { 0 };
 
@@ -208,9 +206,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a correct solution passes, the handler runs exactly once, and the nonce is then spent.
-    // ─────────────────────────────────────────────────────────────────────────────
     u8   solution[NYA_HTTP_POW_MAX_SOLUTION] = { 0 };
     u64  solution_size                       = 0;
     char solution_b64[128]                   = { 0 };
@@ -233,9 +229,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same token and solution again is a replay, refused with a fresh 401, handler not re-run.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         SIDE_EFFECTS = 0;
 
@@ -249,9 +243,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a solution under the difficulty is refused, and the handler does not run.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_pow_reset();
         SIDE_EFFECTS = 0;
@@ -288,9 +280,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a token forged under another secret does not open, and is refused.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_pow_reset();
         SIDE_EFFECTS = 0;
@@ -314,9 +304,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a valid token with one byte flipped does not open, and is refused.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_pow_reset();
         SIDE_EFFECTS = 0;
@@ -342,9 +330,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a solution header that is not base64url is a malformed request, 400 rather than a challenge.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_pow_reset();
         SIDE_EFFECTS = 0;
@@ -367,9 +353,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: with no secret on the exchange the wall fails closed with 503 rather than waving requests through.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_pow_reset();
         SIDE_EFFECTS = 0;

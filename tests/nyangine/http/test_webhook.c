@@ -55,9 +55,7 @@ s32 main(void) {
     char timestamp[32] = { 0 };
     (void)snprintf(timestamp, sizeof(timestamp), "%llu", (unsigned long long)NOW_S);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: HMAC-SHA256, as Twitch EventSub and GitHub send it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // the sender's message: the id, the timestamp and the body, in that order.
         char signed_over[512] = { 0 };
@@ -137,9 +135,7 @@ s32 main(void) {
         nya_check(nya_http_webhook_verify(&edge, &twitch) == NYA_HTTP_WEBHOOK_REPLAYED, "and so is a timestamp from the future");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every way a signature header can be wrong.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         char signed_over[512] = { 0 };
         (void)snprintf(signed_over, sizeof(signed_over), "%s%s", timestamp, BODY);
@@ -210,9 +206,7 @@ s32 main(void) {
         nya_check(nya_http_webhook_verify(&exchange, &sender) == NYA_HTTP_WEBHOOK_REFUSED, "a request with no signature is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Ed25519 over the timestamp and the body, as Discord sends it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_CryptoKey32       seed = { 0 };
         NYA_CryptoSignKeyPair pair = { 0 };
@@ -277,9 +271,7 @@ s32 main(void) {
         nya_check(nya_http_webhook_verify(&exchange, &discord) == NYA_HTTP_WEBHOOK_REFUSED, "a moved timestamp is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an RFC 3339 timestamp, which is what Twitch actually sends.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8  dated[NYA_RFC3339_LENGTH_MAX + 1] = { 0 };
         u32 written                       = nya_instant_to_rfc3339((NYA_Instant){ .ns = (s64)NOW_S * NYA_NS_PER_SECOND }, dated, sizeof(dated));

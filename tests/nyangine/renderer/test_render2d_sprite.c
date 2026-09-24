@@ -12,9 +12,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sprites, atlases and image lists
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Arithmetic only, since no texture loads headless. That is worth asserting too: an atlas over a

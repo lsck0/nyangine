@@ -43,9 +43,7 @@ s32 main(void) {
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Dispatch and poll an event
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_QUIT });
 
@@ -59,9 +57,7 @@ s32 main(void) {
     nya_assert(!ok, "Queue should be empty");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Multiple events dispatched and polled in order
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_KEY_DOWN });
     nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_KEY_UP });
@@ -83,9 +79,7 @@ s32 main(void) {
     nya_assert(!ok, "Queue should be empty");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Event data preserved through dispatch and poll
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Event dispatched = {
       .type         = NYA_EVENT_KEY_DOWN,
@@ -108,9 +102,7 @@ s32 main(void) {
     while (nya_system_event_poll(&polled)) {}
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Immediate hooks fire on dispatch
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     immediate_hook_count = 0;
     last_hook_event_type = NYA_EVENT_INVALID;
@@ -132,9 +124,7 @@ s32 main(void) {
     nya_event_hook_unregister(hook);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Deferred hooks fire on poll
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     deferred_hook_count  = 0;
     last_hook_event_type = NYA_EVENT_INVALID;
@@ -159,9 +149,7 @@ s32 main(void) {
     nya_event_hook_unregister(hook);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: One-shot hook fires once then is removed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     deferred_hook_count = 0;
 
@@ -183,9 +171,7 @@ s32 main(void) {
     nya_assert(deferred_hook_count == 1, "One-shot hook should not fire again");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: register_once fires once, is gone from the table, and spares its neighbours
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     immediate_hook_count = 0;
     deferred_hook_count  = 0;
@@ -225,9 +211,7 @@ s32 main(void) {
     while (nya_system_event_poll(&e)) {}
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Hook with false condition does not fire
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     deferred_hook_count = 0;
 
@@ -247,9 +231,7 @@ s32 main(void) {
     nya_event_hook_unregister(hook);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Hook with true condition fires
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     deferred_hook_count = 0;
 
@@ -269,9 +251,7 @@ s32 main(void) {
     nya_event_hook_unregister(hook);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Handled event stops propagation to later deferred hooks
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     deferred_hook_count = 0;
 
@@ -297,9 +277,7 @@ s32 main(void) {
     nya_event_hook_unregister(hook_count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Hook only fires for matching event type
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     immediate_hook_count = 0;
 
@@ -322,9 +300,7 @@ s32 main(void) {
     nya_event_hook_unregister(hook);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Unregistered hook does not fire
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     immediate_hook_count = 0;
 

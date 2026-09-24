@@ -32,9 +32,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_lambda_generated");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a comparator written where it is handed over, and really used
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: comparator\n");
   {
     NYA_Arrayᐸu32ᐳ* numbers = nya_array_create(arena, u32);
@@ -58,9 +56,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an engine API calls one, with the arguments it promises
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: walk callback\n");
   {
     WalkTally tally = { 0 };
@@ -86,9 +82,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: two tags are two functions, each returning its own answer
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: two of them\n");
   {
     CombineFn concatenate = nya_lambda(test_lambda_concatenate, u32, (u32 a, u32 b), { return (a * 10) + b; });
@@ -101,9 +95,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what the pass wrote down about this file
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the generated tree\n");
   {
     nya_assert(nya_filesystem_exists("./src/genyarated/lambdas/tests_nyangine_base_test_lambda_generated_c.h"),

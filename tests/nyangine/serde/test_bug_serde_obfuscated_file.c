@@ -10,9 +10,7 @@ s32 main(void) {
   NYA_Arena*       arena = nya_arena_create(.name = "test_bug_serde_obfuscated_file");
   NYA_ConstCString path  = "./test_obfuscated.nya";
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an obfuscated document survives a save and load
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: obfuscated save/load round trip\n");
   {
     b8 saw_a_zero_byte = false;

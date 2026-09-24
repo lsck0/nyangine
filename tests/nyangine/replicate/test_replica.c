@@ -68,9 +68,7 @@ s32 main(void) {
     for (u32 i = 0; i < 8; i += 2) nya_entity_despawn(filler[i]);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the two handle spaces differ
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the server and client tables disagree about handles\n");
 
   NYA_EntityHandle server_a = NYA_ENTITY_HANDLE_NONE;
@@ -128,9 +126,7 @@ s32 main(void) {
     nya_assert((got_a->flags & FLAG_REPLICATED) != 0, "a spawned replica carries the replication flag");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: applying repeatedly does not duplicate
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: repeated snapshots do not duplicate entities\n");
   {
     (void)nya_world_set(server_world);
@@ -171,9 +167,7 @@ s32 main(void) {
     nya_assert(moved->position.x == 110.0F, "the mapped entity tracked the server's movement (x = %f)", (f64)moved->position.x);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what the server removes is removed; what the client owns is not
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the sweep removes replicas and spares local entities\n");
   {
     // an entity the client made itself, marked replicated. The server's silence says nothing about it, so
@@ -209,9 +203,7 @@ s32 main(void) {
     nya_assert(nya_entity_is_valid(nya_net_replica_local(map, server_a)), "and the surviving replica survived");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: disconnecting clears the replicated world
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: tearing the map down removes the replicated world\n");
   {
     (void)nya_world_set(client_world);
@@ -251,9 +243,7 @@ s32 main(void) {
     nya_assert(replicated_count() == 2, "after reconnecting the client has its own entity plus one replica, found %u", replicated_count());
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a predicted entity is spared by both the apply and the sweep
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the predicted entity is not overwritten or swept\n");
   {
     (void)nya_world_set(server_world);
@@ -312,9 +302,7 @@ s32 main(void) {
     nya_assert(nya_entity_is_valid(local_player), "the predicted entity was swept by a snapshot that omitted it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: remote entities are smoothed between snapshots rather than stepping
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: replicas interpolate between snapshots\n");
   {
     nya_net_replica_map_despawn_all(map);
@@ -401,9 +389,7 @@ s32 main(void) {
     #undef REPLICATE
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: clearing the map without touching the entities
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: clearing a map leaves its entities alone\n");
   {
     /*

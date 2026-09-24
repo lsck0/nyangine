@@ -79,9 +79,7 @@ s32 main(void) {
 
   nya_assert(asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED, "the rig did not load");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the skeleton came out of the file
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: extraction\n");
 
   const NYA_Skeleton* skeleton = asset->as_mesh.skeleton;
@@ -107,9 +105,7 @@ s32 main(void) {
   printf("  %u bones, %u clips\n", skeleton->bone_count, skeleton->clip_count);
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: weights are normalised and in range
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: weights\n");
   {
     u32 blended = 0;
@@ -141,9 +137,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the rig comes out y up, like a static mesh from the same file would
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: axes\n");
   {
     // modelled z up: a bar two metres long and half a metre thick.
@@ -177,9 +171,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the rest palette is the identity
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rest pose\n");
   {
     NYA_SkeletonPose pose = { 0 };
@@ -203,9 +195,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the clip moves the upper bone and returns it
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: clip\n");
   {
     nya_assert(skeleton->clip_count > 0, "no clip was baked");
@@ -244,9 +234,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the animator, and a pose written by hand
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: animator and procedural\n");
   {
     NYA_SkeletonAnimator animator = { 0 };
@@ -288,9 +276,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a pose drawn between ticks samples the clip between the clock's two times
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: render pose between ticks\n");
   {
     const NYA_SkeletonClip* clip     = &skeleton->clips[0];
@@ -344,9 +330,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_skeleton_bone_model agrees with nya_skeleton_model_transforms
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     printf("TEST: the one-bone socket walk matches the whole-rig pass\n");
 

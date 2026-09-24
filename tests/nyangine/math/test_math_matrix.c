@@ -6,9 +6,7 @@
 #include "nyangine/nyangine.h"
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f32x2 vector operations
-  // ─────────────────────────────────────────────────────────────────────────────
   f32x2 vec2_a = {3.0F, 4.0F};
   f32x2 vec2_b = {1.0F, 2.0F};
 
@@ -29,9 +27,7 @@ s32 main(void) {
   nya_assert(f32x2_unit_y.x == 0.0F && f32x2_unit_y.y == 1.0F);
   nya_assert(f32x2_zero.x == 0.0F && f32x2_zero.y == 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f32x3 vector operations
-  // ─────────────────────────────────────────────────────────────────────────────
   f32x3 vec_a = {1.0F, 2.0F, 3.0F};
 
   vec_a.xy = (f32x2){4.0F, 5.0F};
@@ -77,9 +73,7 @@ s32 main(void) {
   nya_assert(f32x3_unit_z.x == 0.0F && f32x3_unit_z.y == 0.0F && f32x3_unit_z.z == 1.0F);
   nya_assert(f32x3_zero.x == 0.0F && f32x3_zero.y == 0.0F && f32x3_zero.z == 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f32x4 vector operations
-  // ─────────────────────────────────────────────────────────────────────────────
   f32x4 vec4_a = {1.0F, 2.0F, 3.0F, 4.0F};
   f32x4 vec4_b = {4.0F, 3.0F, 2.0F, 1.0F};
 
@@ -99,9 +93,7 @@ s32 main(void) {
   nya_assert(f32x4_unit_x.x == 1.0F && f32x4_unit_x.y == 0.0F && f32x4_unit_x.z == 0.0F && f32x4_unit_x.w == 0.0F);
   nya_assert(f32x4_unit_w.x == 0.0F && f32x4_unit_w.y == 0.0F && f32x4_unit_w.z == 0.0F && f32x4_unit_w.w == 1.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 2x2 matrix operations
-  // ─────────────────────────────────────────────────────────────────────────────
   f32_2x2 mat2_id   = f32_2x2_id;
   f32x2   vec2_test = {3.0F, 4.0F};
 
@@ -125,9 +117,7 @@ s32 main(void) {
   nya_assert(vec2_zero_result.x == 0.0F);
   nya_assert(vec2_zero_result.y == 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 3x3 matrix operations
-  // ─────────────────────────────────────────────────────────────────────────────
   f32_3x3 mat_a = f32_3x3_id;
   f32_3x3 mat_b = nya_matrix_create((f32[3][3]){
       {1.0F, 2.0F, 3.0F},
@@ -164,9 +154,7 @@ s32 main(void) {
   nya_assert(vec3_zero_result.y == 0.0F);
   nya_assert(vec3_zero_result.z == 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 4x4 matrix operations
-  // ─────────────────────────────────────────────────────────────────────────────
   f32_4x4 mat4_id   = f32_4x4_id;
   f32x4   vec4_test = {1.0F, 2.0F, 3.0F, 4.0F};
 
@@ -198,9 +186,7 @@ s32 main(void) {
   nya_assert(vec4_zero_result.z == 0.0F);
   nya_assert(vec4_zero_result.w == 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f64 vector and matrix types
-  // ─────────────────────────────────────────────────────────────────────────────
   f64x3 vec64_a   = {1.0, 2.0, 3.0};
   f64x3 vec64_b   = {4.0, 5.0, 6.0};
   f64x3 vec64_sum = vec64_a + vec64_b;
@@ -214,18 +200,14 @@ s32 main(void) {
   nya_assert(vec64_result.y == 2.0);
   nya_assert(vec64_result.z == 3.0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Matrix creation from row vectors
-  // ─────────────────────────────────────────────────────────────────────────────
   f32_3x3 mat_from_rows = nya_matrix_create(f32x3_unit_x, f32x3_unit_y, f32x3_unit_z);
   f32x3   row_test      = nya_matrix_times_vector(mat_from_rows, (f32x3){1.0F, 1.0F, 1.0F});
   nya_assert(row_test.x == 1.0F);
   nya_assert(row_test.y == 1.0F);
   nya_assert(row_test.z == 1.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Vector lerp
-  // ─────────────────────────────────────────────────────────────────────────────
   f32x3 lerp_start  = {0.0F, 0.0F, 0.0F};
   f32x3 lerp_end    = {10.0F, 20.0F, 30.0F};
   f32x3 lerp_result = nya_lerp(lerp_start, lerp_end, 0.5F);
@@ -243,9 +225,7 @@ s32 main(void) {
   nya_assert(lerp_result.y == 20.0F);
   nya_assert(lerp_result.z == 30.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the 3D projections land on SDL_GPU's 0..1 depth range
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The one thing about these matrices that is easy to get wrong and impossible to see.
@@ -273,9 +253,7 @@ s32 main(void) {
     nya_assert(fabsf(ortho_far.z - 1.0F) < 0.001F, "the far_plane plane maps to depth 1, got %f", (f64)ortho_far.z);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: look_at puts the world into the camera's frame
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Looking at the origin from four units along +z, which is the camera's own -z direction.
     f32_4x4 view = nya_matrix_look_at((f32x3){ 0.0F, 0.0F, 4.0F }, f32x3_zero, (f32x3){ 0.0F, 1.0F, 0.0F });
@@ -298,9 +276,7 @@ s32 main(void) {
     nya_assert(unmoved.x == 3.0F, "a degenerate look_at is the identity, not NaN");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the vector products the projections are built from
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_vector_dot((f32x3){ 1.0F, 2.0F, 3.0F }, (f32x3){ 4.0F, 5.0F, 6.0F }) == 32.0F);
 

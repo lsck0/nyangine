@@ -127,9 +127,7 @@ s32 main(void) {
   test_ring_wraparound();
   test_ring_iterators();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_create_on_stack / nya_ring_destroy_on_stack
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*   arena    = nya_arena_create();
     NYA_RingᐸTestItemᐳ on_stack = nya_ring_create_on_stack(arena, TestItem);
@@ -144,9 +142,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_create_with_capacity_on_stack
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*   arena    = nya_arena_create();
     NYA_RingᐸTestItemᐳ on_stack = nya_ring_create_with_capacity_on_stack(arena, TestItem, 4);
@@ -161,9 +157,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_peek
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
     NYA_RingᐸTestItemᐳ* ring  = nya_ring_create(arena, TestItem);
@@ -180,9 +174,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_pop_many
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
     NYA_RingᐸTestItemᐳ* ring  = nya_ring_create(arena, TestItem);
@@ -200,9 +192,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_resize
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
     NYA_RingᐸTestItemᐳ* ring  = nya_ring_create_with_capacity(arena, TestItem, 4);
@@ -220,9 +210,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_resize with wrapped data preserves logical order
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
     NYA_RingᐸTestItemᐳ* ring  = nya_ring_create_with_capacity(arena, TestItem, 4);
@@ -260,9 +248,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_resize with fully wrapped ring (head at middle)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
     NYA_RingᐸTestItemᐳ* ring  = nya_ring_create_with_capacity(arena, TestItem, 3);
@@ -287,9 +273,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_copy
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
     NYA_RingᐸTestItemᐳ* ring  = nya_ring_create(arena, TestItem);
@@ -312,9 +296,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_ring_move
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena1 = nya_arena_create();
     NYA_Arena*    arena2 = nya_arena_create();

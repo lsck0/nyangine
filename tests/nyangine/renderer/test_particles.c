@@ -30,9 +30,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_particles");
   defer nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: emission fills the pool and refuses past it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* system = nya_particles_create(arena, 32);
 
@@ -55,9 +53,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: particles retire when their time is up, and the pool stays packed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* system = nya_particles_create(arena, 64);
 
@@ -86,9 +82,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: gravity and damping
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* system = nya_particles_create(arena, 8);
 
@@ -130,9 +124,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a 2D system emits in the plane, a 3D one does not
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* flat = nya_particles_create(arena, 256);
 
@@ -157,9 +149,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a sphere burst is round, not diamond shaped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* system = nya_particles_create(arena, 4096);
     nya_particles_space_set(system, NYA_PARTICLE_SPACE_3D);
@@ -187,9 +177,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the callback can steer and can end a particle
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* system = nya_particles_create(arena, 16);
 
@@ -211,9 +199,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the same seed gives the same effect
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ParticleSystem* left  = nya_particles_create(arena, 64);
     NYA_ParticleSystem* right = nya_particles_create(arena, 64);

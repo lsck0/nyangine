@@ -44,9 +44,7 @@ s32 main(void) {
   SDL_Thread* guard = SDL_CreateThread(watchdog, "watchdog", nullptr);
   nya_assert(guard != nullptr, "SDL_CreateThread failed for the watchdog: %s", SDL_GetError());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a child that floods stderr while stdout stays open
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: %d bytes of stderr\n", STDERR_BYTES);
   {
     // `yes` piped through head is portable and needs no temporary file. The stdout write keeps the
@@ -80,9 +78,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the mirror case, a flood on stdout
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: %d bytes of stdout\n", STDERR_BYTES);
   {
     NYA_String* script = nya_string_sprintf(

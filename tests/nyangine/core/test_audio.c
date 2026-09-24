@@ -175,9 +175,7 @@ s32 main(void) {
   write_test_wav();
   defer (void)nya_filesystem_delete(TEST_WAV_PATH);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a null handle is inert, whether or not there is a device
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The property that matters: NYA_SOUND_VOICE_NONE must not resolve to slot zero, which is a real
     // voice. Getting this wrong would make every failed play silently steer the first sound playing.
@@ -196,9 +194,7 @@ s32 main(void) {
     nya_assert(!nya_audio_voice_valid((NYA_SoundVoice){ .index = 9999, .generation = 1 }));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: gains are clamped and readable back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Independent of any device: these are plain state, and an options menu reads them back to
     // populate its sliders.
@@ -218,9 +214,7 @@ s32 main(void) {
     nya_audio_set_master_gain(1.0F);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pitch and gain variation stay in range, actually vary, and are unbiased
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // the arithmetic rather than the audible result, since output cannot be captured. Never touches a
     // track. Twelve semitones double the rate, and 20·log10(2) decibels double the amplitude.
@@ -228,9 +222,7 @@ s32 main(void) {
     check_variation("gain", _nya_audio_vary_gain, 2.0F, 20.0F * log10f(2.0F), "dB");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the listener, and how a world point lands in the mixer's space
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Pure arithmetic, so device independent. Every value below is exact in binary, which is why
     // these compare with == rather than an epsilon.
@@ -275,9 +267,7 @@ s32 main(void) {
     nya_assert(farther[0] == 0.5F && farther[1] == -1.0F, "doubling the reference distance must halve the offset, got (%f, %f)", (f64)farther[0], (f64)farther[1]);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: voice filters: off is exact, on removes treble, and it glides there
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // the DSP directly, on a known signal, since the mixer cannot hand a test its output.
     SDL_AudioSpec spec = { .format = SDL_AUDIO_F32, .channels = 1, .freq = FILTER_RATE };
@@ -386,9 +376,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: playing a real clip, and steering it while it runs
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type     = NYA_ASSET_TYPE_SOUND,
@@ -523,9 +511,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: music is a voice, so the same effects reach it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // nothing playing yet, so the music voice is not valid, but asking is safe.
     nya_audio_stop_music(0);
@@ -550,9 +536,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the four audio calls nothing in the tree had ever made
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * nya_audio_listener_3d_get, nya_audio_stop_sounds, nya_audio_crossfade_music and
@@ -601,9 +585,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the stereo panner opt-in places positioned sounds through our own path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Off by default, so a game that never asks keeps SDL_mixer's positioning unchanged.
     nya_check(!nya_audio_panner_enabled(), "the panner must be off until asked for");

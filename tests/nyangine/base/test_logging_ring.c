@@ -16,16 +16,12 @@ s32 main(void) {
     nya_log_level_set(NYA_LOG_LEVEL_TRACE);
     nya_log_ring_clear();
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an empty ring answers nothing rather than answering garbage
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_log_ring_count() == 0, "a cleared ring should hold nothing, holds %u", nya_log_ring_count());
     nya_check(nya_log_ring_at(0) == nullptr, "reading past an empty ring should give null");
     nya_check(nya_log_ring_level_at(0) == NYA_LOG_LEVEL_COUNT, "the level past an empty ring should be the count");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: lines come back oldest first, with their level and their text
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_info("ring line alpha");
     nya_log_warn("ring line beta");
     nya_log_error("ring line gamma");
@@ -41,18 +37,14 @@ s32 main(void) {
 
     nya_check(nya_log_ring_at(3) == nullptr, "reading one past the count should give null");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a line below the level never reaches the ring, so filtering is not
     //       something a crash report can work around
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_level_set(NYA_LOG_LEVEL_ERROR);
     nya_log_info("ring line filtered out");
     nya_check(nya_log_ring_count() == 3, "a filtered line should not be kept, count is %u", nya_log_ring_count());
     nya_log_level_set(NYA_LOG_LEVEL_TRACE);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: past capacity the oldest line is dropped and the count stops growing
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_ring_clear();
 
     const u32 overfill = NYA_LOG_RING_MAX + 17;
@@ -74,9 +66,7 @@ s32 main(void) {
     // Nothing beyond the capacity is readable, whatever was written.
     nya_check(nya_log_ring_at(NYA_LOG_RING_MAX) == nullptr, "reading past the capacity should give null");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a line longer than a slot is truncated, not written past its slot
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_ring_clear();
 
     {
@@ -92,10 +82,8 @@ s32 main(void) {
                   (u64)strlen(kept));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the ring keeps working after a wrap that clear reset mid-cycle, which
     //       is the case the oldest-slot arithmetic gets wrong when it is wrong
-    // ─────────────────────────────────────────────────────────────────────────────
     for (u32 i = 0; i < NYA_LOG_RING_MAX + (NYA_LOG_RING_MAX / 2); i++) nya_log_info("wrap %u", i);
     nya_log_ring_clear();
     nya_log_info("after the clear");
@@ -103,9 +91,7 @@ s32 main(void) {
     nya_check(nya_log_ring_count() == 1, "one line should follow a clear, %u do", nya_log_ring_count());
     nya_check(line_contains(nya_log_ring_at(0), "after the clear"), "the only line should be the one after the clear, is '%s'", nya_log_ring_at(0));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // CLEANUP
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_ring_clear();
     nya_log_level_set(original_level);
 

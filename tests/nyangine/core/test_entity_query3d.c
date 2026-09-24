@@ -178,9 +178,7 @@ s32 main(void) {
   NYA_EntityHandle found[FOUND_MAX];
   NYA_EntityHandle expected[FOUND_MAX];
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a box query agrees with the scan, over many boxes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 disagreements = 0;
     u32 non_empty     = 0;
@@ -206,9 +204,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a sphere query agrees too, including at its rim
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 disagreements = 0;
     u32 non_empty     = 0;
@@ -241,9 +237,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the filtered forms filter, and filter the same way a scan does
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const f32x3 min = { -SPREAD, -SPREAD, -SPREAD };
     const f32x3 max = { SPREAD, SPREAD, SPREAD };
@@ -273,9 +267,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the 2D flag query, the other one nothing called
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const u32 flat = nya_entity_query_flags((f32x2){ -SPREAD, -SPREAD }, (f32x2){ SPREAD, SPREAD }, FLAG_SOLID, found, FOUND_MAX);
 
@@ -287,9 +279,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a ray picks the nearest entity it passes, as a scan would
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 disagreements = 0;
     u32 hits          = 0;
@@ -363,9 +353,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a capacity smaller than the answer truncates rather than overruns
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const f32x3 min = { -SPREAD, -SPREAD, -SPREAD };
     const f32x3 max = { SPREAD, SPREAD, SPREAD };

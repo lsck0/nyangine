@@ -17,9 +17,7 @@ static void assert_near(f32x2 got, f32 expected_x, f32 expected_y, NYA_ConstCStr
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a y-down screen projection maps the four corners where they belong
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The call the renderer makes: top is 0, bottom is the height, so y grows downward.
     f32_4x4 screen = nya_matrix_orthographic(0.0F, 1920.0F, 0.0F, 1080.0F);
@@ -36,9 +34,7 @@ s32 main(void) {
     assert_near(project(screen, 960.0F, 540.0F), 0.0F, 0.0F, "centre");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: y increases downward on screen, decreases upward in clip space
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32_4x4 screen = nya_matrix_orthographic(0.0F, 800.0F, 0.0F, 600.0F);
 
@@ -58,9 +54,7 @@ s32 main(void) {
     nya_assert(left[0] < right[0], "a smaller screen x must be further left");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: swapping top and bottom gives the y-up convention a world camera wants
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Same function, top greater than bottom. No flag and no second function: the sign of the scale
     // falls out of the arguments, which is what makes one implementation serve both cameras.
@@ -70,9 +64,7 @@ s32 main(void) {
     assert_near(project(world, 100.0F, 100.0F), 1.0F, 1.0F, "y-up maximum is top right");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an off-centre viewport, which a split screen or a scrolled camera produces
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Nothing requires the rectangle to start at the origin. A camera scrolled to (200, 100) passes
     // its own bounds and everything else is unchanged.
@@ -83,9 +75,7 @@ s32 main(void) {
     assert_near(project(scrolled, 360.0F, 220.0F), 0.0F, 0.0F, "scrolled centre");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: z passes through into the depth range clip space accepts
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32_4x4 screen = nya_matrix_orthographic(0.0F, 640.0F, 0.0F, 480.0F);
 

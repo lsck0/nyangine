@@ -247,9 +247,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_orm");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a type that cannot be a table is refused at open, by name
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -270,9 +268,7 @@ s32 main(void) {
     nya_assert(nya_orm_open(arena, db, &TEST_ROW, "ro ws", &table).kind == NYA_ERROR_INVALID_ARGUMENT, "a space is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the schema is the struct, and the fresh table agrees with it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -302,9 +298,7 @@ s32 main(void) {
     nya_assert(nya_orm_schema_check(rows, nullptr, nullptr) == 1, "the dropped table is reported as missing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: insert, find, update, delete, one row at a time
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -352,9 +346,7 @@ s32 main(void) {
     nya_assert(nya_orm_find(rows, arena, nya_sql_s64(2), &read).kind == NYA_ERROR_NOT_FOUND);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: select, with and without clauses, into an array of structs
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -395,9 +387,7 @@ s32 main(void) {
     nya_assert(nya_orm_select(rows, arena, "WHERE score > ?", nullptr, 0, &instances, &count).kind == NYA_ERROR_INVALID_ARGUMENT);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a value never becomes SQL
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -417,9 +407,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(read.name, "'); DROP TABLE"), "stored verbatim, as data");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a text key is never assigned, and never empty
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -448,9 +436,7 @@ s32 main(void) {
     nya_assert(nya_orm_find(slots, arena, nya_sql_s64(1), &read).kind == NYA_ERROR_INVALID_ARGUMENT, "an integer key against a text one");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an enum is stored as its variant's name, and an unnamed value is refused
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -482,9 +468,7 @@ s32 main(void) {
     nya_assert(nya_orm_insert(feelings, &nameless).kind == NYA_ERROR_INVALID_ARGUMENT, "an unnamed enum value is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a drifted table is reported precisely and never written to
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -524,9 +508,7 @@ s32 main(void) {
     nya_assert(nya_object_get(ended.rows->items[0], "ended")->type == NYA_TYPE_STRING, "the default ran, so nothing overwrote it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: closing is idempotent and safe on null
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -541,9 +523,7 @@ s32 main(void) {
     nya_assert(rows->database == nullptr, "a closed table holds no connection");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the round trip is a law, not an example
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);

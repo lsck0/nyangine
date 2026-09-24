@@ -32,9 +32,7 @@ s32 main(void) {
     defer nya_system_events_deinit();
     defer nya_system_callback_deinit();
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: English — one for exactly one, other for everything else
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CATEGORY_IS("en", 1, NYA_I18N_PLURAL_ONE);
         CATEGORY_IS("en", 0, NYA_I18N_PLURAL_OTHER);
@@ -60,9 +58,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: French — zero and one are one, a whole million is many
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CATEGORY_IS("fr", 0, NYA_I18N_PLURAL_ONE);
         CATEGORY_IS("fr", 1, NYA_I18N_PLURAL_ONE);
@@ -75,9 +71,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Russian — last digit, unless the last two are the teens
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CATEGORY_IS("ru", 1, NYA_I18N_PLURAL_ONE);
         CATEGORY_IS("ru", 21, NYA_I18N_PLURAL_ONE);
@@ -105,9 +99,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Polish — Russian's shape, but one is strictly one
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CATEGORY_IS("pl", 1, NYA_I18N_PLURAL_ONE);
         CATEGORY_IS("pl", 21, NYA_I18N_PLURAL_MANY);   // ends in one, but is not one
@@ -121,9 +113,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Czech — one, a few (two to four), otherwise
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CATEGORY_IS("cs", 1, NYA_I18N_PLURAL_ONE);
         CATEGORY_IS("cs", 2, NYA_I18N_PLURAL_FEW);
@@ -136,9 +126,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Arabic — all six categories
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         CATEGORY_IS("ar", 0, NYA_I18N_PLURAL_ZERO);
         CATEGORY_IS("ar", 1, NYA_I18N_PLURAL_ONE);
@@ -156,9 +144,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: languages with no count distinction, and the fallback for the rest
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // Japanese, Chinese and Korean have one form for every number.
         CATEGORY_IS("ja", 0, NYA_I18N_PLURAL_OTHER);
@@ -176,9 +162,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: locale number formatting — separators and grouping
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_string_equals(nya_i18n_decimal_separator("en"), "."), "en decimals with a point");
         nya_assert(nya_string_equals(nya_i18n_group_separator("en"), ","), "en groups with a comma");
@@ -198,9 +182,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a plural message picks the variant for its count, through the accessor
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_EXPECT(nya_i18n_load("en", NYA_STRING_KEYS, NYA_STRING_COUNT));
 
@@ -218,9 +200,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a category the locale omits falls back to its other variant
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // Bytes that give only `other` for the plural key: Russian would want one/few/many, and every
         // one of them must resolve to the single variant supplied rather than to a placeholder.

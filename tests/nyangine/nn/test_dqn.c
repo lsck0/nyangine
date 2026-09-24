@@ -58,9 +58,7 @@ int main(void) {
 
   NYA_RNG rng = nya_rng_create(.seed = "44514E5F74657374");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: replay, exploration schedule and the training gate
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNDQN* agent = nya_nn_dqn_create(
       arena,
@@ -101,9 +99,7 @@ int main(void) {
     printf("  PASSED: replay and training gate\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pacing matches the configured rate, like NEAT's step_for
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNDQN* agent = nya_nn_dqn_create(
       arena,
@@ -142,9 +138,7 @@ int main(void) {
     printf("  PASSED: pacing (%llu steps in one simulated second)\n", (unsigned long long)steps);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the agent learns to walk the corridor
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNDQN* agent = nya_nn_dqn_create(
       arena,
@@ -202,9 +196,7 @@ int main(void) {
     printf("  PASSED: corridor solved\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: acting is allocation free once warm
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The property that decides whether this can run inside a frame. Acting happens every frame; if
@@ -238,9 +230,7 @@ int main(void) {
     printf("  PASSED: acting is allocation free\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: plain DQN also learns, and overestimates more than double DQN
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The disable_double_q branch existed and nothing ran it, which for a flag that changes the

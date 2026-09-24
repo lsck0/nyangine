@@ -20,9 +20,7 @@ typedef struct {
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_dll");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_push_back on empty list
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -35,9 +33,7 @@ s32 main(void) {
     nya_assert(n1->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_push_back multiple nodes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -61,9 +57,7 @@ s32 main(void) {
     nya_assert(n3->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_push_front on empty list
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -76,9 +70,7 @@ s32 main(void) {
     nya_assert(n1->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_push_front multiple nodes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -103,9 +95,7 @@ s32 main(void) {
     nya_assert(n1->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_pop_back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -137,9 +127,7 @@ s32 main(void) {
     nya_assert(dll.tail == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_pop_front
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -171,9 +159,7 @@ s32 main(void) {
     nya_assert(dll.tail == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_link in the middle
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -197,9 +183,7 @@ s32 main(void) {
     nya_assert(n3->prev == n2);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_unlink from middle
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -223,9 +207,7 @@ s32 main(void) {
     nya_assert(n2->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_unlink from head
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -245,9 +227,7 @@ s32 main(void) {
     nya_assert(n1->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_unlink from tail
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -267,9 +247,7 @@ s32 main(void) {
     nya_assert(n2->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_unlink single node
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -284,9 +262,7 @@ s32 main(void) {
     nya_assert(n1->next == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_foreach
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -310,9 +286,7 @@ s32 main(void) {
     nya_assert(count == 3);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_foreach on empty list
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL dll   = { 0 };
     s32     count = 0;
@@ -320,9 +294,7 @@ s32 main(void) {
     nya_assert(count == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_foreach_reverse
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -347,9 +319,7 @@ s32 main(void) {
     nya_assert(values[2] == 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_foreach_reverse on empty list
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL dll   = { 0 };
     s32     count = 0;
@@ -359,9 +329,7 @@ s32 main(void) {
     nya_assert(count == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: mixed push_front and push_back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -390,9 +358,7 @@ s32 main(void) {
     nya_assert(idx == 4);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: re-linking after unlink
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -413,9 +379,7 @@ s32 main(void) {
     nya_assert(n1->prev == n2);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: large list operations
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL    dll   = { 0 };
     TestNode** nodes = (TestNode**)nya_arena_alloc(arena, 100 * sizeof(TestNode*));
@@ -453,9 +417,7 @@ s32 main(void) {
     nya_assert(count == 50);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pop from single element list
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));
@@ -469,9 +431,7 @@ s32 main(void) {
     nya_assert(dll.tail == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dll_node_link at boundaries
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestDLL   dll = { 0 };
     TestNode* n1  = (TestNode*)nya_arena_alloc(arena, sizeof(TestNode));

@@ -17,9 +17,7 @@ s32 main(void) {
 
   const u64 count = nya_asset_blob_count();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the index is there, and every entry names itself the way a lookup spells it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_check(count > 0, "a build with the blob has entries in it");
 
@@ -36,9 +34,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a lookup by path finds the entry the index holds, and only a real path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (u64 i = 0; i < count; i += nya_max(count / 16, (u64)1)) {
       const NYA_AssetBlobHeader* entry = nya_asset_blob_at(i);
@@ -51,9 +47,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: enumeration lists the baked paths, sorted, filtered by suffix
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ArrayᐸNYA_Stringᐳ* all = nya_asset_enumerate(arena, nullptr);
     nya_check(all->length == count, "unfiltered, it lists every entry, " FMTu64 " against " FMTu64, (u64)all->length, count);

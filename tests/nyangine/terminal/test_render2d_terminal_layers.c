@@ -55,9 +55,7 @@ s32 main(void) {
   NYA_Window* window = nya_render2d_terminal_window();
   nya_assert(window != nullptr, "the terminal backend has a window");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a higher layer covers a lower one, whichever order they were drawn in
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -80,10 +78,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: equal layers still paint over each other, or a panel could not draw
   //       its own text onto its own fill
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -95,9 +91,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: text obeys the same gate as a fill
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -120,10 +114,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the layers reset with the clear, so last frame's stack does not defend
   //       a cell nobody has written this frame
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
     fill_at(window, 9, GREEN);

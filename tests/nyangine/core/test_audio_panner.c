@@ -32,9 +32,7 @@ static void fill_stereo_sine(f32* pcm, s32 frames, f32 hz) {
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the azimuth of a listener-relative direction
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // +x right, -z ahead. Pure arithmetic, so exact enough to compare against known angles.
     nya_assert(fabsf(nya_audio_pan_azimuth((f32x3){ 0.0F, 0.0F, -1.0F })) < 1e-5F, "a source dead ahead is azimuth zero");
@@ -47,9 +45,7 @@ s32 main(void) {
     nya_assert(nya_audio_pan_azimuth((f32x3){ 0.0F, 0.0F, 0.0F }) == 0.0F, "a source on the listener is ahead, not a NaN");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the panning law is centred and equal power
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_StereoPan centre = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = 0.0F });
 
@@ -67,9 +63,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hard left louder in the left ear, delayed and shadowed on the far (right) ear
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_StereoPan left = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = -0.5F * (f32)M_PI });
 
@@ -89,9 +83,7 @@ s32 main(void) {
     nya_assert(left.right_lowpass_hz > 0.0F, "the far (right) ear must be shadowed, got %f Hz", (f64)left.right_lowpass_hz);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hard right is the mirror, and the delay sign flips with it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_StereoPan right = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = 0.5F * (f32)M_PI });
 
@@ -105,9 +97,7 @@ s32 main(void) {
     nya_assert(right.left_lowpass_hz > 0.0F, "the far (left) ear must be shadowed");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: behind is centred but duller than in front
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_StereoPan front  = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = 0.0F });
     NYA_StereoPan behind = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = (f32)M_PI });
@@ -121,9 +111,7 @@ s32 main(void) {
     nya_assert(behind.left_lowpass_hz > 0.0F && behind.right_lowpass_hz > 0.0F, "a source behind must be rolled off in both ears, got %f / %f", (f64)behind.left_lowpass_hz, (f64)behind.right_lowpass_hz);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the render lays the gains onto a buffer
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const s32   frames = 512;
     static f32  pcm[512 * 2];
@@ -146,9 +134,7 @@ s32 main(void) {
     nya_assert(fabs((right / left) - 0.25) < 0.01, "the ear balance must be the gain ratio, got %f", right / left);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the render delays the far ear by the interaural time difference
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const s32  frames = 64;
     static f32 pcm[64 * 2];
@@ -172,9 +158,7 @@ s32 main(void) {
     nya_assert(pcm[(8 * 2) + 1] == 1.0F, "the far (right) ear's impulse must land eight frames late, got %f", (f64)pcm[(8 * 2) + 1]);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the render shadows the far ear's treble and leaves the near ear alone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const s32  frames = 4800;
     static f32 pcm[4800 * 2];
@@ -211,9 +195,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the render leaves a non-stereo buffer untouched
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const s32  frames = 128;
     static f32 pcm[128];

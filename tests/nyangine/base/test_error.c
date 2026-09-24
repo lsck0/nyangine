@@ -47,18 +47,14 @@ NYA_Error try_fail_not_found(void) {
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_OK - returns a result with no error
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = NYA_OK;
     nya_assert(result.ok);
     nya_assert(result.ok);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: `ok` agrees with `kind` everywhere an NYA_Error can be born
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * `ok` is redundant state, kept true only because every NYA_Error comes from one of three places.
@@ -86,9 +82,7 @@ s32 main(void) {
     nya_assert(!from_errno.ok);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: `ok` survives propagation through NYA_TRY
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // NYA_TRY copies the struct into the caller's frame and pushes a trace frame onto it, so this is
     // checking that the flag rides along with the kind rather than being recomputed on the way.
@@ -102,9 +96,7 @@ s32 main(void) {
     nya_assert(fail_result.error_trace_count > 0, "the propagation frame was still recorded");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_Error enum - values are correct
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_assert(NYA_ERROR_NONE == 0);
   nya_assert(NYA_ERROR_NOT_OK == 1);
   nya_assert(NYA_ERROR_NOT_FOUND == 2);
@@ -119,12 +111,10 @@ s32 main(void) {
   nya_assert(NYA_ERROR_PARSE == 11);
   nya_assert(NYA_ERROR_COUNT == 12);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_ERRORKIND_NAME_MAP - every kind is named, and named correctly
   //
   // The loop is the part that matters: a kind added without a map entry leaves a null there, and
   // the first thing to notice would otherwise be a crash while formatting some unrelated error.
-  // ─────────────────────────────────────────────────────────────────────────────
   for (u32 kind = 0; kind < NYA_ERROR_COUNT; kind++) { nya_assert(NYA_ERRORKIND_NAME_MAP[kind] != nullptr); }
 
   nya_assert(strcmp(NYA_ERRORKIND_NAME_MAP[NYA_ERROR_NONE], "NONE") == 0);
@@ -140,81 +130,59 @@ s32 main(void) {
   nya_assert(strcmp(NYA_ERRORKIND_NAME_MAP[NYA_ERROR_CORRUPT], "CORRUPT") == 0);
   nya_assert(strcmp(NYA_ERRORKIND_NAME_MAP[NYA_ERROR_PARSE], "PARSE") == 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_err - with error code only
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = nya_error(NYA_ERROR_NOT_OK);
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_err - with error code and message
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = nya_error(NYA_ERROR_NOT_OK, "test message");
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_err - with error code, format, and arguments
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = nya_error(NYA_ERROR_NOT_OK, "error %d: %s", 42, "fail");
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: _nya_error_create - panics on null format string
   //
   // Called directly rather than through _nya_error: with two arguments that macro selects
   // _NYA_ERROR2, which passes "%s" as the format and the caller's value as the message, so a null
   // there is a null *message* and never reaches the format assertion.
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash((void)_nya_error_create(NYA_ERROR_NOT_OK, nullptr));
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: _nya_error - panics on invalid error code
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash((void)_nya_error(NYA_ERROR_COUNT, ""));
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_TRY - passes through on success
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = try_ok();
     nya_assert(result.ok);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_TRY - propagates error on failure
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = try_fail();
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_EXPECT - passes on success
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_EXPECT(always_ok());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_EXPECT - panics on failure
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash(NYA_EXPECT(always_fail()));
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_derive_maybe / nya_none - has_value is false
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_MaybeᐸTestUserᐳ maybe = nya_none(TestUser);
     nya_assert(maybe.has_value == false);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_derive_maybe / nya_some - has_value is true and value is correct
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     TestUser user = { .name = "Alice", .age = 25 };
     NYA_MaybeᐸTestUserᐳ maybe = nya_some(TestUser, user);
@@ -223,9 +191,7 @@ s32 main(void) {
     nya_assert(maybe.value.age == 25);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_some - inline struct initialization
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_MaybeᐸTestUserᐳ maybe = nya_some(TestUser, ((TestUser){ .name = "Bob", .age = 30 }));
     nya_assert(maybe.has_value == true);
@@ -233,17 +199,13 @@ s32 main(void) {
     nya_assert(maybe.value.age == 30);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Function returning result - success path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = always_ok();
     nya_assert(result.ok);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Function returning result - failure paths
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error r1 = always_fail();
     nya_assert(r1.kind == NYA_ERROR_NOT_OK);
@@ -255,9 +217,7 @@ s32 main(void) {
     nya_assert(r3.kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_error_from_errno - captures errno into result
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     errno = ENOENT;
     NYA_Error result = nya_error_from_errno();
@@ -265,9 +225,7 @@ s32 main(void) {
     nya_assert(strstr((const char*)result.message, strerror(ENOENT)) != nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_error_from_errno - maps errno to correct error codes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // NOT_FOUND
     errno = ENOENT;
@@ -309,18 +267,14 @@ s32 main(void) {
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_error_from_errno - unknown errno falls back to GENERIC
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     errno = 9999;
     NYA_Error result = nya_error_from_errno();
     nya_assert(result.kind == NYA_ERROR_NOT_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_error_from_errno - message contains errno number
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     errno = EINVAL;
     NYA_Error result = nya_error_from_errno();
@@ -329,9 +283,7 @@ s32 main(void) {
     nya_assert(strstr((const char*)result.message, expected_suffix) != nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_err - message content is correct
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error r1 = nya_error(NYA_ERROR_NOT_OK, "test message");
     nya_assert(strcmp((const char*)r1.message, "test message") == 0);
@@ -343,9 +295,7 @@ s32 main(void) {
     nya_assert(strcmp((const char*)r3.message, "") == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_err - all error codes produce correct results
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error r;
     r = nya_error(NYA_ERROR_NOT_FOUND, "gone");
@@ -361,9 +311,7 @@ s32 main(void) {
     nya_assert(r.kind == NYA_ERROR_PARSE);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_TRY - preserves specific error codes (not just GENERIC)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = try_fail_not_found();
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND);
@@ -371,18 +319,14 @@ s32 main(void) {
     nya_assert(strstr((const char*)result.message, "/tmp/gone") != nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_OK - message is empty
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = NYA_OK;
     nya_assert(result.ok);
     nya_assert(result.message[0] == '\0');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_err - long message is truncated, not overflowed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char long_msg[1024];
     memset(long_msg, 'A', sizeof(long_msg) - 1);
@@ -395,9 +339,7 @@ s32 main(void) {
     nya_assert(strlen((const char*)result.message) == NYA_ERROR_MESSAGE_MAX_LENGTH - 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_error_from_errno - additional errno mappings
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // NOT_FOUND extras
     errno = ENXIO;
@@ -429,9 +371,7 @@ s32 main(void) {
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_NOT_SUPPORTED);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_error_from_errno - message contains strerror text
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     errno = EACCES;
     NYA_Error result = nya_error_from_errno();

@@ -138,9 +138,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_db_migrate");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: two reflections and no database at all
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A table that is not there is one create and nothing else.
     NYA_MigrationPlan* fresh = nullptr;
@@ -171,9 +169,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(grown->steps[0].sql, "ALTER TABLE notes ADD COLUMN written_at_s INTEGER"), "got %s", grown->steps[0].sql);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what it refuses to derive, and which refusals stop a migration
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A column the struct no longer describes. Left alone, reported, and not a reason to stop: the
     // ORM names its columns in every statement, so a column it does not know is never touched.
@@ -214,9 +210,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(renamed->refusals[0].column, "text"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a table with rows in it, grown a column
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -264,9 +258,7 @@ s32 main(void) {
     NYA_EXPECT(nya_orm_schema_migrate(v2));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a blocked plan runs none of itself
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -309,9 +301,7 @@ s32 main(void) {
     nya_assert_eq(read.written_at_s, (s64)7);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a step that fails takes the whole migration back with it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
@@ -349,9 +339,7 @@ s32 main(void) {
     nya_assert_eq(nya_orm_schema_check(v2, nullptr, nullptr), 0U);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a database written by an earlier run of this test
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Deliberately not deleted at the end. Every other test here builds its database and throws it

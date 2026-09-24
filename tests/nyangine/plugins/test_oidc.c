@@ -256,9 +256,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_oidc");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a discovery document naming a different issuer is refused, and nothing from it is kept.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000, .now_s = 1'700'000'000 };
     fake_push(&fake, 200, DISCOVERY_WRONG_ISSUER);
@@ -276,9 +274,7 @@ s32 main(void) {
     nya_check(!nya_oidc_authorize_url(provider, url, sizeof(url), &out_state).ok, "and nothing works off a refused discovery");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the authorize url carries state, nonce and a real S256 PKCE challenge.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake              fake     = { .now_ms = 1000, .now_s = 1'700'000'000 };
     NYA_OidcProvider* provider = discovered_provider(arena, &fake);
@@ -323,9 +319,7 @@ s32 main(void) {
     nya_check(nya_string_contains((NYA_ConstCString)url, query_challenge), "and the challenge really is S256 of the verifier, got '%s'", url);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a good exchange verifies the id_token and hands back its claims.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake              fake     = { .now_ms = 1000, .now_s = 1'700'000'000 };
     NYA_OidcProvider* provider = discovered_provider(arena, &fake);
@@ -367,9 +361,7 @@ s32 main(void) {
     nya_check(fake.performed == 4, "with no extra jwks fetch, %u transfers so far", fake.performed);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an ES256 token, against a provider that publishes both kinds of key.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake              fake     = { .now_ms = 1000, .now_s = 1'700'000'000 };
     NYA_OidcProvider* provider = discovered_provider(arena, &fake);
@@ -407,9 +399,7 @@ s32 main(void) {
               (NYA_ConstCString)refused.message);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: one refusal per broken check, each naming what broke.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     struct {
       const char* name;
@@ -454,9 +444,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a provider refuses before it ever sends anything.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000, .now_s = 1'700'000'000 };
 

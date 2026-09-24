@@ -90,9 +90,7 @@ s32 main(void) {
   write_file(fixture, "nyangine");
   defer (void)remove(fixture);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an unknown handle is unloaded rather than an error
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Unloaded, not FAILED: nothing has been tried yet. A caller polling status before its load has
     // been queued should see "not here" rather than "gave up".
@@ -102,9 +100,7 @@ s32 main(void) {
     nya_assert(!nya_asset_unload("nothing_by_this_name"), "unloading something unknown does nothing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: null handles are rejected rather than crashed on
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error load = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = nullptr });
     nya_assert(load.kind == NYA_ERROR_INVALID_ARGUMENT, "a null handle is a caller mistake, not a panic");
@@ -117,9 +113,7 @@ s32 main(void) {
     nya_assert(nya_asset_reference_count(nullptr) == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: acquiring something that was never loaded fails without ending the process
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Deliberately an error rather than an assert: a typo'd handle in game code should be
     // recoverable, because assertions are live in shipping builds.
@@ -127,9 +121,7 @@ s32 main(void) {
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: queueing registers the asset immediately, loading happens at frame end
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type     = NYA_ASSET_TYPE_TEXT,
@@ -154,9 +146,7 @@ s32 main(void) {
     nya_assert(!asset->from_blob, "an external load never comes out of the blob");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: loading the same handle twice is a no-op rather than a second entry
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Asset* before = nya_asset_get(fixture);
     u8*        data   = before->as_text.data;
@@ -175,9 +165,7 @@ s32 main(void) {
     nya_assert(nya_asset_status(fixture) == NYA_ASSET_STATUS_LOADED);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: reference counting, and that a referenced asset cannot be unloaded
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_asset_reference_count(fixture) == 0, "loading does not take a reference");
 
@@ -197,9 +185,7 @@ s32 main(void) {
     nya_assert(nya_asset_status(fixture) == NYA_ASSET_STATUS_LOADED, "one holder left, nothing to do");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: releasing the last reference queues the unload, and frame end performs it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_asset_reference_count(fixture) == 1, "carried over from the test above");
 
@@ -211,9 +197,7 @@ s32 main(void) {
     nya_assert(nya_asset_status(fixture) == NYA_ASSET_STATUS_UNLOADED, "the last release is what unloads it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: releasing more often than acquiring does not wrap the count
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // atomic_fetch_sub on zero would wrap to UINT64_MAX and leave an asset nothing could ever
     // unload. The release path compare-exchanges instead, so the count floors at zero.
@@ -225,9 +209,7 @@ s32 main(void) {
     nya_assert(nya_asset_reference_count(fixture) == 0, "the count floors rather than wrapping");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: acquiring between queueing and frame end cancels the unload
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char revived[] = "./_test_asset_revived.txt";
     write_file(revived, "still wanted");
@@ -257,9 +239,7 @@ s32 main(void) {
     nya_assert(nya_asset_status(revived) == NYA_ASSET_STATUS_UNLOADED);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a missing file fails the asset instead of the process, and stays failed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char missing[] = "./_test_asset_definitely_absent.txt";
 
@@ -287,9 +267,7 @@ s32 main(void) {
     nya_assert(acquire.kind == NYA_ERROR_NOT_OK, "a failed asset cannot be acquired");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: handles are interned, so an asset survives the caller's string going away
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Handles are string literals in the game DLL, and hot reloading unmaps the .rodata they live
     // in. The system copies every handle it keeps, so a dict keyed by content still hashes
@@ -317,9 +295,7 @@ s32 main(void) {
     (void)remove("./_test_asset_interned.txt");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: deinit unloads whatever is still registered
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Left loaded on purpose. The deinit defer at the top of main is what tears this down, and the
     // leak sanitizer is what checks it did: an asset still holding its bytes when the arena goes
@@ -338,9 +314,7 @@ s32 main(void) {
     (void)remove(leaked);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a sound decodes, both streamed and predecoded
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The first type here other than text, and the reason that matters: the loading pass is a
@@ -393,9 +367,7 @@ s32 main(void) {
     nya_assert(nya_asset_get(SOUND_FIXTURE) == predecoded, "the original handle must be untouched");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: one font file at two point sizes is two assets
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The case `source` exists for: a face carries no size, so a .ttf at two sizes cannot be keyed on the
@@ -439,9 +411,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a GPU backed type fails rather than crashing without a device
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Headless is a supported configuration (NYA_HEADLESS, and CI runs the suite that way), so a texture

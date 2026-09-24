@@ -55,9 +55,7 @@ int main(void) {
 
   NYA_RNG rng = nya_rng_create(.seed = "6E79616E6E5F3031");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: shapes, indexing and the reductions
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 
@@ -77,9 +75,7 @@ int main(void) {
     printf("  PASSED: shapes and reductions\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: matmul against a hand computed result
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 
@@ -99,9 +95,7 @@ int main(void) {
     printf("  PASSED: matmul\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: autograd against finite differences, over the whole DQN path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The exact expression a DQN optimises: gather the taken action's value out of the network's
@@ -187,9 +181,7 @@ int main(void) {
     printf("  PASSED: autograd matches finite differences (%u gradients)\n", checked);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: no_grad records nothing and allocates no gradients
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNGraph*      graph   = nya_nn_graph_create(arena);
     NYA_NNSequential* network = build_network(arena, &rng, 2, 2);
@@ -215,9 +207,7 @@ int main(void) {
     printf("  PASSED: no_grad\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a target network copies and soft updates
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNSequential* online = build_network(arena, &rng, 2, 2);
     NYA_NNSequential* target = build_network(arena, &rng, 2, 2);
@@ -248,9 +238,7 @@ int main(void) {
     printf("  PASSED: target network sync\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the whole stack learns XOR
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * XOR, for the same reason nn_neat's test uses it: it is not linearly separable, so a network
@@ -304,9 +292,7 @@ int main(void) {
     printf("  PASSED: XOR converges (loss %f)\n", (f64)final_loss);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the graph arena does not grow across steps
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * What makes training usable inside a frame: a loop allocating per step leaks for as long as the game
@@ -355,9 +341,7 @@ int main(void) {
     printf("  PASSED: steady state training loop\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: two backward calls on one tape sum, rather than double count
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * A regression test for a bug that was in this library and produced no symptom.
@@ -381,9 +365,7 @@ int main(void) {
     printf("  PASSED: repeated backward accumulates without double counting\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a parameter used twice in one pass gets both contributions
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The reason gradients accumulate rather than assign. w appears on both sides, so dloss/dw is
     // the sum of two paths; an implementation that assigned would report only the last one.
@@ -403,9 +385,7 @@ int main(void) {
     printf("  PASSED: shared parameter accumulates both paths\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every op's gradient, individually, against finite differences
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The composed check above exercises the ops the DQN path uses. This one covers the rest, so an
@@ -478,9 +458,7 @@ int main(void) {
     printf("  PASSED: every op's gradient\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: SGD, momentum, weight decay and clipping
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Plain SGD on a known gradient: one step must move the weight by exactly rate * gradient.
     NYA_NNTensor* w = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1), true);
@@ -518,9 +496,7 @@ int main(void) {
     printf("  PASSED: sgd, clipping and weight decay\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: non-finite values are found, and found at their source
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNGraph*  graph = nya_nn_graph_create(arena);
     NYA_NNTensor* w     = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1, 1), true);
@@ -543,9 +519,7 @@ int main(void) {
     printf("  PASSED: non-finite detection\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the visualiser survives what a debug overlay gets handed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Headless, so draws are no-ops, but layout, the forward pass and every guard still run. Debug overlays
@@ -600,9 +574,7 @@ int main(void) {
     printf("  PASSED: visualiser guards\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the learning rate can be read and changed between steps
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The pair a schedule needs, and neither had a caller. A setter that does not reach the optimizer
@@ -631,9 +603,7 @@ int main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a copy takes the values and leaves the gradient where it was
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_NNTensor* source      = nya_nn_tensor_create(arena, NYA_NN_SHAPE(2, 3), true);
     NYA_NNTensor* destination = nya_nn_tensor_create(arena, NYA_NN_SHAPE(2, 3), true);

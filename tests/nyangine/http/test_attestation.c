@@ -48,9 +48,7 @@ s32 main(void) {
     defer nya_crypto_sign_key_pair_destroy(&origin);
     defer nya_crypto_sign_key_pair_destroy(&other);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: sign → verify round-trip.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpAttestationManifest manifest = sample_manifest();
 
@@ -60,9 +58,7 @@ s32 main(void) {
         nya_check(nya_http_attestation_verify(&origin.public_key, &manifest, &signature), "a signature verifies against the origin key");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a manifest changed after signing does not verify — neither the origin nor the content.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpAttestationManifest manifest = sample_manifest();
 
@@ -82,9 +78,7 @@ s32 main(void) {
         nya_check(!nya_http_attestation_verify(&origin.public_key, &changed_time, &signature), "a changed timestamp is rejected");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a good signature under the wrong key is rejected — the pin is what makes this mean anything.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpAttestationManifest manifest = sample_manifest();
 
@@ -94,9 +88,7 @@ s32 main(void) {
         nya_check(!nya_http_attestation_verify(&other.public_key, &manifest, &signature), "the origin's signature does not verify under another key");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the bundle digest is stable, and it changes when a byte or the order changes.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const u8 index_html[] = "<!doctype html><title>home</title>";
         const u8 app_css[]    = "body{color:#111}";
@@ -128,10 +120,8 @@ s32 main(void) {
         nya_check(nya_memcmp(a.bytes, d.bytes, NYA_CRYPTO_SHA256_BYTES) != 0, "changing a byte changes the digest");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the served document round-trips — to_json then from_json yields a manifest that still verifies,
     //       and the parsed public key is the origin's, which is what a verifier compares to its pin.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpAttestationManifest manifest = sample_manifest();
 
@@ -160,9 +150,7 @@ s32 main(void) {
         nya_check(nya_http_attestation_verify(&got_key, &got_manifest, &got_signature), "the round-tripped manifest still verifies");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: from_json refuses a document with a field of the wrong length rather than half-reading it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Object* broken = nya_object_create(arena);
         nya_object_add(broken, "origin", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"http://x.onion" });

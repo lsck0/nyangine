@@ -29,9 +29,7 @@ static u32 decode_cstring(NYA_ConstCString bytes, NYA_TerminalInput* out, u32 ca
 s32 main(void) {
   NYA_TerminalInput input[NYA_TERMINAL_INPUT_MAX] = { 0 };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: plain characters are keys carrying their code point and no named key
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode_cstring("abc", input, nya_carray_length(input));
     nya_assert(count == 3);
@@ -45,9 +43,7 @@ s32 main(void) {
     nya_assert(input[0].codepoint == 'a' && input[1].codepoint == 'b' && input[2].codepoint == 'c');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the keys that have names of their own
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode("\r\t\x7f", 3, input, nya_carray_length(input));
     nya_assert(count == 3);
@@ -60,9 +56,7 @@ s32 main(void) {
     for (u32 i = 0; i < 3; i++) nya_assert(input[i].codepoint == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: control chords, which are the byte plus 0x60 with ctrl set
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode("\x01\x03", 2, input, nya_carray_length(input));
     nya_assert(count == 2);
@@ -71,9 +65,7 @@ s32 main(void) {
     nya_assert(input[1].codepoint == 'c' && input[1].modifiers == NYA_TERMINAL_MODIFIER_CTRL);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a lone escape is the escape key only when nothing more is coming
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode("\x1b", 1, input, nya_carray_length(input));
     nya_assert(count == 1);
@@ -87,9 +79,7 @@ s32 main(void) {
     nya_assert(consumed == 0, "a non final escape consumed " FMTu64 " bytes", consumed);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: CSI arrows, with and without a modifier parameter
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode_cstring("\x1b[A\x1b[B\x1b[C\x1b[D", input, nya_carray_length(input));
     nya_assert(count == 4);
@@ -111,9 +101,7 @@ s32 main(void) {
     nya_assert(input[0].modifiers == (NYA_TERMINAL_MODIFIER_SHIFT | NYA_TERMINAL_MODIFIER_ALT | NYA_TERMINAL_MODIFIER_CTRL));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: SS3 function keys, the tilde table, and shift+tab
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode_cstring("\x1bOP\x1bOS", input, nya_carray_length(input));
     nya_assert(count == 2);
@@ -130,9 +118,7 @@ s32 main(void) {
     nya_assert(input[0].key == NYA_TERMINAL_KEY_TAB && input[0].modifiers == NYA_TERMINAL_MODIFIER_SHIFT);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: alt is an escape in front of whatever the key would have been alone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32 count = decode_cstring("\x1bx", input, nya_carray_length(input));
     nya_assert(count == 1);
@@ -140,9 +126,7 @@ s32 main(void) {
     nya_assert(input[0].modifiers == NYA_TERMINAL_MODIFIER_ALT);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: SGR mouse reports, which are the only encoding past column 223
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // button 0 pressed at column 33, row 9, one based.
     u32 count = decode_cstring("\x1b[<0;33;9M", input, nya_carray_length(input));
@@ -173,9 +157,7 @@ s32 main(void) {
     nya_assert(input[0].modifiers == NYA_TERMINAL_MODIFIER_CTRL);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a sequence split across two reads decodes once, not twice and not never
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // the first half is held, nothing is consumed, and nothing is reported.
     u64 consumed = 0;
@@ -193,9 +175,7 @@ s32 main(void) {
     nya_assert(consumed == 2, "the incomplete sequence is left for the next read");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the decoder never wedges on input a hostile terminal could send
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a CSI nothing here decodes is consumed and reported as nothing, so the next key still arrives.
     u32 count = decode_cstring("\x1b[?25hq", input, nya_carray_length(input));
@@ -224,9 +204,7 @@ s32 main(void) {
     nya_assert(input[1].codepoint == 'z');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the decoder fills no more than it was given room for
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_TerminalInput two[2] = { 0 };
 
@@ -237,9 +215,7 @@ s32 main(void) {
     nya_assert(consumed == 2, "the bytes it did not decode are left for the next call, not dropped");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: UTF-8, including what a terminal must not be able to do with it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // 'ä' is two bytes, '€' three, and an emoji four.
     u32 count = decode_cstring("ä€🐱", input, nya_carray_length(input));
@@ -260,9 +236,7 @@ s32 main(void) {
     nya_assert(nya_terminal_utf8_decode((const u8*)"\xC3\x28", 2, &codepoint) == 1 && codepoint == 0xFFFD);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: ink packs and clamps
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_terminal_ink(0.0F, 0.0F, 0.0F) == 0x000000);
     nya_assert(nya_terminal_ink(1.0F, 1.0F, 1.0F) == 0xFFFFFF);
@@ -273,9 +247,7 @@ s32 main(void) {
     nya_assert(nya_terminal_ink(2.0F, -1.0F, 0.5F) == 0xFF0080);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every key has a name, and a value that is not one gets a name too
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (u32 key = 0; key < NYA_TERMINAL_KEY_COUNT; key++) {
       NYA_ConstCString name = nya_terminal_key_name((NYA_TerminalKey)key);
@@ -288,9 +260,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(nya_terminal_key_name((NYA_TerminalKey)NYA_TERMINAL_KEY_COUNT), "none"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the device answers without a terminal instead of crashing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a test harness has no tty, so nothing below is open and every call must still be safe. This is
     // the path a program piped into a file takes.

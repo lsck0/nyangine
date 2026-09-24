@@ -83,9 +83,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_smtp");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the message builder produces a well-formed RFC 5322 blob.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SmtpMessage message = {
       .from      = "noreply@example.com",
@@ -115,9 +113,7 @@ s32 main(void) {
     nya_check(nya_string_contains(text, "\r\n\r\n"), "a blank line separates the headers from the body");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an HTML alternative becomes a multipart/alternative with both bodies.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SmtpMessage message = {
       .from    = "noreply@example.com",
@@ -140,9 +136,7 @@ s32 main(void) {
     nya_check(nya_string_contains(text, "--\r\n"), "the multipart is closed with a final boundary");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a CR or LF in a header value is refused, so no header can be injected.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String* blob = nullptr;
 
@@ -164,9 +158,7 @@ s32 main(void) {
     nya_check(nya_smtp_message_build(arena, &injected_name, &blob).kind == NYA_ERROR_INVALID_ARGUMENT, "a display name with a newline is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the STARTTLS + AUTH LOGIN command sequence, over a scripted server.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString replies[] = {
       "220 smtp.test ESMTP\r\n",
@@ -226,9 +218,7 @@ s32 main(void) {
     nya_check(strstr(sent, "hunter2") == nullptr, "the password is never sent in the clear");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: AUTH PLAIN sends one base64 token of NUL-separated credentials.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString replies[] = {
       "220 smtp.test ESMTP\r\n",
@@ -277,9 +267,7 @@ s32 main(void) {
     nya_check(strstr(sent, "STARTTLS") == nullptr, "implicit TLS does not send STARTTLS");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the public send refuses an injected header before it opens a connection.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_SmtpConfig config = {
       .host = "smtp.test", .port = 587, .security = NYA_SMTP_SECURITY_STARTTLS,

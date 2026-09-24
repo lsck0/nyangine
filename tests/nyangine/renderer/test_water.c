@@ -18,9 +18,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the flow-map phases, their bounds, and the half-cycle offset
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 cycle = 6.0F;
 
@@ -55,9 +53,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the flow is deterministic and periodic in the cycle, so the wrap is invisible
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 cycle = 6.0F;
     f32 t     = 2.75F;
@@ -79,9 +75,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the wave height is deterministic, bounded, and moves with time
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32   amplitude = 0.2F;
     f32   frequency = 0.6F;

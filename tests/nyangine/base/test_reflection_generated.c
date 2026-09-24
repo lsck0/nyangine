@@ -14,9 +14,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_reflection_generated");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a multi-declarator line is four fields, at the right offsets
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: NYA_Color\n");
   {
     const NYA_TypeReflection* color = nya_reflect_of(NYA_Color);
@@ -38,9 +36,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a C23 enum with an explicit underlying type, detected as flags
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: GNY_EntityFlags\n");
   {
     const NYA_TypeReflection* flags = nya_reflect_of(GNY_EntityFlags);
@@ -59,9 +55,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: array extents survive as expressions, and nesting resolves
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: NYA_NetChatMessage\n");
   {
     const NYA_TypeReflection* message = nya_reflect_of(NYA_NetChatMessage);
@@ -85,9 +79,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: @key lands on exactly the field it is written above
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: GNY_RobotRun\n");
   {
     const NYA_TypeReflection* run = nya_reflect_of(GNY_RobotRun);
@@ -106,9 +98,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a real struct round trips through the generated description
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: round trip\n");
   {
     NYA_NetChatMessage original = {
@@ -136,9 +126,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the registry
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: registry\n");
   {
     nya_assert(NYA_REFLECT_TYPE_COUNT > 0, "nothing was generated");

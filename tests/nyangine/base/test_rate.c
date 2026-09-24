@@ -16,9 +16,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_rate");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what a limiter refuses to be.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RateLimiter* limiter = nullptr;
 
@@ -36,9 +34,7 @@ s32 main(void) {
     nya_check(nya_rate_bucket_count(limiter) == 0, "after which it holds nothing again, got %u", nya_rate_bucket_count(limiter));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a burst goes, and then the budget is the budget.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RateLimiter* limiter = nullptr;
     NYA_EXPECT(nya_rate_limiter_create(arena, &limiter, .per_second = 100.0, .burst = 3.0));
@@ -71,9 +67,7 @@ s32 main(void) {
     nya_check(waited > 0 && waited < 200, "waiting takes about the wait, got %llu ms", (unsigned long long)waited);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the server is right, and is never argued with.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RateLimiter* limiter = nullptr;
     NYA_EXPECT(nya_rate_limiter_create(arena, &limiter, .per_second = 1000.0, .burst = 1000.0));
@@ -98,9 +92,7 @@ s32 main(void) {
     nya_check(nya_rate_wait_for(limiter, "api") > still, "while a longer one does");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the headers an API publishes on every reply, not only a refused one.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RateLimiter* limiter = nullptr;
     NYA_EXPECT(nya_rate_limiter_create(arena, &limiter, .per_second = 1000.0, .burst = 1000.0));
@@ -131,9 +123,7 @@ s32 main(void) {
     nya_check(held > 400 && held <= 500, "an empty bucket waits out its window, got %llu ms", (unsigned long long)held);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a table full of spent buckets gives none of them away.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RateLimiter* limiter = nullptr;
     NYA_EXPECT(nya_rate_limiter_create(arena, &limiter, .per_second = 1.0, .burst = 1.0));
@@ -158,9 +148,7 @@ s32 main(void) {
     nya_check(nya_rate_wait_for(limiter, "bucket-0") > 0, "the first bucket is still spent");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the backoff, which is a different question from the budget.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // full jitter by default, so every wait is somewhere inside its window and not at the top of it.
     b8 any_below_half = false;
@@ -187,9 +175,7 @@ s32 main(void) {
     nya_check(fixed >= 249 && fixed <= 250, "no jitter is the window itself, got %llu ms", (unsigned long long)fixed);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what is worth sending again, and what is the same answer twice.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_check(nya_retry_is_worthwhile(0), "no answer at all is worth another go");
     nya_check(nya_retry_is_worthwhile(429), "and being told to slow down");

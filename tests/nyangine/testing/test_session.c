@@ -204,9 +204,7 @@ s32 main(void) {
                                            .owner  = { .kind = NYA_SYSTEM_OWNER_GAME } });
     NYA_EXPECT(nya_system_registry_finalize());
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a chance is a percentage at its ends too, and the wheel reaches input
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Session* session = nya_session_create(.seed = 7, .tick_count = 1);
         defer        nya_session_destroy(session);
@@ -224,30 +222,24 @@ s32 main(void) {
         nya_assert(nya_input_mouse_wheel_scroll().y == 3.0F, "the wheel turned 3 and input saw %f", (f64)nya_input_mouse_wheel_scroll().y);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one seed, played twice, is one run. Without this nothing below means
     // anything: a digest that moves between two identical runs measures the machine.
-    // ─────────────────────────────────────────────────────────────────────────────
     u64 first  = play(0xA11CE5EEDULL, FAST_TICKS, false);
     u64 second = play(0xA11CE5EEDULL, FAST_TICKS, false);
 
     nya_assert(first == second, "the same seed gave 0x%016llX and then 0x%016llX", (unsigned long long)first, (unsigned long long)second);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a different seed is a different run, so the digest is reading the run and
     // not something constant about the scenario.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u64 other = play(0xB0B0B0B0ULL, FAST_TICKS, false);
         nya_assert(other != first, "two seeds gave the same digest 0x%016llX", (unsigned long long)other);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: fast forward is the same run as real time, and enormously faster. This is
     // the claim the whole facility rests on: the tick is a fixed timestep and every
     // draw is hashed from (seed, tick, index), so the clock decides how often a tick
     // happens and never what one does.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u64 fast_started_ns = nya_clock_get_monotonic_ns();
         u64 fast            = play(0xFA57ULL, REAL_TICKS, false);

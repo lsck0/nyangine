@@ -26,9 +26,7 @@ static void observe_crash(const NYA_CrashInfo* info, void* user_data) {
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_log_level_get / nya_log_level_set
-  // ─────────────────────────────────────────────────────────────────────────────
   original_level = nya_log_level_get();
   nya_assert(original_level >= NYA_LOG_LEVEL_TRACE && original_level < NYA_LOG_LEVEL_COUNT);
 
@@ -41,17 +39,13 @@ s32 main(void) {
   nya_log_level_set(NYA_LOG_LEVEL_TRACE);
   nya_assert(nya_log_level_get() == NYA_LOG_LEVEL_TRACE);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: all log levels can be set
-  // ─────────────────────────────────────────────────────────────────────────────
   for (u32 i = 0; i < NYA_LOG_LEVEL_COUNT; ++i) {
     nya_log_level_set((NYA_LogLevel)i);
     nya_assert(nya_log_level_get() == (NYA_LogLevel)i);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log messages don't crash (just ensure they don't segfault)
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_TRACE);
   nya_log_trace("This is a trace message: %d", 42);
   nya_log_debug("This is a debug message: %s", "debug");
@@ -59,9 +53,7 @@ s32 main(void) {
   nya_log_warn("This is a warn message: %d %d %d", 1, 2, 3);
   nya_log_error("This is an error message: %s", "error");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log filtering - lower levels not shown when higher level set
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_ERROR);
   nya_log_trace("Should not appear");
   nya_log_debug("Should not appear");
@@ -76,40 +68,30 @@ s32 main(void) {
   nya_log_warn("Should appear: %d", 456);
   nya_log_error("Should appear: %f", 7.89);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_expect_crash catches a panic, and reports where it came from
   //
   // This replaced a panic *hook* plus nya_panic_prevent_set/_happened. The hook let an observer
   // both see and swallow a panic; the crash API separates those, so a test arms a frame and then
   // inspects NYA_CrashInfo rather than setting a global flag from a callback.
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash(nya_log_panic("This panic should be caught"));
   nya_assert(nya_crash_caught() != nullptr);
   nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a panic carrying format arguments, which is where the old hook risked va_list UB
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash(nya_log_panic("Panic with args: %d %s %f", 999, "text", 1.5));
   nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failed assertion reports as an assert, not a panic
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_expect_crash(nya_assert(false, "deliberate"));
   nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_ASSERT);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: repeated crashes, each caught independently
-  // ─────────────────────────────────────────────────────────────────────────────
   for (u32 i = 0; i < 3; ++i) {
     nya_expect_crash(nya_log_panic("Panic %u", i));
     nya_assert(nya_crash_caught() != nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log messages with various format specifiers
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_INFO);
   nya_log_info("String: %s", "test");
   nya_log_info("Integer: %d", -42);
@@ -120,25 +102,17 @@ s32 main(void) {
   nya_log_info("Char: %c", 'A');
   nya_log_info("Percent: %%");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log messages with multiple arguments
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_info("Multiple: %d %s %f %u", 1, "two", 3.0, 4);
   nya_log_info("Five args: %d %d %d %d %d", 1, 2, 3, 4, 5);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: empty log message
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_info("");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log message with special characters
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_info("Special: \t\n\r%s", "test");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: all log level messages work
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_TRACE);
   nya_log_trace("TRACE level");
   nya_log_debug("DEBUG level");
@@ -147,9 +121,7 @@ s32 main(void) {
   nya_log_error("ERROR level");
   // nya_log_panic would crash, so skip it
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: very long log message
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* arena    = nya_arena_create(.name = "test_logging");
   NYA_String long_msg = *nya_string_create(arena);
   for (u32 i = 0; i < 100; ++i) {
@@ -159,9 +131,7 @@ s32 main(void) {
   NYA_CString cstr = nya_string_to_cstring(arena, &long_msg);
   nya_log_info("Long message: %s", cstr);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_log_sink_remove takes out one sink and leaves the others
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_sink_add(sink_a, nullptr);
   nya_log_sink_add(sink_b, nullptr);
 
@@ -185,9 +155,7 @@ s32 main(void) {
 
   nya_log_sink_clear();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: crash observers are held to their bound, removed by pair, and cleared
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a prevented crash reaches no observer, so what can be checked here is the bookkeeping; a real
     // crash reaching one is test_crash_report's child process.
@@ -207,9 +175,7 @@ s32 main(void) {
     nya_crash_observer_clear();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a tag lands on every line until it is cleared, and is cut at its bound
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
     nya_log_ring_clear();
@@ -232,9 +198,7 @@ s32 main(void) {
     nya_log_tag_clear();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(original_level);
   nya_arena_destroy(arena);
 

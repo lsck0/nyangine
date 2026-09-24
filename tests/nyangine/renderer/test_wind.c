@@ -17,9 +17,7 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the defaults, and the steady wind with no gust
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_WindField calm = nya_wind_field((NYA_WindOptions){ 0 });
 
@@ -39,9 +37,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sampling is deterministic, and a copy samples identically
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_WindField wind = nya_wind_field((NYA_WindOptions){ .direction = { 1, 0, 0.4F }, .strength = 2.0F, .gustiness = 0.7F, .seed = 12.0F });
 
@@ -63,9 +59,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: advance accumulates time, and the field's clock feeds nya_wind_sample
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_WindField wind = nya_wind_field((NYA_WindOptions){ .strength = 1.0F, .gustiness = 0.5F });
 
@@ -86,9 +80,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the gust cannot leave the bounds the amplitudes set
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 strength  = 4.0F;
     f32 gustiness = 0.8F;
@@ -124,9 +116,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_wind_set repoints the wind and leaves the clock alone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_WindField wind = nya_wind_field((NYA_WindOptions){ .direction = { 1, 0, 0 }, .strength = 1.0F, .gustiness = 0.0F });
 

@@ -26,9 +26,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nothing loaded shows a findable placeholder
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString missing = nya_i18n_raw(NYA_STRING_MENU_START);
 
@@ -41,9 +39,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the base locale loads and the accessors read it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_i18n_load("en", NYA_STRING_KEYS, NYA_STRING_COUNT));
 
@@ -63,9 +59,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: switching language changes every string, including the formatted ones
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_i18n_load("de", NYA_STRING_KEYS, NYA_STRING_COUNT));
 
@@ -86,9 +80,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a locale that is not there leaves the loaded one alone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error error = nya_i18n_load("zz", NYA_STRING_KEYS, NYA_STRING_COUNT);
 
@@ -102,9 +94,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the format ring holds several strings at once, then recycles
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_ConstCString first  = nya_string_hud_greeting("one");
     NYA_ConstCString second = nya_string_hud_greeting("two");
@@ -122,9 +112,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a locale from bytes replaces the file's, with no fallback and no watch
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // what a mod or a download hands over: jsonc, and only some of the keys.
     static const char document[] = "{\n"

@@ -88,14 +88,10 @@ int main(void) {
 
     nya_http_router_resolvers_set(resolve_handler, nullptr);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a route table carrying a token instead of a pointer is well formed.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_http_router_check(&ROUTER).ok, "a route with a handler_callback and no handler is valid");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: dispatch runs whatever the token resolves to.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         make_get(request, "/swap");
 
@@ -111,9 +107,7 @@ int main(void) {
         nya_check(LAST_RAN == 'B', "handler_b ran after the swap without changing the route, got '%c'", LAST_RAN);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the validator rejects a route that sets both, or neither.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRoute both = ROUTES[0];
         both.handler = handler_a;   // token AND pointer

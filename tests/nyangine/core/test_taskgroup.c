@@ -78,9 +78,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_job_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: N tasks all run, the count is exact, and the wait is clean
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     enum { COUNT = 64 };
 
@@ -102,9 +100,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failing task surfaces its error from the wait
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     enum { COUNT = 16 };
 
@@ -133,9 +129,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the bound is enforced
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*     arena = nya_arena_create(.name = "bounded");
     NYA_TaskGroup* group = nullptr;
@@ -159,9 +153,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a polling task sees the cancellation flag and returns
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     enum { COUNT = 3 };
 
@@ -188,9 +180,7 @@ s32 main(void) {
     nya_arena_destroy(arena);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nested groups — a task opens and joins a group of its own
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     enum { OUTER = 3, INNER = 4 };
 

@@ -34,9 +34,7 @@ s32 main(void) {
 
     char token[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a token round trips, claims and all.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpIdentity signed_in = {
             .scope        = NYA_HTTP_SCOPE_READ | NYA_HTTP_SCOPE_WRITE,
@@ -64,9 +62,7 @@ s32 main(void) {
         nya_assert(verified.expires_at_s == NOW_S + 3600);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a scope is carried in full or not at all.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpIdentity identity = { .scope = NYA_HTTP_SCOPE_READ | NYA_HTTP_SCOPE_WRITE };
 
@@ -78,9 +74,7 @@ s32 main(void) {
         nya_assert(!nya_http_scope_contains(&identity, NYA_HTTP_SCOPE_READ | NYA_HTTP_SCOPE_ADMIN), "half a scope is not the scope");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every way a token can fail to be this server's.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpIdentity identity = { .issued_at_s = NOW_S, .expires_at_s = NOW_S + 60, .scope = NYA_HTTP_SCOPE_READ };
         (void)snprintf(identity.subject, sizeof(identity.subject), "luca");
@@ -138,9 +132,7 @@ s32 main(void) {
         nya_assert(nya_http_jwt_encode(&identity, SECRET, 4, token, sizeof(token)).kind == NYA_ERROR_INVALID_ARGUMENT);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: `alg: none` and the downgrade family.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpIdentity verified = { 0 };
 
@@ -196,9 +188,7 @@ s32 main(void) {
         nya_assert(verified.subject[0] == '\0');
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a subject that could inject into the payload is not a subject.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpIdentity identity = { .issued_at_s = NOW_S, .expires_at_s = NOW_S + 60 };
 
@@ -216,9 +206,7 @@ s32 main(void) {
         nya_assert(!nya_http_jwt_encode(&identity, SECRET, SECRET_SIZE, token, sizeof(token)).ok);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: pulling a bearer token out of a request.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request = nya_arena_alloc(arena, sizeof(NYA_HttpRequest));
         nya_assert(request != nullptr);
@@ -247,9 +235,7 @@ s32 main(void) {
         nya_assert(!nya_http_bearer_token(request, &found, &size));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the second factor challenge, which is stateless and windowed.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8 challenge[NYA_CRYPTO_SHA256_BYTES] = { 0 };
 
@@ -272,9 +258,7 @@ s32 main(void) {
         nya_assert(!nya_http_challenge_create("", SECRET, SECRET_SIZE, NOW_S, challenge).ok);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the verifier seam is empty until something installs one.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_second_factor() == nullptr, "the engine ships with no signature verifier");
 

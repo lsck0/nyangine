@@ -12,9 +12,7 @@ s32 main(void) {
 
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_args_variadic_overflow");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: more variadic arguments than the array holds
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: %d variadic arguments into a %d slot array\n", ARGUMENT_COUNT, NYA_ARG_MAX_PARAMETERS);
   {
     NYA_ArgParameter files = {
@@ -76,9 +74,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: exactly the array's worth still works
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: exactly %d arguments\n", NYA_ARG_MAX_PARAMETERS);
   {
     NYA_ArgParameter files = {

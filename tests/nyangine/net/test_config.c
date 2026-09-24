@@ -16,9 +16,7 @@ s32 main(void) {
   nya_backtrace_init();
   defer nya_backtrace_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: no arguments is single player
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: bare invocation is single player\n");
   {
     NYA_CString         argv[] = { "gnyame" };
@@ -39,9 +37,7 @@ s32 main(void) {
     nya_net_config_report(&config);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: --server is a dedicated server, and listens by definition
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --server\n");
   {
     NYA_NetLaunchConfig config = PARSE("--server");
@@ -66,9 +62,7 @@ s32 main(void) {
     nya_assert(config.listen_port == 27016, "the listen port follows the port on a dedicated server");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: --connect is a client
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --connect\n");
   {
     NYA_NetLaunchConfig config = PARSE("--connect", "192.168.1.5", "--port", "27017", "--name", "Luca");
@@ -83,9 +77,7 @@ s32 main(void) {
     nya_net_config_report(&config);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: --listen turns single player into a listen server
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --listen\n");
   {
     NYA_NetLaunchConfig config = PARSE("--listen", "27018");
@@ -97,9 +89,7 @@ s32 main(void) {
     nya_net_config_report(&config);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the attached form works for every flag
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --flag=value\n");
   {
     /* Both spellings, since people type both, and the attached form is unambiguous next to another flag. */
@@ -120,9 +110,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(config.address, "example.com"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a flag is not swallowed as another flag's value
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --port --server\n");
   {
     /*
@@ -143,9 +131,7 @@ s32 main(void) {
     nya_assert(config.port == NYA_NET_DEFAULT_PORT, "a value-less --port falls back rather than reading past argv");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed and out of range values fall back
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nonsense values\n");
   {
     // Not a number at all.
@@ -181,9 +167,7 @@ s32 main(void) {
     nya_assert(PARSE("--connect=").role == NYA_NET_ROLE_SERVER);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: contradictory arguments resolve, they do not fail
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --server and --connect together\n");
   {
     /*
@@ -200,9 +184,7 @@ s32 main(void) {
     nya_assert(second.address[0] == '\0');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: unknown arguments are ignored, not fatal
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: unrecognised arguments\n");
   {
     /*
@@ -223,9 +205,7 @@ s32 main(void) {
     nya_assert(config.port == NYA_NET_DEFAULT_PORT, "--portable was matched as --port");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: overlong values are truncated rather than overflowing
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: overlong name and address\n");
   {
     /*
@@ -251,9 +231,7 @@ s32 main(void) {
     nya_assert(strlen(client.address) < NYA_NET_MAX_ADDRESS, "the address was truncated to its buffer");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a null entry in argv is skipped
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a null argv entry\n");
   {
     // Legal to hand over and produced by some launchers. Dereferencing it would be a crash before the
@@ -264,9 +242,7 @@ s32 main(void) {
     nya_assert(config.dedicated, "--server was lost around the nulls");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: random argv never faults
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: random argv\n");
   {
     /* The catch-all. A command line can hold any bytes, and this must always return a usable config. */

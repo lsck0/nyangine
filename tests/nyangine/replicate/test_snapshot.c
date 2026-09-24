@@ -36,9 +36,7 @@ static NYA_NetSnapshot round_trip(NYA_Arena* arena, const NYA_NetSnapshot* snaps
   return decoded;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: capture takes only what is marked
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_capture_takes_only_what_is_marked(NYA_Arena* arena) {
   printf("TEST: capture selects on the game's flag\n");
   NYA_EntityHandle replicated = nya_entity_spawn(.name = "crate", .flags = FLAG_REPLICATED, .position = { 10.0F, 20.0F, 30.0F });
@@ -63,9 +61,7 @@ NYA_INTERNAL void test_capture_takes_only_what_is_marked(NYA_Arena* arena) {
   nya_entity_despawn(local);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: a full snapshot round trips every field exactly
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_full_snapshot_round_trips_every_field(NYA_Arena* arena) {
   printf("TEST: full snapshot round trips every field\n");
   NYA_EntityHandle handle = nya_entity_spawn(
@@ -108,9 +104,7 @@ NYA_INTERNAL void test_full_snapshot_round_trips_every_field(NYA_Arena* arena) {
   nya_entity_despawn(handle);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: a delta against an identical baseline costs almost nothing
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_delta_against_identical_baseline(NYA_Arena* arena) {
   printf("TEST: an unchanged world deltas to nearly nothing\n");
   NYA_EntityHandle handles[16];
@@ -191,9 +185,7 @@ NYA_INTERNAL void test_delta_against_identical_baseline(NYA_Arena* arena) {
   for (u32 i = 0; i < 16; i++) nya_entity_despawn(handles[i]);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: a reused slot is not a baseline for its successor
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_reused_slot_is_not_a_baseline(NYA_Arena* arena) {
   printf("TEST: a reused entity slot is a different entity\n");
   NYA_EntityHandle first = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 100.0F, 100.0F, 100.0F });
@@ -233,9 +225,7 @@ NYA_INTERNAL void test_reused_slot_is_not_a_baseline(NYA_Arena* arena) {
   nya_entity_despawn(second);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: applying a snapshot spawns, moves and despawns
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* arena) {
   printf("TEST: apply reconciles the world with the snapshot\n");
   // Build a snapshot describing two entities, by hand rather than by capture, so the "spawn what is
@@ -364,12 +354,8 @@ NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* ar
   nya_system_sim_apply_commands();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: the decoder refuses what a hostile peer can send
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: fixed point on the wire
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_fixed_point_on_the_wire(NYA_Arena* arena) {
   printf("TEST: positions cross on a power of two grid, and rotations within a fraction of a degree\n");
   NYA_NetEntityState state = { .handle = { .index = 3, .generation = 1 }, .scale = { 1.0F, 1.0F, 1.0F }, .rotation = nya_quaternion_identity };
@@ -417,9 +403,7 @@ NYA_INTERNAL void test_fixed_point_on_the_wire(NYA_Arena* arena) {
   nya_assert(worst_degrees < 0.25F, "smallest three lost %.3f degrees", (f64)worst_degrees);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: only what changed crosses, and removals are explicit
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_only_what_changed_crosses_and_removals(NYA_Arena* arena) {
   printf("TEST: a delta names removed entities and omits unchanged ones\n");
   NYA_NetEntityState before[4] = { 0 };
@@ -475,9 +459,7 @@ NYA_INTERNAL void test_only_what_changed_crosses_and_removals(NYA_Arena* arena) 
   nya_assert(none->length <= 8, "an unchanged world took %llu bytes", (unsigned long long)none->length);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: the decoder refuses what a hostile peer can send
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_decoder_refuses_hostile_input(NYA_Arena* arena) {
   printf("TEST: the decoder rejects malformed payloads\n");
   NYA_NetSnapshot decoded = { 0 };

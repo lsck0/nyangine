@@ -33,9 +33,7 @@ s32 main(void) {
   NYA_Arena*  arena = nya_arena_create(.name = "test_bug_hset_intersection");
   NYA_String* seen  = nya_string_create(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: intersecting with the empty set empties the destination
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: intersection with the empty set\n");
   {
     NYA_HSetᐸu32ᐳ* set   = set_of(arena, LEFT, nya_carray_length(LEFT));
@@ -52,9 +50,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: intersection keeps exactly the shared items
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: intersection keeps exactly the shared items\n");
   {
     NYA_HSetᐸu32ᐳ* set   = set_of(arena, LEFT, nya_carray_length(LEFT));
@@ -77,9 +73,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the operations that iterate the source, on two distinct sets
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: union, difference and symmetric difference\n");
   {
     NYA_HSetᐸu32ᐳ* other = set_of(arena, RIGHT, nya_carray_length(RIGHT));
@@ -103,9 +97,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every operation called with the same set on both sides
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: aliased set operations\n");
   {
     // A ∩ A = A
@@ -152,9 +144,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an aliased union right at the load factor, which is what resizes mid walk
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: aliased union at the load factor\n");
   {
     // filled to one below the threshold, so nya_hset_union's first insert triggers

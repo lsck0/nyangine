@@ -31,9 +31,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_vendors");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: SDL3, and the three satellite libraries built against it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Nothing that needs a device: no video, no audio. This is a link and version check, and a CI
     // container has neither.
@@ -63,9 +61,7 @@ s32 main(void) {
     TTF_Quit();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: box2d, a world that actually simulates
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity    = (b2Vec2){ 0.0F, -10.0F };
@@ -99,9 +95,7 @@ s32 main(void) {
     nya_log_info("box2d: body fell to y=%.2f after one second", (f64)position.y);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: box3d
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     b3WorldDef world_def = b3DefaultWorldDef();
     world_def.gravity    = (b3Vec3){ 0.0F, -10.0F, 0.0F };
@@ -132,9 +126,7 @@ s32 main(void) {
     nya_log_info("box3d: body fell to y=%.2f after one second", (f64)position.y);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: lz4, a compress/decompress round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_log_info("lz4 %s", LZ4_versionString());
     nya_assert(LZ4_versionNumber() > 0);
@@ -166,9 +158,7 @@ s32 main(void) {
     nya_assert(frame_bound > 0, "LZ4F_compressFrameBound returned zero");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: LuaJIT, a state that runs a script
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // This is the one that was silently broken: libluajit-linux.a held COFF objects, lld skipped
     // every member with a warning, and the link still succeeded because nothing called Lua. Calling
@@ -198,9 +188,7 @@ s32 main(void) {
     lua_pop(state, 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: SQLite
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_log_info("SQLite %s", sqlite3_libversion());
     nya_assert(sqlite3_libversion_number() >= 3000000, "SQLite reported %d", sqlite3_libversion_number());
@@ -215,9 +203,7 @@ s32 main(void) {
     nya_assert(sqlite3_close(handle) == SQLITE_OK);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: sqlean and sqlvec, the archives exist and their entry points link
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // both archives expose one init function (see vendor_sqlean.h and vendor_sqlvec.h). Linking them
     // directly, not through nya_sql_open, fails on a missing archive or wrong link order. What they do
@@ -232,9 +218,7 @@ s32 main(void) {
     nya_log_info("sqlean: linked, sqlite-vec %s: linked", SQLITE_VEC_VERSION);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: libcurl, no network, just the library
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
     nya_assert(info != nullptr, "curl_version_info returned null");
@@ -257,9 +241,7 @@ s32 main(void) {
     curl_easy_cleanup(handle);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: libbacktrace, already wired into base_backtrace
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // base_backtrace falls back to a null backend when backtrace.h is missing, so a missing
     // libbacktrace still builds and captures no frames. Capturing one tells them apart.

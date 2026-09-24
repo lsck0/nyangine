@@ -13,9 +13,7 @@
 int main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: rain vs snow — the two looks differ in the ways the design promises.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_WeatherParams rain = nya_weather_params(NYA_WEATHER_RAIN, 1.0F);
         NYA_WeatherParams snow = nya_weather_params(NYA_WEATHER_SNOW, 1.0F);
@@ -44,9 +42,7 @@ int main(void) {
         nya_check(rain.emit_per_second > 0.0F && snow.emit_per_second > 0.0F, "both pour at full intensity");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: intensity scales the emission rate, and zero / CLEAR emit nothing.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         f32 half = nya_weather_params(NYA_WEATHER_RAIN, 0.5F).emit_per_second;
         f32 full = nya_weather_params(NYA_WEATHER_RAIN, 1.0F).emit_per_second;
@@ -67,9 +63,7 @@ int main(void) {
         nya_check(nya_weather_params(NYA_WEATHER_CLEAR, 1.0F).emit_per_second == 0.0F, "CLEAR emits nothing");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the emission box follows its target — centred on its xz, a ceiling above it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         f32x3 box     = { 40.0F, 20.0F, 40.0F };
         f32   ceiling = 15.0F;
@@ -84,9 +78,7 @@ int main(void) {
         nya_check(fabsf(moved - 10.0F) < 1e-5F, "the box tracks the target one-for-one, moved %f", (f64)moved);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a live system stays bounded under a downpour, then drains once it clears.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_weather");
         defer      nya_arena_destroy(arena);

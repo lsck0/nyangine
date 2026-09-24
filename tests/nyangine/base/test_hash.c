@@ -8,9 +8,7 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_hash");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hash_fnv1a with data buffer
-  // ─────────────────────────────────────────────────────────────────────────────
   u8 data1[] = { 0x01, 0x02, 0x03 };
   u8 data2[] = { 0x01, 0x02, 0x04 };
   u8 data3[] = { 0x01, 0x02, 0x03 };
@@ -25,9 +23,7 @@ s32 main(void) {
   // Different data should (usually) produce different hashes
   nya_assert(h1 != h2);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hash_fnv1a with cstring
-  // ─────────────────────────────────────────────────────────────────────────────
   u64 ch1 = nya_hash_fnv1a("");
   u64 ch2 = nya_hash_fnv1a("hello");
   u64 ch3 = nya_hash_fnv1a("world");
@@ -40,9 +36,7 @@ s32 main(void) {
   nya_assert(ch1 != ch2);
   nya_assert(ch2 != ch3);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hash_fnv1a with NYA_String
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_String s1 = *nya_string_from(arena, "test");
   NYA_String s2 = *nya_string_from(arena, "another");
   NYA_String s3 = *nya_string_from(arena, "test");
@@ -57,27 +51,21 @@ s32 main(void) {
   // Different strings should (usually) produce different hashes
   nya_assert(sh_str1 != sh_str2);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hash_fnv1a with empty string (cstring)
-  // ─────────────────────────────────────────────────────────────────────────────
   u64 empty_cstr  = nya_hash_fnv1a("");
   u64 empty_cstr2 = nya_hash_fnv1a("");
 
   // Empty string should produce consistent hash
   nya_assert(empty_cstr == empty_cstr2);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hash_fnv1a with empty string (NYA_String)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_String empty      = *nya_string_create(arena);
   u64        empty_hash = nya_hash_fnv1a(empty);
 
   // Should handle empty string
   nya_assert(empty_hash == empty_cstr);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash consistency between cstring and NYA_String
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_String str         = *nya_string_from(arena, "consistency");
   u64        cstr_hash   = nya_hash_fnv1a("consistency");
   u64        string_hash = nya_hash_fnv1a(str);
@@ -85,9 +73,7 @@ s32 main(void) {
   // Same content should produce same hash regardless of type
   nya_assert(cstr_hash == string_hash);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash distribution test
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arrayᐸu64ᐳ* hashes = nya_array_create(arena, u64);
   for (u32 i = 0; i < 1000; ++i) {
     NYA_String num_str = *nya_string_sprintf(arena, "test_%u", i);
@@ -106,9 +92,7 @@ s32 main(void) {
   // With 1000 values and 64-bit hash, collisions should be minimal
   nya_assert(collisions == 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash with binary data including null bytes
-  // ─────────────────────────────────────────────────────────────────────────────
   u8 binary_data1[] = { 0x00, 0x01, 0x02, 0x03 };
   u8 binary_data2[] = { 0x00, 0x01, 0x02, 0x04 };
 
@@ -117,9 +101,7 @@ s32 main(void) {
 
   nya_assert(bh1 != bh2);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash with special characters
-  // ─────────────────────────────────────────────────────────────────────────────
   u64 special1 = nya_hash_fnv1a("hello\tworld");
   u64 special2 = nya_hash_fnv1a("hello\nworld");
   u64 special3 = nya_hash_fnv1a("hello\0world");
@@ -128,9 +110,7 @@ s32 main(void) {
   nya_assert(special2 != special3);
   nya_assert(special1 != special3);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash with unicode content
-  // ─────────────────────────────────────────────────────────────────────────────
   u64 unicode1 = nya_hash_fnv1a("hello 世界");
   u64 unicode2 = nya_hash_fnv1a("hello 世界");
   u64 unicode3 = nya_hash_fnv1a("hello 世界2");
@@ -138,9 +118,7 @@ s32 main(void) {
   nya_assert(unicode1 == unicode2);
   nya_assert(unicode1 != unicode3);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash with very long string
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_String long_str = *nya_string_create(arena);
   for (u32 i = 0; i < 10000; ++i) {
     NYA_String part = *nya_string_sprintf(arena, "%u", i);
@@ -153,9 +131,7 @@ s32 main(void) {
   // Consistent hashing of long strings
   nya_assert(long_hash == long_hash2);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash with single character
-  // ─────────────────────────────────────────────────────────────────────────────
   u64 char_a = nya_hash_fnv1a("a");
   u64 char_b = nya_hash_fnv1a("b");
 
@@ -166,9 +142,7 @@ s32 main(void) {
   u64 byte_hash     = nya_hash_fnv1a(single_byte, 1);
   nya_assert(char_a == byte_hash);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash with different cases
-  // ─────────────────────────────────────────────────────────────────────────────
   u64 upper = nya_hash_fnv1a("HELLO");
   u64 lower = nya_hash_fnv1a("hello");
   u64 mixed = nya_hash_fnv1a("Hello");
@@ -178,9 +152,7 @@ s32 main(void) {
   nya_assert(mixed != lower);
   nya_assert(mixed != upper);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

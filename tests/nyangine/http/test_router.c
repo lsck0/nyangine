@@ -223,9 +223,7 @@ s32 main(void) {
 
     const NYA_HttpLayerFn root_layers[] = { outer_layer };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a well formed table passes the check, and a broken one names its fault.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_router_check(&ROUTER).ok);
 
@@ -310,9 +308,7 @@ s32 main(void) {
         nya_assert(!nya_http_router_check(&productive).ok, "a safe verb cannot report having created anything");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: finding a route, and telling 404 from 405.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRouter* routers[] = { &ROUTER };
 
@@ -347,9 +343,7 @@ s32 main(void) {
         nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_QUERY, "/api/thing/sub", &exists) == nullptr);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the chain is an onion, root layers outside the resource's own.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         make_request(request, NYA_HTTP_METHOD_QUERY, "/api/thing", nullptr);
 
@@ -359,9 +353,7 @@ s32 main(void) {
         nya_assert(nya_string_equals((NYA_ConstCString)response.body, "open"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a browser's two verbs still reach a read.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         make_request(request, NYA_HTTP_METHOD_GET, "/api/legacy", nullptr);
 
@@ -376,9 +368,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(ORDER, "bhB"));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a layer that answers on its own never reaches the handler.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpLayerFn refusing[] = { short_circuit_layer };
 
@@ -393,9 +383,7 @@ s32 main(void) {
         nya_assert(nya_object_get(problem, "status") != nullptr);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a route that does not exist, and one that does not answer this method.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         make_request(request, NYA_HTTP_METHOD_QUERY, "/api/nothing", nullptr);
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_NOT_FOUND);
@@ -405,9 +393,7 @@ s32 main(void) {
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_METHOD_NOT_ALLOWED);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a write from another site is refused before any layer or handler runs.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // the token is valid and carries the scope, so a refusal here is the cross-site check and nothing else.
         NYA_HttpIdentity writer                            = { .scope = NYA_HTTP_SCOPE_WRITE, .issued_at_s = NOW_S, .expires_at_s = NOW_S + 60 };
@@ -454,7 +440,6 @@ s32 main(void) {
     }
 
     // TEST: the extractor stands between the request and a handler taking a caller.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // no token at all.
         make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", nullptr);
@@ -512,9 +497,7 @@ s32 main(void) {
         nya_assert(nya_http_router_dispatch(&later, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_UNAUTHORIZED);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a server with no secret cannot verify anybody, and says so.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRouter* routers[] = { &ROUTER };
 
@@ -535,9 +518,7 @@ s32 main(void) {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a route's permission is resolved before the handler, not inside it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_router_check(&PERMISSION_ROUTER).ok, "the table is one the server will serve");
 

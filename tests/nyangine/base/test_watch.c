@@ -55,9 +55,7 @@ static void watched_frame_that_crashes(void) {
 }
 
 s32 main(void) {
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every scalar the engine has is written down as itself, at its own width
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8   byte   = 200;
         u16  word   = 65535;
@@ -85,9 +83,7 @@ s32 main(void) {
                   "the most negative s128 should print, printed '%s'", (const char*)text);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: and so is everything that is not an integer
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         f16  half      = (f16)0.5F;
         f32  single    = 1.5F;
@@ -106,9 +102,7 @@ s32 main(void) {
         nya_check(nya_string_equals(format_of(newline), "'\\x0a'"), "an unprintable char should print as its code, printed '%s'", (const char*)text);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a pointer says where it points, and text says what it says
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_watch");
         defer      nya_arena_destroy(arena);
@@ -133,9 +127,7 @@ s32 main(void) {
                   (const char*)text);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a string longer than the report keeps is cut, and says it was
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString long_line = "0123456789012345678901234567890123456789012345678901234567890123456789";
 
@@ -144,9 +136,7 @@ s32 main(void) {
                   (u64)strlen((const char*)text));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a comparison that holds costs nothing and says nothing
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u32 written = 6;
 
@@ -163,9 +153,7 @@ s32 main(void) {
         nya_assert_ne(name, (NYA_ConstCString) nullptr);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one that does not names both sides and what each held
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u32 written  = 6;
         u32 expected = 8;
@@ -183,10 +171,8 @@ s32 main(void) {
                   "the report should carry the right operand, carried '%s'", caught != nullptr ? (const char*)caught->message : "");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: and each side is evaluated once, so an operand with a side effect has
     //       the same meaning it would have had in the comparison itself
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         reads = 0;
         nya_assert_eq(read_once(3), 3U);
@@ -197,10 +183,8 @@ s32 main(void) {
         nya_check(reads == 1, "a comparison that fails should still read each side once, read %u times", reads);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a watched frame registers on the way in and unregisters on every way
     //       out, the early one included
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_check(nya_watch_count() == 0, "nothing should be watched before the first frame, %u was", nya_watch_count());
 
@@ -211,9 +195,7 @@ s32 main(void) {
         nya_check(nya_watch_count() == 0, "and let go of it just the same, %u left", nya_watch_count());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the entries carry the name, the type and the value, innermost last
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u32 outer = 11;
         s32 inner = -12;
@@ -245,9 +227,7 @@ s32 main(void) {
         nya_check(nya_watch_count() == 0, "and ending the outer one should empty the ring, left %u", nya_watch_count());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: past the bound the oldest entries go, and the ring says how many
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const u32 overflow = 5;
 
@@ -275,10 +255,8 @@ s32 main(void) {
         nya_check(nya_watch_dropped() == 0, "and nothing is missing from an empty ring, reported %u", nya_watch_dropped());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a crash that is caught rather than fatal still takes the frame's
     //       entries with it, because no defer runs on the way out of a longjmp
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_expect_crash(watched_frame_that_crashes());
 

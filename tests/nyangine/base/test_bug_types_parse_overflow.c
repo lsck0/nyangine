@@ -8,27 +8,21 @@
 #define TOO_BIG_U128 "9999999999999999999999999999999999999999"
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a literal past u128 is rejected rather than wrapped
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u128 value = 0;
     b8   ok    = nya_type_parse(NYA_TYPE_U128, (const u8*)TOO_BIG_U128, strlen(TOO_BIG_U128), &value);
     nya_assert(!ok, "a 40 digit literal does not fit u128 and must not parse");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the same through the s64 path, which range checks only after the wrap
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     s64 value = 0;
     b8  ok    = nya_type_parse(NYA_TYPE_S64, (const u8*)TOO_BIG_U128, strlen(TOO_BIG_U128), &value);
     nya_assert(!ok, "a 40 digit literal does not fit s64 and must not parse, got " FMTs64, value);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a wrap that lands back inside the target's range
-  // ─────────────────────────────────────────────────────────────────────────────
   //
   // This is the case the range check cannot catch. U128_MAX + 44 wraps to 43, which is a perfectly
   // ordinary s64, so the parse reports success and hands back a number the document never
@@ -43,9 +37,7 @@ s32 main(void) {
     nya_assert(!ok, "an unrepresentable literal was accepted as " FMTs64, value);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the hex loop has the same hole
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u128 value = 0;
     NYA_ConstCString text = "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"; // 33 hex digits, u128 holds 32
@@ -53,9 +45,7 @@ s32 main(void) {
     nya_assert(!ok, "a 33 digit hex literal does not fit u128 and must not parse");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the boundary values still parse
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 value = 0;
     b8  ok    = nya_type_parse(NYA_TYPE_U64, (const u8*)"18446744073709551615", 20, &value);

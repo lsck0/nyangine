@@ -41,9 +41,7 @@ typedef struct {
 } CrateᐸOneByteᐳ;
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the macro produces the identifier you would have written by hand
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The key property. Containers are declared through nya_template and used by writing the
@@ -62,9 +60,7 @@ s32 main(void) {
     nya_assert(aliased->payload[0] == 7, "the base name has to participate in the mangling");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every arity from one to four dispatches to its own arm
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The arity is picked by counting arguments against a trailing list of arm names, which is the
@@ -106,9 +102,7 @@ s32 main(void) {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: parameter order is part of the name
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * A separator lost in the paste would make Boxᐸa,bᐳ and Boxᐸb,aᐳ the same identifier, a type confusion
@@ -146,9 +140,7 @@ s32 main(void) {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the real derives in the engine are the same mangling
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Checks that the container macros and this file build names the same way, so hand written

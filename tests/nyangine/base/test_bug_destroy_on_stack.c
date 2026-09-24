@@ -17,9 +17,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create();
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: array
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_array_destroy_on_stack\n");
     {
         NYA_Arrayᐸu32ᐳ array = nya_array_create_on_stack(arena, u32);
@@ -40,9 +38,7 @@ s32 main(void) {
         nya_check(*nya_array_get(&array, 0) == 22U, "reused array holds the wrong value");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: hmap
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_hmap_destroy_on_stack\n");
     {
         NYA_HMapᐸu32ˏu32ᐳ map = nya_hmap_create_on_stack(arena, u32, u32);
@@ -63,9 +59,7 @@ s32 main(void) {
         nya_check(found != nullptr && *found == 4U, "reused map lost its entry");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: hset and heap, which were already correct
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_hset_destroy_on_stack and nya_heap_destroy_on_stack\n");
     {
         NYA_HSetᐸu32ᐳ set = nya_hset_create_on_stack(arena, u32);

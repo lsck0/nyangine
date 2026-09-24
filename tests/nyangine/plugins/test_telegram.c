@@ -97,9 +97,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_telegram");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a message becomes an update, and the offset moves past it.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "", UPDATES_ONE);
@@ -125,9 +123,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a batch is handed over one at a time, and one poll is one transfer.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "", UPDATES_TWO);
@@ -151,9 +147,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a send is queued, and goes out carrying the chat and the text.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "", "{\"ok\":true,\"result\":{\"message_id\":11}}");
@@ -177,9 +171,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a 429 stops the client for as long as it was told, and the call is kept.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 429, "", "{\"ok\":false,\"error_code\":429,\"description\":\"Too Many Requests\",\"parameters\":{\"retry_after\":3}}");
@@ -210,9 +202,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: telegram refusing on its own terms is a failure, whatever the status says.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "", "{\"ok\":false,\"description\":\"chat not found\"}");
@@ -230,9 +220,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a pressed button, and the answer it is waiting for.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "",
@@ -259,9 +247,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an update this does not model still moves the offset.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "", "{\"ok\":true,\"result\":[{\"update_id\":77,\"poll\":{\"id\":\"p\"}}]}");
@@ -277,9 +263,7 @@ s32 main(void) {
     nya_telegram_destroy(bot);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty answer is no update, and the create refuses what cannot work.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .now_ms = 1000 };
     fake_push(&fake, 200, "", UPDATES_NONE);
@@ -307,9 +291,7 @@ s32 main(void) {
     nya_check(!nya_telegram_create(arena, bad, &refused).ok, "and so is a long poll the transfer cannot outlive");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the webhook secret, which is the only proof telegram offers.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_HttpRequest request = { 0 };
     // lower case, because that is what the parser stores: nya_http_request_header lowers the name it is

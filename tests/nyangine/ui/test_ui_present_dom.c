@@ -94,15 +94,11 @@ s32 main(void) {
 
     NYA_ConstCString body = nya_ui_dom_body(&dom);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: something was drawn, and it did not overflow the buffer.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_ui_dom_count(&dom) > 0, "the pass drew widgets, got %u", nya_ui_dom_count(&dom));
     nya_check(!nya_ui_dom_overflowed(&dom), "and did not overflow the buffer");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: escaping — a label cannot inject markup, in text OR attribute context.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(!nya_string_contains(body, "<script>alert"), "a label's markup does not reach the page as markup");
     nya_check(nya_string_contains(body, "&lt;script&gt;alert(1)&lt;/script&gt;"), "it is escaped to text");
     // The field's default text `ada"><b>` sits in a value="" attribute; a raw `"` would end the attribute
@@ -112,9 +108,7 @@ s32 main(void) {
     // The dropdown option `high contrast <x>` never selected, but the escaping of an option is still checked
     // through the shown one below; the label's `<x>`-style attack is covered by the field and script cases.
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the interactive widgets are REAL, semantic form controls.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_string_contains(body, "<button") && nya_string_contains(body, "type=\"button\""), "a button is a real <button>");
     nya_check(nya_string_contains(body, "type=\"checkbox\""), "a toggle is a real checkbox");
     nya_check(nya_string_contains(body, "type=\"range\""), "a slider is a real range input");
@@ -123,9 +117,7 @@ s32 main(void) {
     nya_check(nya_string_contains(body, "type=\"radio\""), "a radio is a real radio input");
     nya_check(nya_string_contains(body, "value=\"ada&quot;"), "the field carries its (escaped) text as the value a browser edits");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: accessibility — labels are associated, and states are ARIA/native.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(nya_string_contains(body, "<label for=\""), "a labelled control has a <label for> pointing at it");
     nya_check(nya_string_contains(body, "aria-label=\""), "and value controls carry an aria-label as a fallback name");
     nya_check(nya_string_contains(body, "role=\"group\""), "a panel is a labelled group");
@@ -133,9 +125,7 @@ s32 main(void) {
     // The dropdown's shown option is the selected <option>, escaped.
     nya_check(nya_string_contains(body, "<option selected>light</option>"), "the dropdown shows its selected option");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the id-to-kind table a live server dispatches on.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         b8 found_slider = false, found_field = false, found_select = false;
         for (u32 id = 0; id < nya_ui_dom_count(&dom); id++) {
@@ -150,10 +140,8 @@ s32 main(void) {
         nya_check(!nya_ui_dom_widget_kind(&dom, nya_ui_dom_count(&dom), &past), "an id past the pass resolves to nothing");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: aria-pressed on a selectable, and a disabled control drops out of the
     // tab order via the native `disabled` attribute rather than markup of its own.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         controls(&window, NYA_UI_PASS_INPUT);
         nya_ui_dom_reset(&dom);
@@ -164,10 +152,8 @@ s32 main(void) {
         nya_check(nya_string_contains(b, "<button") && nya_string_contains(b, " disabled"), "a disabled control carries the native disabled attribute");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the document wraps the body in a valid, accessible page with a <form>
     // whose submit is suppressed and a client that forwards events.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // redraw the full form so the page has the whole control set again.
         form(&window, NYA_UI_PASS_INPUT);
@@ -187,9 +173,7 @@ s32 main(void) {
         nya_check(nya_string_contains(page, "&lt;script&gt;alert(1)"), "with the widget body still escaped inside it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same tree renders to the same count twice — a patch needs that.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         form(&window, NYA_UI_PASS_INPUT);
         nya_ui_dom_reset(&dom);

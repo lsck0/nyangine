@@ -355,9 +355,7 @@ s32 main(void) {
     char session[NYA_ACCOUNTS_TOKEN_TEXT_BYTES]   = { 0 };
     char challenge[NYA_ACCOUNTS_PASSKEY_CHALLENGE_TEXT] = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a passwordless account is created and enrolled, and register/finish logs it straight in
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // begin, signed out: the account is created with no password, and a challenge and a register cookie come back.
         nya_assert(post_json(arena, port, "/api/passkey/register/begin", nullptr, "{\"username\":\"" USERNAME "\"}", answer, sizeof(answer)) > 0);
@@ -392,9 +390,7 @@ s32 main(void) {
                   "the session cookie carries the flags a session cookie must");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the session the passkey sign-up opened names the account, and it has no password
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket client = connect_to(port);
         defer        nya_os_socket_close(client);
@@ -410,9 +406,7 @@ s32 main(void) {
         nya_check(!nya_account_authenticate(arena, USERNAME, "any password at all here", nullptr, &user).ok, "the account has no password to log in with");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a passwordless login opens a fresh session with the passkey and no password
-    // ─────────────────────────────────────────────────────────────────────────────
     char assertion_body[2048] = { 0 };
     {
         // begin: the challenge and the account's credential, plus the login cookie the finish reads.
@@ -467,9 +461,7 @@ s32 main(void) {
         nya_check(status_of(answer) == 200 && nya_string_contains(answer, "\"username\":\"" USERNAME "\""), "and the passwordless session names the account");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same assertion cannot be replayed — the challenge behind it was single-use
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // Re-begin to get a fresh login cookie, then submit the OLD assertion, whose challenge is spent.
         nya_assert(post_json(arena, port, "/api/passkey/login/begin", nullptr, "{\"username\":\"" USERNAME "\"}", answer, sizeof(answer)) > 0);
@@ -484,9 +476,7 @@ s32 main(void) {
         nya_check(!nya_string_contains(answer, "Set-Cookie: " NYA_HTTP_SESSION_COOKIE), "and no session is handed out for it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a tampered assertion is the same 401, and an unknown username is told nothing apart
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // A fresh, valid challenge, but a signature with one flipped byte.
         nya_assert(post_json(arena, port, "/api/passkey/login/begin", nullptr, "{\"username\":\"" USERNAME "\"}", answer, sizeof(answer)) > 0);

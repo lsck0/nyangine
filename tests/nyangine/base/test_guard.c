@@ -24,9 +24,7 @@ void test_resource_cleanup(TestResource* resource) {
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_guard");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: defer with custom resource cleanup
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     s32 cleanup_counter   = 0;
     g_test_cleanup_called = 0;
@@ -46,9 +44,7 @@ s32 main(void) {
     nya_assert(g_test_cleanup_called == 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Multiple deferred statements in the same scope
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     s32 cleanup_counter1  = 0;
     s32 cleanup_counter2  = 0;
@@ -73,9 +69,7 @@ s32 main(void) {
     nya_assert(g_test_cleanup_called == 2);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Nested scopes, inner cleanup runs before the outer scope ends
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     s32 outer_counter     = 0;
     s32 inner_counter     = 0;
@@ -107,12 +101,10 @@ s32 main(void) {
     nya_assert(g_test_cleanup_called == 2);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Deferred statements run in reverse order of declaration
   //
   // Worth pinning because it is the one thing NYA_CLEANUP_WITH could not promise: destructor order
   // there was the compiler's choice, whereas defer is specified last in, first out.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     s32 order[3] = { 0, 0, 0 };
     s32 next     = 0;
@@ -128,9 +120,7 @@ s32 main(void) {
     nya_assert(order[2] == 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: defer with nya_arena_destroy, which is how the engine itself uses it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena* temp_arena = nya_arena_create(.name = "temp");
     defer      nya_arena_destroy(temp_arena);
@@ -139,9 +129,7 @@ s32 main(void) {
     // Destroyed as this scope ends. That it happens exactly once is what LSan checks for us.
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

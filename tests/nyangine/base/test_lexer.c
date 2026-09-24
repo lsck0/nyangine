@@ -14,9 +14,7 @@ static b8 token_text_is(const NYA_Lexer* lexer, u32 index, NYA_ConstCString expe
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Basic lexer - mixed input
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer lexer = nya_lexer_create("a+b\nc '2134.34 = .234. asdf! __asd__a __ sad__");
   nya_lexer_run(&lexer);
 
@@ -95,25 +93,19 @@ s32 main(void) {
 
   nya_lexer_destroy(&lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Empty input
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer empty_lexer = nya_lexer_create("");
   nya_lexer_run(&empty_lexer);
   nya_assert(empty_lexer.tokens->length == 1);
   nya_lexer_destroy(&empty_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Whitespace only input
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer ws_lexer = nya_lexer_create("   \t\n\n   ");
   nya_lexer_run(&ws_lexer);
   nya_assert(ws_lexer.tokens->length == 1);
   nya_lexer_destroy(&ws_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Integer numbers
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer int_lexer = nya_lexer_create("0 1 42 12345 999999");
   nya_lexer_run(&int_lexer);
   nya_assert(int_lexer.tokens->length == 6);
@@ -124,9 +116,7 @@ s32 main(void) {
   nya_assert(nya_memcmp(int_lexer.source + int_lexer.tokens->items[4].source_location, "999999", 6) == 0);
   nya_lexer_destroy(&int_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Float numbers
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer float_lexer = nya_lexer_create("0.0 1.5 3.14159 123.456");
   nya_lexer_run(&float_lexer);
   nya_assert(float_lexer.tokens->length == 5);
@@ -135,9 +125,7 @@ s32 main(void) {
   nya_assert(nya_memcmp(float_lexer.source + float_lexer.tokens->items[2].source_location, "3.14159", 7) == 0);
   nya_lexer_destroy(&float_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Identifiers with underscores
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer ident_lexer = nya_lexer_create("foo bar_baz _private __dunder__ camelCase");
   nya_lexer_run(&ident_lexer);
   nya_assert(ident_lexer.tokens->length == 6);
@@ -147,9 +135,7 @@ s32 main(void) {
   nya_assert(ident_lexer.tokens->items[3].length == 10);
   nya_lexer_destroy(&ident_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Various symbols
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer sym_lexer = nya_lexer_create("+ - * / = < > ! @ # $ % ^ & ( ) [ ] { } ; : , ?");
   nya_lexer_run(&sym_lexer);
   nya_assert(sym_lexer.tokens->length == 25);
@@ -160,9 +146,7 @@ s32 main(void) {
   nya_assert(sym_lexer.tokens->items[3].symbol == '/');
   nya_lexer_destroy(&sym_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Line and character number tracking
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer line_lexer = nya_lexer_create("a\nb\nc");
   nya_lexer_run(&line_lexer);
   nya_assert(line_lexer.tokens->length == 4);
@@ -171,9 +155,7 @@ s32 main(void) {
   nya_assert(line_lexer.tokens->items[2].line_number == 3);
   nya_lexer_destroy(&line_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Identifiers with numbers
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer alphanum_lexer = nya_lexer_create("var1 test123 a1b2c3");
   nya_lexer_run(&alphanum_lexer);
   nya_assert(alphanum_lexer.tokens->length == 4);
@@ -182,9 +164,7 @@ s32 main(void) {
   nya_assert(alphanum_lexer.tokens->items[1].length == 7);
   nya_lexer_destroy(&alphanum_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Mixed expressions
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer expr_lexer = nya_lexer_create("x = 10 + 3.14 * y");
   nya_lexer_run(&expr_lexer);
   nya_assert(expr_lexer.tokens->length == 8);
@@ -197,9 +177,7 @@ s32 main(void) {
   nya_assert(expr_lexer.tokens->items[6].type == NYA_TOKEN_IDENT);          // y
   nya_lexer_destroy(&expr_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Consecutive symbols
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer consec_lexer = nya_lexer_create("++--==");
   nya_lexer_run(&consec_lexer);
   nya_assert(consec_lexer.tokens->length == 7);
@@ -211,9 +189,7 @@ s32 main(void) {
   nya_assert(consec_lexer.tokens->items[5].symbol == '=');
   nya_lexer_destroy(&consec_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Single character input
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer single_char_lexer = nya_lexer_create("x");
   nya_lexer_run(&single_char_lexer);
   nya_assert(single_char_lexer.tokens->length == 2);
@@ -234,9 +210,7 @@ s32 main(void) {
   nya_assert(single_sym_lexer.tokens->items[0].symbol == '+');
   nya_lexer_destroy(&single_sym_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: String literals
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer str_lexer = nya_lexer_create("x = \"hello world\"");
   nya_lexer_run(&str_lexer);
   nya_assert(str_lexer.tokens->length == 4);
@@ -248,9 +222,7 @@ s32 main(void) {
   nya_assert(str_lexer.tokens->items[3].type == NYA_TOKEN_EOF);
   nya_lexer_destroy(&str_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: String literal with escape sequences
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Lexer esc_lexer = nya_lexer_create("\"hello\\\"world\"");
   nya_lexer_run(&esc_lexer);
   nya_assert(esc_lexer.tokens->length == 2);
@@ -259,9 +231,7 @@ s32 main(void) {
   nya_assert(nya_memcmp(esc_lexer.source + esc_lexer.tokens->items[0].source_location, "hello\\\"world", 12) == 0);
   nya_lexer_destroy(&esc_lexer);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: line comments
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Lexer comment_lexer = nya_lexer_create("a // note\nb");
     nya_lexer_run(&comment_lexer);
@@ -295,9 +265,7 @@ s32 main(void) {
     nya_lexer_destroy(&empty_comment_lexer);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: block comments
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Lexer block_lexer = nya_lexer_create("a /* note */ b");
     nya_lexer_run(&block_lexer);
@@ -369,9 +337,7 @@ s32 main(void) {
     nya_lexer_destroy(&spaced_lexer);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: UTF-8 identifiers, which are opt in
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A derived container type, whose name this codebase mangles with non-ASCII brackets.
     NYA_ConstCString mangled = "NYA_HMapᐸu32ˏPlayerᐳ";

@@ -8,9 +8,7 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_command");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Basic command execution - echo
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -21,9 +19,7 @@ s32 main(void) {
     nya_assert(cmd.exit_code == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with output capture
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -40,9 +36,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(cmd.stdout_content, "output") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with non-zero exit code
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -53,9 +47,7 @@ s32 main(void) {
     nya_assert(cmd.exit_code == 1);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command execution time measurement
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -68,9 +60,7 @@ s32 main(void) {
     nya_assert(cmd.execution_time_ms < 1000); // Sanity check
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with working directory
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena             = arena,
@@ -85,9 +75,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(cmd.stdout_content, "src") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with multiple arguments
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -100,9 +88,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(cmd.stdout_content, "one two three") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with stderr capture
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -115,9 +101,7 @@ s32 main(void) {
     // stderr might be captured depending on the implementation
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with environment variable
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena       = arena,
@@ -133,9 +117,7 @@ s32 main(void) {
     nya_assert(getenv("NYA_TEST_COMMAND_VARIABLE") == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Arguments with quotes, backslashes and tabs arrive unchanged
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -148,9 +130,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(cmd.stdout_content, "say \"hi\"|back\\slash\\|tab\there|"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command struct initialization
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = { 0 };
     nya_assert(cmd.program == nullptr);
@@ -160,9 +140,7 @@ s32 main(void) {
     nya_assert(cmd.arena == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with complex output
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -177,9 +155,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(cmd.stdout_content, "5") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with output suppressed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -191,9 +167,7 @@ s32 main(void) {
     nya_assert(cmd.exit_code == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Non-zero exit code does not produce error result
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -205,9 +179,7 @@ s32 main(void) {
     nya_assert(cmd.exit_code != 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Command with no arguments (program only)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -220,9 +192,7 @@ s32 main(void) {
     nya_assert(cmd.stdout_content->length > 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Captured output preserves newlines
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
       .arena     = arena,
@@ -235,9 +205,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(cmd.stdout_content, "line1\nline2\nline3") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

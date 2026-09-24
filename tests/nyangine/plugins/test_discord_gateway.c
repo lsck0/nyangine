@@ -154,9 +154,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_discord_gateway");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the close code table, which is the one thing that must not be wrong twice
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // The whole point of the component. A bot that retries any of these has its token disabled by
     // Discord, so each one is named rather than covered by a range.
@@ -183,9 +181,7 @@ s32 main(void) {
     nya_assert(nya_discord_gateway_close_action(4099) == NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the backoff doubles and then stops doubling
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert_eq(nya_discord_gateway_backoff_ms(0), (u64)NYA_DISCORD_GATEWAY_BACKOFF_MIN_MS);
     nya_assert_eq(nya_discord_gateway_backoff_ms(1), (u64)NYA_DISCORD_GATEWAY_BACKOFF_MIN_MS * 2);
@@ -198,9 +194,7 @@ s32 main(void) {
     nya_assert_eq(nya_discord_gateway_backoff_ms(4000000000U), (u64)NYA_DISCORD_GATEWAY_BACKOFF_MAX_MS);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a token that is not one is refused before anything is dialled
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake                fake    = { .jitter = 0.5F };
     NYA_DiscordGateway* gateway = nullptr;
@@ -226,9 +220,7 @@ s32 main(void) {
     nya_assert(fake.opens == 0U, "nothing was dialled for any of them");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hello, identify, heartbeat, ack, and then a resume after the peer goes quiet
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.5F, .now_ms = 1000 };
 
@@ -370,9 +362,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(fake_last_sent(&fake), "\"op\":3"));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a rejected token ends the client rather than being retried
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.5F, .now_ms = 1000 };
 
@@ -407,9 +397,7 @@ s32 main(void) {
     nya_assert(fake.opens == opens_at_refusal, "and never dials again");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a close that is not fatal is retried, and the waits grow
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Jitter of one, so the wait is the whole delay and the arithmetic below is exact: half the backoff
     // plus a full half is the backoff.
@@ -436,9 +424,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: giving up after a fixed number of attempts, for a bot that is not meant to stay up
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.5F, .now_ms = 1000 };
 
@@ -467,9 +453,7 @@ s32 main(void) {
     nya_assert(nya_discord_gateway_state(gateway) == NYA_DISCORD_GATEWAY_STATE_FATAL);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an invalid session throws the session away and logs in afresh
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.5F, .now_ms = 1000 };
 
@@ -502,9 +486,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(fake_last_sent(&fake), "\"op\":2"), "and a fresh IDENTIFY");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the server asking for a heartbeat, and asking for a reconnect
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.9F, .now_ms = 1000 };
 
@@ -536,9 +518,7 @@ s32 main(void) {
     nya_assert(event.code == (u16)4000, "resumable, so the session survives it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a gateway that cannot be dialled is a retry, not a failure at create
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.5F, .now_ms = 1000, .open_fails = true };
 
@@ -565,9 +545,7 @@ s32 main(void) {
     nya_assert(nya_discord_gateway_state(gateway) == NYA_DISCORD_GATEWAY_STATE_CONNECTING);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a payload the client cannot read does not end the session
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     Fake fake = { .jitter = 0.5F, .now_ms = 1000 };
 

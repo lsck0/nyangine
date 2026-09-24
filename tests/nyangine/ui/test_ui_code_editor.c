@@ -146,9 +146,7 @@ s32 main(void) {
     nya_ui_presenter_set(&window, nya_ui_recorder_presenter(&recorder));
     nya_ui_style_set(&window, (NYA_UIStyle){ .padding = 8.0F, .spacing = 0.0F });
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the text builds into the expected lines, each with its number in the gutter.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         editor = (NYA_UICodeEditor){ 0 };
         (void)snprintf(src, sizeof(src), "abc\ndef\nghi");
@@ -169,9 +167,7 @@ s32 main(void) {
         nya_check(label_rect("2").y > label_rect("1").y && label_rect("3").y > label_rect("2").y, "the numbers step down the lines");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: typing goes in at the caret, wherever it is.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         editing_start("");
 
@@ -187,9 +183,7 @@ s32 main(void) {
         nya_check(editor.cursor_column == 1, "the caret sits after what was typed, at column %u", editor.cursor_column);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: enter splits the line at the caret.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         editing_start("");
 
@@ -205,9 +199,7 @@ s32 main(void) {
         nya_check(editor.cursor_line == 1 && editor.cursor_column == 2, "the caret is on the second line, at %u:%u", editor.cursor_line, editor.cursor_column);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: backspace at the start of a line joins it to the one above.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         editing_start("ab\ncd");
 
@@ -223,9 +215,7 @@ s32 main(void) {
         nya_check(editor.cursor_line == 0 && editor.cursor_column == 2, "the caret sits where the join happened, at %u:%u", editor.cursor_line, editor.cursor_column);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: cursor navigation walks the lines and their columns.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         editing_start("abc\ndefg\nhi");
 
@@ -253,9 +243,7 @@ s32 main(void) {
         nya_check(editor.cursor_line == 1 && editor.cursor_column == 3, "left steps back one column, at %u:%u", editor.cursor_line, editor.cursor_column);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a selection round trips through the clipboard, newlines kept.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // headless SDL may have no clipboard at all, and then there is nothing here to test.
         b8 clipboard = nya_clipboard_text_set("probe").ok;
@@ -279,9 +267,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: scrolling the view shows the right window of lines.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         editor  = (NYA_UICodeEditor){ 0 };
         u32 pos = 0;

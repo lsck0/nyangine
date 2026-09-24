@@ -69,9 +69,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_message");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a plain GET, and what the parser promises about it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -96,9 +94,7 @@ s32 main(void) {
         nya_assert(nya_http_request_header(request, "x-absent") == nullptr);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a body with Content-Length, and a query parameter out of the query.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -133,9 +129,7 @@ s32 main(void) {
         nya_assert(accounting.enabled);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a QUERY, which is the read verb: safe like a GET and carrying a body.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -180,9 +174,7 @@ s32 main(void) {
         nya_assert(request->body_size == 0);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an HTML form's POST body, read a field at a time.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -234,9 +226,7 @@ s32 main(void) {
         nya_assert(!nya_http_request_form_value(request, "x", value, sizeof(value)), "a malformed escape is refused rather than passed through");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the media types a web bundle is served and read as.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(nya_http_media_type_parse("application/wasm", 16) == NYA_HTTP_MEDIA_WASM, "wasm has a name");
         nya_assert(nya_string_equals(nya_http_media_type_text(NYA_HTTP_MEDIA_WASM), "application/wasm"), "and it is what is written back");
@@ -251,9 +241,7 @@ s32 main(void) {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: how many Host headers there are decides whether this is one request.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nAccept: */*\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST, "HTTP/1.1 without a Host is not a request");
 

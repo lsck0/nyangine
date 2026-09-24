@@ -206,9 +206,7 @@ s32 main(void) {
 
     NYA_EXPECT(nya_http_idempotency_init(arena, .ttl_s = TTL_S), "while readying the store");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a first keyed request runs and is stored; a retry replays it and does not run again.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_idempotency_reset();
         SIDE_EFFECTS = 0;
@@ -239,9 +237,7 @@ s32 main(void) {
         nya_http_response_destroy(&replay);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a duplicate that arrives while the first is in flight is refused with 409.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_idempotency_reset();
         SIDE_EFFECTS      = 0;
@@ -261,9 +257,7 @@ s32 main(void) {
         nya_http_response_destroy(&response);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same key with a different body is a client bug, refused 422, never the wrong cached answer.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_idempotency_reset();
         SIDE_EFFECTS = 0;
@@ -282,9 +276,7 @@ s32 main(void) {
         nya_http_response_destroy(&second);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an entry expires after the TTL, so the same key runs again rather than replaying forever.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_idempotency_reset();
         SIDE_EFFECTS = 0;
@@ -311,9 +303,7 @@ s32 main(void) {
         nya_http_response_destroy(&after);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an unsafe request with no key, and every safe request, pass straight through with no dedup.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_idempotency_reset();
         SIDE_EFFECTS = 0;
@@ -341,9 +331,7 @@ s32 main(void) {
         nya_http_response_destroy(&r2);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a malformed key is refused 400 rather than stored under a truncated or garbage name.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_http_idempotency_reset();
         SIDE_EFFECTS = 0;

@@ -335,9 +335,7 @@ s32 main(void) {
   NYA_World* world = nya_world_create();
   (void)nya_world_set(world);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the sanitiser's edges, which a wire test cannot reach precisely
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: sanitising\n");
   {
     char out[NYA_NET_CHAT_TEXT_MAX] = { 0 };
@@ -405,9 +403,7 @@ s32 main(void) {
     nya_assert(nya_net_chat_count() == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: two clients and a server
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: two clients and a server exchange chat over UDP\n");
 
   /*

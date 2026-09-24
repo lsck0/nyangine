@@ -23,9 +23,7 @@ static void test_post_build_hook(NYA_BuildRule* rule) {
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_build");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BuildRule struct initialization
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_BuildRule rule = {
       .name    = "Test Rule",
@@ -43,9 +41,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(rule.command.arguments[0], "hello") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BuildRule with hooks
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     pre_build_called  = false;
     post_build_called = false;
@@ -67,9 +63,7 @@ s32 main(void) {
     nya_assert(rule.post_build_hooks[0] != nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BuildRule with dependencies
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_BuildRule dep1 = {
       .name    = "Dependency 1",
@@ -106,9 +100,7 @@ s32 main(void) {
     nya_assert(main_rule.dependencies[2] == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BuildRule as metarule
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_BuildRule metarule = {
       .name        = "Meta Rule",
@@ -120,9 +112,7 @@ s32 main(void) {
     nya_assert(metarule.command.program == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Different build policies
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_BuildRule rule_always = {
       .name   = "Always Build",
@@ -149,9 +139,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(rule_outdated.output_file, "/tmp/test_output.txt") == true);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BUILD_MAX_DEPENDENCIES constant
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(NYA_BUILD_MAX_DEPENDENCIES == 64);
 
@@ -164,9 +152,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Complex command with multiple arguments
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_BuildRule rule = {
       .name   = "Complex Command",
@@ -197,9 +183,7 @@ s32 main(void) {
     nya_assert(rule.command.arguments[7] == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   return 0;

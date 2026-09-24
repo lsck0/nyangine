@@ -15,9 +15,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_request");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the method table matches what goes on the wire
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_string_equals((NYA_CString)nya_request_method_name(NYA_REQUEST_METHOD_GET), "GET"));
     nya_assert(nya_string_equals((NYA_CString)nya_request_method_name(NYA_REQUEST_METHOD_POST), "POST"));
@@ -30,9 +28,7 @@ s32 main(void) {
     nya_assert(nya_request_method_name((NYA_RequestMethod)999) == nullptr);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the success classifier is exactly 2xx
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Exposed so a caller that tolerates a 404 asks the question the same way the module does,
     // rather than open coding a range that drifts from it.
@@ -48,9 +44,7 @@ s32 main(void) {
     nya_assert(!nya_request_status_is_success(0), "zero means no response arrived at all");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a malformed request is rejected before anything is attempted
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Response response = { 0 };
 
@@ -71,9 +65,7 @@ s32 main(void) {
     nya_assert(response.raw_body == nullptr, "nothing was allocated for a request that never ran");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a url with no scheme, and one with a scheme curl is not allowed to use
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Response response = { 0 };
 
@@ -92,9 +84,7 @@ s32 main(void) {
     nya_assert(!ftp_scheme.ok, "neither is ftp://");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a refused connection is an error, and the response is still initialised
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Response response = { 0 };
 
@@ -123,9 +113,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(message, "127.0.0.1"), "got '%s'", message);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every method reaches the transport, not just GET
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a write method with no body must not hang with curl waiting for a body. Against a closed port each
     // must fail as fast as GET, proving the request was fully formed.
@@ -141,9 +129,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a JSON body is serialized and does not change the failure mode
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* body = nya_object_create(arena);
     nya_object_add(body, "score", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 4200 });
@@ -168,9 +154,7 @@ s32 main(void) {
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND, "reached the transport with a body attached, got %d", (int)result.kind);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a GET ignores a body rather than refusing it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Not an error, deliberately: a shared request struct filled in by a helper should not become a
     // special case at every call site just because this one is a GET.
@@ -185,9 +169,7 @@ s32 main(void) {
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND, "a GET with a body is still just a GET, got %d", (int)result.kind);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a response header is found by name, whatever case the server sent it in
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Built by hand rather than fetched: what is in question is the reading, and a real server would
     // decide the casing and the spacing for us.
@@ -220,9 +202,7 @@ s32 main(void) {
     nya_assert(!nya_response_header(&response, "content", value, sizeof(value)));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the convenience wrappers behave like the full call
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Response response = { 0 };
 
@@ -238,9 +218,7 @@ s32 main(void) {
     nya_assert(nya_string_contains((NYA_ConstCString)post.message, "POST"), "and this one a POST");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a timeout that cannot be met is reported as a timeout
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // 1ms against TEST-NET-1 (192.0.2.0/24), reserved by RFC 5737 to never reach a real host. Timing out
     // and failing to route are both acceptable.
@@ -257,9 +235,7 @@ s32 main(void) {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a form encoded body, which is what a token endpoint takes.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* body = nya_object_create(arena);
 

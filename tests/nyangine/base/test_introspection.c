@@ -31,9 +31,7 @@ static void count_action(NYA_ArenaAction action) {
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the action callback hears every call on every arena, and nothing once removed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_memset(action_counts, 0, sizeof(action_counts));
     nya_arena_actions_set_callback(count_action);
@@ -56,9 +54,7 @@ s32 main(void) {
     nya_assert(action_counts[NYA_ARENA_ACTION_ARENA_DESTROY] == destroys, "a removed callback hears nothing");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stats describe an arena beyond the single number usage_bytes gives
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena* arena = nya_arena_create(.name = "stats_subject");
     defer      nya_arena_destroy(arena);
@@ -82,9 +78,7 @@ s32 main(void) {
     nya_assert(used.used_bytes == nya_arena_memory_usage_bytes(arena), "stats and usage_bytes cannot disagree");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: resident bytes follow what was written, not what was reserved
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena* arena = nya_arena_create(.name = "resident_subject");
     defer      nya_arena_destroy(arena);
@@ -100,9 +94,7 @@ s32 main(void) {
     nya_assert(resident <= nya_arena_stats(arena).reserved_bytes + page, "and no more than the regions span, got " FMTu64, resident);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: freeing populates the free list, and stats can see it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena* arena = nya_arena_create(.name = "free_list_subject");
     defer      nya_arena_destroy(arena);
@@ -122,9 +114,7 @@ s32 main(void) {
     nya_assert(stats.fragmentation == 0.0F, "a single free block is not fragmentation");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the registry lists live arenas and forgets destroyed ones
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // This is what answers "memory is climbing, which subsystem". Without it the only way to ask
     // is to already hold the guilty arena's pointer, which is what you do not have.
@@ -147,9 +137,7 @@ s32 main(void) {
     nya_assert(nya_arena_registry_at(nya_arena_registry_count() + 100) == nullptr, "past the end is null, not a fault");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the global arenas are registered, so a report is useful with no setup
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     b8 found_global = false;
     for (u32 i = 0; i < nya_arena_registry_count(); i++) {
@@ -159,9 +147,7 @@ s32 main(void) {
     nya_assert(found_global, "nya_arena_global registers itself like any other arena");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: callsites aggregate per line, and live_bytes tracks what is still held
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_arena_callsites_reset();
     nya_assert(nya_arena_callsite_count() == 0, "reset empties the table");
@@ -207,9 +193,7 @@ s32 main(void) {
     nya_assert(nya_arena_callsite_at(nya_arena_callsite_count() + 50).file_name == nullptr, "past the end is zeroed, not a fault");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: perf stats aggregate the ring
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_perf_timer_reset("agg");
 
@@ -240,9 +224,7 @@ s32 main(void) {
     nya_assert(none.total_ns == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the ring keeps the newest samples, not the first
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_perf_timer_reset("wrap");
 
@@ -262,9 +244,7 @@ s32 main(void) {
     nya_assert(stats.sample_count == NYA_PERF_MEASUREMENT_SAMPLES, "every slot in a wrapped ring is valid");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a frame breaks down into nested, time ordered spans
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_perf_frame_begin();
     u64 frame = nya_perf_frame_current();
@@ -332,9 +312,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a frame nobody measured is empty rather than an error
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena                arena = nya_arena_create_on_stack(.name = "empty_spans");
     defer                    nya_arena_destroy_on_stack(&arena);
@@ -345,9 +323,7 @@ s32 main(void) {
     nya_assert(spans->length == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: frames are distinct, so one frame's spans are not another's
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_perf_frame_begin();
     u64 first = nya_perf_frame_current();
@@ -369,9 +345,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // The reports, run for their side effects: they must not fault on real data.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_arena_stats_report();
     nya_arena_callsites_report(5);

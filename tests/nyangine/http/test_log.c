@@ -292,9 +292,7 @@ s32 main(void) {
 
     nya_assert(nya_http_router_check(&ROUTER).ok);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the deny list, which no level and no configuration turns off
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: the header deny list\n");
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ 0 });
@@ -315,9 +313,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: summary carries the line and nothing else
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: summary\n");
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_SUMMARY });
@@ -340,9 +336,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: headers, the deny list applied, and the query redacted by name
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: headers\n");
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_HEADERS, .deny = "x-api-key" });
@@ -366,9 +360,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: bodies, through the route's DTO
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: bodies\n");
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_BODIES });
@@ -386,9 +378,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: fail closed — anything that is not the route's DTO is a size and a hash
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: fail closed\n");
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_BODIES });
@@ -425,9 +415,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the address setting
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: addresses\n");
     {
         nya_http_log_config_set((NYA_HttpLogConfig){ .address = NYA_HTTP_LOG_ADDRESS_FULL });
@@ -448,9 +436,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the property — no marker in any `@redact` field reaches any sink, at any level
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: no tagged field reaches a sink\n");
     {
         const NYA_HttpLogLevel LEVELS[] = { NYA_HTTP_LOG_SUMMARY, NYA_HTTP_LOG_HEADERS, NYA_HTTP_LOG_BODIES };

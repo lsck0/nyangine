@@ -21,9 +21,7 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_path");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_join - exactly one separator, however many the inputs had
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_join\n");
   {
     nya_assert(nya_string_equals(nya_path_join(arena, "a", "b"), "a/b"));
@@ -45,9 +43,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_basename - everything after the last separator
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_basename\n");
   {
     ASSERT_PATH(nya_path_basename, "a/b/c.txt", "c.txt");
@@ -60,9 +56,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_dirname - everything before the last separator
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_dirname\n");
   {
     ASSERT_PATH(nya_path_dirname, "a/b/c.txt", "a/b");
@@ -72,9 +66,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_extension - including the dot, and hidden files have none
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_extension\n");
   {
     ASSERT_PATH(nya_path_extension, "a/b/c.txt", ".txt");
@@ -86,9 +78,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_stem - basename without the extension
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_stem\n");
   {
     ASSERT_PATH(nya_path_stem, "a/b/c.txt", "c");
@@ -98,9 +88,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_with_extension - replaces, or adds when absent
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_with_extension\n");
   {
     nya_assert(nya_string_equals(nya_path_with_extension(arena, "a/b/c.txt", "md"), "a/b/c.md"));
@@ -110,9 +98,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_is_absolute
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_is_absolute\n");
   {
     nya_assert(nya_path_is_absolute("/etc/hosts") == true);
@@ -129,9 +115,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_path_normalize - collapse separators, resolve . and .., convert backslashes
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_path_normalize\n");
   {
     ASSERT_PATH(nya_path_normalize, "a//b///c", "a/b/c");
@@ -157,12 +141,10 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: normalize is idempotent
   //
   // Worth pinning on its own: these results are baked into generated source by the asset pipeline,
   // so a path that changes when normalised twice would make a build non-reproducible.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: normalize is idempotent\n");
   {
     NYA_ConstCString inputs[] = { "a//b/../c", "/x/./y", "..", "C:\\a\\b", "a/b/", "", "." };
@@ -181,13 +163,11 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: long paths
   //
   // The scratch arena inside nya_path_normalize is sized from the input length. A path longer than
   // its minimum region has to chain another region rather than overrun the segment table, which is
   // the failure mode that sizing introduced.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: long paths\n");
   {
     NYA_String* built = nya_string_create(arena);
@@ -206,9 +186,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   printf("PASSED: test_path\n");

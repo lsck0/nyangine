@@ -67,9 +67,7 @@ s32 main(void) {
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the shipped starter file's "engine" object is already loaded by nya_system_config_init
-  // ─────────────────────────────────────────────────────────────────────────────
   /*
    * The engine's own half is not fetched here: nya_system_config_init, called above, already loaded it
    * into nya_config_engine(), the same way any other program brings it up. NYA_ConfigEngine's fields are
@@ -96,9 +94,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the same file's "game" object loads into GNY_Config on its own
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_config_load reads assets/config/engine.nya's \"game\" object\n");
   {
     GNY_Config config = { 0 };
@@ -111,9 +107,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_ConfigEngine loads on its own, from a file shaped for it rather than for GNY_Config
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_config_load resolves a nested struct on its own\n");
   {
     write_fixture("nya 2 0\n"
@@ -143,9 +137,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a missing file fails cleanly, without touching the instance
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a missing file returns an error and changes nothing\n");
   {
     NYA_ConfigEngine sentinel = {
@@ -162,9 +154,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a malformed file fails cleanly, without touching the instance
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a malformed file returns an error and changes nothing\n");
   {
     // Unterminated: no closing braces. What an editor's save looks like caught mid write.
@@ -185,9 +175,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_config_watch loads once, then an edit on disk is picked up live
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_config_watch reloads on an edit\n");
   {
     write_fixture("nya 2 0\n"

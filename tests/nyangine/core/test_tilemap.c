@@ -38,9 +38,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_tilemap");
   defer nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an orthogonal map loads with its layers, tilesets and objects
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &map));
@@ -73,9 +71,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: tile contents, and reading off the edge
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &map));
@@ -97,9 +93,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: objects and their custom properties
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &map));
@@ -129,9 +123,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: orthogonal coordinates round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &map));
@@ -145,9 +137,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: isometric coordinates round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_ISOMETRIC_TMJ, &map));
@@ -173,9 +163,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: collision merges runs rather than making one body per tile
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &map));
@@ -205,9 +193,7 @@ s32 main(void) {
     nya_entity_clear();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an isometric map refuses to build box colliders
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Tilemap* map = nullptr;
     NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_ISOMETRIC_TMJ, &map));

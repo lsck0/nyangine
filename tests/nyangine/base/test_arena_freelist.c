@@ -16,9 +16,7 @@ static u64 free_node_count(NYA_Arena* arena) {
 }
 
 s32 main(void) {
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a freed block is reused rather than growing the region
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: freed blocks are reused\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "reuse", .region_size = nya_kibyte_to_byte(64));
@@ -43,13 +41,11 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: adjacent freed blocks coalesce
   //
   // Freeing a run of neighbouring blocks leaves a contiguous span. If the free list keeps them as
   // separate nodes, an allocation the size of the whole span cannot be served from it even though
   // the bytes are sitting there, and the region grows instead.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: adjacent frees coalesce\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "coalesce", .region_size = nya_kibyte_to_byte(64));
@@ -79,12 +75,10 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: churn does not grow the region without bound
   //
   // Allocating and freeing the same size repeatedly should settle: the block comes back each time
   // rather than the region marching forward.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: churn is bounded\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "churn", .region_size = nya_kibyte_to_byte(64));
@@ -118,9 +112,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a span released in pieces can be handed back as one allocation
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: coalesced span is usable\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "span", .region_size = nya_kibyte_to_byte(64));
@@ -148,9 +140,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: realloc shrink then grow keeps the contents
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: realloc round trip\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "realloc", .region_size = nya_kibyte_to_byte(64));
@@ -169,9 +159,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an allocation larger than the region size still works
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: oversized allocation\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "oversized", .region_size = nya_kibyte_to_byte(4));

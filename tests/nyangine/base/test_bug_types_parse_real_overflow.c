@@ -9,9 +9,7 @@ s32 main(void) {
 
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_types_parse_real_overflow");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a long integer part
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: 42 digit integer part\n");
   {
     // 1.23456789012345678901234567890123456789012e41, comfortably inside f64's range.
@@ -23,9 +21,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a long fractional part, which overflows the divisor rather than the mantissa
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: 41 digit fractional part\n");
   {
     NYA_ConstCString text  = "0.00000000000000000000000000000000000000001";
@@ -36,9 +32,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the same literal through the JSON reader, which is the user facing path
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a long real in a JSON document\n");
   {
     NYA_ConstCString document = "{\"value\":123456789012345678901234567890123456789012.5}";

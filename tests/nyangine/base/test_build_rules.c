@@ -66,9 +66,7 @@ s32 main(void) {
   NYA_EXPECT(nya_filesystem_create_directory(WORK_DIRECTORY));
   defer (void)nya_filesystem_delete_recursive(WORK_DIRECTORY);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BUILD_ALWAYS runs every single time
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset_hooks();
 
@@ -95,9 +93,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BUILD_ONCE is keyed on the output existing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset_hooks();
     (void)nya_filesystem_delete(OUTPUT_PATH);
@@ -144,9 +140,7 @@ s32 main(void) {
     nya_assert(pre_hook_calls == 0, "an existing directory must satisfy NYA_BUILD_ONCE");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_BUILD_IF_OUTDATED compares modification times
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset_hooks();
     (void)nya_filesystem_delete(OUTPUT_PATH);
@@ -190,9 +184,7 @@ s32 main(void) {
     nya_assert(pre_hook_calls == 2, "equal timestamps must count as up to date, got " FMTu32, pre_hook_calls);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a metarule runs no command but still obeys its policy
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * A metarule short circuits before spawning, so `command` may be empty. The policy is still decided
@@ -234,9 +226,7 @@ s32 main(void) {
     nya_assert(pre_hook_calls == 0, "a satisfied metarule must not run its hooks, got " FMTu32, pre_hook_calls);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failing command is reported rather than swallowed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset_hooks();
 
@@ -262,9 +252,7 @@ s32 main(void) {
     nya_assert(pre_hook_calls == 1, "the pre hook must have fired before the command");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a shared dependency is built once per build, not once per path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Two rules sharing a dependency must not build it twice in one nya_build; last_built_epoch
@@ -298,9 +286,7 @@ s32 main(void) {
     nya_assert(pre_hook_calls == 2, "a later build must run it again, got " FMTu32, pre_hook_calls);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the parallel pool refills a slot as soon as its rule finishes
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset_hooks();
 
@@ -335,9 +321,7 @@ s32 main(void) {
     for (u32 i = 0; i < 4; i++) nya_assert(!rules[i]->parallel_is_running);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the parallel pool keeps reading output larger than a pipe buffer
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Blocked on a full pipe the child never exits, so this hangs unless the pool drains while it polls.
     NYA_BuildRule chatty = {
@@ -358,9 +342,7 @@ s32 main(void) {
     nya_assert(chatty.command.stdout_content->length == 300000, "captured " FMTu64 " bytes", chatty.command.stdout_content->length);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a failing parallel rule fails the call and stops starting new rules
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset_hooks();
 

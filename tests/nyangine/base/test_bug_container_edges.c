@@ -16,9 +16,7 @@ s32 main(void) {
 
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_container_edges");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_from_carray builds a heap and pops in order
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_heap_from_carray\n");
   {
     u32 values[]   = { 5, 3, 8, 1, 4, 2 };
@@ -36,9 +34,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty carray, which is the capacity-zero path
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_heap_from_carray on an empty array\n");
   {
     u32*           nothing = nullptr;
@@ -52,9 +48,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a heap created with capacity zero can grow
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: growing a zero capacity heap\n");
   {
     NYA_Heapᐸu32ᐳ* heap = nya_heap_create_with_capacity(arena, u32, &compare_u32_ascending, (u64)0);
@@ -72,9 +66,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: destroying an on-stack heap leaves it empty rather than half owned
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_heap_destroy_on_stack resets the state\n");
   {
     NYA_Heapᐸu32ᐳ heap = nya_heap_create_with_capacity_on_stack(arena, u32, &compare_u32_ascending, (u64)4);
@@ -96,9 +88,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: draining a ring with its own length
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_ring_pop_many with a count read off the ring\n");
   {
     NYA_Ringᐸu32ᐳ* ring = nya_ring_create_with_capacity(arena, u32, 8);
@@ -112,9 +102,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an oversized allocation on an arena aligned beyond malloc's guarantee
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: oversized allocation on a 64 byte aligned arena\n");
   {
     // region_size is deliberately smaller than the allocation, so each one takes a region of its
@@ -140,9 +128,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the alignment check rejects an even non-power-of-two
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an alignment of 24 is rejected\n");
   {
     // the on-stack constructor, because the heap one mallocs the NYA_Arena before validating options,
@@ -156,9 +142,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_from_argv
-  // ─────────────────────────────────────────────────────────────────────────────
   //
   // A macro only reports compile errors when expanded, so this expands it.
   printf("TEST: nya_array_from_argv\n");

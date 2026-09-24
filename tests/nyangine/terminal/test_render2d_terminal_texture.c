@@ -60,9 +60,7 @@ s32 main(void) {
 
   const u32 cleared = nya_terminal_ink(0.0F, 0.0F, 0.0F);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the loader keeps the pixels where there is no device to upload them to
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = NYA_ASSET_TEXTURES_DECALS_PNG }));
 
@@ -83,9 +81,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: drawing it paints cells, where it used to paint none at all
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -101,9 +97,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a handle with nothing behind it draws nothing rather than asserting
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -115,9 +109,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a source rectangle cuts the sheet, so a sprite sheet works
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_Asset* asset = nya_asset_get(NYA_ASSET_TEXTURES_DECALS_PNG);
     nya_check(asset != nullptr, "the sheet is still loaded");
@@ -144,9 +136,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the layer gate covers a picture too
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 

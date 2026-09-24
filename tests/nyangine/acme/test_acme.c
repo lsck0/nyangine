@@ -299,9 +299,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_acme");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an ES256 JWS signs, and its signature verifies with the engine's verifier.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeAccountKey* key = nullptr;
     nya_check(nya_acme_account_key_create(arena, NYA_ACME_ALGORITHM_ES256, &key).ok, "an ES256 account key generates");
@@ -337,9 +335,7 @@ s32 main(void) {
     nya_check(member(header2, "kid") == nullptr, "newAccount carries no kid");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a tampered ES256 signature is refused — the property a CA relies on.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeAccountKey* key = nullptr;
     nya_check(nya_acme_account_key_create(arena, NYA_ACME_ALGORITHM_ES256, &key).ok, "a key generates");
@@ -362,9 +358,7 @@ s32 main(void) {
     nya_check(!verify_jws(arena, body, "https://ca.test/x", "nonce", nullptr, &header, &decoded), "a tampered signature is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an EdDSA JWS signs and verifies with the engine's own Ed25519 verifier.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeAccountKey* key = nullptr;
     nya_check(nya_acme_account_key_create(arena, NYA_ACME_ALGORITHM_EDDSA, &key).ok, "an EdDSA account key generates");
@@ -402,9 +396,7 @@ s32 main(void) {
     nya_check(nya_crypto_sign_verify(&pub, signing_input->items, signing_input->length, &signature), "the EdDSA JWS verifies with nya_crypto_sign_verify");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the RFC 8037 Ed25519 key, its JWK and its thumbprint (known-answer vectors).
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // RFC 8037 Appendix A.1: the private seed d and the public key x.
     NYA_ConstCString d_b64 = "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A";
@@ -433,9 +425,7 @@ s32 main(void) {
     nya_check(nya_string_equals((NYA_ConstCString)b64, thumbprint_b64), "the thumbprint matches the RFC 8037 vector");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the HTTP-01 key-authorization is token "." base64url(SHA-256(thumbprint input)).
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeAccountKey* key = nullptr;
     nya_check(nya_acme_account_key_create(arena, NYA_ACME_ALGORITHM_EDDSA, &key).ok, "a key generates");
@@ -460,9 +450,7 @@ s32 main(void) {
     nya_check(!nya_string_equals(key_auth, other), "a different token gives a different key-authorization");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the challenge route serves the key-authorization for the right path only.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeChallengeStore* store = nya_acme_challenge_store_create(arena);
     nya_check(nya_acme_challenge_store_add(store, "tok-abc", "tok-abc.keyauth").ok, "a challenge registers");
@@ -483,9 +471,7 @@ s32 main(void) {
     nya_check(!nya_acme_challenge_response(store, "/.well-known/acme-challenge/tok-1", &body), "destroying the store forgets every challenge");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the renewal check reads the leaf's expiry against the window.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     b8 needs = false;
 
@@ -507,9 +493,7 @@ s32 main(void) {
     nya_check(!parse.ok && parse.kind == NYA_ERROR_PARSE, "a non-certificate is a parse error");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the whole obtain flow against a CA that verifies every signature.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeAccountKey* key = nullptr;
     nya_check(nya_acme_account_key_create(arena, NYA_ACME_ALGORITHM_ES256, &key).ok, "the account key generates");
@@ -540,9 +524,7 @@ s32 main(void) {
     nya_check(ca.has_account, "the CA registered the account from the embedded jwk");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: obtain refuses a config missing a required field before any request.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AcmeCertificate certificate = { 0 };
     NYA_AcmeConfig      config      = { .directory_url = CA_DIR }; // no domains, key, store or transport

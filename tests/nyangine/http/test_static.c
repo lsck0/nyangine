@@ -222,9 +222,7 @@ s32 main(void) {
 
     nya_assert(nya_os_file_link_set(link, page) == NYA_OS_FILE_STATUS_OK, "the scratch symlink could not be made");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a handle that is not a plain file under the root is refused, one spelling at a time.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         /*
          * Each of these is one way of saying "somewhere else". They are refused before a byte is read,
@@ -276,11 +274,9 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a .wasm file mounts and is served as application/wasm, the CSR bundle's module. Its suffix
     // is in the table (unlike page.exe above), so the browser gets the type WebAssembly.instantiateStreaming
     // requires rather than a refusal.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString   asset = scratch_path(arena, "app.wasm");
         NYA_HttpStaticFile file  = {
@@ -300,11 +296,9 @@ s32 main(void) {
         nya_http_static_unmount();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a .webmanifest mounts and is served as application/manifest+json, so a CSR bundle whose
     // index.html carries <link rel="manifest"> is an installable PWA. A manifest served as
     // application/json passes no installability check, which is why the suffix has its own media type.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString   asset = scratch_path(arena, "app.webmanifest");
         NYA_HttpStaticFile file  = {
@@ -324,9 +318,7 @@ s32 main(void) {
         nya_http_static_unmount();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an absolute path, and a root the handle only appears to be under.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString OUTSIDE[] = {
             "/etc/passwd",
@@ -358,9 +350,7 @@ s32 main(void) {
         nya_http_static_unmount();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a served path is held to the same spelling as the handle behind it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString REFUSED[] = { "x.html", "/../x.html", "/a/../x.html", "//x.html", "/a//x.html", "/.hidden", "/a\\b" };
 
@@ -379,9 +369,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: two files cannot answer one path, and nothing mounts twice.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_HttpStaticFile twice[] = {
             { .asset = scratch_path(arena, "page.html"), .path = "/", .data = SOME_BYTES, .size = SOME_BYTES_SIZE },
@@ -440,9 +428,7 @@ s32 main(void) {
     char value[NYA_HTTP_MAX_HEADER_VALUE]    = { 0 };
     char etag[NYA_HTTP_MAX_HEADER_VALUE]     = { 0 };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the entry point answers with the file, its type, its ETag and a revalidating policy.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket socket = connect_to(port);
         defer             nya_os_socket_close(socket);
@@ -466,9 +452,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(value, NYA_HTTP_STATIC_PAGE_CSP), "the page's policy, got '%s'", value);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a caller that already has it gets 304 and no body, weak tags and "*" included.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // what goes in front of our tag: nothing, the weak marker, and a list whose first entry is
         // somebody else's. "*" says "whatever you have" and carries no tag at all.
@@ -499,9 +483,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a tag that is not ours, and a header that is not a list of tags, get the body.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString OTHER[] = { "\"0000000000000000\"", "W/\"0000000000000000\"", "not a tag at all", "\"unterminated" };
 
@@ -517,9 +499,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the hashed name is the same bytes, cached for a year.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString hashed = nya_http_static_url(NYA_ASSET_WEB_APP_CSS);
         nya_assert(hashed != nullptr, "a mounted file has a hashed name");
@@ -550,9 +530,7 @@ s32 main(void) {
         nya_assert(strstr(hashed, unquoted) != nullptr, "the name carries the ETag, '%s' and '%s'", hashed, value);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a file with no unhashed path of its own is only reachable by its hash.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(request_status(port, "GET /app.js HTTP/1.1\r\nHost: x\r\n\r\n") == 404, "nothing was mounted at /app.js");
 
@@ -562,9 +540,7 @@ s32 main(void) {
         nya_assert(request_status(port, nya_string_to_cstring(arena, request)) == 200, "and its hashed name is");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a HEAD answers the GET's head and none of its bytes.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket socket = connect_to(port);
         defer             nya_os_socket_close(socket);
@@ -581,9 +557,7 @@ s32 main(void) {
         nya_assert(value[0] == '"', "with the validators a GET would carry, got '%s'", value);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every spelling of a climb is refused, and none of them is a 200.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         /*
          * Split by who refuses it. The parser answers 400 for a target that is not one this server
@@ -625,9 +599,7 @@ s32 main(void) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the bundle is read only, and a range is not something it answers.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(request_status(port, "DELETE /app.css HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n") == 405, "a file is not written here");
 
@@ -643,9 +615,7 @@ s32 main(void) {
         nya_assert(strstr(answer, "--ink") != nullptr, "the whole file came back");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the security headers apply here like anywhere else.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_OsSocket socket = connect_to(port);
         defer             nya_os_socket_close(socket);

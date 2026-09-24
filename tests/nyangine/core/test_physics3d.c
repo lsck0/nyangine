@@ -51,9 +51,7 @@ s32 main(void) {
   defer nya_world_destroy(world);
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a fresh world, and the defaults that differ from 2D
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_physics3d_body_count() == 0, "no bodies yet");
     nya_assert(nya_physics3d_enabled(), "the world starts running");
@@ -71,9 +69,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the solver owns the transform once a body is attached
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle floor = nya_entity_spawn(.name = "floor", .position = { 0.0F, -0.5F, 0.0F });
     nya_assert(nya_physics3d_body_attach(floor, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 20.0F, 1.0F, 20.0F }));
@@ -118,9 +114,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: rotation comes back as a whole quaternion
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle box = nya_entity_spawn(.name = "spinner", .position = { 0.0F, 10.0F, 0.0F });
     nya_assert(nya_physics3d_body_attach(box, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 1.0F, 1.0F, 1.0F }, .gravity_scale = 0.0F));
@@ -155,9 +149,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: forces and impulses
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle box = nya_entity_spawn(.name = "pushed", .position = { 0.0F, 10.0F, 0.0F });
     nya_assert(nya_physics3d_body_attach(box, .shape = NYA_PHYSICS3D_SHAPE_SPHERE, .radius = 0.5F, .gravity_scale = 0.0F));
@@ -190,9 +182,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a pickup is a sensor, and its overlap arrives through on_collision
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     sensor_enters = 0;
     sensor_exits  = 0;
@@ -222,9 +212,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a hard landing produces an impact, and a paused world produces nothing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     impacts = 0;
 
@@ -260,10 +248,8 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a kinematic body throws what it hits when it is given a velocity, and
   //       does not when it is teleported along the same path
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * A pinball flipper, reduced to the one thing that makes it a flipper. Both paddles travel the
@@ -321,9 +307,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a settled body sleeps through a teleport, and waking it lets it fall
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle floor = nya_entity_spawn(.name = "floor", .position = { 0.0F, -0.5F, 0.0F });
     nya_assert(nya_physics3d_body_attach(floor, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 20.0F, 1.0F, 20.0F }));
@@ -361,9 +345,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: ten units to the metre make the same fall ten times as long
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const f32x3 original_gravity = nya_physics3d_gravity();
     const f32   scales[2]        = { 1.0F, 10.0F };
@@ -401,9 +383,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed bodies are refused rather than half built
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle bad = nya_entity_spawn(.name = "malformed");
 

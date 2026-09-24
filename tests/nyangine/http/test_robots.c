@@ -11,9 +11,7 @@ int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_robots");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a group builds the lines it should, in order, with the Sitemap at the end.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_ConstCString disallow[] = { "/private", "/admin" };
         const NYA_ConstCString allow[]    = { "/public" };
@@ -34,18 +32,14 @@ int main(void) {
         nya_assert(strstr(text, "Sitemap: https://example.com/sitemap.xml\n") != nullptr, "the Sitemap line");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the strict preset is deny-all for every crawler.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         NYA_ConstCString strict = nya_http_robots_strict();
         nya_assert(strstr(strict, "User-agent: *") != nullptr, "every crawler");
         nya_assert(strstr(strict, "Disallow: /") != nullptr, "and nothing allowed");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a control byte in any field refuses the build — no line injection.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRobotsGroup ua_inject[] = { { .user_agent = "*\nDisallow: /" } };
         NYA_ConstCString          text          = (NYA_ConstCString) "unset";
@@ -56,18 +50,14 @@ int main(void) {
         nya_assert(!nya_http_robots_build(arena, (NYA_HttpRobotsConfig){ .groups = path_inject, .count = 1 }, &text).ok, "a CRLF in a path is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a non-web Sitemap URL refuses the build.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRobotsGroup groups[] = { { .user_agent = "*" } };
         NYA_ConstCString          text       = nullptr;
         nya_assert(!nya_http_robots_build(arena, (NYA_HttpRobotsConfig){ .groups = groups, .count = 1, .sitemap = "javascript:alert(1)" }, &text).ok, "a non-web Sitemap is refused");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: both mounts land at /robots.txt.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpRouter* routers[] = { nya_http_doc_router() };
         b8                    exists  = false;

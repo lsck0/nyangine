@@ -13,9 +13,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create();
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: reading a zero capacity container reports empty rather than dividing
-    // ─────────────────────────────────────────────────────────────────────────────
     //
     // Lookups take `hash(key) % capacity` before the probe loop, whose own bound would not run, so a get
     // on a never written container must not divide by zero.
@@ -41,9 +39,7 @@ s32 main(void) {
         nya_check(set->length == 0, "hset length is " FMTu64 " after removing from empty", set->length);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a zero capacity hmap grows on first set
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: zero capacity hmap\n");
     {
         NYA_HMapᐸu32ˏu32ᐳ* map = nya_hmap_create_with_capacity(arena, u32, u32, 0);
@@ -66,9 +62,7 @@ s32 main(void) {
         nya_check(late != nullptr && *late == 597U, "key 199 did not survive the growth");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a zero capacity dict grows on first set
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: zero capacity dict\n");
     {
         NYA_Dictᐸu32ᐳ* dict = nya_dict_create_with_capacity(arena, u32, 0);
@@ -84,9 +78,7 @@ s32 main(void) {
         if (found != nullptr) nya_check(*found == 1U, "key \"alice\" gave " FMTu32 ", expected 1", *found);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a zero capacity hset grows on first insert
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: zero capacity hset\n");
     {
         NYA_HSetᐸu32ᐳ* set = nya_hset_create_with_capacity(arena, u32, 0);

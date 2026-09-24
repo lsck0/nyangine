@@ -16,9 +16,7 @@ static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a round trip, which is the whole point.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     typedef struct {
       u64 user_id;
@@ -43,9 +41,7 @@ s32 main(void) {
     nya_check(back.user_id == 4200 && back.flags == 0b101, "as the same state, got %llu / %u", (unsigned long long)back.user_id, back.flags);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: everything that must make a token not open.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
     NYA_EXPECT(nya_http_seal(SECRET, SECRET_SIZE, "session", (const u8*)"hello", 5, 900, token, sizeof(token)));
@@ -74,9 +70,7 @@ s32 main(void) {
     nya_check(!nya_http_unseal(SECRET, SECRET_SIZE, "session", "", 0, out, sizeof(out), &size), "nor nothing at all");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: it expires, and the buffer bounds are honoured.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
     NYA_EXPECT(nya_http_seal(SECRET, SECRET_SIZE, "s", (const u8*)"x", 1, 1, token, sizeof(token)));
@@ -92,9 +86,7 @@ s32 main(void) {
     nya_check(!nya_http_unseal(SECRET, SECRET_SIZE, "s", token, strlen(token), out, sizeof(out), &size), "and not after it expires");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what seal refuses to make.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
 
@@ -114,9 +106,7 @@ s32 main(void) {
     nya_check(size == 0, "to nothing, got %llu", (unsigned long long)size);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a max-size seal fits a cookie, which is the reason for the bound.
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u8 full[NYA_HTTP_SEAL_MAX_PLAINTEXT] = { 0 };
     nya_memset(full, 'z', sizeof(full));

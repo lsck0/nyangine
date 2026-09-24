@@ -9,9 +9,7 @@ s32 main(void) {
 
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_nya_number_truncation");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a literal past the parser's scratch buffer is refused, not truncated
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an over-long number in a .nya document\n");
   {
     // 300 digits, comfortably past the 192 byte buffer. Written as an f64 field so the type is one
@@ -57,9 +55,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an ordinary number still round trips
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an ordinary number is unaffected\n");
   {
     NYA_Object* object = nya_object_create(arena);

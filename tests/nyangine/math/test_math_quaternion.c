@@ -21,9 +21,7 @@ s32 main(void) {
   // π comes from <math.h>, which base_basic.h already includes.
   const f32 HALF_PI = (f32)M_PI_2;
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: identity
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: identity\n");
   {
     NYA_Quaternion id = nya_quaternion_identity;
@@ -36,9 +34,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: axis-angle round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: axis-angle round trip\n");
   {
     f32x3          axis = { 0.0F, 1.0F, 0.0F };
@@ -55,11 +51,9 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: rotation actually rotates
   //
   // A quarter turn about +Y takes +X to -Z under the right hand rule.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rotation\n");
   {
     f32x3          y_axis = { 0.0F, 1.0F, 0.0F };
@@ -82,9 +76,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: composition, conjugate and inverse
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: composition and inverse\n");
   {
     f32x3          axis = { 0.577F, 0.577F, 0.577F };
@@ -108,9 +100,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: euler round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: euler round trip\n");
   {
     // Away from gimbal lock, so the recovered angles are the ones that went in.
@@ -127,9 +117,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_quaternion_from_to
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: from_to\n");
   {
     f32x3 from = { 1.0F, 0.0F, 0.0F };
@@ -144,9 +132,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: interpolation endpoints and midpoint
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nlerp and slerp\n");
   {
     f32x3          axis = { 0.0F, 0.0F, 1.0F };
@@ -172,9 +158,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: matrix conversion round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: matrix conversion\n");
   {
     f32x3          axis = { 0.267F, 0.535F, 0.802F };
@@ -203,9 +187,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: dot, length and normalize
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: dot, length, normalize\n");
   {
     NYA_Quaternion q = nya_quaternion_create(1.0F, 2.0F, 3.0F, 4.0F);

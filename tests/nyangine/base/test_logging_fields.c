@@ -79,9 +79,7 @@ s32 main(void) {
     nya_log_sink_add(human_sink, nullptr);
     nya_log_record_sink_add(json_sink, nullptr);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a record with typed fields renders through a human sink and a JSON sink
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: typed fields render both ways\n");
     {
         reset();
@@ -136,9 +134,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a plain nya_log_* line still works, and still reaches a record sink
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: plain messages are unchanged and additive\n");
     {
         reset();
@@ -160,9 +156,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a tag rides along on the record
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: a tag reaches both renderings\n");
     {
         reset();
@@ -176,9 +170,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: exactly NYA_LOG_FIELD_MAX fields are carried whole
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: the field cap is a hard edge, honoured exactly\n");
     {
         NYA_LogField many[NYA_LOG_FIELD_MAX + 1];
@@ -189,9 +181,7 @@ s32 main(void) {
         nya_check(!LAST_OVERFLOWED, "the cap itself is not an overflow");
         nya_check(LAST_FIELD_COUNT == NYA_LOG_FIELD_MAX, "all %u fields are carried, carried %u", NYA_LOG_FIELD_MAX, LAST_FIELD_COUNT);
 
-        // ─────────────────────────────────────────────────────────────────────────────
         // TEST: one field past the cap is refused whole, not truncated, and never UB
-        // ─────────────────────────────────────────────────────────────────────────────
         reset();
         _nya_log_fields(NYA_LOG_LEVEL_INFO, "main", "test_logging_fields.c", 1, "one too many", many, nya_carray_length(many));
         nya_check(LAST_OVERFLOWED, "one past the cap is an overflow");
@@ -205,9 +195,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: nya_log_record_render_json is bounded and always closes the object
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: JSON rendering stays within its buffer\n");
     {
         NYA_LogField  fields = nya_log_str("key", "value");
@@ -254,9 +242,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: record sinks are removed by their pair
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: record sink registration is bookkept like the line sinks\n");
     {
         reset();
@@ -272,9 +258,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // CLEANUP
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_log_sink_clear();
     nya_log_level_set(original_level);
 

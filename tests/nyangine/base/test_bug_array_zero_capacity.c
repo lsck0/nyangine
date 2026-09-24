@@ -7,9 +7,7 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_array_zero_capacity");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: created with zero capacity
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arrayᐸu32ᐳ* numbers = nya_array_create_with_capacity(arena, u32, 0);
     nya_assert(numbers->capacity == 0);
@@ -22,9 +20,7 @@ s32 main(void) {
     nya_assert(numbers->items[0] == 7);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: shrunk to fit while empty, then added to
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arrayᐸu32ᐳ* numbers = nya_array_create(arena, u32);
     nya_array_shrink_to_fit(numbers);

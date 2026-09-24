@@ -64,9 +64,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_audio_effects");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a chain with every unit off is exact, and zeroed settings never make one
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioChainSettings off = { .effects = _nya_audio_effects_validate((NYA_AudioEffects){ 0 }) };
     nya_assert(!_nya_audio_chain_settings_active(&off), "validated zeroes must still read as nothing to run");
@@ -80,9 +78,7 @@ s32 main(void) {
     for (s32 i = 0; i < FRAMES; i++) nya_assert(signal_out[i] == signal_in[i], "a bypassed chain changed sample %d", i);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: validation defaults and clamps
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioEffects effects = _nya_audio_effects_validate((NYA_AudioEffects){
       .pass    = { .lowpass_hz = -5.0F },
@@ -98,9 +94,7 @@ s32 main(void) {
     nya_assert(effects.compressor.ratio >= 1.0F && effects.pass.resonance > 0.0F, "zeroes take their defaults");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the passes are twelve decibels an octave, flat far from the corner
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // three octaves past 1 kHz is about -36 dB, 0.016. a one pole would still pass 0.12.
     f32 low_bass   = sine_response(arena, (NYA_AudioEffects){ .pass = { .lowpass_hz = 1000.0F } }, 100.0F);
@@ -118,9 +112,7 @@ s32 main(void) {
     nya_assert(high_treble > 0.97F, "a 1 kHz high pass must pass 8 kHz, got %f", (f64)high_treble);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the equaliser's bell and shelves land their gain where they sit
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 bell_centre = sine_response(arena, (NYA_AudioEffects){ .equalizer = { .mid_db = 12.0F } }, 1000.0F);
     f32 bell_far    = sine_response(arena, (NYA_AudioEffects){ .equalizer = { .mid_db = 12.0F } }, 40.0F);
@@ -135,9 +127,7 @@ s32 main(void) {
     nya_assert(fabsf(high_shelf - 1.995F) < 0.1F, "+6 dB above the high shelf is 1.995, got %f", (f64)high_shelf);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the limiter never lets a sample past its ceiling
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioChain* chain   = chain_with(arena, (NYA_AudioEffects){ .limiter = { .enabled = true, .ceiling_db = -6.0F } });
     f32             ceiling = powf(10.0F, -6.0F / 20.0F);
@@ -161,9 +151,7 @@ s32 main(void) {
     nya_assert(loudest > ceiling * 0.9F, "the limiter must reach its ceiling, not squash everything, got %f", (f64)loudest);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an echo repeats after its delay, and a reflection tap after its own
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // wet eases in over the smoothing time, so the impulse is heard through the chain a moment after it is enabled.
     NYA_AudioChain* echo = chain_with(arena, (NYA_AudioEffects){ .echo = { .enabled = true, .delay_ms = 100.0F, .feedback = 0.1F, .wet = 1.0F, .lowpass_hz = 20000.0F } });
@@ -186,9 +174,7 @@ s32 main(void) {
     nya_assert(at >= 2400 && at <= 2402, "a 50 ms reflection at 48 kHz returns at frame 2400, got %d", at);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the compressor cuts by its ratio above the threshold
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // a full scale tone, 20 dB over a -20 dB threshold at 4:1, comes out 15 dB down: 0.178.
     f32 level = sine_response(arena, (NYA_AudioEffects){ .compressor = { .enabled = true, .threshold_db = -20.0F, .ratio = 4.0F } }, 1000.0F);
@@ -196,9 +182,7 @@ s32 main(void) {
     nya_assert(fabsf(level - 0.178F) < 0.03F, "4:1 over 20 dB leaves 0.178, got %f", (f64)level);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a cutoff that jumps is eased, so the output never steps
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AudioChain* chain = chain_with(arena, (NYA_AudioEffects){ 0 });
 

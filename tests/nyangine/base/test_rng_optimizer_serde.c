@@ -11,9 +11,7 @@ s32 main(void) {
 
   NYA_Arena* arena = nya_arena_create(.name = "test_rng_optimizer_serde");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: gen_bytes produces the same stream however it is chunked
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rng stream is chunk independent\n");
   {
     // Larger than the internal buffer, so the refill path is crossed either way.
@@ -49,9 +47,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: SGD and Adam steps against the arithmetic they document
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: optimizer steps\n");
   {
     // SGD, momentum 0: p -= lr * g
@@ -112,9 +108,7 @@ s32 main(void) {
   }
   printf("  PASSED\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: .nya and JSON round trip every scalar type they claim to carry
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: serde round trip by type\n");
   {
     NYA_Object* object = nya_object_create(arena);

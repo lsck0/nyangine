@@ -36,9 +36,7 @@ s32 main(void) {
         nya_check(NYA_EVENT_NAME_MAP[NYA_EVENT_ASSET_LOAD_FAILED] != nullptr, "NYA_EVENT_ASSET_LOAD_FAILED has no name");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the same property for every other name map in the tree
-    // ─────────────────────────────────────────────────────────────────────────────
     //
     // Every one is a designated initialiser table indexed by an enum, and any can gain an enumerator
     // without a row.

@@ -168,9 +168,7 @@ int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_prometheus");
     defer      nya_arena_destroy(arena);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the name sanitizer holds anything to the Prometheus charset.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         char out[64];
 
@@ -193,9 +191,7 @@ int main(void) {
         nya_check(is_name_head(out[0]), "a sanitized name has a valid first byte");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // Register a known registry: two plain ceilings, one hostile, and a gauge.
-    // ─────────────────────────────────────────────────────────────────────────────
     _nya_ceiling_registry_reset_for_test();
 
     nya_ceiling_register("tweens", 256, &TWEENS_LIVE);
@@ -206,32 +202,24 @@ int main(void) {
     char* text = nya_arena_alloc(arena, NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES);
     u64   size = nya_http_metrics_prometheus(text, NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the whole body is valid exposition text.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(size == strlen(text), "the returned length is the body's length");
     nya_check(parses_as_prometheus(text), "every line parses as Prometheus text");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the families are declared, once each, as gauges.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(strstr(text, "# TYPE nyangine_ceiling_live gauge\n") != nullptr, "the live family is a gauge");
     nya_check(strstr(text, "# TYPE nyangine_ceiling_capacity gauge\n") != nullptr, "the capacity family is a gauge");
     nya_check(strstr(text, "# TYPE nyangine_gauge_bytes gauge\n") != nullptr, "the gauge family is a gauge");
     nya_check(strstr(text, "# HELP nyangine_ceiling_live ") != nullptr, "the live family has help");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the plain ceilings and the gauge carry the registered numbers.
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_check(strstr(text, "nyangine_ceiling_live{ceiling=\"tweens\"} 12\n") != nullptr, "tweens is 12 live");
     nya_check(strstr(text, "nyangine_ceiling_capacity{ceiling=\"tweens\"} 256\n") != nullptr, "tweens holds 256");
     nya_check(strstr(text, "nyangine_ceiling_live{ceiling=\"sprites\"} 1000\n") != nullptr, "sprites is 1000 live");
     nya_check(strstr(text, "nyangine_ceiling_capacity{ceiling=\"sprites\"} 1024\n") != nullptr, "sprites holds 1024");
     nya_check(strstr(text, "nyangine_gauge_bytes{gauge=\"gpu_textures\"} 4096\n") != nullptr, "the gauge is 4096 bytes");
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the hostile name comes out escaped, in a label, and never raw.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         // The escaped label value: a\"b\\c\nd.e-f{g} — the quote, the backslash and the newline are the
         // format's two-byte escapes; the dot, the dash and the braces are legal in a value and untouched.
@@ -247,9 +235,7 @@ int main(void) {
         nya_check(strstr(text, "nyangine_ceiling_live{") != nullptr, "the metric name is the fixed family name");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the route answers text/plain; version=0.0.4 with that same body.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8 body[NYA_HTTP_MAX_RESPONSE_BYTES] = { 0 };
 

@@ -84,9 +84,7 @@ s32 main(void) {
   nya_system_input_init();
   defer nya_system_input_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an untouched system has no devices and no players
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_input_source_count() == 0);
     nya_assert(nya_input_source_last().kind == NYA_INPUT_DEVICE_KIND_NONE);
@@ -99,9 +97,7 @@ s32 main(void) {
     nya_assert(!nya_input_mouse_button_pressed_by(PLAYER_ONE, NYA_MOUSE_BUTTON_LEFT));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a device joins the roster the first time it produces an event
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     press(keyboard(1), NYA_KEY_A, NYA_KEYMOD_NONE);
 
@@ -126,9 +122,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the merged view still sees everything, whoever the device belongs to
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_input_source_assign(keyboard(1), PLAYER_ONE);
     nya_assert(nya_input_source_player(keyboard(1)) == PLAYER_ONE);
@@ -146,9 +140,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: two players do not see each other's keys
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_input_source_assign(keyboard(2), PLAYER_TWO);
 
@@ -174,9 +166,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an unassigned device feeds only the merged view
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     press(keyboard(3), NYA_KEY_C, NYA_KEYMOD_NONE);
 
@@ -188,9 +178,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: modifiers are per player, so one player's shift is not another's chord
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_input_action_bind(ACTION_FIRE, NYA_KEY_F, NYA_KEYMOD_CTRL);
 
@@ -217,9 +205,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: mouse state is per player too
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_input_source_assign(mouse(1), PLAYER_ONE);
     nya_input_source_assign(mouse(2), PLAYER_TWO);
@@ -247,9 +233,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an out of range mouse button is ignored rather than written past the table
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A gaming mouse reports button numbers well past the five every mouse has. The three button
     // tables sit next to each other in NYA_InputState, so an unbounded write lands in the next one.
@@ -261,9 +245,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: releasing a device, and resetting every player
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_input_source_release(keyboard(1));
     nya_assert(nya_input_source_player(keyboard(1)) == NYA_INPUT_PLAYER_NONE);
@@ -292,9 +274,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the roster is bounded, and a device past the cap still works
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Well past NYA_INPUT_MAX_SOURCES. Nothing may be evicted: doing so would unassign a player
     // mid-game over nothing more than somebody plugging in another device.
@@ -314,9 +294,7 @@ s32 main(void) {
     end_frame();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: many lobby cycles, which is where the state used to accumulate
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * Claim, use, reset, repeat.

@@ -40,9 +40,7 @@ s32 main(void) {
   defer nya_world_destroy(world);
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 2D: a click on a body runs its callback
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -74,9 +72,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 2D: an entity with no on_click is not clickable
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -97,9 +93,7 @@ s32 main(void) {
     nya_entity_despawn(terrain);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 3D: a ray runs the struck entity's callback
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -138,9 +132,7 @@ s32 main(void) {
     nya_entity_despawn(cube);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 3D: the nearest body wins, and one behind it cannot take the click
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -159,9 +151,7 @@ s32 main(void) {
     nya_entity_despawn(far_plane);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: 3D: an entity with no on_click declines, exactly as in 2D
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 
@@ -178,9 +168,7 @@ s32 main(void) {
     nya_entity_despawn(ground);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a despawned entity is not clickable, and the click does not fault
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
 

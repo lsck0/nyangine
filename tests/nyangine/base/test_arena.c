@@ -85,9 +85,7 @@ s32 main(void) {
 
   nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: custom arena options
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* custom_arena = nya_arena_create(
           .name                         = "custom_arena",
           .alignment                    = 16,
@@ -103,9 +101,7 @@ s32 main(void) {
   nya_assert((uintptr_t)custom_ptr % 16 == 0); // verify alignment
   nya_arena_destroy(custom_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: alignment verification
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* aligned_arena = nya_arena_create(.name = "aligned_arena", .alignment = 32);
 
   for (u32 i = 0; i < 10; ++i) {
@@ -115,9 +111,7 @@ s32 main(void) {
   }
   nya_arena_destroy(aligned_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: large allocation (bigger than region size)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* small_region_arena = nya_arena_create(.name = "small_region_arena", .region_size = nya_kibyte_to_byte(4));
 
   void* large_ptr = nya_arena_alloc(small_region_arena, nya_kibyte_to_byte(8)); // larger than region
@@ -129,9 +123,7 @@ s32 main(void) {
 
   nya_arena_destroy(small_region_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: multiple regions (exhaust one region and allocate into another)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* multi_region_arena = nya_arena_create(.name = "multi_region_arena", .region_size = nya_kibyte_to_byte(4));
 
   void* ptrs[10];
@@ -144,9 +136,7 @@ s32 main(void) {
   nya_assert(nya_arena_memory_usage_bytes(multi_region_arena) > nya_kibyte_to_byte(4)); // must span regions
   nya_arena_destroy(multi_region_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: free_all resets usage but retains regions
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* free_all_arena = nya_arena_create(.name = "free_all_arena");
 
   for (u32 i = 0; i < 100; ++i) {
@@ -165,9 +155,7 @@ s32 main(void) {
 
   nya_arena_destroy(free_all_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: garbage_collect frees unused regions
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* gc_arena = nya_arena_create(
           .name                         = "gc_arena",
           .region_size                  = nya_kibyte_to_byte(4),
@@ -191,9 +179,7 @@ s32 main(void) {
 
   nya_arena_destroy(gc_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: copy allocates in destination and preserves data
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* src_arena = nya_arena_create(.name = "src_arena");
   NYA_Arena* dst_arena = nya_arena_create(.name = "dst_arena");
 
@@ -217,9 +203,7 @@ s32 main(void) {
   nya_arena_destroy(src_arena);
   nya_arena_destroy(dst_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: move transfers data and frees from source
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* move_src = nya_arena_create(.name = "move_src");
   NYA_Arena* move_dst = nya_arena_create(.name = "move_dst");
 
@@ -247,9 +231,7 @@ s32 main(void) {
   nya_arena_destroy(move_src);
   nya_arena_destroy(move_dst);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: free list exact-fit reuse
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* exact_fit_arena = nya_arena_create(.name = "exact_fit_arena");
 
   void* ef_a = nya_arena_alloc(exact_fit_arena, 64);
@@ -263,9 +245,7 @@ s32 main(void) {
 
   nya_arena_destroy(exact_fit_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: free list partial reuse (request smaller than free node)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* partial_fit_arena = nya_arena_create(.name = "partial_fit_arena");
 
   void* pf_a = nya_arena_alloc(partial_fit_arena, 256);
@@ -282,9 +262,7 @@ s32 main(void) {
 
   nya_arena_destroy(partial_fit_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: defragmentation merges adjacent free blocks
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* defrag_arena = nya_arena_create(.name = "defrag_arena", .defragmentation_enabled = true, .defragmentation_threshold = 2);
 
   void* d_a = nya_arena_alloc(defrag_arena, 64);
@@ -303,9 +281,7 @@ s32 main(void) {
 
   nya_arena_destroy(defrag_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stress test with many allocations and frees
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* stress_arena = nya_arena_create(.name = "stress_arena", .region_size = nya_kibyte_to_byte(16));
 
   void* stress_ptrs[100];
@@ -325,9 +301,7 @@ s32 main(void) {
 
   nya_arena_destroy(stress_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: realloc in-place extension (last allocation in region)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* inplace_arena = nya_arena_create(.name = "inplace_arena");
 
   u8* inplace_ptr = (u8*)nya_arena_alloc(inplace_arena, 64);
@@ -347,9 +321,7 @@ s32 main(void) {
 
   nya_arena_destroy(inplace_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: realloc requiring relocation (not last allocation)
-  // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* relocate_arena = nya_arena_create(.name = "relocate_arena");
 
   u8* reloc_a = (u8*)nya_arena_alloc(relocate_arena, 64);
@@ -368,9 +340,7 @@ s32 main(void) {
 
   nya_arena_destroy(relocate_arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: random stress test with alloc/realloc/free
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG             rng       = nya_rng_create();
     NYA_Arena*          stress    = nya_arena_create(.name = "stress_arena", .region_size = nya_kibyte_to_byte(64));

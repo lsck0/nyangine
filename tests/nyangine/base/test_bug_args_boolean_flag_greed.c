@@ -45,9 +45,7 @@ static void fixture_init(Fixture* fixture) {
   fixture->parser = (NYA_ArgParser){ .name = "test", .version = "0", .root_command = &fixture->root };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: a boolean flag does not eat the positional after it
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_boolean_flag_does_not_eat_positional(void) {
   printf("TEST: --strict followed by a filename\n");
   Fixture fixture;
@@ -64,9 +62,7 @@ NYA_INTERNAL void test_boolean_flag_does_not_eat_positional(void) {
   nya_assert(nya_string_equals(fixture.sources.values[0].as_string, "src/main.c"));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: the silent case: a positional that looks like a boolean
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_positional_that_looks_like_a_boolean(void) {
   printf("TEST: --strict followed by a positional that parses as a boolean\n");
   /*
@@ -87,9 +83,7 @@ NYA_INTERNAL void test_positional_that_looks_like_a_boolean(void) {
   nya_assert(nya_string_equals(fixture.sources.values[0].as_string, "0"));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: --flag=value is the explicit spelling, in both directions
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_attached_false(void) {
   printf("TEST: --strict=false and --strict=true\n");
   Fixture fixture;
@@ -119,9 +113,7 @@ NYA_INTERNAL void test_attached_true(void) {
   nya_assert(fixture.strict.value.as_b8);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: a nonsense attached value is refused rather than ignored
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_nonsense_attached_value_is_refused(void) {
   printf("TEST: --strict=maybe\n");
   Fixture fixture;
@@ -137,9 +129,7 @@ NYA_INTERNAL void test_nonsense_attached_value_is_refused(void) {
   nya_assert(!error.ok, "an explicit value that is not a boolean is rejected");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: non-boolean flags still take a following value, and now an attached one too
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_typed_flag_takes_following_value(void) {
   printf("TEST: --jobs 8 and --jobs=8\n");
   Fixture fixture;
@@ -169,9 +159,7 @@ NYA_INTERNAL void test_typed_flag_takes_attached_value(void) {
   nya_assert(fixture.sources.values_count == 2, "both positionals survive");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: a typed flag with nothing after it is still an error
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_typed_flag_with_nothing_after_it(void) {
   printf("TEST: --jobs at the end of the line\n");
   Fixture fixture;
@@ -185,9 +173,7 @@ NYA_INTERNAL void test_typed_flag_with_nothing_after_it(void) {
   nya_assert(!error.ok, "a flag that needs a value and has none is refused");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: an unknown flag name is still unknown once the value is split off
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_unknown_flag_name_is_still_unknown(void) {
   printf("TEST: --nonsense=1\n");
   Fixture fixture;
@@ -203,9 +189,7 @@ NYA_INTERNAL void test_unknown_flag_name_is_still_unknown(void) {
   nya_assert(!error.ok, "an unknown flag is still rejected");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TEST: an empty attached value, and one containing an '='
-// ─────────────────────────────────────────────────────────────────────────────
 NYA_INTERNAL void test_empty_attached_value(void) {
   printf("TEST: --jobs= and a value with an '=' in it\n");
   Fixture fixture;

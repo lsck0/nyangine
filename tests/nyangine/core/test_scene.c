@@ -167,9 +167,7 @@ s32 main(void) {
 
     build_world();
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a world written, read back and written again is the same document
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: scene round trip\n");
 
     NYA_World* replica = nya_world_create();
@@ -193,9 +191,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the hierarchy survives, by name rather than by handle
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: hierarchy round trip\n");
     {
         NYA_World* previous = nya_world_set(origin);
@@ -232,9 +228,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: sparse slots, which is what a world that has despawned looks like
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: sparse slots round trip\n");
     {
         (void)nya_world_set(origin);
@@ -295,9 +289,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a pending despawn is not a thing a scene holds
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: despawning is not persisted\n");
     {
         (void)nya_world_set(origin);
@@ -316,9 +308,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a name longer than a record holds is cut rather than lost
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: over-long names\n");
     {
         (void)nya_world_set(replica);
@@ -340,9 +330,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: through a save file, which is the pair a game actually calls
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: nya_scene_save and nya_scene_load\n");
     {
         NYA_EXPECT(nya_scene_save(origin, "scenes/slot0.nya", NYA_SAVE_FLAGS_DATA));
@@ -364,9 +352,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: save data is not meant to be edited, and says so when it has been
-    // ─────────────────────────────────────────────────────────────────────────────
     printf("TEST: a tampered save is refused\n");
     {
         NYA_String* path = nya_save_path(arena, "scenes/slot0.nya");

@@ -41,9 +41,7 @@ s32 main(void) {
 
   nya_log_info("SQLite %s, sqlite-vec %s", nya_sql_version(), nya_sql_vec_version());
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sqlite-vec is linked in, and reports the version the submodule is at
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -57,9 +55,7 @@ s32 main(void) {
                nya_sql_vec_version());
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: vec_* scalar functions compute what they claim to
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -79,9 +75,7 @@ s32 main(void) {
     nya_assert(length.as_s64 == 3, "expected 3 elements, got " FMTs64, length.as_s64);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a vec0 table answers a k nearest neighbour query in the right order
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -121,9 +115,7 @@ s32 main(void) {
     nya_assert(fabs(distance->as_f64) < 0.0001, "expected 0, got %f", distance->as_f64);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sqlean's statistics, which SQLite has none of
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -136,9 +128,7 @@ s32 main(void) {
     nya_assert(percentile.as_f64 > 8.0, "the 90th percentile of 1..10 should be near 10, got %f", percentile.as_f64);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sqlean's text, math, fuzzy, time, unicode and uuid extensions
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -173,9 +163,7 @@ s32 main(void) {
     nya_assert(strlen(now.as_string) > 10, "expected an ISO timestamp, got '%s'", now.as_string);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sqlean's define, which has to be registered last to work at all
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
@@ -191,9 +179,7 @@ s32 main(void) {
     nya_assert(strcmp(result.as_string, "cba") == 0, "got %s", result.as_string);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: every connection gets them, not only the first
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // sqlite3_auto_extension applies to connections opened *after* registration, so a bug that
     // registered once against the first handle rather than globally would pass every test above and
@@ -209,9 +195,7 @@ s32 main(void) {
     nya_assert(strcmp(scalar(second, arena, "SELECT text_reverse('ab') AS t", "t").as_string, "ba") == 0);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the extensions that are deliberately not bundled are not there
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);

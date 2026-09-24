@@ -142,9 +142,7 @@ s32 main(void) {
   }
   printf("  %s\n", nya_check_failures() == 0 ? "PASSED" : "FAILED");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a genome is at distance zero from itself
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: distance identities\n");
   {
     NYA_Neat* neat = nya_nn_neat_create((NYA_NeatConfig){

@@ -197,9 +197,7 @@ s32 main(void) {
   Buffer cose = { .bytes = (u8[512]){0}, .length = 0, .capacity = 512 };
   put_cose_ed25519(&cose, key_pair.public_key.bytes);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: everything answers cleanly with the tables closed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     nya_check(!nya_account_passkey_register_begin(arena, 1, &challenge).ok, "no challenge without the tables");
@@ -212,9 +210,7 @@ s32 main(void) {
   NYA_AccountUser user = {0};
   NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &user));
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: registration stores the Ed25519 public key
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_register_begin(arena, user.id, &challenge));
@@ -252,9 +248,7 @@ s32 main(void) {
     nya_check(count == 1, "the credential is listed once");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a re-registration of the same credential id is refused
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_register_begin(arena, user.id, &challenge));
@@ -274,9 +268,7 @@ s32 main(void) {
     nya_check(result.kind == NYA_ERROR_ALREADY_EXISTS, "a duplicate credential id is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a valid assertion verifies, and the counter climbs
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_assert_begin(arena, user.id, &challenge));
@@ -309,9 +301,7 @@ s32 main(void) {
     nya_check(verified.sign_count == 1, "the counter moved to what the authenticator reported");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a wrong signature is refused (and the counter does not move)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_assert_begin(arena, user.id, &challenge));
@@ -347,9 +337,7 @@ s32 main(void) {
     nya_check(count == 1 && list[0].sign_count == 1, "a refused assertion left the counter where it was");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a mismatched challenge, origin, and RP id hash are each refused
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A syntactically valid but never-issued challenge.
     const char *bogus = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -426,9 +414,7 @@ s32 main(void) {
     nya_check(!nya_account_passkey_assert_finish(arena, user.id, &request, nullptr).ok, "a mismatched RP id hash is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a clear user-present flag is refused, even with a valid signature
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_assert_begin(arena, user.id, &challenge));
@@ -454,9 +440,7 @@ s32 main(void) {
     nya_check(!nya_account_passkey_assert_finish(arena, user.id, &request, nullptr).ok, "an assertion with no user present is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a counter that did not climb is refused as a clone
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_assert_begin(arena, user.id, &challenge));
@@ -483,9 +467,7 @@ s32 main(void) {
     nya_check(!nya_account_passkey_assert_finish(arena, user.id, &request, nullptr).ok, "a non-incrementing counter is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an ES256 (-7) credential is refused as unsupported, not mis-verified
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountUser bob = {0};
     NYA_EXPECT(nya_account_create(arena, "bob", PASSWORD, &bob));
@@ -521,10 +503,8 @@ s32 main(void) {
     nya_check(!has, "and nothing was stored for it");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed CBOR and short buffers are refused without reading out of bounds
   // (the sanitizer build is what proves the "without reading out of bounds" half)
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_register_begin(arena, user.id, &challenge));
@@ -591,9 +571,7 @@ s32 main(void) {
     nya_check(!nya_account_passkey_register_finish(arena, user.id, &request, nullptr).ok, "a non-JSON clientDataJSON is refused");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a credential can be removed, and only by its owner
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskey *list = nullptr;
     u32 count = 0;
@@ -611,9 +589,7 @@ s32 main(void) {
     nya_check(!has, "and once removed it is gone");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: expired challenges are pruned on demand
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_AccountPasskeyChallenge challenge = {0};
     NYA_EXPECT(nya_account_passkey_assert_begin(arena, user.id, &challenge));

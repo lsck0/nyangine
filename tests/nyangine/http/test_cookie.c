@@ -30,9 +30,7 @@ s32 main(void) {
     NYA_HttpRequest* request = nya_arena_alloc(arena, sizeof(NYA_HttpRequest));
     nya_assert(request != nullptr);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a well formed header reads back exactly, in order.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         with_cookie_header(request, "__Host-session=abc.123; theme=dark; __Secure-csrf=Zm9v");
 
@@ -56,9 +54,7 @@ s32 main(void) {
         nya_check(!nya_http_cookie_at(request, 3, &name, &value), "and stops at the count");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a value may be empty, which is how a browser reports a cleared cookie.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         with_cookie_header(request, "session=");
 
@@ -67,9 +63,7 @@ s32 main(void) {
         nya_check(value.size == 0, "and it is empty, got %llu bytes", (unsigned long long)value.size);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: every header this parser refuses, and it refuses the whole header.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         static const NYA_ConstCString REFUSED[] = {
             "",                        // nothing at all
@@ -110,9 +104,7 @@ s32 main(void) {
         nya_check(nya_http_cookie_count(request) == 0, "and no count");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the bounds, at the edge and one past it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         char header[NYA_HTTP_MAX_HEADER_VALUE] = { 0 };
 
@@ -134,9 +126,7 @@ s32 main(void) {
         nya_check(count == 0, "and reads nothing, since the pair that matters may be the last one");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: writing one, and the attributes that go with it.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8 body[16] = { 0 };
 
@@ -176,9 +166,7 @@ s32 main(void) {
         nya_check(strstr(response.headers[0].value, "Secure") == nullptr, "and nothing it did not ask for: '%s'", response.headers[0].value);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a prefix a browser enforces is enforced here, where it can still be seen.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u8 body[16] = { 0 };
 

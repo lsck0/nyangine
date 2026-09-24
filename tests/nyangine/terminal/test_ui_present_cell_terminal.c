@@ -77,9 +77,7 @@ s32 main(void) {
         .text    = NYA_UI_TEXT_BODY,
     };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the screen the presenter drew is the screen the terminal holds
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -93,9 +91,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a cell the UI never drew into is left to whatever else the frame drew
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 
@@ -111,9 +107,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: and a cell it did draw into is the UI's, whatever was under it
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_render2d_terminal_frame_begin(window, NYA_COLOR_BLACK);
 

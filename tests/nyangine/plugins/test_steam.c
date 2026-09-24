@@ -262,9 +262,7 @@ static const NYA_SteamBackend FAKE_BACKEND = {
 s32 main(void) {
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: with no backend at all, every call answers rather than crashing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The case every build without NYA_PLUGIN_STEAM is in, and the one a game on a machine with no
@@ -280,9 +278,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the fake is connected to, and who is signed in comes back
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     fake = (typeof(fake)){ 0 };
 
@@ -298,9 +294,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the social facade answers with the Steam account when Steam is the provider
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_check(nya_social_user_name()[0] == '\0', "before the facade runs it knows nobody");
 
@@ -317,9 +311,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: achievements reach the client with the name they were given
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_steam_achievement_set("first_light"));
 
@@ -338,9 +330,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stats round trip in both widths
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EXPECT(nya_steam_stat_set_int("crates_broken", 42));
     nya_check(nya_steam_stat_get_int("crates_broken") == 42, "an integer stat round trips, got %d", nya_steam_stat_get_int("crates_broken"));
@@ -355,9 +345,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the cloud writes, reads back what was written, and forgets on delete
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const u8 payload[] = { 'n', 'y', 'a', 0x00, 0x7F, 0xFF };
 
@@ -387,9 +375,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a lobby search reaches the client and its answer is read from the decoder
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * The list is filled by the callback Steam sends when the search finishes, so the test sends it the
@@ -416,9 +402,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: inside a lobby, members, the limit, member data and invites reach it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     const NYA_SteamId lobby  = { .value = FAKE_LOBBY_ID };
     const NYA_SteamId self   = { .value = FAKE_USER_ID };
@@ -452,9 +436,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a client that refuses produces an error, not a quiet success
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     fake.refuse = true;
 
@@ -475,9 +457,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_system_steam_deinit();
   nya_check(fake.disconnects == 1, "the client is disconnected exactly once, got " FMTu32, fake.disconnects);
 

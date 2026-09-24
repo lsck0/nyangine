@@ -82,9 +82,7 @@ s32 main(void) {
   defer nya_system_callback_deinit();
   defer nya_system_settings_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: volumes start at full and clamp
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: volumes\n");
   {
     for (u32 channel = 0; channel < NYA_VOLUME_CHANNEL_COUNT; channel++) {
@@ -103,9 +101,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a name too long is cut, and never inside a character
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: player name\n");
   {
     nya_assert(nya_settings_player_name()[0] == '\0', "no name until one is picked");
@@ -118,9 +114,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: master scales the others, and does not scale itself
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: effective volume\n");
   {
     nya_settings_reset();
@@ -139,9 +133,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: binding, rebinding and unbinding
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: binding\n");
   {
     nya_settings_reset();
@@ -171,9 +163,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: rebinding replaces, the way a settings screen expects
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rebinding\n");
   {
     nya_settings_reset();
@@ -212,9 +202,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pressed / just_pressed / just_released over a frame
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: action edges\n");
   {
     nya_settings_reset();
@@ -242,9 +230,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a chord needs its modifier
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: chords\n");
   {
     nya_settings_reset();
@@ -270,12 +256,10 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an unwanted modifier suppresses a plain binding
   //
   // This is the reason the match is exact rather than "at least these": otherwise a bare W would
   // fire in the middle of typing Ctrl+W.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: extra modifiers suppress\n");
   {
     nya_settings_reset();
@@ -305,9 +289,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: lock keys are keyboard state, not part of a chord
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: lock keys ignored\n");
   {
     nya_settings_reset();
@@ -322,9 +304,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: release fires even when the modifier was let go first
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: release ignores modifiers\n");
   {
     nya_settings_reset();
@@ -342,9 +322,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: either binding satisfies the action
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: alternative bindings\n");
   {
     nya_settings_reset();
@@ -364,9 +342,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: settings round-trip through a file, by name rather than by number
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_settings_reset();
 
@@ -426,9 +402,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the settings file is text a human can read and edit
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena* arena = nya_arena_create(.name = "test_settings_readback");
     defer nya_arena_destroy(arena);
@@ -449,9 +423,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: graphics settings clamp, survive a round trip and only turn features off
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: graphics\n");
   {
     nya_settings_reset();
@@ -509,9 +481,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a hand edited file keeps everything the edit did not break
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: hand edited settings\n");
   {
     nya_settings_reset();
@@ -571,11 +541,9 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a value that is in range for its type but not for its meaning is
   //       corrected out loud, naming the key, what was in the file, and what
   //       was kept
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: out of range settings\n");
   {
     nya_settings_reset();
@@ -642,9 +610,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a settings file that is not a settings file at all
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: unreadable settings\n");
   {
     NYA_Arena* arena = nya_arena_create(.name = "test_settings_garbage");
@@ -668,9 +634,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a save path cannot escape the save root
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena* arena = nya_arena_create(.name = "test_settings_escape");
     defer nya_arena_destroy(arena);

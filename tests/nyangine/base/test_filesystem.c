@@ -45,89 +45,67 @@ s32 main(void) {
 
     NYA_Error result;
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Files should not exist initially
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_assert(!nya_filesystem_exists(test_file_path));
     nya_assert(!nya_filesystem_exists(test_file_copy_path));
     nya_assert(!nya_filesystem_exists(test_file_moved_path));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Write and read basic file
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_file_write(test_file_path, "Hello, Nyangine!"));
     nya_assert(nya_filesystem_exists(test_file_path));
     NYA_EXPECT(nya_file_read(test_file_path, &file_content));
     nya_assert(nya_string_equals(&file_content, "Hello, Nyangine!"));
     nya_string_clear(&file_content);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Append to file
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_file_append(test_file_path, " Appended text."));
     NYA_EXPECT(nya_file_read(test_file_path, &file_content));
     nya_assert(nya_string_equals(&file_content, "Hello, Nyangine! Appended text."));
     nya_string_clear(&file_content);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Copy file
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_filesystem_copy(test_file_path, "test_file_copy.txt"));
     nya_assert(nya_filesystem_exists(test_file_copy_path));
     NYA_EXPECT(nya_file_read(test_file_copy_path, &copied_file_content));
     nya_assert(nya_string_equals(&copied_file_content, "Hello, Nyangine! Appended text."));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Move/rename file
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_filesystem_move(test_file_copy_path, test_file_moved_path));
     nya_assert(!nya_filesystem_exists(test_file_copy_path));
     nya_assert(nya_filesystem_exists(test_file_moved_path));
     NYA_EXPECT(nya_file_read(test_file_moved_path, &moved_file_content));
     nya_assert(nya_string_equals(&moved_file_content, "Hello, Nyangine! Appended text."));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Delete files
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_assert(!nya_filesystem_exists(test_file_copy_path));
     NYA_EXPECT(nya_filesystem_delete(test_file_path));
     nya_assert(!nya_filesystem_exists(test_file_path));
     NYA_EXPECT(nya_filesystem_delete(test_file_moved_path));
     nya_assert(!nya_filesystem_exists(test_file_moved_path));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Non-existent file operations
-    // ─────────────────────────────────────────────────────────────────────────────
     nya_assert(!nya_filesystem_exists("nonexistent_file_12345.txt"));
 
     NYA_String nonexistent_content = *nya_string_create(nya_arena_global);
     NYA_Error  read_result         = nya_file_read("nonexistent_file_12345.txt", &nonexistent_content);
     nya_assert(read_result.kind == NYA_ERROR_NOT_FOUND);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Copy non-existent source fails
-    // ─────────────────────────────────────────────────────────────────────────────
     result = nya_filesystem_copy("nonexistent_src_12345.txt", "nonexistent_dst_12345.txt");
     nya_assert(!result.ok);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Move non-existent source fails
-    // ─────────────────────────────────────────────────────────────────────────────
     result = nya_filesystem_move("nonexistent_src_12345.txt", "nonexistent_dst_12345.txt");
     nya_assert(!result.ok);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Last modified on non-existent file returns NOT_FOUND
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         u64       ts = 0;
         NYA_Error r  = nya_filesystem_last_modified("nonexistent_file_12345.txt", &ts);
         nya_assert(r.kind == NYA_ERROR_NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Write empty content
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_ConstCString empty_file_path = "test_empty_file.txt";
     NYA_EXPECT(nya_file_write(empty_file_path, ""));
     nya_assert(nya_filesystem_exists(empty_file_path));
@@ -136,9 +114,7 @@ s32 main(void) {
     nya_assert(nya_string_is_empty(&empty_content));
     NYA_EXPECT(nya_filesystem_delete(empty_file_path));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Write and read binary-like content
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_ConstCString binary_file_path = "test_binary_file.txt";
     NYA_EXPECT(nya_file_write(binary_file_path, "Line1\nLine2\nLine3\tTabbed"));
     NYA_String binary_content = *nya_string_create(nya_arena_global);
@@ -148,9 +124,7 @@ s32 main(void) {
     nya_assert(nya_string_contains(&binary_content, "\t"));
     NYA_EXPECT(nya_filesystem_delete(binary_file_path));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Overwrite existing file
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_ConstCString overwrite_path = "test_overwrite.txt";
     NYA_EXPECT(nya_file_write(overwrite_path, "Original content"));
     NYA_EXPECT(nya_file_write(overwrite_path, "New content"));
@@ -159,9 +133,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(&overwrite_content, "New content"));
     NYA_EXPECT(nya_filesystem_delete(overwrite_path));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Multiple appends
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_ConstCString append_path = "test_multi_append.txt";
     NYA_EXPECT(nya_file_write(append_path, "Start"));
     NYA_EXPECT(nya_file_append(append_path, " Middle"));
@@ -171,9 +143,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(&append_content, "Start Middle End"));
     NYA_EXPECT(nya_filesystem_delete(append_path));
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Last modified timestamp
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_ConstCString timestamp_path = "test_timestamp.txt";
     NYA_EXPECT(nya_file_write(timestamp_path, "Testing timestamps"));
 
@@ -193,9 +163,7 @@ s32 main(void) {
     result            = nya_filesystem_last_modified("nonexistent_12345.txt", &bad_timestamp);
     nya_assert(!result.ok);
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: Large file content
-    // ─────────────────────────────────────────────────────────────────────────────
     NYA_ConstCString large_file_path = "test_large_file.txt";
     NYA_String       large_content   = *nya_string_create_with_capacity(nya_arena_global, 40000);
     for (u32 i = 0; i < 1000; ++i) { nya_string_extend(&large_content, "Line of content with some data. "); }

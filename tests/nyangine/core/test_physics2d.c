@@ -53,9 +53,7 @@ s32 main(void) {
 
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a fresh world has nothing in it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_physics2d_body_count() == 0, "no bodies before anything is attached");
     nya_assert(nya_physics2d_enabled(), "the world starts running");
@@ -67,9 +65,7 @@ s32 main(void) {
     nya_assert(gravity.x == 0.0F);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: attaching a body, and the entity that carries it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle crate = nya_entity_spawn(.name = "crate", .position = { 100.0F, 0.0F, 0.0F });
 
@@ -98,9 +94,7 @@ s32 main(void) {
     nya_assert(nya_physics2d_body_count() == 0, "despawning destroys the body the entity carried");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a dynamic body falls, and the entity follows it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle crate = nya_entity_spawn(.name = "faller", .position = { 0.0F, 0.0F, 0.0F });
     nya_assert(nya_physics2d_body_attach(crate, .size = { 32.0F, 32.0F }));
@@ -122,9 +116,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the entity's own integration steps aside for a body
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Two entities given the same upward velocity. One is simulated and one is not, so the plain
     // one keeps rising forever and the simulated one is pulled back. Without the skip in
@@ -149,9 +141,7 @@ s32 main(void) {
     nya_entity_despawn(scripted);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a box lands on a chain and stays on it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // A flat floor at y 200. Four points, which is the minimum an open chain accepts.
     f32x2 floor_points[] = {
@@ -198,9 +188,7 @@ s32 main(void) {
     nya_entity_despawn(floor);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: impulses, teleports and the point query
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle crate = nya_entity_spawn(.name = "pushed", .position = { 0.0F, 0.0F, 0.0F });
     nya_assert(nya_physics2d_body_attach(crate, .size = { 32.0F, 32.0F }, .gravity_scale = 0.0F));
@@ -233,9 +221,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: detaching leaves the entity, and hands motion back to it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle crate = nya_entity_spawn(.name = "detached", .velocity = { 60.0F, 0.0F, 0.0F });
     nya_assert(nya_physics2d_body_attach(crate, .size = { 32.0F, 32.0F }));
@@ -261,9 +247,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a paused world does not advance
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle crate = nya_entity_spawn(.name = "paused", .position = { 0.0F, 0.0F, 0.0F });
     nya_assert(nya_physics2d_body_attach(crate, .size = { 32.0F, 32.0F }));
@@ -281,9 +265,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nonsense dimensions are refused rather than built
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle crate = nya_entity_spawn(.name = "malformed");
 
@@ -299,9 +281,7 @@ s32 main(void) {
     nya_entity_despawn(crate);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a hard landing is reported as a hit, and a settled world is not
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     u32                   count = 0;
     const NYA_PhysicsHit* hits  = nya_physics2d_hits(&count);
@@ -373,9 +353,7 @@ s32 main(void) {
     nya_entity_despawn(floor);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the hit threshold
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32 original = nya_physics2d_hit_threshold();
     nya_assert(original > 0.0F, "there is a threshold by default, or every resting contact is a hit");
@@ -391,9 +369,7 @@ s32 main(void) {
     nya_physics2d_hit_threshold_set(original);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: clearing the world takes every body with it
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     for (u32 i = 0; i < 16; i++) {
       NYA_EntityHandle crate = nya_entity_spawn(.name = "bulk", .position = { (f32)i * 40.0F, 0.0F, 0.0F });
@@ -408,9 +384,7 @@ s32 main(void) {
     nya_assert(nya_physics2d_body_count() == 0, "clearing the entity table empties the physics world too");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: grounded
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     f32x2 floor_points[] = {
       { -400.0F, 200.0F },
@@ -447,9 +421,7 @@ s32 main(void) {
     nya_entity_despawn(floor);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a pickup is a sensor, and its overlap arrives through on_collision
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     pickup_enters = 0;
     pickup_exits  = 0;
@@ -480,9 +452,7 @@ s32 main(void) {
     nya_entity_despawn(coin);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: despawning inside a sensor still produces the exit
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     pickup_enters = 0;
     pickup_exits  = 0;

@@ -17,9 +17,7 @@ static NYA_Object* roundtrip(NYA_Arena* arena, const NYA_Object* object, NYA_Ser
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_serde");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_serde_detect_format
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_serde_detect_format\n");
   {
     NYA_ConstCString json_doc  = "{ \"a\": 1 }";
@@ -43,9 +41,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSON round trip, with the documented lossy type mapping
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSON round trip\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -75,9 +71,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSON pretty and compact carry the same data
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSON pretty vs compact\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -103,9 +97,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSON nesting, objects and arrays
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSON nesting\n");
   {
     NYA_Object* inner = nya_object_create(arena);
@@ -135,9 +127,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSON string escaping survives a round trip
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSON escaping\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -153,9 +143,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed JSON is reported, not accepted
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: malformed JSON\n");
   {
     NYA_ConstCString bad[] = {
@@ -180,9 +168,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nesting deeper than NYA_SERDE_JSON_DEPTH_MAX fails rather than blowing the stack
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSON depth limit\n");
   {
     NYA_String* deep = nya_string_create(arena);
@@ -197,9 +183,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an empty object round trips through both formats
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: empty object, both formats\n");
   {
     NYA_Object* empty = nya_object_create(arena);
@@ -212,12 +196,10 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: detection agrees with what each serializer actually produces
   //
   // The point of the guesser is that a caller can hand it bytes off disk without being told which
   // format they are, so it has to recognise this build's own output.
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: detection agrees with serialization\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -239,9 +221,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSONC accepts comments
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSONC comments\n");
   {
     NYA_ConstCString documents[] = {
@@ -267,9 +247,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSONC accepts one trailing comma
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSONC trailing commas\n");
   {
     NYA_Object* out = nullptr;
@@ -293,9 +271,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: strict JSON is unchanged by any of this
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSON stays strict\n");
   {
     NYA_ConstCString rejected_by_json[] = {
@@ -315,9 +291,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: JSONC is a superset, and writes plain JSON
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSONC superset and output\n");
   {
     NYA_Object* obj = nya_object_create(arena);
@@ -343,9 +317,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a slash that is not a comment stays data
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: slashes inside strings\n");
   {
     NYA_ConstCString document = "{ \"url\": \"http://example.com/a\", \"path\": \"a/*b*/c\" }";
@@ -357,9 +329,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: detection reports JSONC only when it can tell
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: JSONC detection\n");
   {
     NYA_ConstCString leading_line  = "// note\n{ \"a\": 1 }";
@@ -377,7 +347,6 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: dispatch rejects a format it does not know
   // ─────────────────────────────────────────────────────────────────────────────""
   printf("TEST: unknown format panics\n");
@@ -393,9 +362,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
-  // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);
 
   printf("PASSED: test_serde\n");

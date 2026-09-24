@@ -28,9 +28,7 @@ s32 main(void) {
   // fixed seed, so a failing trial is the same trial on every run
   NYA_RNG rng = nya_rng_create(.seed = "20240607");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: euler round trip away from the poles
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: euler round trip\n");
   {
     for (u32 trial = 0; trial < 500; trial++) {
@@ -59,9 +57,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: rotate agrees with the matrix, and preserves length
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rotate vs matrix\n");
   {
     for (u32 trial = 0; trial < 500; trial++) {
@@ -91,9 +87,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: matrix round trip, inverse, and conjugate
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: quaternion algebra\n");
   {
     for (u32 trial = 0; trial < 500; trial++) {
@@ -131,9 +125,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: slerp and nlerp endpoints
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: interpolation endpoints\n");
   {
     NYA_Quaternion a = nya_quaternion_from_euler(0.2F, 0.4F, -0.3F);
@@ -159,9 +151,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: from_to and look
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: from_to and look\n");
   {
     for (u32 trial = 0; trial < 300; trial++) {
@@ -194,9 +184,7 @@ s32 main(void) {
   }
   printf("  done\n");
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: colour space round trips
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: colour round trips\n");
   {
     for (u32 trial = 0; trial < 2000; trial++) {

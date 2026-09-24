@@ -59,9 +59,7 @@ s32 main(void) {
 
   f32x2 center = { 400.0F, 300.0F };
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: with no camera ever set, a ray hits nothing rather than something wrong
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Render3DRay ray = nya_render3d_screen_ray(window, center);
 
@@ -71,9 +69,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the ray survives nya_render3d_end
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render3d_begin(window, camera);
     nya_render3d_end(window);
@@ -93,9 +89,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: off-centre pixels aim off-centre, the right way round
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render3d_begin(window, camera);
     nya_render3d_end(window);
@@ -121,9 +115,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the whole click path finds the cube and misses when it should
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_EntityHandle cube = nya_entity_spawn(.name = "cube", .type = KIND_CUBE, .position = { 0.0F, 0.0F, 0.0F });
 
@@ -161,9 +153,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: an orthographic camera moves the ray's origin, not its direction
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_render3d_begin_orthographic(window, (NYA_Camera3DOrthographic){
       .position = { 0.0F, 0.0F, 4.0F },

@@ -56,17 +56,13 @@ s32 main(void) {
 
   defer nya_system_callback_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a fresh simulation has run no ticks and holds nothing
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(nya_sim_tick() == 0, "no tick has happened yet");
     nya_assert(nya_sim_records()->length == 0, "and nothing has been recorded");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a deferred command waits for the barrier
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     applied_count = 0;
     applied_value = 0;
@@ -84,9 +80,7 @@ s32 main(void) {
     nya_assert(applied_value == 42, "and it received its data, got %d", applied_value);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the command's data is copied, not referenced
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     applied_count = 0;
     applied_value = 0;
@@ -105,9 +99,7 @@ s32 main(void) {
     nya_assert(applied_value == 7, "the copy was taken when the command was queued, got %d", applied_value);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: commands run in the order they were queued
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     applied_count = second_count = 0;
 
@@ -126,9 +118,7 @@ s32 main(void) {
     nya_assert(applied_value == 3, "the last apply_command to run was the one queued last, got %d", applied_value);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the queue is emptied by the barrier, so nothing runs twice
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     applied_count = 0;
 
@@ -144,9 +134,7 @@ s32 main(void) {
     nya_assert(applied_count == 1, "the queue was drained, got " FMTu32, applied_count);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: records accumulate and carry their tick
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_system_sim_end_frame();  // clear whatever earlier blocks left behind
 
@@ -166,9 +154,7 @@ s32 main(void) {
     nya_assert(*(u32*)records->items[0].data == 0xABCD, "the recorded bytes survived");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: end of frame clears the records
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     // Records live in the frame arena and describe one frame. Carrying them over would mean an
     // observer sees the same event on every subsequent frame.
@@ -179,9 +165,7 @@ s32 main(void) {
     nya_assert(nya_sim_records()->length == 0, "the frame ended, so its record log is gone");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: observers see the frame's records, with their user data
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     observed_records = observer_b_calls = 0;
     u32 counter      = 0;
@@ -213,9 +197,7 @@ s32 main(void) {
     nya_assert(observed_records == before, "a cleared observer is not called again");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a record with no payload is allowed
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_system_sim_end_frame();
 

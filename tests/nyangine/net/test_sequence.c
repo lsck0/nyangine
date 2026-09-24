@@ -14,9 +14,7 @@ s32 main(void) {
   nya_backtrace_init();
   defer nya_backtrace_deinit();
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: which of two wrapping sequence numbers is newer
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: sequence comparison across the wrap\n");
   {
     // The ordinary direction.
@@ -71,9 +69,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the acknowledgement bitfield
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the ack bitfield records what arrived\n");
   {
     /*
@@ -262,9 +258,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: duplicate suppression
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the seen window suppresses duplicates without eating fresh ids\n");
   {
     /*
@@ -345,9 +339,7 @@ s32 main(void) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: reliable retirement
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: a cumulative reliable ack retires the right messages\n");
   {
     /*

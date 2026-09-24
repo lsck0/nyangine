@@ -105,9 +105,7 @@ s32 main(void) {
 
     f32x2 far_corner = { (f32)window.screen_width - 5.0F, (f32)window.screen_height - 5.0F };
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a titled panel swallows a pointer inside it, and does not claim one outside.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         panel_kind = PANEL_TITLED;
         settle();
@@ -120,9 +118,7 @@ s32 main(void) {
         nya_check(!over_after(far_corner), "and claims nothing in the far corner outside it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a draggable panel does the same (a click on it is a drag or a widget, never the world).
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         panel_kind = PANEL_DRAGGABLE;
         settle();
@@ -135,9 +131,7 @@ s32 main(void) {
         nya_check(!over_after(far_corner), "and nothing outside it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a frameless HUD takes no clicks, so it never claims the pointer.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         panel_kind = PANEL_FRAMELESS;
         settle();
@@ -149,9 +143,7 @@ s32 main(void) {
         nya_check(!over_after(inside), "a frameless overlay does not swallow a pointer over it");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the flag is cleared each input pass, so a pass with no panel claims nothing.
-    // ─────────────────────────────────────────────────────────────────────────────
     {
         panel_kind = PANEL_TITLED;
         (void)over_after((f32x2){ 10.0F, 10.0F });   // leaves the flag set for a pointer over the panel

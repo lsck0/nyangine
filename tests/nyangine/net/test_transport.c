@@ -133,9 +133,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_transport");
   defer      nya_arena_destroy(arena);
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a loopback pair is joined at creation
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: loopback pair connects and carries messages\n");
   {
     NYA_NetTransport* a = nullptr;
@@ -221,9 +219,7 @@ s32 main(void) {
     nya_net_transport_destroy(b);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: UDP over localhost: handshake, both directions, fragmentation
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: udp connects over localhost\n");
   {
     NYA_NetTransport* server = nullptr;
@@ -374,9 +370,7 @@ s32 main(void) {
     nya_net_transport_destroy(server);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: reliability actually recovers from loss
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: udp reliable delivery survives 30%% packet loss\n");
   {
     /*
@@ -449,9 +443,7 @@ s32 main(void) {
     nya_net_transport_destroy(server);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the paths a working network never takes
-  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: timeouts, keepalives and dead peers\n");
   {
     /*
@@ -952,9 +944,7 @@ s32 main(void) {
     nya_net_transport_destroy(transport);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: connecting to a name that will not resolve returns at once
-  // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
      * This used to sit inside the resolver for up to the whole connect timeout, five
