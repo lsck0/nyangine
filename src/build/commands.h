@@ -98,6 +98,13 @@ void bench_runner(NYA_ArgCommand* command);
 void check_runner(NYA_ArgCommand* command);
 
 /**
+ * Bounded model checking of the untrusted-input parsers with CBMC: proves the invariants of the
+ * harnesses under tests/cbmc for every input under a small bound. Skips with a notice when `cbmc` is not
+ * installed. See verify.c.
+ * */
+void verify_runner(NYA_ArgCommand* command);
+
+/**
  * Spell-checks the prose and code under src/, tests/, examples/ and docs/ with the `typos` tool,
  * configured by .typos.toml. Skips with a notice when `typos` is not installed. See typos.c.
  * */

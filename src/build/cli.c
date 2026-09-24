@@ -677,6 +677,12 @@ NYA_INTERNAL NYA_ArgCommand typos = {
     .handler     = &typos_runner,
 };
 
+NYA_INTERNAL NYA_ArgCommand verify = {
+    .name        = "verify",
+    .description = "Model-check the untrusted-input parsers under tests/cbmc with CBMC. Needs the `cbmc` tool; skips with a notice if absent.",
+    .handler     = &verify_runner,
+};
+
 NYA_INTERNAL NYA_ArgCommand coverage = {
     .name        = "coverage",
     .description = "Build and run the tests instrumented, report line coverage of src/nyangine, and gate on --fail-under.",
@@ -802,6 +808,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &dist,
             &check,
             &typos,
+            &verify,
             &coverage,
             &changelog,
             &sbom,

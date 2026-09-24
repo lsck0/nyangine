@@ -256,11 +256,13 @@ void _lint_rule_lexed(Lint* lint) {
 
 /*
  * Calls that bypass what the engine provides in their place. platform/ is where the engine meets the OS and may
- * use them; everything else goes through it.
+ * use them; everything else goes through it. tests/cbmc/ is the other exception: those harnesses are fed to CBMC,
+ * not linked into the engine, and CBMC's object model needs a real malloc to give a buffer an exact, nondet size
+ * so its bounds check can catch a read or write one byte past the end — the whole point of the proof.
  */
 void _lint_rule_banned_calls(Lint* lint) {
     nya_array_foreach (lint->files, file) {
-        if (file->generated || nya_string_contains(file->path, "src/nyangine/platform/")) continue;
+        if (file->generated || nya_string_contains(file->path, "src/nyangine/platform/") || nya_string_contains(file->path, "tests/cbmc/")) continue;
 
         NYA_ArrayᐸNYA_Tokenᐳ* tokens = file->lexer.tokens;
         for (u64 i = 0; i + 1 < tokens->length; i++) {
