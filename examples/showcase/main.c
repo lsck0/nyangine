@@ -1085,8 +1085,9 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
                           (NYA_Color){ 0.70F, 0.90F, 0.95F, 0.55F });
     }
 
-    // a glossy, reflective surface for the sun glint, set just before the water so it applies to it alone.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.85F, .roughness = 0.22F, .reflectance = 0.55F });
+    // a lightly glossy surface for a soft sun glint, set just before the water so it applies to it alone. Kept
+    // low: a mirror-bright slab blew the river out to white and, on an HDR display, dragged everything else dark.
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.25F, .roughness = 0.55F, .reflectance = 0.28F });
 
     NYA_Render3DWater river = {
         .flow_direction = { 1.0F, 0.0F, 0.0F },
@@ -1098,7 +1099,7 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         .shallow_color  = { 0.12F, 0.36F, 0.42F, 0.35F },
         .opacity        = 0.82F,
         .refraction     = 0.6F,
-        .foam           = 0.22F,
+        .foam           = 0.12F,
     };
 
     // the same wind field hurries the flow and lifts the chop: water shares the air with foliage and pollen.
@@ -1118,9 +1119,10 @@ void showcase_layer_on_render(NYA_Window* window) {
     // fit the sun's cascades around the valley centre, ahead of the camera path. Tuned like cube3d's strength.
     nya_render3d_shadow_set(window, (NYA_Render3DShadowFit){ .near_distance = 0.1F, .range = 180.0F, .strength = 0.45F });
 
-    // HDR so the sunlit surf and the shafts lift above one for the bloom and the beams to catch; the output pass
-    // tonemaps it back down, the last stage of the cube3d post stack.
-    nya_render_output_set(window, (NYA_RenderOutput){ .hdr = true });
+    // SDR output, deliberately: forcing HDR mapped this SDR-authored scene to near-black on an HDR display (the
+    // sky and shaded ground vanished, only the bright water survived). Bloom, light shafts and the scene tonemap
+    // all still run in SDR — the cube3d demo likewise leaves HDR to the config rather than forcing it on.
+    nya_render_output_set(window, (NYA_RenderOutput){ .hdr = false });
 
     // the scene target keeps its depth, for the 3D pass and so the water and crystal refraction read a resolved image.
     state->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
