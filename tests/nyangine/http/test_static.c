@@ -277,6 +277,30 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a .wasm file mounts and is served as application/wasm, the CSR bundle's module. Its suffix
+    // is in the table (unlike page.exe above), so the browser gets the type WebAssembly.instantiateStreaming
+    // requires rather than a refusal.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_ConstCString   asset = scratch_path(arena, "app.wasm");
+        NYA_HttpStaticFile file  = {
+            .asset = asset,
+            .path  = "/app.wasm",
+            .data  = SOME_BYTES,
+            .size  = SOME_BYTES_SIZE,
+        };
+
+        NYA_Error mounted = nya_http_static_mount((NYA_HttpStaticConfig){ .files = &file, .count = 1, .root = SCRATCH });
+        nya_assert(mounted.ok, "a .wasm file mounts: %s", (NYA_ConstCString)mounted.message);
+        nya_assert(nya_http_static_file_count() == 1, "one file, got " FMTu32, nya_http_static_file_count());
+
+        NYA_ConstCString hashed = nya_http_static_url(asset);
+        nya_assert(hashed != nullptr && nya_string_ends_with(nya_string_from(arena, hashed), ".wasm"), "the .wasm suffix survives the hash, got '%s'", hashed);
+
+        nya_http_static_unmount();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an absolute path, and a root the handle only appears to be under.
     // ─────────────────────────────────────────────────────────────────────────────
     {

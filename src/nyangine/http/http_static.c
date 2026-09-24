@@ -120,6 +120,7 @@ NYA_INTERNAL const _NYA_HttpStaticSuffix _NYA_HTTP_STATIC_SUFFIXES[] = {
     { ".html",  NYA_HTTP_MEDIA_HTML       },
     { ".css",   NYA_HTTP_MEDIA_CSS        },
     { ".js",    NYA_HTTP_MEDIA_JAVASCRIPT },
+    { ".wasm",  NYA_HTTP_MEDIA_WASM       },
     { ".json",  NYA_HTTP_MEDIA_JSON       },
     { ".svg",   NYA_HTTP_MEDIA_SVG        },
     { ".png",   NYA_HTTP_MEDIA_PNG        },
