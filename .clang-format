@@ -37,7 +37,7 @@ BreakAfterAttributes: Always
 BreakArrays: true
 ColumnLimit: 150
 Cpp11BracedListStyle: false
-IncludeBlocks: Regroup
+IncludeBlocks: Preserve
 IncludeIsMainRegex: "$^"
 IndentCaseLabels: true
 IncludeCategories:
@@ -65,7 +65,11 @@ IncludeCategories:
     SortPriority: 8
 IndentWidth: 4
 PointerAlignment: Left
-SortIncludes: CaseInsensitive
+# Never: the includes are hand-ordered by dependency, not alphabetically. A unity build
+# pulls translation units in with `#include "*.c"`, and reordering those by name would compile
+# a file before the one it needs. The IncludeCategories above are kept for reference but are
+# inert while sorting is off; do not turn sorting back on without checking every `#include "*.c"`.
+SortIncludes: Never
 AttributeMacros:
   - __attr_allow_unused
   - __attr_cleanup
@@ -121,3 +125,7 @@ TypenameMacros:
   - nya_derive_maybe
   - nya_derive_ring
   - nya_template
+
+# The literate style leaves a double blank line between some sections. Keep up to two rather than
+# collapsing them to one, so a reformat does not fight the deliberate spacing.
+MaxEmptyLinesToKeep: 2
