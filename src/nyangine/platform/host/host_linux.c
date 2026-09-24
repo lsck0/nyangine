@@ -111,6 +111,20 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
     (void)snprintf((char*)buffer, capacity, "%s %s", system.sysname, system.release);
 }
 
+void nya_host_name(OUT u8* buffer, u32 capacity) {
+    nya_assert(buffer != nullptr);
+    nya_assert(capacity > 0);
+
+    // Empty rather than a made-up name when the call fails, so a caller can tell "no host name" from a
+    // real one and the scrub has nothing to match on. gethostname does not always terminate on a name
+    // longer than the buffer, so the last byte is forced to a terminator either way.
+    if (gethostname((char*)buffer, capacity) != 0) {
+        buffer[0] = '\0';
+        return;
+    }
+    buffer[capacity - 1] = '\0';
+}
+
 u32 nya_platform_processor_count(void) {
     // _SC_NPROCESSORS_ONLN, not _CONF: the online count is what is actually schedulable now, which
     // is the smaller number on a machine with cores offline and the honest answer either way.

@@ -123,6 +123,26 @@ NYA_API void nya_crash_reporter_deinit(void);
 NYA_API u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capacity);
 
 /**
+ * Redacts the machine's identity from an already composed report, in place, and returns the new length.
+ *
+ * `home` becomes `~`, and `user` and `host` become `[user]` and `[host]`, everywhere they occur: the
+ * home directory is the prefix of every source path the stack trace carries, and the user and host
+ * names turn up in log lines and in paths the home prefix did not cover. `home` is replaced first and
+ * `user` last, because the home directory holds the user name inside it (`/home/<user>`) and a bare-name
+ * pass run first would leave that path half redacted.
+ *
+ * A replacement shorter than what it covers closes the gap; a longer one opens it, and the single case
+ * where a full buffer cannot grow overwrites the match in place rather than leaving it, so an identity
+ * is never left behind. Any of the three may be null or empty, which skips it. Touches no allocator and
+ * no lock, so the crash path calls it over the same fixed buffer the report was composed into.
+ *
+ * nya_crash_report_compose already runs this before it returns, so the report the window shows and the
+ * file "Send" writes is the scrubbed one and there is no unredacted copy anywhere. It is exposed for the
+ * caller that composes a report some other way, and so a test can hold it to account against known values.
+ * */
+NYA_API u32 nya_crash_report_scrub(OUT u8* buffer, u32 length, u32 capacity, NYA_ConstCString home, NYA_ConstCString user, NYA_ConstCString host);
+
+/**
  * Hands the report to the developer, and writes where it went into `out_path`.
  *
  * Today that means a file under nya_log_directory, because the engine sends nothing anywhere without

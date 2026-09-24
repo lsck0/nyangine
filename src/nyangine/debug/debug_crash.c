@@ -60,6 +60,24 @@ NYA_INTERNAL void _nya_crash_format_bytes(u64 bytes, OUT u8* buffer, u32 capacit
 /** Writes `length` bytes to `path`, creating or truncating it. Raw descriptors; no allocator, no stdio. */
 NYA_INTERNAL NYA_Error _nya_crash_file_write(NYA_ConstCString path, const u8* data, u32 length) __attr_no_discard;
 
+/** Replaces every `needle` in the first `*length` bytes of `buffer` with `replacement`, in place. */
+NYA_INTERNAL void _nya_crash_scrub_replace(OUT u8* buffer, OUT u32* length, u32 capacity, NYA_ConstCString needle, NYA_ConstCString replacement);
+
+/** Reads this machine's home directory, user name and host name into the statics below, once. */
+NYA_INTERNAL void _nya_crash_identity_capture(void);
+
+/*
+ * The machine's identity, captured once and scrubbed out of every report. Statics rather than read on
+ * the crash path: gethostname is a syscall and getenv walks the environment, and neither is something to
+ * do from a signal handler when init already did it on an ordinary stack. Sized for a path, a login name
+ * and a hostname respectively; a longer value is truncated, which only ever means a shorter prefix is the
+ * needle, never that an identity leaks.
+ */
+NYA_INTERNAL b8 _nya_crash_identity_captured                = false;
+NYA_INTERNAL u8 _nya_crash_identity_home[NYA_OS_PATH_MAX]   = { 0 };
+NYA_INTERNAL u8 _nya_crash_identity_user[128]               = { 0 };
+NYA_INTERNAL u8 _nya_crash_identity_host[256]               = { 0 };
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LIFETIME
@@ -77,6 +95,10 @@ NYA_Error nya_crash_reporter_init(void) {
         nya_ceiling_register("crash_report_lines", NYA_CRASH_REPORT_LINE_MAX, &_nya_crash_report_line_count);
         ceiling_registered = true;
     }
+
+    // Read the home, user and host now, on an ordinary stack, so the scrub on the fault path is pure
+    // string work against these statics rather than a getenv and a syscall from inside a signal handler.
+    _nya_crash_identity_capture();
 
     NYA_TRY(nya_crash_observer_add(_nya_crash_reporter_observe, nullptr));
     _nya_crash_reporter_registered = true;
@@ -252,6 +274,90 @@ void _nya_crash_append_watch(OUT u8* buffer, u32 capacity, OUT u32* length) {
     }
 }
 
+void _nya_crash_scrub_replace(OUT u8* buffer, OUT u32* length, u32 capacity, NYA_ConstCString needle, NYA_ConstCString replacement) {
+    nya_assert(buffer != nullptr);
+    nya_assert(length != nullptr);
+
+    if (needle == nullptr || replacement == nullptr) return;
+
+    const u32 needle_length      = (u32)strlen(needle);
+    const u32 replacement_length = (u32)strlen(replacement);
+
+    // Under two bytes is a home of "/" or a one letter login, either of which would match half the
+    // report. An identity that short is not worth redacting at the cost of shredding everything else.
+    if (needle_length < 2) return;
+
+    u32 at = 0;
+    while (needle_length <= *length && at <= *length - needle_length) {
+        if (nya_memcmp(&buffer[at], needle, needle_length) != 0) {
+            at++;
+            continue;
+        }
+
+        const u32 tail_at     = at + needle_length;
+        const u32 tail_length = *length - tail_at;
+
+        if (replacement_length <= needle_length) {
+            // Shorter or the same: drop the replacement in and pull the tail up behind it. Always fits.
+            nya_memcpy(&buffer[at], replacement, replacement_length);
+            nya_memmove(&buffer[at + replacement_length], &buffer[tail_at], tail_length);
+            *length         -= needle_length - replacement_length;
+            buffer[*length]  = '\0';
+            at              += replacement_length;
+        } else if (*length + (replacement_length - needle_length) < capacity) {
+            // Longer, and there is room: open a gap for it and write it in.
+            const u32 grow = replacement_length - needle_length;
+            nya_memmove(&buffer[tail_at + grow], &buffer[tail_at], tail_length);
+            nya_memcpy(&buffer[at], replacement, replacement_length);
+            *length         += grow;
+            buffer[*length]  = '\0';
+            at              += replacement_length;
+        } else {
+            // Longer, and a full report leaves no room to grow: overwrite the match with as much of the
+            // replacement as its own span holds. The identity is gone either way, which is the point, and
+            // the length does not move.
+            nya_memcpy(&buffer[at], replacement, needle_length);
+            at += needle_length;
+        }
+    }
+}
+
+u32 nya_crash_report_scrub(OUT u8* buffer, u32 length, u32 capacity, NYA_ConstCString home, NYA_ConstCString user, NYA_ConstCString host) {
+    nya_assert(buffer != nullptr);
+    nya_assert(capacity > 0);
+    nya_assert(length < capacity);
+
+    // Longest and most specific first: the home directory holds the user name inside it, so replacing it
+    // before the bare name keeps "/home/<user>/game" a single "~/game" rather than "/home/[user]/game".
+    if (home != nullptr && home[0] != '\0') _nya_crash_scrub_replace(buffer, &length, capacity, home, "~");
+    if (host != nullptr && host[0] != '\0') _nya_crash_scrub_replace(buffer, &length, capacity, host, "[host]");
+    if (user != nullptr && user[0] != '\0') _nya_crash_scrub_replace(buffer, &length, capacity, user, "[user]");
+
+    buffer[length] = '\0';
+    return length;
+}
+
+void _nya_crash_identity_capture(void) {
+    if (_nya_crash_identity_captured) return;
+    _nya_crash_identity_captured = true; // once, even where a probe below finds nothing to record
+
+#if OS_WINDOWS
+    NYA_ConstCString home = getenv("USERPROFILE");
+    NYA_ConstCString user = getenv("USERNAME");
+#else
+    NYA_ConstCString home = getenv("HOME");
+    NYA_ConstCString user = getenv("USER");
+    if (user == nullptr || user[0] == '\0') user = getenv("LOGNAME");
+#endif
+
+    if (home != nullptr) (void)snprintf((char*)_nya_crash_identity_home, sizeof(_nya_crash_identity_home), "%s", home);
+    if (user != nullptr) (void)snprintf((char*)_nya_crash_identity_user, sizeof(_nya_crash_identity_user), "%s", user);
+
+    // Through the host module, which already owns the system headers gethostname needs, in the include
+    // order they want; the crash reporter stays clear of them so it does not disturb the unity's own.
+    nya_host_name(_nya_crash_identity_host, (u32)sizeof(_nya_crash_identity_host));
+}
+
 u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capacity) {
     nya_assert(info != nullptr);
     nya_assert(buffer != nullptr);
@@ -295,6 +401,17 @@ u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capa
     const u32 logged = nya_log_ring_count();
     _nya_crash_append(buffer, capacity, &length, "\nLog, the last %u lines of at most %u\n", logged, (u32)NYA_LOG_RING_MAX);
     for (u32 i = 0; i < logged; i++) _nya_crash_append(buffer, capacity, &length, "  %s\n", nya_log_ring_at(i));
+
+    /*
+     * Redact the machine's identity out of everything above in one pass, before the report is shown, sent
+     * or written: the buffer the window scrolls and "Send" hands over is the scrubbed one, so there is no
+     * unredacted copy to leak. The home directory prefixes every source path the stack trace carries; the
+     * user and host names turn up in log lines and in paths that prefix did not cover. Captured once, off
+     * the crash path; see _nya_crash_identity_capture.
+     */
+    _nya_crash_identity_capture();
+    length = nya_crash_report_scrub(buffer, length, capacity, (NYA_ConstCString)_nya_crash_identity_home, (NYA_ConstCString)_nya_crash_identity_user,
+                                    (NYA_ConstCString)_nya_crash_identity_host);
 
     /*
      * Deliberately not appended through _nya_crash_append, which is inert once the buffer is full. A

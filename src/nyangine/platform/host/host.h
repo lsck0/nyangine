@@ -42,6 +42,12 @@
 /** Longest kernel name written, terminator included. `uname`'s fields are 65 bytes each by POSIX. */
 #define NYA_HOST_KERNEL_NAME_MAX 144
 
+/**
+ * Longest host name written, terminator included. POSIX caps a host name at 255 bytes, so 256 holds
+ * any of them with the terminator.
+ * */
+#define NYA_HOST_NAME_MAX 256
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS
@@ -79,6 +85,16 @@ NYA_API void nya_host_distribution_name(OUT u8* buffer, u32 capacity);
  * nya_host_distribution_name already prints, and this says so rather than repeating it.
  * */
 NYA_API void nya_host_kernel_name(OUT u8* buffer, u32 capacity);
+
+/**
+ * Writes this machine's network host name, null terminated and truncated to `capacity`, and an empty
+ * string when the OS will not say.
+ *
+ * This is machine-identifying, so unlike the probes above it is not for a crash report to print: the
+ * crash reporter reads it only to scrub it back out, so a report cannot carry the name of the machine
+ * it came from. See nya_crash_report_scrub.
+ * */
+NYA_API void nya_host_name(OUT u8* buffer, u32 capacity);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

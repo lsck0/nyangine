@@ -72,6 +72,16 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
     (void)snprintf((char*)buffer, capacity, "Windows NT");
 }
 
+void nya_host_name(OUT u8* buffer, u32 capacity) {
+    nya_assert(buffer != nullptr);
+    nya_assert(capacity > 0);
+
+    // Empty rather than a made-up name when the call fails, so the scrub has nothing to match on. The
+    // in/out length is in characters and does not count the terminator, which GetComputerNameA writes.
+    DWORD length = capacity;
+    if (!GetComputerNameA((char*)buffer, &length)) buffer[0] = '\0';
+}
+
 u32 nya_platform_processor_count(void) {
     SYSTEM_INFO info;
     GetSystemInfo(&info);

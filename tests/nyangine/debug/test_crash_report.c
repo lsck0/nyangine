@@ -204,6 +204,78 @@ s32 main(s32 argc, NYA_CString argv[]) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the scrub redacts the machine's identity from a report, deterministically,
+    //       against known home, user and host values fed straight in
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_ConstCString home = "/home/aria";
+        NYA_ConstCString user = "aria";
+        NYA_ConstCString host = "aria-desktop";
+
+        // Every place an identity leaks into a real report: a stack frame path, a watched string, a log
+        // line with a home path, and the bare user and host names on their own.
+        u8 sample[512] = { 0 };
+        u32 sample_length =
+            (u32)snprintf((char*)sample, sizeof(sample),
+                          "  in draw (/home/aria/game/src/render.c:42)\n"
+                          "    NYA_ConstCString path = \"/home/aria/.local/share/game/save.dat\"\n"
+                          "  aria opened the file on aria-desktop\n"
+                          "  home is /home/aria and nothing else\n");
+
+        const u32 scrubbed = nya_crash_report_scrub(sample, sample_length, sizeof(sample), home, user, host);
+
+        nya_check(scrubbed == strlen((const char*)sample), "the scrubbed length %u should match the string, which is " FMTu64, scrubbed,
+                  (u64)strlen((const char*)sample));
+
+        // Nothing the machine could be identified by survives.
+        nya_check(strstr((const char*)sample, "/home/aria") == nullptr, "the home directory must be gone");
+        nya_check(strstr((const char*)sample, "aria-desktop") == nullptr, "the host name must be gone");
+        nya_check(strstr((const char*)sample, "aria") == nullptr, "the user name must be gone, even standing alone");
+
+        // And the markers took its place, home as "~" and the two names bracketed.
+        nya_check(strstr((const char*)sample, "in draw (~/game/src/render.c:42)") != nullptr, "the home prefix of a path becomes ~");
+        nya_check(strstr((const char*)sample, "\"~/.local/share/game/save.dat\"") != nullptr, "a home path inside a string is redacted too");
+        nya_check(strstr((const char*)sample, "[user] opened the file on [host]") != nullptr, "the bare user and host names are bracketed");
+
+        // Home is replaced before the bare user name, so "/home/aria" is a single "~", never "/home/[user]".
+        nya_check(strstr((const char*)sample, "[user]") != nullptr && strstr((const char*)sample, "/home/[user]") == nullptr,
+                  "the home directory is redacted whole, not left as /home/[user]");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the scrub is a safe no-op when there is nothing to redact, and never runs
+    //       off the end of the buffer it is given
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        u8        untouched[64] = { 0 };
+        const u32 written       = (u32)snprintf((char*)untouched, sizeof(untouched), "no identity in here at all\n");
+
+        nya_check(nya_crash_report_scrub(untouched, written, sizeof(untouched), nullptr, "", "/") == written,
+                  "empty, null and one byte identities leave the report as it was");
+        nya_check(strcmp((const char*)untouched, "no identity in here at all\n") == 0, "and change none of its bytes");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a real composed report carries no absolute home path, because compose
+    //       scrubs it before returning. The identity comes from this machine, so the
+    //       check only runs where there is a home directory to have leaked.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        const char* real_home = getenv("HOME");
+        if (real_home != nullptr && strlen(real_home) >= 2) {
+            nya_log_ring_clear();
+            nya_log_info("a save under %s/game", real_home);
+
+            NYA_CrashInfo composed = crash_of(NYA_CRASH_SOURCE_ASSERT, "something failed");
+            nya_backtrace_capture(&composed.backtrace, 0);
+            (void)nya_crash_report_compose(&composed, report, sizeof(report));
+
+            nya_check(strstr((const char*)report, real_home) == nullptr, "a composed report must not carry the absolute home directory");
+            nya_check(contains("a save under ~/game"), "the home path in a log line is redacted to ~ in the composed report");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: submitting with nowhere to write fails rather than inventing a path
     // ─────────────────────────────────────────────────────────────────────────────
     NYA_EXPECT(nya_log_directory_open(nullptr, 0));
