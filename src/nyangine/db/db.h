@@ -6,6 +6,7 @@
  *
  * Overview:
  *   db_sql.h        the connection, bound statements, transactions, and the key the file is under
+ *   db_backup.h     a hot snapshot of a live database, a WAL checkpoint, and a defragmenting copy
  *   db_orm.h        a described type bound to a table: insert, update, delete, find, select
  *   db_migrate.h    what two schemas differ by, what of that is derivable, and what is refused
  *
@@ -52,6 +53,8 @@
 #pragma once
 
 #include "nyangine/db/db_sql.h"
+// After db_sql.h: the backup takes a connection and copies what is behind it to another file.
+#include "nyangine/db/db_backup.h"
 // After db_sql.h: a table binds a described type to a connection and takes its key as an NYA_SqlValue.
 #include "nyangine/db/db_orm.h"
 // After db_orm.h: a plan is derived from a table's columns and the schema the database has.

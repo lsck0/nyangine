@@ -17,6 +17,10 @@ struct NYA_Database {
     sqlite3*    handle;
     NYA_Arena*  arena;
     const char* path;
+
+    // Whether this connection was opened under a key. The key itself is never kept; this is the one
+    // bit db_backup.c needs, so it can refuse a plaintext copy of a database asked to stay encrypted.
+    b8 encrypted;
 };
 
 /**
@@ -104,7 +108,9 @@ NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OU
     }
 
     NYA_Database* database = nya_arena_alloc(arena, sizeof(NYA_Database));
-    *database              = (NYA_Database){ .handle = handle, .arena = arena, .path = path };
+    // A key that reached this far was honoured: open returns above when one is given and the build
+    // has no cipher, so `key != null` here means the file is genuinely encrypted.
+    *database = (NYA_Database){ .handle = handle, .arena = arena, .path = path, .encrypted = options.key != nullptr };
 
     // Foreign keys are off by default in SQLite, for compatibility with databases written before it
     // had them. Nothing in this engine predates that, and a schema that declares a reference should
