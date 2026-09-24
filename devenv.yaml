@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+#
+# The devenv rolling nixpkgs channel: the same input rust-template uses, and the one that carries
+# llvmPackages_22 (clang 22.1.8), which is the pin the toolchain in devenv.nix relies on. `devenv
+# shell` writes a devenv.lock beside this file recording the exact revision; that lock is generated
+# locally and left untracked here (see README), so the from-source bootstrap stays the only thing a
+# non-nix checkout needs.
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
