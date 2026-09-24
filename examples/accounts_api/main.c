@@ -76,6 +76,12 @@
 
 #include "SDL3/SDL_init.h"
 
+// The notes resource, split into its three shapes and their conversions — the worked example of
+// "Model, SO, DTO". note_so.h pulls note_model.h (the row) and note_dto.h (the wire), and holds the
+// four conversions between them. Only note_dto.h would compile into the web profile; the other two
+// carry the guard that refuses to.
+#include "notes/note_so.h"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONSTANTS AND STATE
@@ -83,9 +89,6 @@
  */
 
 #define DEFAULT_PORT 47810
-
-/** Longest note. Small: this is a demonstration of ownership, not a document store. */
-#define NOTE_TEXT_MAX 280
 
 /** Notes one account may hold, so the file cannot grow without bound. */
 #define NOTES_PER_USER 1000
@@ -108,43 +111,9 @@ NYA_INTERNAL NYA_OrmTable* TOTP = nullptr;
  * */
 NYA_INTERNAL u8 LOGIN_SEAL_SECRET[32] = { 0 };
 
-/** One note and who owns it. `owner` is the account id; nothing is ever read across owners. */
-typedef struct {
-    s64  id;
-    s64  owner;
-    s64  written_at_s;
-    char text[NOTE_TEXT_MAX];
-} AccountNote;
-
-/*
- * The description the ORM builds the table from, written by hand: the reflection pass scans only
- * src/nyangine and src/gnyame, so a type declared in an example has no generated table and
- * nya_reflect_of does not resolve for it. Inside the engine these would be one `// @reflect` comment.
- */
-NYA_INTERNAL const NYA_TypeReflection NOTE_TEXT_ARRAY = {
-    .name          = "char[]",
-    .kind          = NYA_REFLECT_ARRAY,
-    .size          = NOTE_TEXT_MAX,
-    .alignment     = alignof(char),
-    .element       = nya_reflect_of(char),
-    .element_count = NOTE_TEXT_MAX,
-};
-
-NYA_INTERNAL const NYA_ReflectField NOTE_FIELDS[] = {
-    { .name = "id", .type = nya_reflect_of(s64), .offset = nya_offsetof(AccountNote, id), .is_key = true },
-    { .name = "owner", .type = nya_reflect_of(s64), .offset = nya_offsetof(AccountNote, owner) },
-    { .name = "written_at_s", .type = nya_reflect_of(s64), .offset = nya_offsetof(AccountNote, written_at_s) },
-    { .name = "text", .type = &NOTE_TEXT_ARRAY, .offset = nya_offsetof(AccountNote, text) },
-};
-
-NYA_INTERNAL const NYA_TypeReflection NOTE_MODEL = {
-    .name        = "AccountNote",
-    .kind        = NYA_REFLECT_STRUCT,
-    .size        = sizeof(AccountNote),
-    .alignment   = alignof(AccountNote),
-    .fields      = NOTE_FIELDS,
-    .field_count = nya_carray_length(NOTE_FIELDS),
-};
+// The note's three shapes — the AccountNote row (Model), the Note the program works with (SO) and the
+// NoteDtoV1 that crosses the wire (DTO) — and the conversions between them now live in notes/, one
+// directory for the one resource. See notes/note_model.h, notes/note_so.h, notes/note_dto.h.
 
 /*
  * The second factor as a row: the secret and the recovery codes as text, the guard as three integers,
@@ -718,14 +687,18 @@ NYA_INTERNAL NYA_HttpStatus handle_totp_confirm(NYA_HttpExchange* exchange) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** One note as a JSON value, without its owner: the owner is not the reader's to see. */
-NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const AccountNote* note) {
-    NYA_Object* object = nya_object_create(arena);
+/**
+ * One stored row as the JSON the client sees — the DTO, rendered through the DTO's own reflection.
+ *
+ * The row goes Model → SO → DTO before it is written, so `owner` falls away where the DTO has no field
+ * for it: the owner is not the reader's to see. The wire shape is decided by NOTE_DTO_V1_REFLECT and
+ * nothing else, exactly as the ORM's shape is decided by NOTE_MODEL.
+ * */
+NYA_INTERNAL NYA_Value note_dto_value(NYA_Arena* arena, const AccountNote* row) {
+    Note      so  = note_so_from_model(row);
+    NoteDtoV1 dto = note_dto_from_so(&so);
 
-    nya_object_add(object, "id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = note->id });
-    nya_object_add(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)note->text });
-    nya_object_add(object, "written_at_s", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = note->written_at_s });
-
+    NYA_Object* object = nya_reflect_to_object(arena, &NOTE_DTO_V1_REFLECT, &dto);
     return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *object };
 }
 
@@ -747,7 +720,7 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_query(NYA_HttpExchange* exchange) {
     for (u32 index = 0; index < count; index++) {
         const AccountNote* note = nya_orm_at(NOTES, rows, index);
 
-        NYA_Value value = note_to_value(exchange->arena, note);
+        NYA_Value value = note_dto_value(exchange->arena, note);
         nya_array_add(notes, value);
     }
 
@@ -762,11 +735,15 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_post(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!request_account(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    NYA_Object* incoming = nullptr;
-    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
+    // The request body is read as the DTO through its reflection, then parsed into an SO — which is
+    // where the untrusted text is checked and where the *server*, not the client, fills in the owner
+    // and the timestamp. A client cannot claim a note it did not write: note_so_from_dto ignores any
+    // owner a DTO might carry, because the DTO has no such field to carry.
+    NoteDtoV1 dto = { 0 };
+    if (!nya_http_request_reflect(exchange->request, exchange->arena, &NOTE_DTO_V1_REFLECT, &dto).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    NYA_Value* text = nya_object_get(incoming, "text");
-    if (text == nullptr || text->type != NYA_TYPE_STRING || text->as_string[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
+    Note so = { 0 };
+    if (!note_so_from_dto(&dto, (s64)user.id, exchange->now_s, &so).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     void* existing = nullptr;
     u32   held     = 0;
@@ -777,14 +754,15 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_post(NYA_HttpExchange* exchange) {
 
     if (held >= NOTES_PER_USER) return NYA_HTTP_STATUS_UNPROCESSABLE;
 
-    AccountNote note = { .owner = (s64)user.id, .written_at_s = (s64)exchange->now_s };
-    (void)snprintf(note.text, sizeof(note.text), "%s", text->as_string);
+    AccountNote note = note_model_from_so(&so);
+    if (!nya_orm_insert(NOTES, &note).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR; // writes the assigned id back into note.
 
-    if (!nya_orm_insert(NOTES, &note).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    // The stored row back out as the DTO, so the client reads exactly what a later query would return.
+    Note      stored_so  = note_so_from_model(&note);
+    NoteDtoV1 stored_dto = note_dto_from_so(&stored_so);
 
-    NYA_Value stored = note_to_value(exchange->arena, &note);
-
-    return nya_http_response_json(exchange->response, exchange->arena, &stored.as_object).ok ? NYA_HTTP_STATUS_CREATED : NYA_HTTP_STATUS_INTERNAL_ERROR;
+    return nya_http_response_reflect(exchange->response, exchange->arena, &NOTE_DTO_V1_REFLECT, &stored_dto).ok ? NYA_HTTP_STATUS_CREATED
+                                                                                                                : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
 /**
