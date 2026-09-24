@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /* ── the opcodes, as Discord numbers them ── */
 
@@ -157,18 +153,11 @@ NYA_INTERNAL s64 _nya_discord_integer_at(const NYA_Object* object, NYA_CString k
 /** Copies `text` into a fixed buffer, truncating. For names and reasons, where a long one is not an error. */
 NYA_INTERNAL void _nya_discord_copy(OUT char* destination, u64 capacity, NYA_ConstCString text);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_DiscordGatewayCloseAction nya_discord_gateway_close_action(u16 code) {
     switch (code) {
-        /*
-         * The token, the shard or the intents. None of these become true by being asked again, and Discord
-         * disables a token that keeps asking, so every one of them is the end of this client.
-         */
+        // The token, shard or intents: none become true by asking again, and Discord disables a token that keeps asking, so each ends this client.
         case 4004:  // authentication failed
         case 4010:  // invalid shard
         case 4011:  // sharding required
@@ -177,9 +166,7 @@ NYA_DiscordGatewayCloseAction nya_discord_gateway_close_action(u16 code) {
         case 4014:  // disallowed intents
             return NYA_DISCORD_GATEWAY_CLOSE_FATAL;
 
-        /*
-         * The session is gone. Resuming it would be refused, so the next login is an IDENTIFY.
-         */
+        // The session is gone; resuming would be refused, so the next login is an IDENTIFY.
         case NYA_WEBSOCKET_CLOSE_NORMAL:      // this end said it was done, or Discord did
         case NYA_WEBSOCKET_CLOSE_GOING_AWAY:
         case 4003:  // not authenticated
@@ -187,10 +174,7 @@ NYA_DiscordGatewayCloseAction nya_discord_gateway_close_action(u16 code) {
         case 4009:  // session timed out
             return NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY;
 
-        /*
-         * A connection that broke rather than a session that ended: the events since the last sequence are
-         * still waiting, so reconnect and RESUME.
-         */
+        // A broken connection rather than an ended session: the events since the last sequence still wait, so reconnect and RESUME.
         case NYA_WEBSOCKET_CLOSE_ABNORMAL:
         case 4000:  // unknown error
         case 4001:  // unknown opcode
@@ -199,11 +183,7 @@ NYA_DiscordGatewayCloseAction nya_discord_gateway_close_action(u16 code) {
         case 4008:  // rate limited
             return NYA_DISCORD_GATEWAY_CLOSE_RESUME;
 
-        /*
-         * Discord adds codes. An unknown one is treated as a lost session rather than a lost connection,
-         * because a RESUME that should have been an IDENTIFY costs a round trip and the other way round
-         * costs the events in between.
-         */
+        // Discord adds codes; an unknown one is treated as a lost session, since a wrong RESUME costs only a round trip where a wrong IDENTIFY loses the events between.
         default: return NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY;
     }
 }
@@ -211,8 +191,7 @@ NYA_DiscordGatewayCloseAction nya_discord_gateway_close_action(u16 code) {
 u64 nya_discord_gateway_backoff_ms(u32 attempt) {
     u64 delay = NYA_DISCORD_GATEWAY_BACKOFF_MIN_MS;
 
-    // Shifted rather than multiplied in a loop, and capped by the shift count first so the doubling
-    // cannot run off a u64 on a client that has been failing for a very long time.
+    // Shifted, not multiplied in a loop, and capped by the shift count first so the doubling cannot run off a u64 after a very long failure.
     u32 doublings = attempt > 16 ? 16 : attempt;
     delay <<= doublings;
 
@@ -231,11 +210,7 @@ NYA_ConstCString nya_discord_gateway_state_name(NYA_DiscordGatewayState state) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewayOptions options, OUT NYA_DiscordGateway** out_gateway) {
     nya_assert(arena != nullptr);
@@ -245,8 +220,7 @@ NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewayOptions
 
     u64 token_length = strlen(options.token);
 
-    // The token itself never reaches an error message, here or anywhere else, so these say what was
-    // wrong with it without quoting it.
+    // The token never reaches an error message, so these say what was wrong without quoting it.
     if (token_length >= NYA_DISCORD_GATEWAY_MAX_TOKEN) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the token is longer than %d bytes", NYA_DISCORD_GATEWAY_MAX_TOKEN - 1);
     }
@@ -264,8 +238,7 @@ NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewayOptions
 
     u64 ceiling = options.max_message_bytes > 0 ? options.max_message_bytes : (u64)NYA_DISCORD_GATEWAY_MAX_MESSAGE_BYTES;
 
-    // A HELLO is a couple of hundred bytes and a READY is the smallest thing worth receiving. Below this
-    // the connection would open and then fail on the first payload, which is a worse place to find out.
+    // Below this the connection would open and then fail on the first payload, a worse place to find out.
     if (ceiling < 4096) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a payload ceiling of %llu is too small for a READY", (unsigned long long)ceiling);
 
     NYA_DiscordGateway* gateway = nya_arena_alloc(arena, sizeof(NYA_DiscordGateway));
@@ -285,8 +258,7 @@ NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewayOptions
     _nya_discord_copy(gateway->url, sizeof(gateway->url), url);
 
     if (gateway->transport.open == nullptr) {
-        // Its own arena: the websocket frees its buffers back at destroy, and a reconnect every minute for
-        // a week only stays flat if nothing else has allocated in between.
+        // Its own arena: the websocket frees its buffers at destroy, and a reconnect every minute stays flat only if nothing else allocated between.
         gateway->sockets = nya_arena_create(.name = "discord_gateway_sockets");
 
         _NYA_DiscordGatewaySocket* owned = nya_arena_alloc(gateway->sockets, sizeof(_NYA_DiscordGatewaySocket));
@@ -317,8 +289,7 @@ NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewayOptions
 
     NYA_Error dialled = _nya_discord_gateway_dial(gateway);
     if (!dialled.ok) {
-        // Not fatal: an unreachable gateway is the ordinary state of a machine that has just booted, and
-        // the caller finds out through a DISCONNECTED event with a retry time on it.
+        // Not fatal: an unreachable gateway is ordinary just after boot, and the caller finds out through a DISCONNECTED event with a retry time.
         gateway->attempt         = 1;
         gateway->reconnect_at_ms = gateway->transport.now_ms(gateway->transport.user) + nya_discord_gateway_backoff_ms(0);
     }
@@ -333,8 +304,7 @@ void nya_discord_gateway_destroy(NYA_DiscordGateway* gateway) {
 
     gateway->transport.close(gateway->transport.user);
 
-    // The two places a token sits in this struct. Neither survives the call; see the header for what is
-    // still out there when it returns.
+    // The two places a token sits in this struct; neither survives the call. See the header for what is still out there afterwards.
     nya_crypto_wipe(gateway->token, sizeof(gateway->token));
     nya_crypto_wipe(gateway->login, sizeof(gateway->login));
 
@@ -344,11 +314,7 @@ void nya_discord_gateway_destroy(NYA_DiscordGateway* gateway) {
     nya_arena_free(gateway->allocator, gateway, sizeof(NYA_DiscordGateway));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OPERATIONS ─────────────────────────────────────
 
 NYA_DiscordGatewayState nya_discord_gateway_state(const NYA_DiscordGateway* gateway) {
     nya_assert(gateway != nullptr);
@@ -402,18 +368,13 @@ b8 nya_discord_gateway_poll(NYA_DiscordGateway* gateway, OUT NYA_DiscordGatewayE
     }
 
     for (u32 step = 0; step < NYA_DISCORD_GATEWAY_MAX_STEPS_PER_POLL; step++) {
-        // Before the heartbeat, so a HELLO whose jittered first beat landed on this very millisecond
-        // still logs in first. Does nothing while the IDENTIFY rate limit holds, which is the one place
-        // this client deliberately sits on its hands.
+        // Before the heartbeat, so a HELLO whose jittered first beat landed this millisecond still logs in first; does nothing while the IDENTIFY rate limit holds.
         if (gateway->pending_login) _nya_discord_gateway_login(gateway, now_ms);
 
-        /*
-         * The heartbeat is on a clock, not on an event, so it is checked before anything is read: a
-         * gateway that has gone quiet is exactly the case where no event ever arrives to hang this off.
-         */
+        // The heartbeat is on a clock, not an event, so it is checked before anything is read: a quiet gateway is exactly where no event arrives to hang it off.
         if (gateway->heartbeat_interval_ms > 0 && now_ms >= gateway->heartbeat_at_ms) {
             if (gateway->awaiting_ack) {
-                // The socket is open and the far end is not there. Waiting longer only loses more events.
+                // The socket is open and the far end is not there; waiting longer only loses more events.
                 _nya_discord_gateway_drop(gateway, _NYA_DISCORD_CLOSE_RESUMABLE, "the gateway stopped acknowledging heartbeats", now_ms, out_event);
                 return true;
             }
@@ -437,9 +398,7 @@ b8 nya_discord_gateway_poll(NYA_DiscordGateway* gateway, OUT NYA_DiscordGatewayE
                 _nya_discord_gateway_drop(gateway, (u16)frame.code, frame.reason, now_ms, out_event);
                 return true;
 
-            // OPEN says the socket is up, which is not the same as logged in: HELLO decides that. A
-            // binary payload means the peer sent `etf` to a client that asked for json, and a pong is
-            // answered by the protocol.
+            // OPEN says the socket is up, not logged in (HELLO decides that); a binary payload is `etf` to a json client, and a pong is answered by the protocol.
             case NYA_WEBSOCKET_EVENT_OPEN:
             case NYA_WEBSOCKET_EVENT_BINARY:
             case NYA_WEBSOCKET_EVENT_PONG:
@@ -452,18 +411,13 @@ b8 nya_discord_gateway_poll(NYA_DiscordGateway* gateway, OUT NYA_DiscordGatewayE
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 b8 _nya_discord_token_is_plain(NYA_ConstCString token, u64 length) {
     for (u64 i = 0; i < length; i++) {
         u8 character = (u8)token[i];
 
-        // Printable ASCII without a quote or a backslash. A real token is base64url and dots; anything
-        // that would have to be escaped into the IDENTIFY payload is something trying to be a payload.
+        // Printable ASCII, no quote or backslash: a real token is base64url and dots, so anything needing escaping into the IDENTIFY is trying to be a payload.
         if (character < 0x21 || character > 0x7E) return false;
         if (character == '"' || character == '\\') return false;
     }
@@ -500,19 +454,14 @@ s64 _nya_discord_integer_at(const NYA_Object* object, NYA_CString key, s64 fallb
     NYA_Value* value = nya_object_get(object, key);
     if (value == nullptr) return fallback;
 
-    // The json reader gives an integer S64 and a real F64, and Discord sends heartbeat_interval as
-    // either depending on the day, so both are numbers here.
+    // The json reader gives S64 or F64, and Discord sends heartbeat_interval as either, so both count as numbers here.
     if (value->type == NYA_TYPE_S64) return value->as_s64;
     if (value->type == NYA_TYPE_F64) return (s64)value->as_f64;
 
     return fallback;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CONNECTION
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE CONNECTION ─────────────────────────────────────
 
 NYA_Error _nya_discord_gateway_dial(NYA_DiscordGateway* gateway) {
     b8 resuming = gateway->resume_wanted && gateway->resume_url[0] != '\0';
@@ -531,7 +480,7 @@ NYA_Error _nya_discord_gateway_dial(NYA_DiscordGateway* gateway) {
 }
 
 void _nya_discord_gateway_drop(NYA_DiscordGateway* gateway, u16 code, NYA_ConstCString reason, u64 now_ms, OUT NYA_DiscordGatewayEvent* out_event) {
-    // Copied before the close, because a websocket's reason points into the socket that is about to go.
+    // Copied before the close, since a websocket's reason points into the socket that is about to go.
     _nya_discord_copy(gateway->reason, sizeof(gateway->reason), reason != nullptr ? reason : "");
 
     gateway->transport.close(gateway->transport.user);
@@ -568,11 +517,7 @@ void _nya_discord_gateway_drop(NYA_DiscordGateway* gateway, u16 code, NYA_ConstC
         return;
     }
 
-    /*
-     * Half the delay, plus a random half. Full jitter would let the first retry land immediately, which
-     * is the one thing a gateway that just dropped everyone does not need; this keeps a floor under the
-     * wait and still spreads a fleet of bots out.
-     */
+    // Half the delay plus a random half: full jitter could land the first retry immediately, which a just-dropped gateway does not need, so this keeps a floor and still spreads a fleet out.
     u64 delay    = nya_discord_gateway_backoff_ms(gateway->attempt - 1);
     u64 half     = delay / 2;
     u64 jittered = half + (u64)((f32)half * gateway->transport.jitter(gateway->transport.user));
@@ -589,11 +534,7 @@ void _nya_discord_gateway_drop(NYA_DiscordGateway* gateway, u16 code, NYA_ConstC
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE LOGIN AND THE HEARTBEAT
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE LOGIN AND THE HEARTBEAT ─────────────────────────────────────
 
 void _nya_discord_gateway_login(NYA_DiscordGateway* gateway, u64 now_ms) {
     if (gateway->resume_wanted) {
@@ -601,8 +542,7 @@ void _nya_discord_gateway_login(NYA_DiscordGateway* gateway, u64 now_ms) {
                        "{\"op\":%d,\"d\":{\"token\":\"%s\",\"session_id\":\"%s\",\"seq\":" FMTs64 "}}",
                        _NYA_DISCORD_OP_RESUME, gateway->token, gateway->session, gateway->sequence);
     } else {
-        // Discord counts IDENTIFYs, not connections, and answers one too many with a 4008 that repeated
-        // offences turn into a disabled token. Waiting here costs a few seconds once.
+        // Discord counts IDENTIFYs, not connections, and one too many is a 4008 that repeats into a disabled token; waiting here costs a few seconds once.
         if (now_ms < gateway->identify_allowed_at_ms) return;
 
         char shard[64] = { 0 };
@@ -618,8 +558,7 @@ void _nya_discord_gateway_login(NYA_DiscordGateway* gateway, u64 now_ms) {
 
     NYA_Error sent = gateway->transport.send(gateway->transport.user, gateway->login, strlen(gateway->login));
 
-    // Wiped whether or not it went out: a login that failed to queue is still a token sitting in a
-    // buffer, and the next attempt rebuilds it from the one copy that is meant to exist.
+    // Wiped whether or not it went out: a login that failed to queue is still a token in a buffer, and the next attempt rebuilds it from the one copy meant to exist.
     nya_crypto_wipe(gateway->login, sizeof(gateway->login));
 
     if (!sent.ok) {
@@ -648,25 +587,19 @@ NYA_Error _nya_discord_gateway_heartbeat(NYA_DiscordGateway* gateway, u64 now_ms
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE PAYLOADS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE PAYLOADS ─────────────────────────────────────
 
 b8 _nya_discord_gateway_payload(NYA_DiscordGateway* gateway, const u8* text, u64 size, u64 now_ms, OUT NYA_DiscordGatewayEvent* out_event) {
     NYA_Object* payload = nullptr;
     NYA_Error   parsed  = nya_serde_json_deserialize(gateway->payloads, text, size, NYA_SERDE_NONE, &payload);
 
     if (!parsed.ok || payload == nullptr) {
-        // Ignored rather than closed over. Discord does not send malformed json, so this is a proxy or a
-        // truncation, and dropping a session over one frame loses more than skipping it does.
+        // Ignored, not closed over: Discord does not send malformed json, so this is a proxy or truncation, and dropping a session over one frame loses more.
         nya_log_debug("A Discord gateway payload did not parse: %s", (NYA_ConstCString)parsed.message);
         return false;
     }
 
-    // The sequence is on the envelope and not on the dispatch, and it is what a RESUME replays from, so
-    // it is taken before anything decides what the payload was.
+    // The sequence is on the envelope, not the dispatch, and is what a RESUME replays from, so it is taken before deciding what the payload was.
     s64 sequence = _nya_discord_integer_at(payload, "s", -1);
     if (sequence >= 0) gateway->sequence = sequence;
 
@@ -686,11 +619,7 @@ b8 _nya_discord_gateway_payload(NYA_DiscordGateway* gateway, const u8* text, u64
 
             gateway->heartbeat_interval_ms = (u64)interval;
 
-            /*
-             * The first one goes at a random fraction of the interval, which the documentation asks for and
-             * which is not decoration: without it every bot reconnected by one gateway restart beats on the
-             * same millisecond forever after.
-             */
+            // The first beat goes at a random fraction of the interval (the docs ask for it): without it every bot reconnected by one gateway restart beats on the same millisecond forever.
             f32 fraction             = gateway->transport.jitter(gateway->transport.user);
             gateway->heartbeat_at_ms = now_ms + (u64)((f32)gateway->heartbeat_interval_ms * fraction);
             gateway->awaiting_ack    = false;
@@ -719,8 +648,7 @@ b8 _nya_discord_gateway_payload(NYA_DiscordGateway* gateway, const u8* text, u64
             return true;
 
         case _NYA_DISCORD_OP_INVALID_SESSION: {
-            // `d` is a bare boolean here rather than an object: true means the session can still be
-            // resumed and only this attempt was wrong.
+            // `d` is a bare boolean here, not an object: true means the session can still be resumed and only this attempt was wrong.
             b8 resumable = data_value != nullptr && data_value->type == NYA_TYPE_B8 && data_value->as_b8;
 
             if (!resumable) {
@@ -737,11 +665,7 @@ b8 _nya_discord_gateway_payload(NYA_DiscordGateway* gateway, const u8* text, u64
             gateway->resume_wanted         = resumable && gateway->session[0] != '\0';
             gateway->state                 = NYA_DISCORD_GATEWAY_STATE_IDLE;
 
-            /*
-             * One to five seconds, which Discord documents and which is not the backoff: an invalid session
-             * is an answer, not a failure, so the attempt counter is left where it is and a bot that hits
-             * this once does not come back slower for the rest of the day.
-             */
+            // One to five seconds (Discord's), not the backoff: an invalid session is an answer, not a failure, so the attempt counter is left alone.
             u64 spread   = _NYA_DISCORD_INVALID_SESSION_MAX_MS - _NYA_DISCORD_INVALID_SESSION_MIN_MS;
             u64 delay    = _NYA_DISCORD_INVALID_SESSION_MIN_MS + (u64)((f32)spread * gateway->transport.jitter(gateway->transport.user));
             gateway->reconnect_at_ms = now_ms + delay;
@@ -834,11 +758,7 @@ b8 _nya_discord_gateway_dispatch(NYA_DiscordGateway* gateway, const NYA_Object* 
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE DEFAULT TRANSPORT
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE DEFAULT TRANSPORT ─────────────────────────────────────
 
 NYA_Error _nya_discord_socket_open(void* user, NYA_ConstCString url) {
     _NYA_DiscordGatewaySocket* self = (_NYA_DiscordGatewaySocket*)user;
@@ -872,8 +792,7 @@ b8 _nya_discord_socket_poll(void* user, OUT NYA_WebSocketEvent* out_event) {
 NYA_Error _nya_discord_socket_send(void* user, const char* text, u64 size) {
     _NYA_DiscordGatewaySocket* self = (_NYA_DiscordGatewaySocket*)user;
 
-    // The size is the transport's contract for a peer that wants it; the websocket client takes a
-    // terminated string, and every caller here builds one.
+    // The size is the transport's contract; the websocket client takes a terminated string, which every caller here builds.
     (void)size;
 
     if (self->socket == nullptr) return nya_error(NYA_ERROR_IO, "there is no open gateway socket");
@@ -884,8 +803,7 @@ NYA_Error _nya_discord_socket_send(void* user, const char* text, u64 size) {
 u64 _nya_discord_socket_now_ms(void* user) {
     (void)user;
 
-    // Monotonic, because every deadline here is a duration. A wall clock that steps back over a
-    // daylight saving change would stop the heartbeat for an hour.
+    // Monotonic, since every deadline here is a duration: a wall clock stepping back over a DST change would stop the heartbeat for an hour.
     return nya_clock_get_monotonic_ms();
 }
 
@@ -894,8 +812,7 @@ f32 _nya_discord_socket_jitter(void* user) {
 
     u32 bits = 0;
     if (!nya_os_random_bytes((u8*)&bits, sizeof(bits))) {
-        // The jitter spreads a fleet out; it proves nothing. Half an interval is a fine answer when the
-        // system random source is not answering at all.
+        // The jitter only spreads a fleet out, so half an interval is a fine answer when the system random source is not answering.
         return 0.5F;
     }
 

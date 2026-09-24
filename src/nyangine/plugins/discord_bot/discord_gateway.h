@@ -99,11 +99,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_websocket.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** Where a bot dials when it has no resume url yet. Version 10, JSON; `etf` is not implemented. */
 #define NYA_DISCORD_GATEWAY_URL "wss://gateway.discord.gg/?v=10&encoding=json"
@@ -159,11 +155,7 @@
  * */
 #define NYA_DISCORD_GATEWAY_MAX_STEPS_PER_POLL 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_DiscordGatewayState      NYA_DiscordGatewayState;
 typedef enum NYA_DiscordGatewayEventKind  NYA_DiscordGatewayEventKind;
@@ -367,17 +359,9 @@ struct NYA_DiscordGatewayOptions {
     b8 insecure_skip_tls_verify;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 /**
  * Validates the options, takes the client's buffers from `arena`, and starts connecting.
@@ -398,11 +382,7 @@ NYA_API NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewa
  * */
 NYA_API void nya_discord_gateway_destroy(NYA_DiscordGateway* gateway);
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OPERATIONS ─────────────────────────────────────
 
 /**
  * Advances the connection and hands out one event, or returns false when there is nothing to report.
@@ -432,11 +412,7 @@ NYA_API s64 nya_discord_gateway_sequence(const NYA_DiscordGateway* gateway) __at
  * */
 NYA_API NYA_Error nya_discord_gateway_send(NYA_DiscordGateway* gateway, NYA_Arena* arena, const NYA_Object* payload) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE TABLES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE TABLES ─────────────────────────────────────
 
 /**
  * What a close code obliges a client to do, the whole table in one function.

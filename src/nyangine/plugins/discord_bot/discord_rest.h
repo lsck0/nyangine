@@ -69,11 +69,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/plugins/curl/request.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** Where the bot API lives. Version 10, the same one the gateway speaks. */
 #define NYA_DISCORD_REST_URL "https://discord.com/api/v10"
@@ -147,11 +143,7 @@
  * */
 #define NYA_DISCORD_REST_RETRY_MS 1000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_DiscordRateLimitBucket NYA_DiscordRateLimitBucket;
 typedef struct NYA_DiscordRateLimit       NYA_DiscordRateLimit;
@@ -253,17 +245,9 @@ struct NYA_DiscordRestResult {
     NYA_Error error;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE RATE LIMIT
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE RATE LIMIT ─────────────────────────────────────
 
 /**
  * Folds one reply's rate limit headers into `limits`.
@@ -284,11 +268,7 @@ NYA_API void nya_discord_rate_limit_observe(NYA_DiscordRateLimit* limits, NYA_Co
  * */
 NYA_API b8 nya_discord_rate_limit_ready(const NYA_DiscordRateLimit* limits, NYA_ConstCString route, u64 now_ms, OUT u64* out_wait_ms) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 /**
  * Copies the token, takes the queue from `arena`, and returns a client that has sent nothing yet.
@@ -300,11 +280,7 @@ NYA_API NYA_Error nya_discord_rest_create(NYA_Arena* arena, NYA_DiscordRestOptio
 /** Wipes the token and frees the client, dropping anything still queued. Null is a no-op. */
 NYA_API void nya_discord_rest_destroy(NYA_DiscordRest* rest);
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CALLS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE CALLS ─────────────────────────────────────
 
 /**
  * Queues "post `content` to channel `channel_id`" and answers the id its result will carry.
@@ -335,11 +311,7 @@ NYA_API NYA_Error nya_discord_rest_command_register(NYA_DiscordRest* rest, NYA_C
 NYA_API NYA_Error nya_discord_rest_interaction_reply(NYA_DiscordRest* rest, NYA_ConstCString interaction_id, NYA_ConstCString interaction_token,
                                                      NYA_ConstCString content, OUT u64* out_id) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OPERATIONS ─────────────────────────────────────
 
 /**
  * Performs at most one queued request whose bucket allows it, and hands back its result.

@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** Longest header value this reads. Every one of them is a number or a bucket hash. */
 #define _NYA_DISCORD_MAX_HEADER_VALUE 64
@@ -93,17 +89,9 @@ NYA_INTERNAL void _nya_discord_rest_dequeue(NYA_DiscordRest* rest, u32 index);
 /** Builds the JSON body one entry needs, or null when it has none. */
 NYA_INTERNAL NYA_Object* _nya_discord_rest_body(NYA_Arena* arena, const _NYA_DiscordRestEntry* entry) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE RATE LIMIT
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE RATE LIMIT ─────────────────────────────────────
 
 void nya_discord_rate_limit_observe(NYA_DiscordRateLimit* limits, NYA_ConstCString route, u32 status, const NYA_Response* response, u64 now_ms) {
     nya_assert(limits != nullptr);
@@ -116,10 +104,7 @@ void nya_discord_rate_limit_observe(NYA_DiscordRateLimit* limits, NYA_ConstCStri
     u64 retry_after_ms = 0;
     b8  has_retry      = _nya_discord_header_ms(response, "retry-after", &retry_after_ms);
 
-    /*
-     * A global 429 is the whole token, not a route: nothing at all goes out until it passes. This is the
-     * one Discord escalates to a ban when a client keeps pushing through it.
-     */
+    // A global 429 is the whole token, not a route: nothing goes out until it passes, and this is the one Discord escalates to a ban when pushed through.
     if (status == 429 && is_global && has_retry) {
         limits->global_reset_at_ms = now_ms + retry_after_ms;
 
@@ -144,10 +129,7 @@ void nya_discord_rate_limit_observe(NYA_DiscordRateLimit* limits, NYA_ConstCStri
     u32 remaining = 0;
     if (_nya_discord_header_u32(response, "x-ratelimit-remaining", &remaining)) bucket->remaining = remaining;
 
-    /*
-     * A 429 that is not global belongs to this bucket, and `Retry-After` is more trustworthy about it
-     * than the reset the same reply carried: the reply is the server saying this bucket is spent now.
-     */
+    // A non-global 429 belongs to this bucket, and `Retry-After` is more trustworthy about it than the reset the same reply carried.
     if (status == 429 && !is_global) {
         bucket->remaining = 0;
         if (has_retry) bucket->reset_at_ms = now_ms + retry_after_ms;
@@ -181,11 +163,7 @@ b8 nya_discord_rate_limit_ready(const NYA_DiscordRateLimit* limits, NYA_ConstCSt
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 NYA_Error nya_discord_rest_create(NYA_Arena* arena, NYA_DiscordRestOptions options, OUT NYA_DiscordRest** out_rest) {
     nya_assert(arena != nullptr);
@@ -199,8 +177,7 @@ NYA_Error nya_discord_rest_create(NYA_Arena* arena, NYA_DiscordRestOptions optio
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the token is longer than %d bytes", NYA_DISCORD_REST_MAX_TOKEN - 1);
     }
 
-    // The same rule the gateway applies, and for the same reason: this one goes into a header rather
-    // than a JSON string, and a byte that does not belong in a token is how a header gets split.
+    // The same rule the gateway applies: this token goes into a header, and a byte that does not belong in one is how a header gets split.
     if (!_nya_discord_token_is_plain(options.token, token_length)) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the token carries a byte a real one never does");
     }
@@ -233,8 +210,7 @@ void nya_discord_rest_destroy(NYA_DiscordRest* rest) {
     nya_crypto_wipe(rest->token, sizeof(rest->token));
     nya_crypto_wipe(rest->authorization, sizeof(rest->authorization));
 
-    // The interaction tokens in the queued paths and in the last url are credentials too, and a dropped
-    // queue should not leave them behind any more than the bot token.
+    // The interaction tokens in the queued paths and the last url are credentials too, so a dropped queue should not leave them behind.
     nya_crypto_wipe(rest->queue, sizeof(rest->queue));
     nya_crypto_wipe(rest->url, sizeof(rest->url));
 
@@ -242,11 +218,7 @@ void nya_discord_rest_destroy(NYA_DiscordRest* rest) {
     nya_arena_free(rest->allocator, rest, sizeof(NYA_DiscordRest));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CALLS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE CALLS ─────────────────────────────────────
 
 NYA_Error nya_discord_rest_message_send(NYA_DiscordRest* rest, NYA_ConstCString channel_id, NYA_ConstCString content, OUT u64* out_id) {
     nya_assert(rest != nullptr);
@@ -259,10 +231,7 @@ NYA_Error nya_discord_rest_message_send(NYA_DiscordRest* rest, NYA_ConstCString 
 
     _NYA_DiscordRestEntry entry = { .kind = NYA_DISCORD_REST_MESSAGE_SEND };
 
-    /*
-     * The channel id is in the route as well as the path. Discord buckets per channel for this one, so
-     * two channels must not share a bucket here or a busy channel would throttle a quiet one.
-     */
+    // The channel id is in the route as well as the path: Discord buckets per channel here, so a busy channel must not throttle a quiet one.
     (void)snprintf(entry.route, sizeof(entry.route), "POST /channels/%s/messages", channel_id);
     (void)snprintf(entry.path, sizeof(entry.path), "/channels/%s/messages", channel_id);
     _nya_discord_copy(entry.content, sizeof(entry.content), content);
@@ -277,8 +246,7 @@ NYA_Error nya_discord_rest_command_register(NYA_DiscordRest* rest, NYA_ConstCStr
     if (name == nullptr || name[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a command needs a name");
     if (strlen(name) >= NYA_DISCORD_REST_MAX_NAME) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the command name is longer than %d bytes", NYA_DISCORD_REST_MAX_NAME - 1);
 
-    // Discord requires one and refuses the whole registration without it, which comes back as a 400 that
-    // says nothing useful. Refusing here says what is missing.
+    // Discord refuses the whole registration without one as an unhelpful 400; refusing here says what is missing.
     if (description == nullptr || description[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a command needs a description");
     if (strlen(description) >= NYA_DISCORD_REST_MAX_DESCRIPTION) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the command description is longer than %d bytes", NYA_DISCORD_REST_MAX_DESCRIPTION - 1);
@@ -286,8 +254,7 @@ NYA_Error nya_discord_rest_command_register(NYA_DiscordRest* rest, NYA_ConstCStr
 
     _NYA_DiscordRestEntry entry = { .kind = NYA_DISCORD_REST_COMMAND_REGISTER };
 
-    // The application id is this bot's and never changes, so the route is the same for every command:
-    // one bucket, which is what Discord meters this on.
+    // The application id never changes, so the route is the same for every command: one bucket, which is what Discord meters this on.
     _nya_discord_copy(entry.route, sizeof(entry.route), "POST /applications/{id}/commands");
     (void)snprintf(entry.path, sizeof(entry.path), "/applications/%s/commands", rest->application_id);
     _nya_discord_copy(entry.name, sizeof(entry.name), name);
@@ -309,8 +276,7 @@ NYA_Error nya_discord_rest_interaction_reply(NYA_DiscordRest* rest, NYA_ConstCSt
 
     _NYA_DiscordRestEntry entry = { .kind = NYA_DISCORD_REST_INTERACTION_REPLY };
 
-    // The interaction token is in the path and deliberately not in the route: the route is what gets
-    // logged, and a per interaction credential has no business in a log line.
+    // The interaction token is in the path, not the route: the route is what gets logged, and a per-interaction credential has no business there.
     _nya_discord_copy(entry.route, sizeof(entry.route), "POST /interactions/{id}/{token}/callback");
 
     s32 written = snprintf(entry.path, sizeof(entry.path), "/interactions/%s/%s/callback", interaction_id, interaction_token);
@@ -323,11 +289,7 @@ NYA_Error nya_discord_rest_interaction_reply(NYA_DiscordRest* rest, NYA_ConstCSt
     return _nya_discord_rest_queue(rest, &entry, out_id);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OPERATIONS ─────────────────────────────────────
 
 u32 nya_discord_rest_pending(const NYA_DiscordRest* rest) {
     nya_assert(rest != nullptr);
@@ -349,16 +311,12 @@ b8 nya_discord_rest_poll(NYA_DiscordRest* rest, OUT NYA_DiscordRestResult* out_r
 
     if (rest->queue_count == 0) return false;
 
-    // Last poll's body and reply die here, which is what the "valid until the next poll" in the header
-    // means. Nothing in the queue points into it.
+    // Last poll's body and reply die here ("valid until the next poll" in the header); nothing in the queue points into it.
     nya_arena_free_all(rest->exchanges);
 
     u64 now_ms = rest->now_ms(rest->user);
 
-    /*
-     * The first entry whose bucket allows it, rather than only the head: one spent channel should not
-     * hold up a command registration that shares nothing with it.
-     */
+    // The first entry whose bucket allows it, not only the head: one spent channel should not hold up a command registration it shares nothing with.
     u32 index = rest->queue_count;
     for (u32 i = 0; i < rest->queue_count; i++) {
         if (now_ms < rest->queue[i].ready_at_ms) continue;
@@ -370,20 +328,15 @@ b8 nya_discord_rest_poll(NYA_DiscordRest* rest, OUT NYA_DiscordRestResult* out_r
         }
     }
 
-    // Everything queued is waiting on a bucket. There is nothing for the caller to do about that, so it
-    // looks the same as an empty queue and costs nothing to ask again next frame.
+    // Everything queued is waiting on a bucket; nothing for the caller to do, so it looks the same as an empty queue and costs nothing to ask again.
     if (index == rest->queue_count) return false;
 
     _NYA_DiscordRestEntry entry = rest->queue[index];
 
-    /*
-     * Both built in the client's own buffers rather than the arena: the url carries an interaction
-     * token and the header carries the bot token, and an arena copy of either would sit there until the
-     * next poll emptied it — without being zeroed even then.
-     */
+    // Both built in the client's own buffers, not the arena: the url carries an interaction token and the header the bot token, and an arena copy would sit unzeroed until the next poll.
     (void)snprintf(rest->url, sizeof(rest->url), "%s%s", rest->base_url, entry.path);
 
-    // "Bot <token>", which is the bot API's scheme and not the bearer one nya_request_perform would add.
+    // "Bot <token>", the bot API's scheme, not the bearer one nya_request_perform would add.
     (void)snprintf(rest->authorization, sizeof(rest->authorization), "Bot %s", rest->token);
 
     NYA_Response response = { 0 };
@@ -409,8 +362,7 @@ b8 nya_discord_rest_poll(NYA_DiscordRest* rest, OUT NYA_DiscordRestResult* out_r
     b8 retryable = response.status == 429 || (response.status >= 500 && response.status < 600);
 
     if (retryable && entry.attempts + 1 < NYA_DISCORD_REST_MAX_ATTEMPTS) {
-        // Left where it is rather than moved to the back: the rate limit decides when it goes, and
-        // reordering a bot's messages to work around a 429 is worse than sending them a second late.
+        // Left where it is, not moved to the back: the rate limit decides when it goes, and reordering messages around a 429 is worse than sending them a second late.
         rest->queue[index].attempts    += 1;
         rest->queue[index].ready_at_ms  = now_ms + ((u64)NYA_DISCORD_REST_RETRY_MS << entry.attempts);
 
@@ -419,8 +371,7 @@ b8 nya_discord_rest_poll(NYA_DiscordRest* rest, OUT NYA_DiscordRestResult* out_r
 
     _nya_discord_rest_dequeue(rest, index);
 
-    // Into the client rather than the scratch arena: the caller reads the result after the poll
-    // returned, and the next poll is where the arena is emptied.
+    // Into the client, not the scratch arena: the caller reads the result after the poll returns, and the next poll empties the arena.
     _nya_discord_copy(rest->last_route, sizeof(rest->last_route), entry.route);
 
     *out_result = (NYA_DiscordRestResult){
@@ -435,11 +386,7 @@ b8 nya_discord_rest_poll(NYA_DiscordRest* rest, OUT NYA_DiscordRestResult* out_r
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_discord_rest_perform(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) {
     (void)user;
@@ -466,8 +413,7 @@ NYA_DiscordRateLimitBucket* _nya_discord_bucket_intern(NYA_DiscordRateLimit* lim
     if (existing != nullptr) return existing;
 
     if (limits->bucket_count >= NYA_DISCORD_REST_MAX_BUCKETS) {
-        // Nothing is evicted: forgetting a bucket is forgetting that it is spent, which is exactly the
-        // mistake that gets a token limited. A bot that touches this many routes wants a bigger table.
+        // Nothing is evicted: forgetting a bucket forgets it is spent, the mistake that gets a token limited. A bot touching this many routes wants a bigger table.
         nya_log_warn("The Discord rate limit table is full at %d buckets; '%s' is not being metered", NYA_DISCORD_REST_MAX_BUCKETS, route);
         return nullptr;
     }
@@ -540,8 +486,7 @@ void _nya_discord_rest_dequeue(NYA_DiscordRest* rest, u32 index) {
 
     rest->queue_count -= 1;
 
-    // The vacated slot held an interaction token in its path. Cleared rather than left for the next
-    // entry to partially overwrite.
+    // The vacated slot held an interaction token in its path; cleared rather than left for the next entry to partially overwrite.
     nya_crypto_wipe(&rest->queue[rest->queue_count], sizeof(_NYA_DiscordRestEntry));
 }
 
@@ -556,8 +501,7 @@ NYA_Object* _nya_discord_rest_body(NYA_Arena* arena, const _NYA_DiscordRestEntry
         case NYA_DISCORD_REST_COMMAND_REGISTER:
             nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->name });
             nya_object_add(body, "description", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->description });
-            // Type 1 is CHAT_INPUT, which is what "slash command" means; the others are the right click
-            // menu entries and take no description.
+            // Type 1 is CHAT_INPUT ("slash command"); the others are right-click menu entries and take no description.
             nya_object_add(body, "type", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
             break;
 
