@@ -68,10 +68,7 @@ b8 _nya_render3d_stream_transparent(NYA_Color color, NYA_Render3DBlend blend) {
 void _nya_render3d_frustum_build(NYA_Render3DFrustum* frustum, f32_4x4 view_projection) {
     nya_assert(frustum != nullptr);
 
-    /*
-     * Standard plane extraction: each plane is a sum or difference of two matrix rows. Near is row 2 alone,
-     * not row3 + row2, because this projection maps depth to [0, 1] (see nya_matrix_perspective).
-     */
+    // Standard plane extraction from row sums/differences; near is row 2 alone because depth maps to [0, 1] (see nya_matrix_perspective).
     f32_4x4 m = view_projection;
 
     f32x4 row0 = { m[0][0], m[0][1], m[0][2], m[0][3] };
@@ -120,8 +117,7 @@ u8 _nya_render3d_passes_seeing(NYA_Window* window, f32x3 center, f32 radius) {
 
     nya_assert(batch->pass_count >= 1 && batch->pass_count <= NYA_RENDER3D_PASSES, "the passes are fitted before anything is recorded");
 
-    // every pass sees everything, which is exactly what the cull is worth. the occlusion buffer goes with it: it
-    // only ever removes what the frustum kept.
+    // Cull off: every pass sees everything, and the occlusion buffer goes with it since it only removes what the frustum kept.
     if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_FRUSTUM_CULLING)) return (u8)((1U << batch->pass_count) - 1U);
 
     u8 passes = 0;
@@ -130,10 +126,7 @@ u8 _nya_render3d_passes_seeing(NYA_Window* window, f32x3 center, f32 radius) {
         if (_nya_render3d_visible(&batch->passes[pass], center, radius)) passes |= (u8)(1U << pass);
     }
 
-    /*
-     * Only the camera answers to the occlusion buffer, and only for what survived its frustum: a caster the camera
-     * cannot see still shadows ground it can.
-     */
+    // Only the camera answers to the occlusion buffer, and only for what survived its frustum, so hidden casters still shadow.
     if ((passes & 1U) != 0 && batch->occlusion != nullptr && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_OCCLUSION_CULLING)
         && nya_occlusion_test(batch->occlusion, center, radius)) {
         passes &= (u8)~1U;
@@ -203,11 +196,7 @@ b8 nya_render3d_skinned_bounds(const f32_4x4* palette, u32 bone_count, f32_4x4 m
         maximum = nya_max(maximum, origin);
     }
 
-    /*
-     * The rest model's radius, scaled by the model transform's largest axis, so the skin hanging off
-     * each bone is inside the sphere. The largest of the three column lengths, because a non-uniform
-     * scale still has to cover its longest direction.
-     */
+    // The rest radius scaled by the largest axis column, so the skin off each bone stays inside the sphere.
     const f32x3 extent = (rest_max - rest_min) * 0.5F;
 
     const f32 scale = nya_max(
@@ -240,11 +229,7 @@ void _nya_render3d_grass_bounds(const NYA_Render3DInstance* instances, u32 count
         minimum = nya_min(minimum, origin);
         maximum = nya_max(maximum, origin);
 
-        /*
-         * A column's length is that axis's scale, and the largest grows the margin: a scaled-up blade reaches
-         * further than the rest bounds, and one scale has to cover the whole field's sphere. The largest of the
-         * three, since a non-uniform scale still has to cover its longest direction. Rotation leaves it alone.
-         */
+        // A column's length is that axis's scale; the largest grows the margin so a scaled-up blade stays inside the field sphere.
         const f32 scale = nya_max(
             nya_vector_length((f32x3){ instances[i].model[0][0], instances[i].model[1][0], instances[i].model[2][0] }),
             nya_max(nya_vector_length((f32x3){ instances[i].model[0][1], instances[i].model[1][1], instances[i].model[2][1] }),

@@ -106,8 +106,7 @@ void _nya_font_sdf_apply_pending(void) {
 
         if (face == request->applied_to) continue;
 
-        // Recorded even when the renderer refuses, so a face that cannot do it is asked once rather
-        // than on every draw for the rest of the run.
+        // Recorded even when the renderer refuses, so a face that cannot do it is asked once, not every draw.
         if (!TTF_SetFontSDF(face, request->sdf)) {
             nya_log_warn("The renderer refused a distance field for '%s' at %.0f: %s", request->path, (f64)request->point_size,
                          SDL_GetError());
@@ -167,8 +166,7 @@ NYA_Font nya_font_resolve(NYA_Font font) {
 }
 
 b8 nya_font_register(NYA_ConstCString name, NYA_ConstCString path, f32 point_size) {
-    // registered on first use, since the registry has no init (a zeroed static array is empty). Guarded so
-    // registering many fonts registers the ceiling once.
+    // Registered on first use since the registry has no init; guarded so many fonts register the ceiling once.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("fonts", NYA_FONT_REGISTRY_MAX, &_nya_font_registry_count);
@@ -179,8 +177,7 @@ b8 nya_font_register(NYA_ConstCString name, NYA_ConstCString path, f32 point_siz
 
     NYA_Font font = nya_font(path, point_size);
 
-    // Refused rather than stored: a registry entry that resolves to nothing turns "my text is missing"
-    // into a lookup that succeeds, which is the harder failure to trace.
+    // Refused rather than stored: an entry resolving to nothing turns missing text into a succeeding lookup, harder to trace.
     if (!nya_font_valid(font)) return false;
 
     _NYA_FontEntry* entry = _nya_font_find(name);
@@ -226,9 +223,7 @@ void nya_font_unregister(NYA_ConstCString name) {
 void nya_font_clear(void) {
     for (u32 i = 0; i < NYA_FONT_REGISTRY_MAX; i++) _nya_font_registry[i] = (_NYA_FontEntry){ 0 };
 
-    // The distance-field requests go with them: they are keyed by path and size rather than by name,
-    // so nothing else would ever drop one, and a request outliving the registry would silently reapply
-    // itself to the next font that happened to share a path and a size.
+    // The distance-field requests go too: keyed by path and size, one outliving the registry would silently reapply to a font sharing them.
     for (u32 i = 0; i < NYA_FONT_REGISTRY_MAX; i++) _nya_font_sdf_requests[i] = (_NYA_FontSdfRequest){ 0 };
 
     _nya_font_sdf_settled_generation = U64_MAX;
@@ -247,9 +242,7 @@ NYA_FontMetrics nya_font_metrics(NYA_Font font) {
     // Before the face is reached, never after: see _nya_font_sdf_apply_pending.
     _nya_font_sdf_apply_pending();
 
-    /*
-     * Read through the current-font state and restored afterwards.
-     */
+    // Read through the current-font state and restored afterwards.
     NYA_ConstCString previous_path = nya_render2d_font_get();
     f32              previous_size = nya_render2d_font_size_get();
 
@@ -310,12 +303,7 @@ b8 nya_font_sdf(NYA_Font font) {
 
     _NYA_FontSdfRequest* request = _nya_font_sdf_find(font);
 
-    /*
-     * Asked before any face is reached, because nya_font_sdf_set is the only thing that ever turns a face into a
-     * distance field: with no request for this one the answer is false whatever a face would say, and reaching for
-     * the face would queue a load that nobody asked for. A backend with no glyph atlas at all, the terminal's, has
-     * no loader to queue it with, and this query is what a UI pass makes of every size it derives.
-     */
+    // Asked before any face is reached: with no request the answer is false, and reaching for the face would queue a load nobody asked for (the terminal backend has no loader anyway).
     if (request == nullptr) return false;
 
     _nya_font_sdf_apply_pending();
@@ -325,9 +313,7 @@ b8 nya_font_sdf(NYA_Font font) {
     // The face is the authority once there is one: it is what the atlas will be baked from.
     if (face != nullptr) return TTF_GetFontSDF(face);
 
-    // No face yet, so report what it is going to be. Answering false here would mean a caller that has
-    // just asked for a distance field is told it did not get one, which was the old behaviour and is
-    // indistinguishable from the request having been dropped.
+    // No face yet, so report what it is going to be; answering false would look like the request was dropped.
     return request->sdf;
 }
 

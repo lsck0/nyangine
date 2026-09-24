@@ -127,8 +127,7 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
 
         switch (burst.shape) {
             case NYA_PARTICLE_SHAPE_SPHERE: {
-                // direction first, offset along it, so particles near the rim already move outward and it reads as an
-                // explosion.
+                // Direction first, offset along it, so rim particles already move outward and it reads as an explosion.
                 direction = _nya_particles_direction(system);
 
                 // cube rooted, so points are uniform through the volume instead of crowding the centre.
@@ -202,8 +201,7 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
     // The wind field's own clock, advanced only while a field is set, so the drift animates on its own.
     if (system->wind != nullptr) system->wind_time_s += delta_time_s;
 
-    // The force set's own clock, advanced the same way, so a turbulence stir animates whether or not the caller
-    // also advances the shared set.
+    // The force set's own clock, advanced the same way, so a stir animates even without the caller advancing the shared set.
     if (system->forces != nullptr) system->force_time_s += delta_time_s;
 
     for (u32 i = 0; i < system->count;) {
@@ -223,15 +221,13 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
         /* Damping as an exponential, not a subtraction, so it is frame-rate independent and never overshoots zero. */
         if (particle->damping > 0.0F) particle->velocity *= expf(-particle->damping * delta_time_s);
 
-        // Ride the wind: ease the velocity toward what the field pushes here, so the particle catches up to the air
-        // over time rather than snapping to it. The rate is frame-rate independent and clamped so it never overshoots.
+        // Ride the wind: ease the velocity toward the field so the particle catches up over time; rate is frame-rate independent and clamped.
         if (system->wind != nullptr) {
             f32x3 wind = nya_wind_at(system->wind, particle->position, system->wind_time_s);
             particle->velocity = nya_lerp(particle->velocity, wind, nya_min(delta_time_s * system->wind_influence, 1.0F));
         }
 
-        // Ride the force set: sample the total acceleration here and integrate it into the velocity. Additive to
-        // the wind above, not a replacement, so a gravity well or a vortex can pull dust the breeze also carries.
+        // Ride the force set: integrate its acceleration into the velocity, additive to the wind so a well or vortex pulls dust the breeze carries.
         if (system->forces != nullptr) {
             f32x3 force = nya_forces_at(system->forces, particle->position, particle->velocity, system->force_time_s);
             particle->velocity += force * (system->force_influence * delta_time_s);
@@ -268,10 +264,7 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
     // no projection, nothing to draw. same rule as NYA_ENTITY_VISUAL_CUBE.
     if (system->space == NYA_PARTICLE_SPACE_3D && !nya_render3d_active(window)) return;
 
-    /*
-     * Systems that opt out stay out of the shadow cascades: they have no alpha, so a translucent billboard would cast
-     * a solid square. See NYA_ParticleSystem.casts_shadow.
-     */
+    // Opt-outs stay out of the shadow cascades: a translucent billboard would cast a solid square (see NYA_ParticleSystem.casts_shadow).
     b8 casts_shadow_before = nya_render3d_shadow_casts(window);
 
     if (system->space == NYA_PARTICLE_SPACE_3D) nya_render3d_shadow_cast_set(window, system->casts_shadow);
@@ -301,8 +294,7 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
         };
 
         if (system->space == NYA_PARTICLE_SPACE_3D) {
-            /* A billboard. */
-            /* With the system's texture. */
+            /* A billboard, with the system's texture. */
             nya_render3d_billboard_resolved(window, texture, position, (f32x2){ size, size }, particle->rotation, color);
             continue;
         }
@@ -396,7 +388,6 @@ f32x3 _nya_particles_cone(NYA_ParticleSystem* system, f32x3 axis, f32 spread) {
 void _nya_particles_kill(NYA_ParticleSystem* system, u32 index) {
     system->count--;
 
-    // swap with the last live particle, so the pool stays packed in constant time. particles have no identity, so
-    // nothing holds a pointer to one.
+    // Swap with the last live particle so the pool stays packed in constant time; particles have no identity.
     if (index != system->count) system->particles[index] = system->particles[system->count];
 }

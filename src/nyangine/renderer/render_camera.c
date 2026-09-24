@@ -14,8 +14,7 @@
  */
 
 NYA_Camera2DTopDown nya_camera2d_top_down_sanitized(NYA_Camera2DTopDown camera) {
-    // A zoom of zero collapses the world to a point and divides by zero on the way back out, so it is
-    // corrected rather than propagated. A caller wanting nothing drawn should not draw.
+    // Zoom of zero divides by zero on the way back out, so correct it rather than propagate it.
     if (camera.zoom <= 0.0F) camera.zoom = 1.0F;
 
     return camera;
@@ -24,8 +23,7 @@ NYA_Camera2DTopDown nya_camera2d_top_down_sanitized(NYA_Camera2DTopDown camera) 
 NYA_Camera2DIsometric nya_camera2d_isometric_sanitized(NYA_Camera2DIsometric camera) {
     if (camera.zoom <= 0.0F) camera.zoom = 1.0F;
 
-    // A tile with no size projects every tile coordinate onto the same point, which is the isometric
-    // spelling of a zero zoom and is corrected the same way. 64x32 is the classic 2:1 diamond.
+    // Zero tile size collapses every tile onto one point, like zero zoom; 64x32 is the classic 2:1 diamond.
     if (camera.tile_width <= 0.0F) camera.tile_width = 64.0F;
     if (camera.tile_height <= 0.0F) camera.tile_height = 32.0F;
 
@@ -33,8 +31,7 @@ NYA_Camera2DIsometric nya_camera2d_isometric_sanitized(NYA_Camera2DIsometric cam
 }
 
 NYA_Camera2DTopDown nya_camera2d_top_down_or_identity(NYA_Camera2D camera) {
-    // the identity rather than the zeroed struct a batch holds, since zoom zero would be passed straight
-    // back in. An isometric camera also answers the identity: no top-down camera means the same thing.
+    // Answer the identity, not the zeroed struct, so zoom zero is not passed straight back in.
     if (camera.kind != NYA_CAMERA2D_KIND_TOP_DOWN) return (NYA_Camera2DTopDown){ .zoom = 1.0F };
 
     return camera.as_top_down;
@@ -43,8 +40,7 @@ NYA_Camera2DTopDown nya_camera2d_top_down_or_identity(NYA_Camera2D camera) {
 void nya_camera2d_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out_b, OUT f32* out_c, OUT f32* out_d) {
     switch (camera->kind) {
         case NYA_CAMERA2D_KIND_TOP_DOWN: {
-            // A rotation scaled by the zoom. Positive rotation reads clockwise on screen, which is
-            // the same sense NYA_Render2DTexture.rotation and the 2D solver already use.
+            // A rotation scaled by the zoom; positive rotation reads clockwise, matching the 2D solver.
             f32 c = cosf(camera->as_top_down.rotation) * camera->as_top_down.zoom;
             f32 s = sinf(camera->as_top_down.rotation) * camera->as_top_down.zoom;
 
@@ -55,8 +51,7 @@ void nya_camera2d_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out
         } break;
 
         case NYA_CAMERA2D_KIND_ISOMETRIC: {
-            // tile to screen: one tile along +x moves half a tile right and down, along +y half a tile left
-            // and down, so a square grid draws as diamonds. Halves because tile widths are the full diamond.
+            // Tile to screen: a square grid draws as diamonds; halves because tile sizes are the full diamond.
             f32 half_width  = camera->as_isometric.tile_width * 0.5F * camera->as_isometric.zoom;
             f32 half_height = camera->as_isometric.tile_height * 0.5F * camera->as_isometric.zoom;
 
@@ -68,8 +63,7 @@ void nya_camera2d_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out
 
         case NYA_CAMERA2D_KIND_NONE:
         default: {
-            // The identity. Not reachable through the callers, which all check the kind first, but a
-            // basis of zeroes would be a division by zero in the inverse rather than a visible bug.
+            // The identity; a basis of zeroes would divide by zero in the inverse.
             *out_a = 1.0F;
             *out_b = 0.0F;
             *out_c = 0.0F;
@@ -98,9 +92,7 @@ f32x2 nya_camera2d_screen_to_world(const NYA_Camera2D* camera, f32x2 screen, u32
     f32 center_x = (f32)target_width * 0.5F;
     f32 center_y = (f32)target_height * 0.5F;
 
-    // the inverse of the view's 2x2, written out. The determinant is zoom squared top-down, or half the
-    // tile area times zoom squared isometric. Neither is zero, since the setters correct zero zoom and
-    // tile size.
+    // The inverse of the view's 2x2; the determinant is never zero since the setters correct zero zoom and tile size.
     f32 determinant = (a * d) - (b * c);
 
     f32 dx = screen[0] - center_x;

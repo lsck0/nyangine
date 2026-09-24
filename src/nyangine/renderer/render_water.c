@@ -9,13 +9,7 @@
 /** The fractional part in [0, 1), the phase of a scroll within its wrap. Kept beside the wind's own helpers. */
 NYA_INTERNAL f32 _nya_water_fract(f32 value) __attr_no_discard;
 
-/*
- * The along-flow octave weights and the two cross weights, summing to NYA_WATER_WAVE_PEAK. Two octaves along
- * the current, a long rolling swell across it, and a short chop across it: four bands, enough that the surface
- * reads as a heightfield of waves rather than a single travelling sine, few enough to stay cheap in a vertex
- * stage. The multipliers on frequency and speed are deliberately not whole ratios, so the sum does not visibly
- * repeat. The water vertex shader mirrors these exactly.
- */
+// Four wave bands whose weights sum to NYA_WATER_WAVE_PEAK; the water vertex shader mirrors these exactly.
 
 /** The two along-flow octaves, the second shorter and faster. */
 NYA_INTERNAL const f32 _NYA_WATER_OCTAVE[2] = { 0.55F, 0.35F };
@@ -42,8 +36,7 @@ NYA_WaterFlow nya_water_flow(f32 time, f32 cycle_seconds) {
     f32 phase_a = _nya_water_fract(t);
     f32 phase_b = _nya_water_fract(t + 0.5F);
 
-    // a triangular weight: one exactly when the first layer wraps (phase 0 or 1) and zero mid-cycle, so a
-    // layer's discontinuity at the wrap is always fully masked by the other layer.
+    // A triangular weight: one when the first layer wraps, zero mid-cycle, so the wrap discontinuity is masked by the other layer.
     f32 blend = fabsf(1.0F - (2.0F * phase_a));
 
     return (NYA_WaterFlow){ .phase_a = phase_a, .phase_b = phase_b, .blend = blend };

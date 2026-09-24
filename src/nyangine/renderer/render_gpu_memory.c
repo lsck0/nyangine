@@ -220,10 +220,7 @@ void _nya_gpu_memory_untrack(const void* handle) {
     _nya_gpu_memory.feature_bytes[found->feature] -= found->bytes;
     _nya_gpu_memory.count--;
 
-    /*
-     * Backward shift instead of a tombstone, so a long run of creates and releases never fills the table
-     * with dead slots. An entry moves into the hole unless its home lies cyclically between the two.
-     */
+    // Backward-shift deletion, not tombstones, so churn never fills the table with dead slots.
     for (u32 next = (hole + 1) & mask; _nya_gpu_memory.slots[next].handle != nullptr; next = (next + 1) & mask) {
         u32 home = _nya_gpu_memory_home(_nya_gpu_memory.slots[next].handle);
 

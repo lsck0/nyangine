@@ -36,8 +36,7 @@ NYA_ForceField nya_force_field(NYA_ForceOptions options) {
         direction = options.kind == NYA_FORCE_VORTEX ? (f32x3){ 0.0F, 1.0F, 0.0F } : (f32x3){ 1.0F, 0.0F, 0.0F };
     }
 
-    // the turbulence table is baked once, from the seed, so a sample reads the field's own bytes and a copy of the
-    // field samples identically. The seed's bit pattern becomes the hex string the RNG takes, so any f32 is a seed.
+    // The turbulence table is baked once from the seed, so a copy of the field samples identically; the seed's bits become the RNG's hex string.
     NYA_Noise noise;
     {
         u32 bits;
@@ -81,8 +80,7 @@ f32x3 nya_force_at(const NYA_ForceField* field, f32x3 position, f32x3 velocity, 
         }
 
         case NYA_FORCE_POINT: {
-            // the spoke from the centre out to the point: away from the centre is the positive direction, so a
-            // positive strength repels and a negative one attracts.
+            // The spoke out from the centre; positive strength repels, negative attracts.
             f32x3 spoke    = position - field->center;
             f32   distance = nya_vector_length(spoke);
 
@@ -95,8 +93,7 @@ f32x3 nya_force_at(const NYA_ForceField* field, f32x3 position, f32x3 velocity, 
         }
 
         case NYA_FORCE_VORTEX: {
-            // the swirl is tangential: perpendicular to the axis and to the spoke's radial part, so it pushes
-            // around the axis rather than along or away from it. The radial distance drives the falloff.
+            // The swirl is tangential to the axis and the radial spoke, so it pushes around the axis; radial distance drives the falloff.
             f32x3 axis   = field->direction;
             f32x3 spoke  = position - field->center;
             f32   along  = nya_vector_dot(spoke, axis);
@@ -117,12 +114,10 @@ f32x3 nya_force_at(const NYA_ForceField* field, f32x3 position, f32x3 velocity, 
         }
 
         case NYA_FORCE_TURBULENCE: {
-            // curl noise: the curl of a vector potential is divergence-free identically, so the field folds and
-            // stirs without a source or a sink that would blow particles apart or suck them into a point.
+            // Curl noise: the curl of a vector potential is divergence-free, so the field stirs without a source or sink.
             f32x3 q = position * field->scale;
 
-            // a slow drift so the stir animates rather than standing still; low, irrational-looking speeds so the
-            // three axes do not beat against one another. Pure in time: the same time gives the same field.
+            // A slow drift so the stir animates; low non-repeating speeds so the axes do not beat, and pure in time.
             q += (f32x3){ time * 0.11F, time * 0.07F, time * 0.13F };
 
             f32 h   = _NYA_FORCE_CURL_STEP;

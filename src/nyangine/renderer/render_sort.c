@@ -22,8 +22,7 @@ void nya_render3d_sort_keys(NYA_Render3DSortKey* keys, NYA_Render3DSortKey* scra
 
         for (u32 i = 0; i < count; i++) histogram[(_nya_render3d_sort_bits(source[i].depth) >> shift) & 0xFFU]++;
 
-        // A pass whose digit is the same for every key would only copy the array; skipping it also
-        // keeps the ping-pong parity correct, since the result must end up back in `keys`.
+        // A uniform-digit pass only copies; the ping-pong parity must still leave the result back in `keys`.
         u32 offset = 0;
         for (u32 bucket = 0; bucket < 256; bucket++) {
             u32 written    = histogram[bucket];

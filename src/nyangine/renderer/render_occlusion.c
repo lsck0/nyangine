@@ -43,8 +43,7 @@ NYA_INTERNAL f32 _nya_occlusion_edge(f32 ax, f32 ay, f32 bx, f32 by, f32 px, f32
 NYA_INTERNAL b8 _nya_occlusion_convex(NYA_OcclusionBuffer* buffer, _NYA_OcclusionPoint* points, u32 count) {
     if (count < 3) return false;
 
-    // shoelace finds the winding. Either is accepted by reversing, since a caller submitting a wall does
-    // not know which side the camera is on.
+    // Shoelace finds the winding; either is accepted by reversing, since a wall's submitter does not know the camera's side.
     f32 area = 0.0F;
     for (u32 i = 0; i < count; i++) {
         u32 next = (i + 1) % count;
@@ -59,9 +58,7 @@ NYA_INTERNAL b8 _nya_occlusion_convex(NYA_OcclusionBuffer* buffer, _NYA_Occlusio
         }
     }
 
-    /*
-     * Three vertices that actually span a triangle, for the depth plane.
-     */
+    // Three vertices that actually span a triangle, for the depth plane.
     u32 a = 0;
     u32 b = 0;
     u32 c = 0;
@@ -179,9 +176,7 @@ b8 nya_occlusion_quad(NYA_OcclusionBuffer* buffer, f32x3 a, f32x3 b, f32x3 c, f3
         _nya_occlusion_project(buffer, d),
     };
 
-    /*
-     * One vertex behind the eye drops the whole quad, rather than clipping it.
-     */
+    // One vertex behind the eye drops the whole quad, rather than clipping it.
     for (u32 i = 0; i < 4; i++) {
         if (points[i].behind) return false;
     }
@@ -198,8 +193,7 @@ u32 nya_occlusion_box(NYA_OcclusionBuffer* buffer, f32x3 center, f32x3 half_exte
     f32x3 minimum = center - half_extents;
     f32x3 maximum = center + half_extents;
 
-    // The eight corners, indexed so that bit 0 is x, bit 1 is y and bit 2 is z. The face tables below
-    // are written against that numbering.
+    // The eight corners, indexed bit 0 x, bit 1 y, bit 2 z; the face tables follow that numbering.
     f32x3 corner[8];
     for (u32 i = 0; i < 8; i++) {
         corner[i] = (f32x3){
@@ -209,9 +203,7 @@ u32 nya_occlusion_box(NYA_OcclusionBuffer* buffer, f32x3 center, f32x3 half_exte
         };
     }
 
-    // Each face as four corner indices, wound consistently, beside the axis and sign of its outward
-    // normal. Only the three the eye is on the outside of are submitted; the other three are hidden
-    // behind them and would write the same silhouette at a farther depth.
+    // Each face as four wound corner indices; only the three the eye is outside of are submitted, the rest hide behind them.
     static const u8 faces[6][4] = {
         { 0, 2, 6, 4 }, // -x
         { 1, 5, 7, 3 }, // +x
@@ -244,9 +236,7 @@ u32 nya_occlusion_box(NYA_OcclusionBuffer* buffer, f32x3 center, f32x3 half_exte
 b8 nya_occlusion_test(const NYA_OcclusionBuffer* buffer, f32x3 center, f32 radius) {
     if (buffer == nullptr || !buffer->ready) return false;
 
-    // Cast away only the counters, which are what a test is allowed to move. The buffer itself is
-    // read only here, and saying so in the signature is worth more than the tidiness of a non-const
-    // parameter nobody would then be able to pass a const buffer to.
+    // Cast away only the counters a test may move; the buffer stays read-only, worth more than a non-const parameter.
     NYA_OcclusionStats* stats = (NYA_OcclusionStats*)&buffer->stats;
     stats->tests++;
 
@@ -256,9 +246,7 @@ b8 nya_occlusion_test(const NYA_OcclusionBuffer* buffer, f32x3 center, f32 radiu
     f32 maximum_y = 0.0F;
     f32 nearest   = 1.0F;
 
-    /*
-     * The sphere is tested as the box that contains it, by projecting the box's eight corners.
-     */
+    // The sphere is tested as its containing box, by projecting the box's eight corners.
     for (u32 i = 0; i < 8; i++) {
         f32x3 point = {
             center.x + ((i & 1) ? radius : -radius),
@@ -282,8 +270,7 @@ b8 nya_occlusion_test(const NYA_OcclusionBuffer* buffer, f32x3 center, f32 radiu
     s32 top    = (s32)floorf(minimum_y);
     s32 bottom = (s32)ceilf(maximum_y);
 
-    // Any part of it outside the buffer is a part nothing has claimed to hide. Frustum culling has
-    // already decided it is on screen, so this is the edge of the screen, not the edge of the world.
+    // A part outside the buffer is unclaimed; frustum culling already put it on screen, so this is the screen edge, not the world's.
     if (left < 0 || top < 0 || right > NYA_OCCLUSION_WIDTH || bottom > NYA_OCCLUSION_HEIGHT) return false;
     if (left >= right || top >= bottom) return false;
 
@@ -294,8 +281,7 @@ b8 nya_occlusion_test(const NYA_OcclusionBuffer* buffer, f32x3 center, f32 radiu
 
     for (s32 y = top; y < bottom; y++) {
         for (s32 x = left; x < right; x++) {
-            // One pixel where the nearest part of the box is in front of, or level with, whatever was
-            // claimed there is enough to make the whole thing visible.
+            // One pixel where the box's nearest part is at or in front of the claim makes the whole thing visible.
             if (nearest <= buffer->depth[((u64)y * NYA_OCCLUSION_WIDTH) + (u64)x]) return false;
         }
     }

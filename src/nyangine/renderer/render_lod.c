@@ -49,9 +49,7 @@ NYA_INTERNAL _NYA_LodChain* _nya_lod_find(NYA_ConstCString base) {
  */
 
 b8 nya_render3d_lod_register(NYA_ConstCString base_handle, const NYA_Render3DLodLevel* levels, u32 level_count) {
-    // See nya_font_register's identical comment: no dedicated init exists for this registry, so
-    // this call is where the count first becomes meaningful, guarded against re-registering on
-    // every one of what is normally many calls.
+    // No init hook for this registry, so register the ceiling here, once (see nya_font_register).
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("lod_chains", NYA_RENDER3D_LOD_CHAINS, &_nya_lod_count);
@@ -61,9 +59,7 @@ b8 nya_render3d_lod_register(NYA_ConstCString base_handle, const NYA_Render3DLod
     if (base_handle == nullptr || levels == nullptr) return false;
     if (level_count == 0 || level_count > NYA_RENDER3D_LOD_LEVELS) return false;
 
-    /*
-     * Refused rather than sorted.
-     */
+    // Refused rather than sorted.
     f32 previous = 0.0F;
     for (u32 i = 0; i < level_count; i++) {
         if (levels[i].handle == nullptr) return false;
@@ -123,8 +119,7 @@ b8 nya_render3d_lod_registered(NYA_ConstCString base_handle) {
 NYA_ConstCString nya_render3d_lod_select_squared(NYA_ConstCString base_handle, f32 distance_squared) {
     _NYA_LodChain* chain = _nya_lod_find(base_handle);
 
-    // No chain means no opinion: the caller gets back exactly what it asked to draw, so every draw can
-    // be routed through this without checking first.
+    // No chain means the caller gets back what it asked to draw, so every draw can route through this.
     if (chain == nullptr) return base_handle;
 
     for (u32 i = 0; i < chain->level_count; i++) {

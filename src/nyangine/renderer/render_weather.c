@@ -5,9 +5,7 @@
  * CONSTANTS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * The two looks, side by side, so rain-vs-snow reads at a glance and the test can pin the differences.
- * Rain is fast, near vertical, barely leaned by the wind and gone in a second; snow is slow, fluttery,
- * strongly wind-drifted and lingers. The emission rate is a per-second maximum the intensity scales.
+ * The two looks side by side: rain fast, near-vertical and short-lived; snow slow, wind-drifted and lingering. Emission is a per-second max the intensity scales.
  */
 
 #define WEATHER_BOX_DEFAULT     ((f32x3){ 40.0F, 20.0F, 40.0F })

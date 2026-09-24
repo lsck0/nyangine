@@ -28,8 +28,7 @@ NYA_INTERNAL NYA_CString _nya_gpu_compute_compiled_path(NYA_Arena* arena, SDL_GP
 b8 nya_gpu_compute_supported(SDL_GPUDevice* device) {
     nya_assert(device != nullptr);
 
-    // The one capability every effect here needs: a texture it can write from a compute shader. The
-    // offscreen and software backends do not all have it, and this is a cheap, honest probe for it.
+    // Probes the one capability every effect needs: a compute-writable texture, which some backends lack.
     return SDL_GPUTextureSupportsFormat(device, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_TEXTURETYPE_2D,
                                         SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE);
 }
@@ -141,8 +140,7 @@ NYA_CString _nya_gpu_compute_compiled_path(NYA_Arena* arena, SDL_GPUDevice* devi
     nya_string_replace(path, "/shader/source/", "/shader/compiled/");
     nya_string_strip_suffix(path, ".hlsl");
 
-    // By what the device accepts, not by OS, exactly as the graphics shader loader picks; see
-    // _nya_asset_pick_correct_compiled_shader.
+    // By what the device accepts, not by OS, as the graphics shader loader picks (see _nya_asset_pick_correct_compiled_shader).
     SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats(device);
     if (formats & SDL_GPU_SHADERFORMAT_SPIRV) {
         nya_string_extend(path, ".spv");

@@ -92,9 +92,7 @@ void _nya_render3d_shadow_release(NYA_Window* window) {
     nya_assert(window != nullptr);
 }
 
-/*
- * The point lights are *stored* rather than ignored, like the light and the material above.
- */
+// The point lights are *stored* rather than ignored, like the light and the material above.
 void nya_render3d_point_light_add(NYA_Window* window, NYA_Render3DPointLight light) {
     nya_assert(window != nullptr);
 
@@ -132,9 +130,7 @@ NYA_Render3DMaterial nya_render3d_material(NYA_Window* window) {
     return window->render_system.mesh_batch.material;
 }
 
-/*
- * Draws nothing, and there was no stub here at all until now.
- */
+// Draws nothing, and there was no stub here at all until now.
 void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center, f32x3 scale, NYA_Quaternion rotation, NYA_Color color) {
     nya_assert(window != nullptr);
 
@@ -227,8 +223,7 @@ void nya_render3d_billboard(NYA_Window* window, NYA_ConstCString texture_handle,
 NYA_Render3DTextureBinding nya_render3d_texture_resolve(NYA_ConstCString texture_handle) {
     nya_unused(texture_handle);
 
-    // Nothing is ever bound headless, so nothing resolves. Callers draw untextured, which headless draws
-    // as nothing at all.
+    // Nothing is ever bound headless, so nothing resolves; callers draw untextured, which headless draws as nothing.
     return (NYA_Render3DTextureBinding){ 0 };
 }
 
@@ -254,8 +249,7 @@ NYA_Render3DDepth nya_render3d_depth(NYA_Window* window) {
     return window->render_system.mesh_batch.depth;
 }
 
-// Real rather than stubbed, both of them: the culling path is CPU only and a headless test is the
-// only place it can be driven without a GPU. See render_occlusion.h.
+// Real rather than stubbed: the culling path is CPU-only, so a headless test can drive it without a GPU (see render_occlusion.h).
 void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffer* buffer) {
     nya_assert(window != nullptr);
 
@@ -307,9 +301,7 @@ NYA_Render3DRay nya_render3d_screen_ray(NYA_Window* window, f32x2 screen) {
 
     if (target_width == 0 || target_height == 0) return (NYA_Render3DRay){ .direction = { 0.0F, 0.0F, -1.0F } };
 
-    /*
-     * The real arithmetic, not a stub.
-     */
+    // The real arithmetic, not a stub.
     f32x3 eye     = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
     f32x3 target  = batch->camera_is_ortho ? batch->camera_orthographic.target : batch->camera.target;
     f32x3 up_hint = batch->camera_is_ortho ? batch->camera_orthographic.up : batch->camera.up;

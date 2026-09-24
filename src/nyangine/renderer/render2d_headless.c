@@ -19,11 +19,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/*
- * Stubbed as a block, the way renderer.c stubs itself, so a headless build has the whole surface
- * callable and drawing does nothing. A test that exercises a layer's on_render then needs no
- * knowledge of which build it is in.
- */
+// Stubbed as a block, like renderer.c, so a headless build has the whole surface callable and drawing does nothing.
 
 void nya_render2d_shutdown(void) {
 }
@@ -132,11 +128,7 @@ NYA_Camera2DTopDown nya_render2d_camera_top_down_get(NYA_Window* window) {
     return nya_camera2d_top_down_or_identity(window->render_system.draw_batch.camera);
 }
 
-/*
- * The target size, not the batch's, and that is the one real difference from render2d.c: the batch's
- * copy is written when a flush builds a projection, and nothing here ever flushes. Reading the window
- * directly is what nya_render2d_target_size above already does for the same reason.
- */
+// The target size, not the batch's: nothing here ever flushes to fill the batch's copy, so read the window directly.
 f32x2 nya_render2d_screen_to_world(NYA_Window* window, f32x2 screen) {
     nya_assert(window != nullptr);
 
@@ -180,10 +172,7 @@ void nya_render2d_texture_rect(
     nya_unused(destination_x, destination_y, destination_width, destination_height, tint);
 }
 
-/*
- * Text. Layout needs no GPU, so both builds call render_text.c and measurements are exact. Only
- * rasterising is stubbed. Returning zero here once hid a kerning hash overflow from every test.
- */
+// Text. Layout needs no GPU, so both builds call render_text.c and measurements are exact; only rasterising is stubbed.
 
 /** The current font, mirrored so the measurements that take no font can find one. */
 NYA_INTERNAL NYA_ConstCString _nya_render2d_headless_font      = nullptr;
@@ -237,8 +226,7 @@ f32x2 nya_render2d_text_box_measure(NYA_ConstCString text, NYA_Render2DTextBox p
 f32x2 nya_render2d_text_box(NYA_Window* window, NYA_ConstCString text, NYA_Render2DTextBox params) {
     nya_unused(window);
 
-    // The same measurement, since the real one returns the box it drew into and a headless build draws
-    // nothing. A layer that positions the next widget under this one is right either way.
+    // The same measurement, since the real one returns the box it drew into and headless draws nothing.
     return nya_render2d_text_box_measure(text, params);
 }
 

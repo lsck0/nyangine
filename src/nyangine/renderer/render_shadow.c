@@ -15,17 +15,10 @@
 void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up) {
     nya_assert(out_forward != nullptr && out_right != nullptr && out_up != nullptr);
 
-    /*
-     * The direction as given. This used to be rounded to half-degree steps in elevation and azimuth, to stop the
-     * texel grid turning with a moving sun. It halved the pixels changing per frame by freezing most of them: with
-     * gnyame's two-minute day (3 degrees a second) a rim caster's shadow held still for 197 of 240 frames and then
-     * moved 4.68 texels at once, against 0.62 a frame smoothly. A stutter reads as lag, and the grid only has to
-     * hold while the sun does, which it now does without rounding anything.
-     */
+    // The direction as given; angle-rounding to steady the texel grid was dropped because the snap stuttered.
     f32x3 forward = nya_vector_normalize(direction);
 
-    // An up vector not parallel to the light: a look-at with the two collinear produces a degenerate
-    // basis and a matrix of NaNs, and the light pointing straight down is the *common* case here.
+    // An up not parallel to the light; a collinear look-at yields a NaN basis, and straight down is the common case.
     f32x3 reference = fabsf(forward.y) > 0.99F ? (f32x3){ 0.0F, 0.0F, 1.0F } : (f32x3){ 0.0F, 1.0F, 0.0F };
 
     f32x3 right = nya_vector_normalize(nya_vector_cross(reference, forward));
@@ -44,15 +37,12 @@ f32_4x4 nya_render3d_shadow_view_projection(f32x3 center, f32x3 light_direction,
 
     nya_unused(right);
 
-    // A directional light has no position, so one is invented: back along the light by half the depth,
-    // far enough that the whole volume is in front of it. `direction` is the way light travels, so
-    // backing off means subtracting it.
+    // A directional light has no position; back off along the light by half the depth so the whole volume is in front.
     f32x3 eye = center - (direction * (depth * 0.5F));
 
     if (out_eye != nullptr) *out_eye = eye;
 
-    // Orthographic, because a directional light's rays are parallel. Aspect one: the map is square, and
-    // the height is the full width, so `extent` is the half-width the volume actually covers.
+    // Orthographic, since the rays are parallel; square map, so `extent` is the half-width the volume covers.
     f32_4x4 projection = nya_matrix_orthographic_3d(extent * 2.0F, 1.0F, 0.01F, depth);
     f32_4x4 view       = nya_matrix_look_at(eye, center, up);
 
@@ -96,22 +86,14 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(const NYA_Window* window, NYA_
     f32 range  = fit.range > 0.0F ? fit.range : NYA_RENDER3D_SHADOW_EXTENT;
     f32 aspect = fit.aspect > 0.0F ? fit.aspect : (16.0F / 9.0F);
 
-    // The same defaults _nya_render3d_camera_defaults applies, spelled out rather than shared: that
-    // function lives in render3d.c, which the headless build replaces wholesale, and this file is
-    // compiled into both.
+    // The same defaults as _nya_render3d_camera_defaults, spelled out because that lives in render3d.c which headless replaces.
     f32 fov_y      = camera.fov_y > 0.0F ? camera.fov_y : NYA_RENDER3D_FOV_Y;
     f32 near_plane = camera.near_plane > 0.0F ? camera.near_plane : 0.1F;
 
-    /*
-     * Where the cascades start. See NYA_Render3DShadowFit.near_distance.
-     *
-     * The camera's near plane is wrong for an orbit camera: the sharpest cascades would cover the empty
-     * gap to the subject. A caller that knows where its casters begin says so.
-     */
+    // Where the cascades start; the camera near plane wastes the sharpest cascade on an orbit camera's empty gap (see NYA_Render3DShadowFit.near_distance).
     f32 shadow_near = fit.near_distance > near_plane ? fit.near_distance : near_plane;
 
-    // A range inside the near plane names no slice. Clamped rather than asserted: a caller ramping the
-    // shadow distance down to nothing should get no shadows, not a crash.
+    // A range inside the near plane names no slice; clamped, not asserted, so ramping distance to nothing gives no shadows.
     if (range <= shadow_near) range = shadow_near * 1.001F;
 
     f32 slice_near, slice_far;
@@ -122,8 +104,7 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(const NYA_Window* window, NYA_
     f32 view_length = sqrtf((view_direction.x * view_direction.x) + (view_direction.y * view_direction.y)
                             + (view_direction.z * view_direction.z));
 
-    // a camera aimed at itself has no direction. The volume then sits on the camera, wrong but bounded,
-    // instead of normalizing a zero vector into NaN.
+    // A camera aimed at itself has no direction; the volume sits on it, bounded, rather than normalizing to NaN.
     f32x3 forward = view_length > 0.0001F ? view_direction / view_length : (f32x3){ 0.0F, 0.0F, 0.0F };
 
     /* The slice's bounding sphere, not its bounding box. */
@@ -151,9 +132,7 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(const NYA_Window* window, NYA_
     f32x3 center = camera.position + (forward * center_distance);
 
     if (!fit.no_texel_snap) {
-        /*
-         * Snapped to whole shadow-map texels, in the light's own frame.
-         */
+        // Snapped to whole shadow-map texels, in the light's own frame.
         f32x3 light_forward, light_right, light_up;
         nya_render3d_light_basis(light_direction, &light_forward, &light_right, &light_up);
 
@@ -206,8 +185,7 @@ void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptio
 
     batch->shadow_options = options;
 
-    // measured against the atlas, not the last call: a config and then a player's quality set two sizes every frame, and
-    // only the one left standing when the scene draws is allocated.
+    // Measured against the atlas, not the last call, so only the size standing when the scene draws is allocated.
     if (batch->shadow_color == nullptr || (batch->shadow_atlas.cascades == after.cascades && batch->shadow_atlas.map_size == after.map_size)) return;
 
     // the cascades of a scene being recorded were fitted to the old atlas.

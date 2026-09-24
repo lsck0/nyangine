@@ -115,11 +115,7 @@ NYA_GlyphGrid _nya_render2d_glyph_grid(TTF_Font* font) {
         widest = nya_max(widest, nya_max(advance, max_x));
     }
 
-    /*
-     * Half again wider than ASCII needs: cells are sized once, and Latin Extended glyphs run about a third wider
-     * than the widest ASCII one. Too small a cell clips those glyphs silently. The two is a one texel gutter on
-     * each side, so linear filtering does not bleed in the neighbouring glyph.
-     */
+    // Half again wider than ASCII so Latin Extended glyphs are not clipped; the +2 is a one-texel gutter each side against filter bleed.
     s32 cell_width  = ((widest * 3) / 2) + 2;
     s32 cell_height = ((tallest * 3) / 2) + 2;
 
@@ -201,10 +197,7 @@ NYA_Glyph _nya_render2d_glyph_cell_write(u8* coverage, NYA_GlyphGrid grid, u32 s
         nya_memset(coverage + ((size_t)row * (size_t)grid.atlas_width) + (size_t)cell_x, 0, (size_t)grid.cell_width);
     }
 
-    /*
-     * The glyph's alpha becomes the coverage. Coverage is kept rather than thresholded: with pixel-snapped quads
-     * and nearest sampling, one pixel maps to one texel, so the antialiasing survives unblurred.
-     */
+    // The glyph's alpha becomes coverage, kept rather than thresholded so the antialiasing survives unblurred.
     for (s32 y = 0; y < clipped_height; y++) {
         const u8* source_row = pixels + ((size_t)y * (size_t)pitch);
         u8*       atlas_row  = coverage + ((size_t)(cell_y + 1 + y) * (size_t)grid.atlas_width) + (size_t)(cell_x + 1);

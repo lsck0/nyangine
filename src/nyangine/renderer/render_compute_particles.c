@@ -155,8 +155,7 @@ NYA_GPUParticleField* nya_gpu_particle_field_create(NYA_Window* window, u32 coun
         .options        = { .single_sampled = true, .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM },
     };
 
-    // Seed the particles on the GPU, once, on a command buffer of its own. The queue orders this before the
-    // first step's integration, which reads what it leaves behind.
+    // Seed the particles on the GPU once, on its own command buffer, ordered before the first step's integration.
     SDL_GPUCommandBuffer* seed_commands = SDL_AcquireGPUCommandBuffer(device);
     nya_assert(seed_commands != nullptr, "SDL_AcquireGPUCommandBuffer() failed: %s", SDL_GetError());
     _nya_gpu_particle_field_update(field, seed_commands, 0.0F, true);
@@ -178,8 +177,7 @@ void nya_gpu_particle_field_step(NYA_Window* window, NYA_GPUParticleField* field
     SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
     nya_assert(commands != nullptr, "SDL_AcquireGPUCommandBuffer() failed: %s", SDL_GetError());
 
-    // Two passes on one command buffer: integrate the buffer, then gather it into the image. SDL inserts the
-    // barrier between them, so the render pass sees the integrated positions.
+    // Two passes on one command buffer: integrate then gather; SDL's barrier between them lets render see the integrated positions.
     _nya_gpu_particle_field_update(field, commands, delta_time_s, false);
     _nya_gpu_particle_field_render(field, commands);
 

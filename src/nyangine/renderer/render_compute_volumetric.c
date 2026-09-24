@@ -3,9 +3,7 @@
  * */
 #include "nyangine/nyangine.h"
 
-// The volumetric's parameter accessors — nya_volumetric_params and nya_volumetric_params_set — are plain
-// render-option get/set on the window, so they live beside the other options in render_post.c and compile on
-// every build, the way nya_post_ssr does. This file is the GPU pass that reads them, and is desktop only.
+// The parameter accessors live beside the other options in render_post.c and compile everywhere; this file is the GPU pass that reads them, desktop only.
 
 #if !OS_WASM
 

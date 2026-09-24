@@ -12,12 +12,7 @@
  * */
 NYA_INTERNAL f32 _nya_wind_gust(f32x3 position, f32 time, f32 seed, f32 phase);
 
-/*
- * The gust's spatial and temporal shape, three layers. The spatial vectors are deliberately not axis
- * aligned, so a row of plants along one axis does not gust in lockstep; the speeds are low and
- * irrational-looking, so the sum does not visibly repeat. The amplitudes sum to one, which is what
- * keeps the gust in [-1, 1] and lets the tests bound it.
- */
+// Three layers; amplitudes sum to one to keep the gust in [-1, 1], frequencies and speeds chosen not to visibly repeat.
 
 /** Per world unit. Small, so the field varies over metres rather than centimetres. */
 NYA_INTERNAL const f32x3 _NYA_WIND_FREQUENCY[NYA_WIND_OCTAVES] = {
@@ -88,8 +83,7 @@ f32x3 nya_wind_at(const NYA_WindField* field, f32x3 position, f32 time) {
     f32 along = _nya_wind_gust(position, time, field->seed, 0.0F);
     f32 cross = _nya_wind_gust(position, time, field->seed, 1.5707963F);
 
-    // a horizontal perpendicular to the wind, so the swirl is a sideways sway rather than a vertical one.
-    // world up, unless the wind blows straight up, in which case +x is a safe reference. see nya_render3d_line.
+    // A horizontal perpendicular to the wind for a sideways sway; world up, or +x if the wind blows straight up.
     f32x3 up   = fabsf(direction.y) < 0.99F ? (f32x3){ 0.0F, 1.0F, 0.0F } : (f32x3){ 1.0F, 0.0F, 0.0F };
     f32x3 perp = nya_vector_normalize(nya_vector_cross(direction, up));
 
