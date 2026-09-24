@@ -37,9 +37,16 @@ NYA_INTERNAL void _nya_asset_shader_prune(void);
 /**
  * Cross compiles the SPIR-V at `spirv` to GLSL ES 300, writing it to `glsl`. The point of stage 1 of the
  * web backend: a later GLES3/WebGL2 renderer loads these instead of the .spv Vulkan takes. Does nothing
- * when the tool was built without SPIRV-Cross (NYA_BUILD_HAS_SPIRV_CROSS).
+ * when the tool was built without SPIRV-Cross (NYA_BUILD_HAS_SPIRV_CROSS). Returns whether a `.glsl` was
+ * written: false means the SPIR-V uses a feature GLSL ES 300 lacks (the mesh3d shaders' textureGather), which
+ * the caller answers by compiling and converting a NYA_WEB_SHADER variant instead. True with no SPIRV-Cross,
+ * since there is then nothing to convert and nothing for the caller to retry.
+ *
+ * `warn_on_failure` logs the SPIRV-Cross reason when the conversion is refused. The caller sets it false for
+ * the first, desktop-SPIR-V attempt, whose failure is expected for the mesh3d shaders and answered by the web
+ * variant, so a handled textureGather does not warn; and true for the web variant, whose failure is real.
  * */
-NYA_INTERNAL void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl);
+NYA_INTERNAL b8 _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl, b8 warn_on_failure);
 
 /**
  * Every format shaders compile to: the name shadercross takes, the file suffix, and the targets that bake it into
@@ -63,6 +70,19 @@ NYA_INTERNAL const NYA_ConstCString _NYA_ASSET_SHADER_FORMATS[][3] = {
  * blob (_nya_asset_collect skips it) until a backend actually reads it.
  * */
 #define SHADER_GLSL_ES_SUFFIX ".glsl"
+
+/**
+ * The suffix of the intermediate "web" SPIR-V, compiled from a shader's HLSL with NYA_WEB_SHADER defined
+ * (see _nya_asset_shader_compile_glsl_es's caller for the convention). Named `<shader>.<stage>.web.spv`.
+ *
+ * Only the four mesh3d lit fragment shaders emit it: their desktop `.spv` uses textureGather (the PCF shadow
+ * tap in mesh3d_shading.hlsli), which SPIRV-Cross cannot lower to GLSL ES 300 ("textureGather requires ESSL
+ * 310"). NYA_WEB_SHADER swaps that one tap for four explicit ESSL-300-safe samples, and this SPIR-V is the
+ * one the GLSL-ES step converts for those shaders. Native/desktop still load the gather `.spv`. It is a build
+ * intermediate, kept beside the outputs like the .glsl but neither indexed nor baked (_nya_asset_collect
+ * skips it, and _nya_asset_shader_prune ties it to the same source as the rest).
+ * */
+#define SHADER_WEB_SPIRV_SUFFIX ".web.spv"
 
 /** Memo behind _nya_asset_enumerate. See the note there for why it is safe to share. */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
@@ -152,8 +172,44 @@ void nya_asset_compile_shaders(void) {
         // changed shared include rebuilt the .spv above, so comparing against it also catches that.
         NYA_CString spirv = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s.spv", (int)shader->length, shader->items));
         NYA_CString glsl  = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s" SHADER_GLSL_ES_SUFFIX, (int)shader->length, shader->items));
-        if (nya_filesystem_exists(spirv) && _nya_asset_shader_outdated(NYA_BUILD_IF_OUTDATED, spirv, glsl)) {
-            _nya_asset_shader_compile_glsl_es(spirv, glsl);
+        if (nya_filesystem_exists(spirv) && _nya_asset_shader_outdated(NYA_BUILD_IF_OUTDATED, spirv, glsl) && !_nya_asset_shader_compile_glsl_es(spirv, glsl, false)) {
+            /*
+             * The desktop SPIR-V uses a feature GLSL ES 300 lacks — the four mesh3d lit fragment shaders reach
+             * mesh3d_shading.hlsli's textureGather shadow tap, which SPIRV-Cross refuses at version 300. Compile
+             * a web variant of the HLSL with NYA_WEB_SHADER defined, which takes the ESSL-300-safe four-tap path,
+             * and convert that in place of the gather one. The desktop .spv built above is untouched, so native
+             * keeps loading the gather build. The convention is by result, not a hardcoded list: any shader whose
+             * plain .spv will not lower to GLSL ES 300 gets a web variant, so a future ESSL-310 feature is handled
+             * the same way with no edit here.
+             */
+            NYA_CString web_spirv = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s" SHADER_WEB_SPIRV_SUFFIX, (int)shader->length, shader->items));
+
+            NYA_BuildRule web_rule = {
+                .name        = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%s -> %s", source, web_spirv)),
+                // Include-aware like the desktop compiles above: a changed shared .hlsli rebuilds this too.
+                .policy      = _nya_asset_shader_policy(newest_include, web_spirv),
+                .input_file  = source,
+                .output_file = web_spirv,
+                .command = {
+                    .program     = SHADERCROSS_BINARY,
+                    .environment = { SHADERCROSS_LIBRARY_PATH },
+                    .arguments = {
+                        source,
+                        "-o", web_spirv,
+                        "-s", "hlsl",
+                        "-d", "spirv",
+                        "-I", SHADER_SOURCE_DIRECTORY,
+
+                        // The one difference from the desktop compile: the shader's web path is taken.
+                        "-DNYA_WEB_SHADER",
+                    },
+                },
+            };
+            NYA_EXPECT(nya_build(&web_rule));
+
+            // Best effort like the desktop attempt above: a web variant that still will not convert is reported
+            // (warn_on_failure) and leaves no .glsl, rather than failing the whole step.
+            (void)_nya_asset_shader_compile_glsl_es(web_spirv, glsl, true);
         }
     }
 }
@@ -385,6 +441,9 @@ void _nya_asset_shader_prune(void) {
             if (nya_string_ends_with(file, _NYA_ASSET_SHADER_FORMATS[i][1])) suffix = _NYA_ASSET_SHADER_FORMATS[i][1];
         }
         if (nya_string_ends_with(file, SHADER_GLSL_ES_SUFFIX)) suffix = SHADER_GLSL_ES_SUFFIX;
+        // Last, so it wins over the .spv the format loop matched on: .web.spv is one intermediate, tied to the
+        // same source as the rest, and deleted with them when that source is gone.
+        if (nya_string_ends_with(file, SHADER_WEB_SPIRV_SUFFIX)) suffix = SHADER_WEB_SPIRV_SUFFIX;
         if (suffix == nullptr) continue;
 
         nya_string_strip_prefix(file, SHADER_COMPILED_DIRECTORY "/");
@@ -435,7 +494,7 @@ NYA_INTERNAL const char* _nya_asset_shader_emit_glsl_es(spvc_context context, sp
     return source;
 }
 
-void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl) {
+b8 _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl, b8 warn_on_failure) {
     nya_assert(spirv != nullptr);
     nya_assert(glsl != nullptr);
 
@@ -470,22 +529,27 @@ void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString 
     }
 
     // Non-fatal on purpose: stage 1 is meant to surface exactly which shaders a GLES3 backend cannot take as
-    // is, so a refusal is reported and the rest still build, rather than stopping the whole shader step.
+    // is, so a refusal is reported and the rest still build, rather than stopping the whole shader step. The
+    // caller reads the false to compile a NYA_WEB_SHADER variant and convert that in place of this one.
     if (source == nullptr) {
-        nya_log_warn("%s did not convert to GLSL ES 300, no variant written: %s", spirv, spvc_context_get_last_error_string(context));
+        if (warn_on_failure) nya_log_warn("%s did not convert to GLSL ES 300, no variant written: %s", spirv, spvc_context_get_last_error_string(context));
         spvc_context_destroy(context);
-        return;
+        return false;
     }
 
     NYA_EXPECT(nya_file_write(glsl, source), "while writing %s", glsl);
     spvc_context_destroy(context);
+    return true;
 }
 #else
-void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl) {
+b8 _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl, b8 warn_on_failure) {
     // Built without SPIRV-Cross (see the guard at the top of this file): the library links in on the next
-    // rebuild once the vendors exist, and until then there is nothing to cross compile with.
+    // rebuild once the vendors exist, and until then there is nothing to cross compile with. True so the
+    // caller does not waste a shadercross run compiling a web variant it also could not convert.
     (void)spirv;
     (void)glsl;
+    (void)warn_on_failure;
+    return true;
 }
 #endif
 
@@ -523,6 +587,11 @@ NYA_INTERNAL b8 _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEnt
     // The GLSL ES shader variants are produced beside the .spv for a later GLES3 backend, but nothing
     // loads them yet, so like NYA_ASSET_UNUSED_DIRECTORY they are neither indexed nor baked into the blob.
     if (nya_string_ends_with(file, SHADER_GLSL_ES_SUFFIX)) return true;
+
+    // The web SPIR-V is only the intermediate the GLSL-ES step reads for the four mesh3d shaders; the loader
+    // never sees it, so it is kept out of the index and blob too. It also ends in .spv, so were it not skipped
+    // here it would be baked as a spurious spirv asset.
+    if (nya_string_ends_with(file, SHADER_WEB_SPIRV_SUFFIX)) return true;
 
     nya_array_push_back(files, *file);
     return true;

@@ -268,8 +268,27 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
       float2 corner = floor(texel) + 1.0;
       float2 weight = texel - floor(texel);
 
+#ifdef NYA_WEB_SHADER
+      /*
+       * Web variant. GLSL ES 300 (WebGL2, the game->web target) has no textureGather, so the GatherRed below
+       * does not cross compile: SPIRV-Cross stops with "textureGather requires ESSL 310". Reproduce it with
+       * four explicit point taps at the centres of the very same 2x2 texel footprint. GatherRed returns the
+       * four red texels the bilinear unit would fetch around the corner, and sampling each texel centre returns
+       * those exact values whatever the sampler's filter, so the two paths are visually identical; only the
+       * native one keeps the single-instruction gather. `base` is the lower-left texel of the footprint (corner
+       * is its upper-right), a centre is base + 0.5 for the "-" texel and base + 1.5 for the "+" one, and the
+       * .xyzw order matches GatherRed's documented (-, +), (+, +), (+, -), (-, -).
+       */
+      float2 base      = corner - 1.0;
+      float4 occluders = float4(
+        map.SampleLevel(smp, cascade_origin + ((base + float2(0.5, 1.5)) * shadow_texel) / float2(atlas_cascades, 1.0), 0.0).r,   // (-, +)
+        map.SampleLevel(smp, cascade_origin + ((base + float2(1.5, 1.5)) * shadow_texel) / float2(atlas_cascades, 1.0), 0.0).r,   // (+, +)
+        map.SampleLevel(smp, cascade_origin + ((base + float2(1.5, 0.5)) * shadow_texel) / float2(atlas_cascades, 1.0), 0.0).r,   // (+, -)
+        map.SampleLevel(smp, cascade_origin + ((base + float2(0.5, 0.5)) * shadow_texel) / float2(atlas_cascades, 1.0), 0.0).r);  // (-, -)
+#else
       // x folds into this cascade's column; y spans the one-cascade-tall strip.
       float4 occluders = map.GatherRed(smp, cascade_origin + (corner * shadow_texel) / float2(atlas_cascades, 1.0));
+#endif
 
       // the map holds the depth the light saw first; anything further is behind it.
       float4 lit = step(projected.z - bias, occluders);
