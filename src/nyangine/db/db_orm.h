@@ -159,11 +159,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/db/db_sql.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /**
  * Columns one table may have, which is fields one described type may have.
@@ -180,11 +176,7 @@
 /** Longest table name, terminator included. Long enough for any name a schema should have. */
 #define NYA_ORM_NAME_MAX 64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_OrmColumnType NYA_OrmColumnType;
 typedef struct NYA_OrmTable    NYA_OrmTable;
@@ -237,9 +229,7 @@ struct NYA_OrmTable {
     u32                     column_count;
     u32                     key_index;
 
-    /*
-     * The statements, built once at open. Every value in them is a `?`.
-     */
+    // The statements, built once at open. Every value in them is a `?`.
     NYA_ConstCString sql_create;
     NYA_ConstCString sql_insert;
 
@@ -256,11 +246,7 @@ struct NYA_OrmTable {
     NYA_ConstCString sql_find;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
 
 /** The `index`-th struct of what nya_orm_select returned. They are contiguous and `type->size` apart. */
 #define nya_orm_at(table, instances, index) ((void*)((u8*)(instances) + ((u64)(index) * (table)->type->size)))
@@ -271,11 +257,7 @@ struct NYA_OrmTable {
  * */
 NYA_API b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* out_column);
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 /**
  * Binds `type` to the table called `table_name` on `database`, building every statement into `arena`.
@@ -297,11 +279,7 @@ NYA_API NYA_Error nya_orm_open(
  * */
 NYA_API void nya_orm_close(NYA_OrmTable* table);
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SCHEMA
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE SCHEMA ─────────────────────────────────────
 
 /**
  * `CREATE TABLE IF NOT EXISTS`, then nya_orm_schema_check over whatever is now there.
@@ -339,11 +317,7 @@ NYA_API NYA_Error nya_orm_schema_migrate(NYA_OrmTable* table) __attr_no_discard;
  * */
 NYA_API u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user_data);
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROWS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── ROWS ─────────────────────────────────────
 
 /**
  * Inserts `instance` as one row, every field bound to a parameter.

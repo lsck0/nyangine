@@ -47,11 +47,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_Database   NYA_Database;
 typedef struct NYA_SqlOptions NYA_SqlOptions;
@@ -124,15 +120,9 @@ struct NYA_SqlResult {
     s64 last_insert_id;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
-/*
- * Constructors for bound parameters, so a call site reads as data rather than as struct assembly.
- */
+// Constructors for bound parameters, so a call site reads as data rather than as struct assembly.
 #define nya_sql_null()          ((NYA_SqlValue){ .kind = NYA_SQL_VALUE_NULL })
 #define nya_sql_s64(value)      ((NYA_SqlValue){ .kind = NYA_SQL_VALUE_S64, .as_s64 = (value) })
 #define nya_sql_f64(value)      ((NYA_SqlValue){ .kind = NYA_SQL_VALUE_F64, .as_f64 = (value) })
@@ -149,8 +139,7 @@ struct NYA_SqlResult {
  * NYA_TRY(nya_sql_open(arena, "./server.db", &database, .key = key.bytes, .key_size = sizeof(key.bytes)));
  * ```
  * */
-// The parameter is not called `path`: a macro parameter is substituted after the dot too, so
-// `.path` would become `.whatever_the_caller_named_its_variable`.
+// Not named `path`: a macro parameter is substituted after the dot too, so `.path` would collide with the caller's variable name.
 #define nya_sql_open(arena, database_path, out_database, ...) \
     nya_sql_open_with_options((arena), (NYA_SqlOptions){ .path = (database_path), __VA_ARGS__ }, (out_database))
 
@@ -178,9 +167,7 @@ NYA_API NYA_Error nya_sql_query(
     NYA_Database* database, NYA_Arena* arena, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count, OUT NYA_SqlResult* out_result
 ) __attr_no_discard;
 
-/*
- * Transactions.
- */
+// Transactions.
 NYA_API NYA_Error nya_sql_transaction_begin(NYA_Database* database) __attr_no_discard;
 NYA_API NYA_Error nya_sql_transaction_commit(NYA_Database* database) __attr_no_discard;
 NYA_API NYA_Error nya_sql_transaction_rollback(NYA_Database* database) __attr_no_discard;

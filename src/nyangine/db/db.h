@@ -63,8 +63,7 @@
 #include "nyangine/db/db_migrate.h"
 // After db_sql.h, which it stores objects through: a content-addressed blob store, one SQLite table.
 #include "nyangine/db/db_blob.h"
-// After db_sql.h, whose bound statements and transactions it claims and reschedules jobs through: a
-// persistent job queue in one SQLite table.
+// After db_sql.h: a persistent job queue in one SQLite table.
 #include "nyangine/db/db_jobs.h"
 // After db_jobs.h: a pool of threads, each on its own connection, that runs that queue's jobs in-process.
 #include "nyangine/db/db_jobworker.h"

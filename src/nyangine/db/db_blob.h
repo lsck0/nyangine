@@ -122,11 +122,7 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/db/db_sql.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /**
  * Hex digits in an id: two per SHA-256 byte, so the digest has one spelling and it is this one. Kept a
@@ -151,11 +147,7 @@
 /** The table a store uses when the caller names none. */
 #define NYA_BLOB_TABLE_DEFAULT "blobs"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_BlobStore        NYA_BlobStore;
 typedef struct NYA_BlobStoreOptions NYA_BlobStoreOptions;
@@ -185,11 +177,7 @@ struct NYA_BlobStoreOptions {
  * */
 typedef b8 (*NYA_BlobVisitor)(NYA_BlobId id, u64 size, u64 created, void* user_data);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Opens a store on `database`, creating or growing its table. The store is allocated in `arena` and is
@@ -200,8 +188,7 @@ typedef b8 (*NYA_BlobVisitor)(NYA_BlobId id, u64 size, u64 created, void* user_d
  * NYA_TRY(nya_blob_store_open(arena, database, &store, .table = "attachments"));
  * ```
  * */
-// The parameter is not named `table` for the reason nya_sql_open gives: a macro parameter is
-// substituted after the dot, so a named field would take on the caller's variable name.
+// Not named `table`, like nya_sql_open: a macro parameter is substituted after the dot and would take the caller's variable name.
 #define nya_blob_store_open(arena, database, out_store, ...) \
     nya_blob_store_open_with_options((arena), (database), (NYA_BlobStoreOptions){ __VA_ARGS__ }, (out_store))
 

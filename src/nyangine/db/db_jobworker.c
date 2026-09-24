@@ -1,15 +1,8 @@
 #include "nyangine/nyangine.h"
 
-// Compiled as part of db.c, after db_sql.c and db_jobs.c: it opens a fresh connection per worker on the
-// public db_sql.h surface and drives db_jobs.h's public claim/complete/fail, and it reads two fields
-// those files keep private — the queue's database and its tuning — to clone a worker's queue from the
-// one the caller handed start without making the caller repeat itself. See db.c for the include order.
+// Compiled as part of db.c after db_sql.c and db_jobs.c: opens a connection per worker on db_sql.h and drives db_jobs.h's claim/complete/fail, reading the queue's private database and tuning to clone a worker's queue. See db.c.
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** One handler in the process-wide table: a kind, the function it runs, and the context it is handed. */
 typedef struct _NYA_JobHandlerEntry {
@@ -78,11 +71,7 @@ NYA_INTERNAL NYA_Error _nya_jobworker_resolve(NYA_JobWorker* worker, s64 job_id,
 /** Runs one claimed job to a complete or a fail. Split out so the loop reads as claim / run / repeat. */
 NYA_INTERNAL void _nya_jobworker_dispatch(NYA_JobWorker* worker, const NYA_QueuedJob* job);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HANDLER TABLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE HANDLER TABLE ─────────────────────────────────────
 
 void _nya_jobworker_lock(void) {
     while (atomic_exchange_explicit(&_nya_jobworker_registry_lock, 1U, memory_order_acquire) != 0U) {
@@ -144,19 +133,13 @@ b8 _nya_jobworker_lookup(NYA_ConstCString kind, OUT NYA_JobHandlerFn* out_handle
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE WORKER LOOP
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE WORKER LOOP ─────────────────────────────────────
 
 NYA_Error _nya_jobworker_resolve(NYA_JobWorker* worker, s64 job_id, b8 complete, b8 retryable) {
     for (u32 attempt = 0;; attempt++) {
         NYA_Error result = complete ? nya_job_complete(worker->queue, job_id) : nya_job_fail(worker->queue, job_id, retryable);
 
-        // Anything but a lock-contention timeout is the final answer — success, or a fault the caller logs.
-        // On a timeout the write never landed, so retrying it is safe; past the cap we give up and let the
-        // lease reclaim the job rather than block this worker forever.
+        // Only a lock-contention timeout retries (the write never landed, so it is safe); past the cap we give up and let the lease reclaim the job.
         if (result.ok || result.kind != NYA_ERROR_TIMEOUT || attempt >= _NYA_JOBWORKER_RESOLVE_RETRIES) return result;
         nya_os_time_sleep_ms(1);
     }
@@ -166,8 +149,7 @@ void _nya_jobworker_dispatch(NYA_JobWorker* worker, const NYA_QueuedJob* job) {
     NYA_JobHandlerFn handler = nullptr;
     void*            context = nullptr;
 
-    // A kind with no handler is dead-lettered, never crashed and never left to block the queue: a retry
-    // would only meet the same missing handler, so the fail is non-retryable and the row stays for a look.
+    // A kind with no handler is dead-lettered, not crashed: a retry would meet the same missing handler, so the fail is non-retryable and the row stays for a look.
     if (!_nya_jobworker_lookup(job->kind, &handler, &context)) {
         nya_log_warn("job " FMTs64 " of kind '%s' has no registered handler; dead-lettering it", job->id, job->kind);
         NYA_Error dead = _nya_jobworker_resolve(worker, job->id, false, false);
@@ -181,8 +163,7 @@ void _nya_jobworker_dispatch(NYA_JobWorker* worker, const NYA_QueuedJob* job) {
     switch (outcome) {
         case NYA_JOB_OUTCOME_COMPLETE: resolution = _nya_jobworker_resolve(worker, job->id, true, false); break;
         case NYA_JOB_OUTCOME_RETRY:    resolution = _nya_jobworker_resolve(worker, job->id, false, true); break;
-        // Fail dead-letters. A handler that returned something out of range is treated the same rather than
-        // trusted, so a bug shows up as a stuck job to inspect and never as a silent loss.
+        // Fail dead-letters; an out-of-range return is treated the same, so a bug shows up as a stuck job to inspect, never a silent loss.
         case NYA_JOB_OUTCOME_FAIL:
         default:                       resolution = _nya_jobworker_resolve(worker, job->id, false, false); break;
     }
@@ -195,11 +176,9 @@ void _nya_jobworker_run(void* data) {
 
     u64 last_reap_ns = nya_clock_get_monotonic_ns();
 
-    // The flag is only ever read here, between jobs — never inside a claimed one — so a stop can end the
-    // loop but can never strand a job that has already been claimed. That is the whole of the drain.
+    // The flag is read only here, between jobs, never inside a claimed one, so a stop ends the loop but never strands a claimed job. That is the whole drain.
     while (!atomic_load_explicit(&pool->stopping, memory_order_acquire)) {
-        // A periodic sweep for jobs past their deadline. nya_job_claim reaps before every claim already,
-        // so this only matters while the pool is otherwise idle; it is gated so it is not run every poll.
+        // A periodic deadline sweep; nya_job_claim already reaps before every claim, so this only matters while the pool is idle, and it is gated off every poll.
         if (pool->reap_interval_ns > 0) {
             u64 now_ns = nya_clock_get_monotonic_ns();
             if (now_ns - last_reap_ns >= (u64)pool->reap_interval_ns) {
@@ -215,10 +194,7 @@ void _nya_jobworker_run(void* data) {
         NYA_Error     claim   = nya_job_claim(worker->queue, worker->worker_id, worker->job_arena, &job, &claimed);
 
         if (!claim.ok) {
-            // A claim that errors is not a reason to spin: reclaim the arena and wait like an idle worker
-            // before trying again, so a database that is briefly unhappy does not peg a core. A timeout is
-            // the ordinary shape of contention — another worker held the write lock — and expected while
-            // several of them race for the same file, so it is quiet; anything else is a genuine fault.
+            // A claim error is not a reason to spin: reclaim the arena and wait like an idle worker. A timeout is ordinary contention (another worker held the write lock), so it is quiet; anything else is a genuine fault.
             if (claim.kind == NYA_ERROR_TIMEOUT) {
                 nya_log_debug("%s lost a claim race and will retry: %s", worker->worker_id, claim.message);
             } else {
@@ -230,25 +206,19 @@ void _nya_jobworker_run(void* data) {
         }
 
         if (!claimed) {
-            // Nothing due. Sleep on the wake semaphore until the poll interval runs out or a stop posts
-            // it — a real wait, not a spin. Then loop and look again.
+            // Nothing due: wait on the wake semaphore until the poll interval runs out or a stop posts it — a real wait, not a spin.
             (void)nya_semaphore_wait_timeout(pool->wake, pool->poll_interval_ms);
             continue;
         }
 
         _nya_jobworker_dispatch(worker, &job);
 
-        // The claim copied the job's kind and payload into this arena; give it all back before the next
-        // claim so a long-lived worker's memory stays flat. Then loop straight on to drain a full queue.
+        // The claim copied the job's kind and payload into this arena; free it before the next claim so a long-lived worker's memory stays flat.
         nya_arena_free_all(worker->job_arena);
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STARTING AND STOPPING THE POOL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── STARTING AND STOPPING THE POOL ─────────────────────────────────────
 
 NYA_Error nya_jobworker_start_with_options(
     NYA_JobQueue* queue, u32 worker_count, NYA_JobWorkerOptions options, OUT NYA_JobWorkerPool** out_pool
@@ -277,9 +247,7 @@ NYA_Error nya_jobworker_start_with_options(
     pool->workers = nya_arena_alloc(arena, sizeof(NYA_JobWorker) * worker_count);
     memset(pool->workers, 0, sizeof(NYA_JobWorker) * worker_count);
 
-    // A copy of the path in the pool's own memory: the caller's string need only live for this call, but
-    // a worker connection opens against it here and lives until stop. The key it does not copy — a caller
-    // that gave one to the queue gives it here too, since a connection never reveals the key it holds.
+    // A copy of the path in the pool's own memory, since a worker connection opens against it and lives until stop. The key is not copied — the caller supplies it again, since a connection never reveals its key.
     const char* source_path = queue->database->path;
     u64         path_size   = strlen(source_path) + 1;
     char*       path_copy   = nya_arena_alloc(arena, path_size);
@@ -292,8 +260,7 @@ NYA_Error nya_jobworker_start_with_options(
         return semaphore;
     }
 
-    // Each worker's queue is the caller's, cloned onto a private connection: same table, same tuning, so
-    // the backoff, lease and deadline behaviour a worker sees is the behaviour the caller configured.
+    // Each worker's queue is the caller's cloned onto a private connection: same table and tuning, so a worker sees the backoff, lease and deadline the caller configured.
     NYA_JobQueueOptions queue_options = {
         .table                = queue->table,
         .default_max_attempts = queue->default_max_attempts,
@@ -304,8 +271,7 @@ NYA_Error nya_jobworker_start_with_options(
         .busy_timeout_ms      = options.busy_timeout_ms,
     };
 
-    // Open every connection before starting any thread: a failure here tears down cleanly with nothing
-    // running yet, rather than mid-flight.
+    // Open every connection before starting any thread: a failure here tears down cleanly with nothing running yet.
     for (u32 i = 0; i < worker_count; i++) {
         NYA_JobWorker* worker = &pool->workers[i];
         worker->pool          = pool;
@@ -348,8 +314,7 @@ void nya_jobworker_stop(NYA_JobWorkerPool* pool) {
     if (pool->stopped) return;  // Idempotent: a second stop, and the defer'd stop after an explicit one, are no-ops.
     pool->stopped = true;
 
-    // Raise the flag, then wake every worker so an idle one ends its wait now instead of idling out its
-    // poll interval. A worker inside a job finishes it first; the flag is only seen between jobs.
+    // Raise the flag, then wake every worker so an idle one ends its wait now; a worker inside a job finishes it first, since the flag is only seen between jobs.
     atomic_store_explicit(&pool->stopping, true, memory_order_release);
     if (pool->wake != nullptr) {
         for (u32 i = 0; i < pool->worker_count; i++) nya_semaphore_post(pool->wake);

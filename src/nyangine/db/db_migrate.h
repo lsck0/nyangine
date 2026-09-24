@@ -80,11 +80,7 @@
 #include "nyangine/db/db_orm.h"
 #include "nyangine/db/db_sql.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_MigrationStepKind    NYA_MigrationStepKind;
 typedef enum NYA_MigrationRefusalKind NYA_MigrationRefusalKind;
@@ -160,11 +156,7 @@ struct NYA_MigrationPlan {
     b8 blocked;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /** The sentence a refusal is reported with, so every caller says the same thing about it. */
 NYA_API NYA_ConstCString nya_migration_refusal_reason(NYA_MigrationRefusalKind kind) __attr_no_discard;

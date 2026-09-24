@@ -2,24 +2,17 @@
 
 #include <sqlite3.h>
 
-// Both are compiled into their own archives and linked in, never loaded at runtime; see
-// vendor_sqlean.h and vendor_sqlvec.h. sqlite-vec.h is upstream's, generated from a template at
-// build time, and declares sqlite3_vec_init.
+// sqlite-vec.h is upstream's, generated from a template at build time; declares sqlite3_vec_init. See vendor_sqlean.h / vendor_sqlvec.h.
 #include "sqlite-vec.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 struct NYA_Database {
     sqlite3*    handle;
     NYA_Arena*  arena;
     const char* path;
 
-    // Whether this connection was opened under a key. The key itself is never kept; this is the one
-    // bit db_backup.c needs, so it can refuse a plaintext copy of a database asked to stay encrypted.
+    // Whether opened under a key; the key itself is never kept. db_backup.c uses this to refuse a plaintext copy of a database asked to stay encrypted.
     b8 encrypted;
 };
 
@@ -40,11 +33,7 @@ NYA_INTERNAL NYA_Error _nya_sql_bind(sqlite3_stmt* statement, const NYA_SqlValue
 /** Reads the current row of `statement` into a fresh object keyed by column name. */
 NYA_INTERNAL NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_ConstCString nya_sql_version(void) {
     return sqlite3_libversion();
@@ -55,12 +44,7 @@ NYA_ConstCString nya_sql_vec_version(void) {
 }
 
 b8 nya_sql_encryption_available(void) {
-    /*
-     * The seam and not the cipher. SQLCipher defines this one and takes the key through sqlite3_key
-     * immediately after the open, followed by a read of sqlite_schema, because that is where a wrong
-     * key is found: keying itself succeeds against any bytes. Until it is vendored there is nothing
-     * to say yes to. See db.h.
-     */
+    // The seam, not the cipher: no cipher is vendored yet, so there is nothing to say yes to. See db.h.
 #ifdef NYA_DB_SQLCIPHER
     return true;
 #else
@@ -81,40 +65,32 @@ NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OU
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a database key is %d bytes, not " FMTu32, NYA_SQL_KEY_SIZE, options.key_size);
         }
 
-        // Before the open and not after it: a file created here and then refused would be a database
-        // somebody asked to have encrypted, sitting on the disk in the clear.
+        // Before the open, not after: a file created then refused would be an encrypted-by-request database sitting on disk in the clear.
         if (!nya_sql_encryption_available()) {
             return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s' was given a key and this build has no cipher to use it with; see db.h", path);
         }
     }
 
-    // Before the open below, not after: an auto extension only applies to connections created once
-    // it is registered, so a connection opened first would silently lack every function.
+    // Before the open: an auto extension only applies to connections created after it is registered.
     _nya_sql_register_extensions();
 
     sqlite3* handle = nullptr;
 
-    // NOMUTEX: this module is synchronous and documents itself as such, so paying for SQLite's
-    // internal locking on every call would buy nothing. A connection shared across threads is
-    // outside what this API offers.
+    // NOMUTEX: this module is synchronous, so SQLite's internal locking would buy nothing; a cross-thread connection is outside this API.
     int code = sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, nullptr);
 
     if (code != SQLITE_OK) {
-        // sqlite3_open_v2 hands back a handle even on failure, purely so the message can be read
-        // off it, and closing it is the caller's job either way.
+        // open_v2 hands back a handle even on failure so the message can be read off it; closing it is still needed.
         NYA_Error error = nya_error(_nya_sql_kind_from_sqlite(code), "could not open '%s': %s", path, sqlite3_errmsg(handle));
         sqlite3_close(handle);
         return error;
     }
 
     NYA_Database* database = nya_arena_alloc(arena, sizeof(NYA_Database));
-    // A key that reached this far was honoured: open returns above when one is given and the build
-    // has no cipher, so `key != null` here means the file is genuinely encrypted.
+    // A key that reached here was honoured, so `key != null` means the file is genuinely encrypted.
     *database = (NYA_Database){ .handle = handle, .arena = arena, .path = path, .encrypted = options.key != nullptr };
 
-    // Foreign keys are off by default in SQLite, for compatibility with databases written before it
-    // had them. Nothing in this engine predates that, and a schema that declares a reference should
-    // have it enforced.
+    // Foreign keys are off by default in SQLite for backward compatibility; a declared reference should be enforced.
     (void)sqlite3_exec(handle, "PRAGMA foreign_keys = ON;", nullptr, nullptr, nullptr);
 
     *out_database = database;
@@ -125,9 +101,7 @@ void nya_sql_close(NYA_Database* database) {
     if (database == nullptr) return;
     if (database->handle == nullptr) return;
 
-    /*
-     * close_v2 rather than close, which refuses outright while any statement is still open.
-     */
+    // close_v2, not close, which refuses outright while any statement is still open.
     int code = sqlite3_close_v2(database->handle);
     if (code != SQLITE_OK) nya_log_error("could not close '%s': %s", database->path, sqlite3_errmsg(database->handle));
 
@@ -155,8 +129,7 @@ NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql) {
 NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count) {
     NYA_SqlResult discarded = { 0 };
 
-    // Runs through the query path with a throwaway arena, so binding and stepping have exactly one
-    // implementation. A statement that returns no rows simply produces no objects.
+    // Runs the query path with a throwaway arena so binding and stepping have one implementation.
     NYA_Arena arena = nya_arena_create_on_stack(.name = "sql_exec_bound");
     defer     nya_arena_destroy_on_stack(&arena);
 
@@ -183,12 +156,10 @@ NYA_Error nya_sql_query(
         return nya_error(_nya_sql_kind_from_sqlite(code), "could not prepare statement: %s", sqlite3_errmsg(database->handle));
     }
 
-    // Finalized however this returns, including through the error paths below. Without it a failed
-    // step leaves the statement open and the next nya_sql_close refuses.
+    // Finalized on every path, including errors below; without it a failed step leaves the statement open and the next close refuses.
     defer sqlite3_finalize(statement);
 
-    // Anything after the first statement is silently ignored by prepare_v2, which would make
-    // "INSERT ...; DROP TABLE ..." look like it ran in full. Said out loud instead.
+    // prepare_v2 silently ignores anything after the first statement, so "INSERT ...; DROP TABLE ..." would look like it ran in full.
     if (tail != nullptr && tail[0] != '\0') {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "expected a single statement, got trailing sql: '%s'", tail);
     }
@@ -226,17 +197,10 @@ NYA_Error nya_sql_transaction_rollback(NYA_Database* database) {
     return nya_sql_exec(database, "ROLLBACK;");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 void _nya_sql_register_extensions(void) {
-    /*
-     * sqlite3_auto_extension takes `void (*)(void)` and SQLite calls back through the real signature. The
-     * cast is unavoidable; upstream's documentation does the same.
-     */
+    // sqlite3_auto_extension takes void(*)(void) and SQLite calls back through the real signature; the cast is unavoidable.
     static const struct {
         NYA_ConstCString name;
         int (*entry_point)(sqlite3*, char**, const sqlite3_api_routines*);
@@ -249,15 +213,10 @@ void _nya_sql_register_extensions(void) {
         void (*as_generic)(void) = nullptr;
         nya_memcpy(&as_generic, &extensions[i].entry_point, sizeof(as_generic));
 
-        /*
-         * Called on every open: sqlite3_auto_extension already ignores an entry point it has, and a flag here
-         * would need to be thread safe.
-         */
+        // Called on every open: auto_extension ignores an entry point it already has, and a flag would need to be thread safe.
         int code = sqlite3_auto_extension(as_generic);
         if (code != SQLITE_OK) {
-            // Not fatal, and deliberately not an error return. The database still opens and every
-            // statement that does not reach for these functions still works; what breaks is the
-            // subset of queries that use them, and those fail with SQLite's own "no such function".
+            // Not fatal: the database still opens; only queries using these functions fail, with SQLite's own "no such function".
             nya_log_warn("could not register the %s sqlite extensions (code %d)", extensions[i].name, code);
         }
     }
@@ -268,10 +227,7 @@ NYA_Error _nya_sql_bind(sqlite3_stmt* statement, const NYA_SqlValue* values, u32
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "value_count is %u but values is null", value_count);
     }
 
-    // Checked rather than trusted, and before the nothing-to-do case rather than after it: a
-    // placeholder nobody binds is not an error to SQLite, it is NULL, so a statement given no values
-    // at all would quietly match no rows. Binding past the count is a SQLITE_RANGE error that reads
-    // as a database problem when the actual fault is that the call site and the string disagree.
+    // Checked before the nothing-to-do case: an unbound placeholder is NULL to SQLite, and binding past the count is a SQLITE_RANGE that misreads as a database fault.
     int expected = sqlite3_bind_parameter_count(statement);
     if ((u32)expected != value_count) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "statement takes %d parameters but %u were given", expected, value_count);
@@ -289,9 +245,7 @@ NYA_Error _nya_sql_bind(sqlite3_stmt* statement, const NYA_SqlValue* values, u32
             case NYA_SQL_VALUE_S64:  code = sqlite3_bind_int64(statement, index, values[i].as_s64); break;
             case NYA_SQL_VALUE_F64:  code = sqlite3_bind_double(statement, index, values[i].as_f64); break;
 
-            // SQLITE_TRANSIENT: SQLite copies the bytes. The alternative would make every caller
-            // responsible for keeping its strings alive until the statement is stepped, which is a
-            // lifetime rule nobody would remember and the copy is not the expensive part of a query.
+            // SQLITE_TRANSIENT: SQLite copies the bytes, so callers need not keep strings alive until the statement steps.
             case NYA_SQL_VALUE_TEXT:
                 code = sqlite3_bind_text(statement, index, values[i].as_text, -1, SQLITE_TRANSIENT);
                 break;
@@ -318,8 +272,7 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
         NYA_ConstCString name = sqlite3_column_name(statement, i);
         if (name == nullptr) continue;
 
-        // The key is copied into the arena. sqlite3_column_name's storage belongs to the statement
-        // and is freed by sqlite3_finalize, which happens before the caller ever reads the row.
+        // The key is copied into the arena; column_name storage belongs to the statement and is freed at finalize.
         NYA_String* key_string = nya_string_sprintf(arena, "%s", name);
         NYA_CString key        = nya_string_to_cstring(arena, key_string);
 
@@ -333,13 +286,9 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
                 nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, copy) });
             } break;
 
-            /*
-             * Blobs come back base64 encoded rather than as bytes.
-             */
+            // Blobs come back base64 encoded rather than as bytes.
             case SQLITE_BLOB: {
-                // sqlite3_column_blob returns null for a zero-length blob, which is a real value a
-                // caller can store, so a non-null empty pointer stands in for it: the encoder wants
-                // bytes to point at, and an empty blob encodes to an empty string, not a crash.
+                // column_blob returns null for a zero-length blob (a real value), so an empty non-null pointer stands in: an empty blob encodes to "", not a crash.
                 const u8* data = sqlite3_column_blob(statement, i);
                 int       size = sqlite3_column_bytes(statement, i);
 
@@ -348,8 +297,7 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
                 nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, encoded) });
             } break;
 
-            // Present with a null value rather than absent, so a caller can tell "no such column"
-            // from "this column is null".
+            // Present with a null value rather than absent, so a caller can tell "no such column" from "this column is null".
             case SQLITE_NULL:
             default:          nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_NULL }); break;
         }
@@ -382,8 +330,7 @@ NYA_ErrorKind _nya_sql_kind_from_sqlite(int code) {
         case SQLITE_IOERR:
         case SQLITE_FULL:     return NYA_ERROR_IO;
 
-        // A syntax error, a missing table, a failed constraint: all of them mean the statement or
-        // its parameters were wrong, which is the caller's mistake rather than the database's.
+        // Syntax error, missing table, failed constraint: all mean the statement or its parameters were wrong, the caller's mistake.
         case SQLITE_ERROR:
         case SQLITE_MISUSE:
         case SQLITE_RANGE:

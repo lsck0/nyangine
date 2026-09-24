@@ -75,11 +75,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/db/db_jobs.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** Longest job kind a handler may be registered under, terminator included. Matches the queue's own. */
 #define NYA_JOBWORKER_KIND_MAX 64
@@ -93,11 +89,7 @@
 /** The poll interval a pool uses when the caller names none: a tenth of a second. */
 #define NYA_JOBWORKER_DEFAULT_POLL_MS 100
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_JobWorkerPool    NYA_JobWorkerPool;
 typedef struct NYA_JobWorkerOptions NYA_JobWorkerOptions;
@@ -157,11 +149,7 @@ struct NYA_JobWorkerOptions {
     NYA_ConstCString worker_name;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Registers `handler` as what runs jobs of kind `kind`, with `context` handed back to it on every run.

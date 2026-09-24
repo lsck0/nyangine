@@ -93,11 +93,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/db/db_sql.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** The table a queue uses when the caller names none. */
 #define NYA_JOB_TABLE_DEFAULT "jobs"
@@ -108,11 +104,7 @@
 /** The ceiling on retries a queue uses when the caller and the job both leave it unset: five attempts. */
 #define NYA_JOB_DEFAULT_MAX_ATTEMPTS 5
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_JobQueue        NYA_JobQueue;
 typedef struct NYA_JobQueueOptions NYA_JobQueueOptions;
@@ -261,11 +253,7 @@ struct NYA_JobStats {
     u64 total;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Opens a queue on `database`, creating or migrating its table and index. The queue is allocated in
@@ -276,8 +264,7 @@ struct NYA_JobStats {
  * NYA_TRY(nya_jobs_open(arena, database, &queue, .table = "emails", .default_max_attempts = 3));
  * ```
  * */
-// The parameter is not named `table` for the reason nya_sql_open gives: a macro parameter is
-// substituted after the dot, so a named field would take on the caller's variable name.
+// Not named `table`, like nya_sql_open: a macro parameter is substituted after the dot and would take the caller's variable name.
 #define nya_jobs_open(arena, database, out_queue, ...) \
     nya_jobs_open_with_options((arena), (database), (NYA_JobQueueOptions){ __VA_ARGS__ }, (out_queue))
 

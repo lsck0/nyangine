@@ -97,8 +97,7 @@ enum NYA_SqlCheckpoint {
  * NYA_TRY(nya_sql_backup(db, "./server.backup.db", .pages_per_step = 64));
  * ```
  * */
-// The parameter is not named `dest_path` for the same reason nya_sql_open's is not named `path`: a
-// macro parameter is substituted after the dot too, so `.dest_path` would become the caller's name.
+// Not named `dest_path`, like nya_sql_open's `path`: a macro parameter is substituted after the dot too and would take the caller's name.
 #define nya_sql_backup(source, destination_path, ...) \
     nya_sql_backup_with_options((source), (NYA_SqlBackupOptions){ .dest_path = (destination_path), __VA_ARGS__ })
 

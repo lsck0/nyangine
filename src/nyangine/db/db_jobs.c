@@ -1,14 +1,8 @@
 #include "nyangine/nyangine.h"
 
-// Compiled as part of db.c, after db_sql.c: it builds every statement on the public db_sql.h surface —
-// bound values, never interpolated data — so it needs nothing private to that file. See db.c for the
-// include order.
+// Compiled as part of db.c after db_sql.c: builds every statement on the public db_sql.h surface (bound values, never interpolated data). See db.c.
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 struct NYA_JobQueue {
     NYA_Database* database;
@@ -42,11 +36,7 @@ NYA_INTERNAL void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT 
 /** The expiry sweep both nya_job_claim and nya_jobs_reap_expired share: past-deadline jobs to expired. */
 NYA_INTERNAL NYA_Error _nya_jobs_reap(NYA_JobQueue* queue, s64 now, OUT u64* out_reaped) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, NYA_JobQueueOptions options, OUT NYA_JobQueue** out_queue) {
     nya_assert(arena != nullptr);
@@ -70,21 +60,18 @@ NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, N
     };
     (void)snprintf(queue->table, sizeof(queue->table), "%s", table);
 
-    // A base above the cap would double straight past it; hold the base to the cap so the first delay is
-    // never longer than every one after it.
+    // A base above the cap would double straight past it; hold it to the cap so the first delay is never longer than the ones after.
     if (queue->backoff_base_ns > queue->backoff_cap_ns) queue->backoff_base_ns = queue->backoff_cap_ns;
 
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_open");
     defer      nya_arena_destroy(scratch);
 
-    // Two processes sharing one file are two workers; a claim that meets the other's write lock waits
-    // this long rather than failing at once. Our own number, not caller data, so it is interpolated.
+    // Two processes sharing one file are two workers; a claim meeting the other's write lock waits this long. Our own number, so it is interpolated.
     s64         busy_ms   = options.busy_timeout_ms == 0 ? 5000 : (options.busy_timeout_ms < 0 ? 0 : options.busy_timeout_ms);
     NYA_String* busy_sql  = nya_string_sprintf(scratch, "PRAGMA busy_timeout = " FMTs64, busy_ms);
     NYA_TRY(nya_sql_exec(database, nya_string_to_cstring(scratch, busy_sql)));
 
-    // The schema. Everything a caller supplies is bound at the statements below; the only things
-    // interpolated here are the validated table name and this file's own state integers.
+    // The schema. Callers' data is bound in the statements below; the only interpolated things here are the validated table name and this file's own state integers.
     NYA_String* create = nya_string_sprintf(
         scratch,
         "CREATE TABLE IF NOT EXISTS %s ("
@@ -111,9 +98,7 @@ NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, N
     NYA_String* due_index = nya_string_sprintf(scratch, "CREATE INDEX IF NOT EXISTS %s_due ON %s (state, run_at)", queue->table, queue->table);
     NYA_TRY(nya_sql_exec(database, nya_string_to_cstring(scratch, due_index)));
 
-    // The unique-jobs guarantee is this partial index: at most one row per key while the job is active
-    // (pending or claimed). It is what makes a duplicate enqueue a no-op, and it stops covering a key
-    // the moment its job is done, dead or expired, so the key is free to be enqueued again.
+    // The unique-jobs guarantee: a partial index of at most one row per key while active (pending/claimed), making a duplicate enqueue a no-op until the job leaves those states.
     NYA_String* unique_index = nya_string_sprintf(
         scratch,
         "CREATE UNIQUE INDEX IF NOT EXISTS %s_unique ON %s (unique_key) WHERE unique_key IS NOT NULL AND state IN (%d, %d)",
@@ -129,8 +114,7 @@ NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, N
 }
 
 void nya_jobs_close(NYA_JobQueue* queue) {
-    // Nothing to free: the queue is arena memory and the connection belongs to the caller. The handle
-    // is cleared so a use after close trips rather than reads a live queue.
+    // Nothing to free (arena memory, caller's connection); the handle is cleared so a use after close trips rather than reads a live queue.
     if (queue == nullptr) return;
     *queue = (NYA_JobQueue){ 0 };
 }
@@ -150,8 +134,7 @@ NYA_Error nya_job_enqueue_with_options(
     s64 deadline     = options.deadline.ns;  // zero means none
     u32 max_attempts = options.max_attempts != 0 ? options.max_attempts : queue->default_max_attempts;
 
-    // A zero-length payload binds a non-null pointer so SQLite stores an empty blob rather than NULL,
-    // which the column forbids and which would come back as a null value instead of empty bytes.
+    // A zero-length payload binds a non-null pointer so SQLite stores an empty blob rather than the forbidden NULL, which would come back null, not empty.
     const u8* data = payload != nullptr ? payload : (const u8*)"";
 
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_enqueue");
@@ -179,9 +162,7 @@ NYA_Error nya_job_enqueue_with_options(
         return NYA_OK;
     }
 
-    // Keyed: an active job already under this key wins. `replace` overwrites its payload and schedule,
-    // but only while it is still pending — a job a worker already holds is never rewritten underfoot.
-    // Either way the conflict target names the partial index's columns and predicate so it matches it.
+    // Keyed: an active job under this key wins; `replace` overwrites payload and schedule but only while pending, never while a worker holds it. The conflict target matches the partial index.
     NYA_String* conflict_sql = nullptr;
     if (options.replace) {
         conflict_sql = nya_string_sprintf(
@@ -215,8 +196,7 @@ NYA_Error nya_job_enqueue_with_options(
     };
     NYA_TRY(nya_sql_exec_bound(queue->database, nya_string_to_cstring(scratch, sql), values, nya_carray_length(values)));
 
-    // The surviving job's id, whether this call inserted it or an earlier one did. A no-op conflict
-    // wrote no row, so last_insert_id would be stale; this reads the row that is actually there.
+    // The surviving job's id, whether this call inserted it or an earlier one did: a no-op conflict wrote no row, so last_insert_id would be stale.
     if (out_id != nullptr) {
         NYA_String* find = nya_string_sprintf(
             scratch, "SELECT id FROM %s WHERE unique_key = ? AND state IN (%d, %d) ORDER BY id LIMIT 1", queue->table, NYA_JOB_STATE_PENDING,
@@ -244,8 +224,7 @@ NYA_Error nya_job_claim(NYA_JobQueue* queue, NYA_ConstCString worker_id, NYA_Are
 
     s64 now = _nya_jobs_now();
 
-    // A job past its deadline is moved out of the way before we look for one to run, so it never blocks
-    // the head of the queue and a claim never hands one back.
+    // A past-deadline job is moved out of the way before we look for one to run, so it never blocks the head of the queue and a claim never hands one back.
     NYA_TRY(_nya_jobs_reap(queue, now, nullptr));
 
     s64 lease_expiry = now + queue->lease_ns;
@@ -253,11 +232,7 @@ NYA_Error nya_job_claim(NYA_JobQueue* queue, NYA_ConstCString worker_id, NYA_Are
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_claim");
     defer      nya_arena_destroy(scratch);
 
-    // The whole race-safety of the queue is this one statement: the row is chosen and flipped to
-    // claimed together, under SQLite's write lock, so two workers can never carry the same row away.
-    // The subquery is re-evaluated against committed state, so the loser of a race picks another job.
-    // A pending job, or a claimed one whose lease has run out, is fair game; a past-deadline one was
-    // already reaped above and is excluded here too.
+    // The queue's whole race-safety: the row is chosen and flipped to claimed in one statement under SQLite's write lock, so the race loser re-evaluates the subquery and picks another job. Pending or lease-expired jobs are fair game; past-deadline ones were reaped above.
     NYA_String* sql = nya_string_sprintf(
         scratch,
         "UPDATE %s SET state = %d, worker = ?, attempts = attempts + 1, lease_expiry = ?, updated = ? "
@@ -295,9 +270,7 @@ NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id) {
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_complete");
     defer      nya_arena_destroy(scratch);
 
-    // Only a claimed job completes: a completion for one that is not in flight (never claimed, already
-    // done, or reclaimed after its lease lapsed and finished by another worker) affects no row and is
-    // reported as not found, so the caller can tell a real completion from a no-op.
+    // Only a claimed job completes: a completion for one not in flight affects no row and is reported as not found, so a real completion is told from a no-op.
     NYA_String* sql = nya_string_sprintf(
         scratch, "UPDATE %s SET state = %d, worker = NULL, lease_expiry = 0, updated = ? WHERE id = ? AND state = %d", queue->table,
         NYA_JOB_STATE_DONE, NYA_JOB_STATE_CLAIMED
@@ -318,8 +291,7 @@ NYA_Error nya_job_fail(NYA_JobQueue* queue, s64 job_id, b8 retryable) {
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_fail");
     defer      nya_arena_destroy(scratch);
 
-    // The attempt count and ceiling decide whether this is a retry or the end of the road. Read them
-    // for the one claimed job; a job that is not in flight is not one this call has anything to fail.
+    // Attempt count and ceiling decide retry versus end of the road; read for the one claimed job, since a job not in flight is not one this call can fail.
     NYA_String* read_sql = nya_string_sprintf(scratch, "SELECT attempts, max_attempts FROM %s WHERE id = ? AND state = %d", queue->table, NYA_JOB_STATE_CLAIMED);
     NYA_SqlValue  key[]  = { nya_sql_s64(job_id) };
     NYA_SqlResult read   = { 0 };
@@ -331,9 +303,7 @@ NYA_Error nya_job_fail(NYA_JobQueue* queue, s64 job_id, b8 retryable) {
     u32 max_attempts = (u32)nya_object_get(read.rows->items[0], "max_attempts")->as_s64;
     s64 now          = _nya_jobs_now();
 
-    // Retry only when asked and only while attempts remain; otherwise the job dead-letters, kept for
-    // inspection rather than deleted. attempts already counts this run, so `attempts < max_attempts`
-    // is "there is at least one try left after this one".
+    // Retry only when asked and attempts remain, else dead-letter; attempts already counts this run, so `attempts < max_attempts` means one try is left after this.
     b8 retry = retryable && attempts < max_attempts;
 
     if (retry) {
@@ -446,11 +416,7 @@ NYA_Error nya_jobs_reap_expired(NYA_JobQueue* queue, OUT u64* out_reaped) {
     return _nya_jobs_reap(queue, _nya_jobs_now(), out_reaped);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 b8 _nya_jobs_table_valid(NYA_ConstCString name) {
     if (name == nullptr) return false;
@@ -458,8 +424,7 @@ b8 _nya_jobs_table_valid(NYA_ConstCString name) {
     u64 length = strlen(name);
     if (length == 0 || length >= NYA_JOB_TABLE_MAX) return false;
 
-    // [A-Za-z_] to start, [A-Za-z0-9_] after: the identifier grammar db_orm.h and db_blob.h hold a
-    // table name to, and the reason a table name is never a bound parameter.
+    // [A-Za-z_] to start, [A-Za-z0-9_] after: the identifier grammar db_orm.h and db_blob.h hold a table name to, since it is never a bound parameter.
     for (u64 i = 0; i < length; i++) {
         char c      = name[i];
         b8   letter = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
@@ -471,8 +436,7 @@ b8 _nya_jobs_table_valid(NYA_ConstCString name) {
 }
 
 s64 _nya_jobs_now(void) {
-    // Through nya_instant_now, so the simulated clock a test installs is the one deadlines and backoff
-    // are measured against and a run replays the same on every seed. See base_clock_instant.h.
+    // Through nya_instant_now, so a test's simulated clock measures deadlines and backoff and a run replays the same per seed. See base_clock_instant.h.
     return nya_instant_now().ns;
 }
 
@@ -487,8 +451,7 @@ s64 _nya_jobs_backoff_ns(const NYA_JobQueue* queue, u32 attempts, s64 job_id, s6
     s64 cap = queue->backoff_cap_ns;
     s64 delay = queue->backoff_base_ns;
 
-    // base * 2^(attempt-1): the first failed attempt waits one base, the next two, then four, doubling
-    // until the cap. The doubling stops the moment it reaches the cap, so it can never overflow s64.
+    // base * 2^(attempt-1): one base, then two, four, doubling until the cap, where it stops, so it can never overflow s64.
     u32 doublings = attempts > 0 ? attempts - 1 : 0;
     for (u32 i = 0; i < doublings; i++) {
         if (delay >= cap) break;
@@ -497,10 +460,7 @@ s64 _nya_jobs_backoff_ns(const NYA_JobQueue* queue, u32 attempts, s64 job_id, s6
     }
     if (delay > cap) delay = cap;
 
-    // Jitter (off by default) shaves up to `jitter` of the delay off, so a herd of jobs that failed at
-    // the same instant does not retry at the same instant. The spread depends only on the job, the
-    // attempt and the clock, so a replay is still deterministic; it does trade the strict monotonicity
-    // the plain schedule has, which is why it is opt-in.
+    // Jitter (off by default) shaves up to `jitter` off the delay so a herd does not retry in lockstep; the spread depends only on job, attempt and clock, so a replay stays deterministic but loses strict monotonicity.
     if (queue->jitter > 0.0 && delay > 0) {
         u64 bits = _nya_jobs_hash((u64)job_id ^ (u64)now ^ ((u64)attempts << 32));
         f64 unit = (f64)(bits >> 11) * (1.0 / 9007199254740992.0);  // [0, 1)
@@ -528,8 +488,7 @@ void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT NYA_QueuedJob
     NYA_ConstCString kind = nya_object_get(row, "kind")->as_string;
     out_job->kind         = nya_string_to_cstring(out_arena, nya_string_sprintf(out_arena, "%s", kind != nullptr ? kind : ""));
 
-    // The blob comes back base64 encoded (see db_sql.c's row builder); decode it into the caller's
-    // arena. A zero-length payload keeps a non-null pointer so it reads as empty bytes, not as missing.
+    // The blob comes back base64 (see db_sql.c's row builder); decode into the caller's arena, a zero-length payload keeping a non-null pointer so it reads as empty, not missing.
     NYA_Value*  payload = nya_object_get(row, "payload");
     NYA_String* decoded = nya_string_create(out_arena);
     if (payload != nullptr && payload->type == NYA_TYPE_STRING) {
@@ -549,9 +508,7 @@ NYA_Error _nya_jobs_reap(NYA_JobQueue* queue, s64 now, OUT u64* out_reaped) {
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_reap");
     defer      nya_arena_destroy(scratch);
 
-    // A job with a deadline (deadline != 0) that has passed, and that has not already finished, is moved
-    // to expired: it is never run, which is the whole point of a deadline. Both pending and claimed
-    // qualify — a claim in flight past its deadline is abandoned rather than allowed to complete late.
+    // A job with a passed deadline that has not finished is moved to expired (never run); both pending and claimed qualify, so an in-flight claim past its deadline is abandoned rather than completed late.
     NYA_String* sql = nya_string_sprintf(
         scratch, "UPDATE %s SET state = %d, worker = NULL, lease_expiry = 0, updated = ? WHERE deadline != 0 AND deadline <= ? AND state IN (%d, %d)",
         queue->table, NYA_JOB_STATE_EXPIRED, NYA_JOB_STATE_PENDING, NYA_JOB_STATE_CLAIMED

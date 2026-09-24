@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /**
  * One column, as both sides of the difference are read: the name it has, the storage class it is
@@ -43,11 +39,7 @@ NYA_INTERNAL NYA_ConstCString _nya_migration_create_sql(NYA_Arena* arena, NYA_Co
 /** Copies `text` into `arena`, so a plan outlives whatever it was read from. */
 NYA_INTERNAL NYA_ConstCString _nya_migration_copy(NYA_Arena* arena, NYA_ConstCString text);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_ConstCString nya_migration_refusal_reason(NYA_MigrationRefusalKind kind) {
     switch (kind) {
@@ -108,8 +100,7 @@ NYA_Error nya_migration_plan_from_types(
     _NYA_MigrationSchema before = { 0 };
     _NYA_MigrationSchema after  = { 0 };
 
-    // A null `from` is a table that does not exist yet, which is an empty schema and therefore a
-    // create. The same case the live reader produces for a database with no such table.
+    // A null `from` is a table that does not exist yet: an empty schema, therefore a create, like the live reader's no-such-table case.
     if (from != nullptr) NYA_TRY(_nya_migration_schema_from_type(from, &before));
     NYA_TRY(_nya_migration_schema_from_type(to, &after));
 
@@ -124,8 +115,7 @@ NYA_Error nya_migration_apply(NYA_Database* database, const NYA_MigrationPlan* p
 
     if (plan == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no plan");
 
-    // Nothing at all rather than the derivable half: a table left between two schemas is one nobody
-    // wrote code for. The first blocking refusal is the message, since fixing it is one decision.
+    // Nothing at all rather than the derivable half: a table between two schemas is one nobody wrote code for. The first blocking refusal is the message.
     if (plan->blocked) {
         for (u32 i = 0; i < plan->refusal_count; i++) {
             if (plan->refusals[i].kind == NYA_MIGRATION_REFUSAL_REMOVED_COLUMN) continue;
@@ -146,8 +136,7 @@ NYA_Error nya_migration_apply(NYA_Database* database, const NYA_MigrationPlan* p
         NYA_Error ran = nya_sql_exec(database, plan->steps[i].sql);
         if (ran.ok) continue;
 
-        // The disk that fills halfway through. Rolled back so the schema is the one the program was
-        // written against, and the rollback's own failure is not allowed to hide the real error.
+        // The disk that fills halfway through: rolled back to the schema the program was written against, and the rollback's own failure never hides the real error.
         NYA_Error unwound = nya_sql_transaction_rollback(database);
         if (!unwound.ok) nya_log_error("could not roll back the migration of '%s': %s", plan->table, (NYA_ConstCString)unwound.message);
 
@@ -167,8 +156,7 @@ NYA_Error nya_orm_schema_migrate(NYA_OrmTable* table) {
     NYA_MigrationPlan* plan = nullptr;
     NYA_TRY(nya_migration_plan_from_table(table, &scratch, &plan));
 
-    // Said before anything runs, including the refusals that do not stop it: a column the schema
-    // keeps and this build does not describe is the one difference somebody has to notice by reading.
+    // Said before anything runs, including non-blocking refusals: a column the schema keeps and this build does not describe is one somebody has to notice.
     for (u32 i = 0; i < plan->refusal_count; i++) {
         nya_log_warn("%s.%s: %s", plan->table, plan->refusals[i].column, nya_migration_refusal_reason(plan->refusals[i].kind));
     }
@@ -178,11 +166,7 @@ NYA_Error nya_orm_schema_migrate(NYA_OrmTable* table) {
     return nya_migration_apply(table->database, plan);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_ConstCString _nya_migration_copy(NYA_Arena* arena, NYA_ConstCString text) {
     return nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s", text != nullptr ? text : ""));
@@ -211,8 +195,7 @@ NYA_Error _nya_migration_schema_from_type(const NYA_TypeReflection* type, OUT _N
 
         NYA_OrmColumnType column = NYA_ORM_COLUMN_COUNT;
 
-        // The same mapping nya_orm_open refuses on, asked the same way, so a plan cannot be built for
-        // a type the ORM would not open.
+        // The same mapping nya_orm_open refuses on, so a plan cannot be built for a type the ORM would not open.
         if (!nya_orm_column_type(field->type, &column)) {
             return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s.%s' is a '%s', which has no column type", type->name, field->name,
                              field->type->name);
@@ -220,8 +203,7 @@ NYA_Error _nya_migration_schema_from_type(const NYA_TypeReflection* type, OUT _N
 
         _NYA_MigrationColumn* entry = &out_schema->columns[out_schema->count];
 
-        // A field name is a C identifier by construction, and is parsed anyway: it goes into a
-        // statement unquoted, and this module trusts nothing it puts there.
+        // A field name is a C identifier already, and is parsed anyway: it goes into a statement unquoted, and this module trusts nothing it puts there.
         NYA_TRY(_nya_orm_parse_name(field->name, entry->name, sizeof(entry->name)));
 
         entry->type   = column;
@@ -249,17 +231,13 @@ NYA_Error _nya_migration_schema_from_table(NYA_OrmTable* table, NYA_Arena* arena
     for (u32 i = 0; i < actual_count; i++) {
         _NYA_MigrationColumn* entry = &out_schema->columns[out_schema->count];
 
-        // A table written by somebody else can hold a name that is not an identifier, and there is
-        // nothing to derive from a column this module could never name in a statement. Skipped,
-        // which leaves it exactly where it is, as an undescribed column already is.
+        // A foreign table may hold a non-identifier name this module could never name in a statement; skipped, which leaves it exactly where it is.
         if (!_nya_orm_parse_name(actual[i].name, entry->name, sizeof(entry->name)).ok) {
             nya_log_warn("'%s' has a column named '%s', which is not an identifier; leaving it alone", table->name, actual[i].name);
             continue;
         }
 
-        // Case insensitively, because a table written by hand may well say `integer`. Anything the
-        // mapping does not know is left as COUNT, which differs from every real type and so reads as
-        // a retype rather than as a match.
+        // Case insensitively, since a hand-written table may say `integer`. An unknown type stays COUNT, which differs from every real type and reads as a retype.
         NYA_String* declared = nya_string_from(arena, actual[i].type);
         nya_string_to_upper(declared);
 
@@ -289,8 +267,7 @@ NYA_ConstCString _nya_migration_create_sql(NYA_Arena* arena, NYA_ConstCString ta
     NYA_String* definitions = nya_string_create(arena);
 
     for (u32 i = 0; i < schema->count; i++) {
-        // The same shape nya_orm_open builds, for the same reason: nothing but the type and, for the
-        // key, PRIMARY KEY. A constraint nothing relies on would make an existing table look drifted.
+        // The same shape nya_orm_open builds: nothing but the type and, for the key, PRIMARY KEY. A constraint nothing relies on would make an existing table look drifted.
         nya_string_extend_sprintf(definitions, "%s%s %s%s", i > 0 ? ", " : "", schema->columns[i].name,
                                   NYA_ORM_COLUMN_TYPE_NAME_MAP[schema->columns[i].type], schema->columns[i].is_key ? " PRIMARY KEY" : "");
     }
@@ -320,8 +297,7 @@ NYA_Error _nya_migration_diff(NYA_Arena* arena, const _NYA_MigrationSchema* from
         const _NYA_MigrationColumn* found  = _nya_migration_column_find(from, wanted->name);
 
         if (found == nullptr) {
-            // sqlite cannot add a primary key to a table that exists, and it should not be able to:
-            // which row is which would be decided after the fact, for rows that are already there.
+            // sqlite cannot add a primary key to an existing table, and should not: which row is which would be decided after the fact.
             if (wanted->is_key) {
                 plan->refusals[plan->refusal_count] = (NYA_MigrationRefusal){
                     .kind     = NYA_MIGRATION_REFUSAL_MOVED_KEY,
@@ -337,8 +313,7 @@ NYA_Error _nya_migration_diff(NYA_Arena* arena, const _NYA_MigrationSchema* from
             NYA_String* sql = nya_string_sprintf(arena, "ALTER TABLE %s ADD COLUMN %s %s", plan->table, wanted->name,
                                                  NYA_ORM_COLUMN_TYPE_NAME_MAP[wanted->type]);
 
-            // No DEFAULT and no NOT NULL: every row already there gets NULL, and NULL loads as zero
-            // because nya_orm_select zeroes a struct before it fills it. That is the data migration.
+            // No DEFAULT and no NOT NULL: existing rows get NULL, and NULL loads as zero since nya_orm_select zeroes a struct first. That is the data migration.
             plan->steps[plan->step_count] = (NYA_MigrationStep){
                 .kind    = NYA_MIGRATION_STEP_ADD_COLUMN,
                 .subject = _nya_migration_copy(arena, wanted->name),
@@ -372,8 +347,7 @@ NYA_Error _nya_migration_diff(NYA_Arena* arena, const _NYA_MigrationSchema* from
         }
     }
 
-    // The other direction, and the refusal that does not stop anything: the column stays, because a
-    // drop and a rename are the same difference from here and the ORM names its columns anyway.
+    // The other direction, the refusal that stops nothing: the column stays, since a drop and a rename look alike here and the ORM names its columns anyway.
     for (u32 i = 0; i < from->count; i++) {
         if (_nya_migration_column_find(to, from->columns[i].name) != nullptr) continue;
 

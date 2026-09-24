@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** The widest table opened so far, which is what the `orm_columns` ceiling shows. */
 NYA_INTERNAL u32 _nya_orm_columns_live = 0;
@@ -35,18 +31,13 @@ typedef struct {
 NYA_INTERNAL NYA_Error
 _nya_orm_table_info(NYA_OrmTable* table, NYA_Arena* arena, OUT _NYA_OrmColumnInfo* out_columns, u32 capacity, OUT u32* out_count);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* out_column) {
     if (type == nullptr || out_column == nullptr) return false;
 
     if (type->kind == NYA_REFLECT_ENUM) {
-        // A set of flags is written by reflection as a list of names, and a list is not a column, so
-        // the flags stay the integer they are in the struct. A plain enum keeps its name; see db_orm.h.
+        // Flags stay integer (a list of names is not a column); a plain enum keeps its name. See db_orm.h.
         *out_column = type->is_bitflags ? NYA_ORM_COLUMN_INTEGER : NYA_ORM_COLUMN_TEXT;
         return true;
     }
@@ -78,17 +69,12 @@ b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* ou
 
         case NYA_TYPE_STRING: *out_column = NYA_ORM_COLUMN_TEXT; return true;
 
-        // Everything else on purpose: the 128 bit widths, f16, wide characters and the pointer
-        // flavours of every primitive have no storage class here and are refused by name at open.
+        // Everything else on purpose: 128-bit widths, f16, wide chars and pointer primitives have no storage class here and are refused at open.
         default:              return false;
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 NYA_Error nya_orm_open(
     NYA_Arena* arena, NYA_Database* database, const NYA_TypeReflection* type, NYA_ConstCString table_name, OUT NYA_OrmTable** out_table
@@ -121,8 +107,7 @@ NYA_Error nya_orm_open(
 
         NYA_OrmColumnType column = NYA_ORM_COLUMN_COUNT;
 
-        // Refused here rather than at the first insert: the type is wrong for a table, and that is a
-        // fact about the definition, not about any particular row.
+        // Refused here rather than at the first insert: a wrong type is a fact about the definition, not any particular row.
         if (!nya_orm_column_type(field->type, &column)) {
             return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s.%s' is a '%s', which has no column type; @skip it or flatten it into the struct",
                              type->name, field->name, field->type->name);
@@ -133,8 +118,7 @@ NYA_Error nya_orm_open(
                 return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' has a second @key on '%s'; a row has one identity", type->name, field->name);
             }
 
-            // A float is not an identity: two of them that compare equal need not be the same bits,
-            // and sqlite's own rowid alias is an integer.
+            // A float is not an identity: two that compare equal need not be the same bits, and sqlite's rowid alias is an integer.
             if (column == NYA_ORM_COLUMN_REAL) {
                 return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s.%s' is a @key of real type; a key has to be an integer or text", type->name,
                                  field->name);
@@ -159,8 +143,7 @@ NYA_Error nya_orm_open(
 
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
-        // The columns are per table rather than a shared pool, so the live count is the widest table
-        // opened so far: what the overlay answers is how close any one type is to the ceiling.
+        // Columns are per table, so the live count is the widest table opened so far: how close any one type is to the ceiling.
         nya_ceiling_register("orm_columns", NYA_ORM_COLUMN_MAX, &_nya_orm_columns_live);
         ceiling_registered = true;
     }
@@ -174,17 +157,11 @@ NYA_Error nya_orm_open(
 void nya_orm_close(NYA_OrmTable* table) {
     if (table == nullptr) return;
 
-    // Zeroed rather than freed: the arena nya_orm_open was given owns every byte of this, including
-    // the statements. What this buys is that the assert at the top of every call fires on a closed
-    // table instead of the call running against a connection somebody else has since closed.
+    // Zeroed rather than freed (the open arena owns every byte): the per-call assert then fires on a closed table instead of running against a since-closed connection.
     *table = (NYA_OrmTable){ 0 };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SCHEMA
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE SCHEMA ─────────────────────────────────────
 
 /** Logs one schema difference. The reporter nya_orm_schema_create installs. */
 NYA_INTERNAL void _nya_orm_report_to_log(NYA_ConstCString column, NYA_ConstCString found, NYA_ConstCString expected, void* user_data) {
@@ -198,9 +175,7 @@ u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "orm_schema_check");
     defer     nya_arena_destroy_on_stack(&scratch);
 
-    // Two of them rather than the column count: the table may carry columns this build never heard
-    // of, and those are counted too. The bound is the same either way, since a table nothing here
-    // wrote could have any number of columns and only the first NYA_ORM_COLUMN_MAX are inspected.
+    // Sized to the column max even though the table may carry unknown columns: only the first NYA_ORM_COLUMN_MAX are inspected.
     _NYA_OrmColumnInfo actual[NYA_ORM_COLUMN_MAX] = { 0 };
     u32                actual_count               = 0;
 
@@ -221,8 +196,7 @@ u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user
         const NYA_ReflectField* field  = table->columns[i];
         NYA_OrmColumnType       column = NYA_ORM_COLUMN_COUNT;
 
-        // Checked at open, so this cannot fail; read again rather than cached, so the schema, the
-        // binding and this check all ask the same function.
+        // Cannot fail (checked at open); read again rather than cached so schema, binding and this check ask the same function.
         (void)nya_orm_column_type(field->type, &column);
 
         const _NYA_OrmColumnInfo* found = nullptr;
@@ -237,8 +211,7 @@ u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user
             continue;
         }
 
-        // Case insensitively, because a table written by hand may well say `integer`. Only the
-        // declared type is compared; affinity is what it decides, and that is what would lose data.
+        // Case insensitively, since a hand-written table may say `integer`. Only the declared type is compared, since its affinity is what would lose data.
         NYA_String* declared = nya_string_from(&scratch, found->type);
         nya_string_to_upper(declared);
 
@@ -253,8 +226,7 @@ u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user
         }
     }
 
-    // The other direction. A warning rather than a failure, for the reason in db_orm.h: every statement
-    // here names its columns, so a column no field describes is never read and never written.
+    // The other direction: a warning, not a failure. Every statement names its columns, so a column no field describes is never read or written. See db_orm.h.
     for (u32 c = 0; c < actual_count; c++) {
         b8 described = false;
 
@@ -279,9 +251,7 @@ NYA_Error nya_orm_schema_create(NYA_OrmTable* table) {
 
     if (nya_orm_schema_check(table, _nya_orm_report_to_log, (void*)table->type->name) == 0) return NYA_OK;
 
-    // Counted a second time, against a reporter that only counts, because what decides the return is
-    // the subset that loses data: a column the struct needs and the table has not got, a column whose
-    // declared type disagrees, or a key that is not the key. An extra column is not one of those.
+    // Counted a second time: the return is decided only by the data-losing subset (missing column, disagreeing type, wrong key), not an extra column.
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "orm_schema_create");
     defer     nya_arena_destroy_on_stack(&scratch);
 
@@ -335,11 +305,7 @@ NYA_Error nya_orm_schema_destroy(NYA_OrmTable* table) {
     return nya_sql_exec(table->database, nya_string_to_cstring(&scratch, sql));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROWS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── ROWS ─────────────────────────────────────
 
 NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance) {
     nya_assert(table != nullptr);
@@ -350,8 +316,7 @@ NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance) {
     NYA_SqlValue key = { 0 };
     NYA_TRY(_nya_orm_bind(table, table->key, instance, &key));
 
-    // The one value the database decides. A zero integer key means "give me one", which is what
-    // sqlite's rowid alias already does for a column left out of the statement.
+    // The one value the database decides: a zero integer key means "give me one", which sqlite's rowid alias does for a column left out.
     b8 assigned = table->key_is_integer && key.as_s64 == 0;
 
     if (!table->key_is_integer && (key.kind != NYA_SQL_VALUE_TEXT || key.as_text[0] == '\0')) {
@@ -415,8 +380,7 @@ NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance) {
     NYA_SqlResult result = { 0 };
     NYA_TRY(nya_sql_query(table->database, &scratch, table->sql_update, values, value_count, &result));
 
-    // An update that matched nothing is not an update. Said rather than returned as success, which is
-    // how a caller ends up believing a row it never wrote is in the database.
+    // An update that matched nothing is not an update, so it is said rather than returned as success.
     if (result.rows_affected == 0) {
         return nya_error(NYA_ERROR_NOT_FOUND, "'%s' has no row with that %s", table->name, table->key->name);
     }
@@ -457,8 +421,7 @@ NYA_Error nya_orm_find(NYA_OrmTable* table, NYA_Arena* arena, NYA_SqlValue key, 
 
     if (result.rows->length == 0) return nya_error(NYA_ERROR_NOT_FOUND, "'%s' has no row with that %s", table->name, table->key->name);
 
-    // Zeroed first, because nya_reflect_from_object leaves a field the document does not mention
-    // alone, and a NULL column is a field it does not write.
+    // Zeroed first: nya_reflect_from_object leaves an unmentioned field alone, and a NULL column is one it does not write.
     nya_memset(out_instance, 0, table->type->size);
 
     return nya_reflect_from_object(table->type, out_instance, result.rows->items[0]);
@@ -484,8 +447,7 @@ NYA_Error nya_orm_select(
 
     NYA_ConstCString sql = table->sql_select;
 
-    // The only string a caller contributes, and it is SQL rather than data; see db_orm.h. Values are
-    // bound to the `?` in it, and nya_sql_query checks that there are as many as it takes.
+    // The only string a caller contributes, and it is SQL not data; values bind to its `?`, count-checked by nya_sql_query. See db_orm.h.
     if (clauses != nullptr && clauses[0] != '\0') {
         NYA_String* whole = nya_string_sprintf(arena, "%s %s", table->sql_select, clauses);
         sql               = nya_string_to_cstring(arena, whole);
@@ -502,8 +464,7 @@ NYA_Error nya_orm_select(
     nya_memset(instances, 0, table->type->size * count);
 
     for (u32 i = 0; i < count; i++) {
-        // The whole of the row-to-struct direction: a row is already the document a described type
-        // reads from, so there is nothing between the query and the struct.
+        // The whole row-to-struct direction: a row is already the document a described type reads from.
         NYA_TRY(nya_reflect_from_object(table->type, nya_orm_at(table, instances, i), result.rows->items[i]));
     }
 
@@ -513,11 +474,7 @@ NYA_Error nya_orm_select(
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_orm_parse_name(NYA_ConstCString name, OUT char* out, u64 capacity) {
     nya_assert(out != nullptr);
@@ -537,8 +494,7 @@ NYA_Error _nya_orm_parse_name(NYA_ConstCString name, OUT char* out, u64 capacity
         b8 letter = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == '_';
         b8 digit  = character >= '0' && character <= '9';
 
-        // A leading digit is refused with the rest: the point is that whatever goes into a statement
-        // unquoted is an identifier and nothing else, and "1; DROP TABLE" starts with a digit.
+        // A leading digit is refused: whatever goes into a statement unquoted must be an identifier, and "1; DROP TABLE" starts with a digit.
         if (letter || (digit && i > 0)) continue;
 
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the table name '%s' is not an identifier: '%c' at " FMTu64, name, character, i);
@@ -572,8 +528,7 @@ NYA_Error _nya_orm_build_statements(NYA_OrmTable* table, NYA_Arena* arena) {
 
         NYA_ConstCString separator = i > 0 ? ", " : "";
 
-        // Nothing but the type and, for the key, PRIMARY KEY. See db_orm.h for why no constraint this
-        // module does not rely on is declared here.
+        // Nothing but the type and, for the key, PRIMARY KEY; see db_orm.h for why no unneeded constraint is declared.
         nya_string_extend_sprintf(definitions, "%s%s %s%s", separator, field->name, NYA_ORM_COLUMN_TYPE_NAME_MAP[column],
                                   field == table->key ? " PRIMARY KEY" : "");
 
@@ -602,8 +557,7 @@ NYA_Error _nya_orm_build_statements(NYA_OrmTable* table, NYA_Arena* arena) {
         arena, nya_string_sprintf(arena, "INSERT INTO %s (%s) VALUES (%s)", name, column_names, nya_string_to_cstring(arena, marks))
     );
 
-    // A type that is nothing but its key still inserts: sqlite spells a row made entirely of
-    // defaults this way, and `INSERT INTO t () VALUES ()` is not valid SQL.
+    // A type that is nothing but its key still inserts: sqlite spells an all-defaults row this way, since `INSERT INTO t () VALUES ()` is invalid.
     if (table->key_is_integer) {
         table->sql_insert_assigned =
             others == 0 ? nya_string_to_cstring(arena, nya_string_sprintf(arena, "INSERT INTO %s DEFAULT VALUES", name))
@@ -612,8 +566,7 @@ NYA_Error _nya_orm_build_statements(NYA_OrmTable* table, NYA_Arena* arena) {
                                                                           nya_string_to_cstring(arena, other_marks)));
     }
 
-    // Left null when there is nothing but the key, so nya_orm_update says so rather than running
-    // `UPDATE t SET WHERE id = ?`.
+    // Left null when there is nothing but the key, so nya_orm_update says so rather than running `UPDATE t SET WHERE id = ?`.
     if (others > 0) {
         table->sql_update = nya_string_to_cstring(
             arena, nya_string_sprintf(arena, "UPDATE %s SET %s WHERE %s = ?", name, nya_string_to_cstring(arena, assignments), table->key->name)
@@ -650,9 +603,7 @@ NYA_Error _nya_orm_bind(const NYA_OrmTable* table, const NYA_ReflectField* field
 
         NYA_ConstCString variant = nya_reflect_variant_name(field_type, number);
 
-        // Refused rather than stored as the number: the column is TEXT, so the number would come back
-        // as text that names no variant and would be dropped on the way into the struct. Loud now
-        // beats a field that silently reads as zero later.
+        // Refused rather than stored as the number: the TEXT column would return text naming no variant and be dropped, reading as zero later.
         if (variant == nullptr) {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s.%s' holds " FMTs64 ", which is not a variant of '%s'", table->type->name,
                              field->name, number, field_type->name);
@@ -668,9 +619,7 @@ NYA_Error _nya_orm_bind(const NYA_OrmTable* table, const NYA_ReflectField* field
 
         while (length < field_type->element_count && text[length] != '\0') length++;
 
-        // sqlite measures a bound string with strlen, so an unterminated array would be read past its
-        // end. Refused by name instead: a char[N] used as text is terminated, and one that is not is
-        // a struct somebody filled with memcpy.
+        // sqlite measures a bound string with strlen, so an unterminated char[N] would be read past its end; refused by name instead.
         if (length == field_type->element_count) {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s.%s' is not terminated within its " FMTu32 " bytes", table->type->name,
                              field->name, field_type->element_count);
@@ -705,8 +654,7 @@ NYA_Error _nya_orm_bind(const NYA_OrmTable* table, const NYA_ReflectField* field
             return NYA_OK;
         }
 
-        // The only text left is a `char*`, which the struct does not own and need not have. A null
-        // one is SQL NULL rather than an empty string, so the two stay different things.
+        // The only text left is a `char*`; a null one is SQL NULL rather than an empty string, so the two stay different.
         case NYA_ORM_COLUMN_TEXT: {
             if (value.type != NYA_TYPE_STRING) {
                 return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s.%s' does not read as text", table->type->name, field->name);
@@ -724,8 +672,7 @@ NYA_Error _nya_orm_bind(const NYA_OrmTable* table, const NYA_ReflectField* field
 NYA_Error _nya_orm_check_key(const NYA_OrmTable* table, NYA_SqlValue key) {
     NYA_SqlValueKind wanted = table->key_is_integer ? NYA_SQL_VALUE_S64 : NYA_SQL_VALUE_TEXT;
 
-    // A key of the wrong shape matches no row, which looks exactly like a row that is not there. Said
-    // rather than left to read as absence.
+    // A key of the wrong shape matches no row, which looks exactly like absence, so it is said rather than left to read that way.
     if (key.kind != wanted) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s.%s' is %s, so the key has to be built with nya_sql_%s", table->type->name,
                          table->key->name, table->key_is_integer ? "an integer" : "text", table->key_is_integer ? "s64" : "text");
@@ -740,8 +687,7 @@ NYA_Error _nya_orm_table_info(NYA_OrmTable* table, NYA_Arena* arena, OUT _NYA_Or
 
     *out_count = 0;
 
-    // The table name cannot be bound, which is why nya_orm_open parses it into an identifier. Nothing
-    // else in this statement comes from anywhere but this module.
+    // The table name cannot be bound, which is why nya_orm_open parses it into an identifier; nothing else here comes from outside this module.
     NYA_String* sql = nya_string_sprintf(arena, "PRAGMA table_info(%s)", table->name);
 
     NYA_SqlResult result = { 0 };

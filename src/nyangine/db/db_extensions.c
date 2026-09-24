@@ -2,10 +2,7 @@
  * @file db_extensions.c
  * */
 
-// SQLITE_CORE is what tells sqlite3ext.h these are compiled into the program rather than loaded, so
-// SQLITE_EXTENSION_INIT1 becomes nothing and the API is called directly instead of through the
-// dispatch pointer. The build rule passes it; asserting it here means a misconfigured rule fails
-// with this sentence instead of at link time on a missing sqlite3_api symbol.
+// SQLITE_CORE tells sqlite3ext.h these are compiled in, not loaded; asserting it here fails a misconfigured build rule with this sentence instead of at link time.
 #ifndef SQLITE_CORE
 #error "db_extensions.c must be compiled with -DSQLITE_CORE, see vendor_sqlean.h"
 #endif
@@ -23,22 +20,14 @@ SQLITE_EXTENSION_INIT1
 #include "uuid/extension.h"
 #include "vsv/extension.h"
 
-// ipaddr is POSIX sockets: arpa/inet.h and inet_pton. Upstream leaves it out of its own Windows
-// bundle for the same reason.
+// ipaddr is POSIX sockets (arpa/inet.h, inet_pton); upstream leaves it out of its Windows bundle too.
 #ifndef _WIN32
 #include "ipaddr/extension.h"
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VENDORED SOURCES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── VENDORED SOURCES ─────────────────────────────────────
 
-/*
- * Resolved through -I./vendor/sqlean/src, which the vendor rule puts on the command line, so these
- * read the same way sqlean's own headers include each other.
- */
+// Resolved through -I./vendor/sqlean/src, which the vendor rule puts on the command line.
 
 #include "define/eval.c"
 #include "define/extension.c"
@@ -85,29 +74,19 @@ SQLITE_EXTENSION_INIT1
 #include "ipaddr/extension.c"
 #endif
 
-/*
- * uuid/extension.c and time/time.c both define a static `timespec_now`, identical in body and
- * private to each file. Separate translation units upstream, so upstream never notices; one
- * translation unit here, so one of them has to be renamed.
- */
+// uuid/extension.c and time/time.c both define a static `timespec_now`; one translation unit here, so one is renamed.
 #define timespec_now sqlean_uuid_timespec_now
 #include "uuid/extension.c"
 #undef timespec_now
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ENTRY POINT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── ENTRY POINT ─────────────────────────────────────
 
 int nya_sqlean_init(sqlite3* db, char** error_message, const sqlite3_api_routines* api);
 
 /**
  * Registers every extension above on `db`.
  * */
-/*
- * Every registration's return code is checked, and the first failure stops the rest.
- */
+// Every registration's return code is checked; the first failure stops the rest.
 #define _NYA_SQLEAN_TRY(call)                                                                                                                        \
     do {                                                                                                                                             \
         int _nya_sqlean_result = (call);                                                                                                             \
