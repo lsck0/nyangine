@@ -288,7 +288,7 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_hud_paused(void) {
 
 /** `hud_players` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_hud_players(u32 a0) {
-    return _nya_i18n_format(NYA_STRING_HUD_PLAYERS, a0);
+    return _nya_i18n_format_plural(NYA_STRING_HUD_PLAYERS, (s64)a0, a0);
 }
 
 /** `hud_robots_dqn` */

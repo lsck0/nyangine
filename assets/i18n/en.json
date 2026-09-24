@@ -58,7 +58,12 @@
   "menu_2d_scene": "2d scene",
   "menu_3d_scene": "3d scene",
 
-  "hud_players": "players %u",
+  // a plural message: the count is the first argument, and the runtime picks a variant by the locale's
+  // CLDR rule. English uses one/other; a locale supplies as many categories as its language needs.
+  "hud_players": {
+    "one": "%u player",
+    "other": "%u players"
+  },
   "hud_offline": "offline",
   "hud_hosting": "hosting on port %u",
   "hud_hovering": "hovering %s",

@@ -56,6 +56,23 @@
 
 typedef struct NYA_I18nSystem NYA_I18nSystem;
 
+/**
+ * A CLDR plural category. Which categories a language actually uses is a property of the language:
+ * English has `one` and `other`, Arabic has all six, Japanese has only `other`. The enum lists all
+ * six so one type serves every language, and nya_i18n_plural_category maps a locale and a count onto
+ * the one the language would pick. The order matches the order the CLDR spells the categories in.
+ * */
+typedef enum {
+    NYA_I18N_PLURAL_ZERO,
+    NYA_I18N_PLURAL_ONE,
+    NYA_I18N_PLURAL_TWO,
+    NYA_I18N_PLURAL_FEW,
+    NYA_I18N_PLURAL_MANY,
+    NYA_I18N_PLURAL_OTHER,
+
+    NYA_I18N_PLURAL_COUNT,
+} NYA_I18nPluralCategory;
+
 struct NYA_I18nSystem {
     /** Owns every loaded string. Emptied rather than destroyed on a locale change, so switching is cheap. */
     NYA_Arena* allocator;
@@ -72,6 +89,17 @@ struct NYA_I18nSystem {
 
     /** The base locale's strings, kept so a missing key falls back to English rather than to nothing. */
     NYA_CString* fallback;
+
+    /**
+     * The plural variants, row-major by id: `plurals[id * NYA_I18N_PLURAL_COUNT + category]`. Null for
+     * every category of a key that is not plural, and for a category the loaded locale did not supply.
+     * A plural key's `strings[id]` holds its `other` variant, so nya_i18n_raw and the fallback chain still
+     * answer something for one.
+     * */
+    NYA_CString* plurals;
+
+    /** The base locale's plural variants, laid out the same, so a plural key falls back category by category. */
+    NYA_CString* fallback_plurals;
 
     u32 count;
 
@@ -140,6 +168,43 @@ NYA_API NYA_ConstCString nya_i18n_raw(u32 id) __attr_no_discard;
  * Formats a string into the ring and returns it. What the generated accessors call.
  * */
 NYA_API NYA_ConstCString _nya_i18n_format(u32 id, ...);
+
+/**
+ * The CLDR plural category a language picks for a count. `en` answers `one` for 1 and `other` for
+ * everything else; `ru` runs its count through mod-10 and mod-100; `ar` uses all six. The rules are
+ * hard-coded for a representative set of languages — en, de, fr, ru, pl, cs, ar, and the categoryless
+ * ja/zh/ko — matched on the language subtag of the locale, so `en-US` resolves as `en`. Any language
+ * not on that list answers `NYA_I18N_PLURAL_OTHER`, which is the safe default every language has.
+ *
+ * The count is taken as an integer: CLDR's fractional operands do not arise from a whole number, so a
+ * category a language reaches only through a fraction (Czech's `many`, Russian's `other`) never comes
+ * back from here.
+ * */
+NYA_API NYA_I18nPluralCategory nya_i18n_plural_category(NYA_ConstCString locale, s64 n) __attr_no_discard;
+
+/** The CLDR name of a category — `"zero"`, `"one"`, … — which is also the JSON key a plural message uses. */
+NYA_API NYA_ConstCString nya_i18n_plural_category_name(NYA_I18nPluralCategory category) __attr_no_discard;
+
+/**
+ * The decimal and grouping separators a locale writes numbers with: `en` groups with `,` and points with
+ * `.`, `de` the other way around, `fr` groups with a space. Matched on the language subtag like the plural
+ * rules, and a language not covered answers the `en` separators.
+ * */
+NYA_API NYA_ConstCString nya_i18n_decimal_separator(NYA_ConstCString locale) __attr_no_discard;
+NYA_API NYA_ConstCString nya_i18n_group_separator(NYA_ConstCString locale) __attr_no_discard;
+
+/**
+ * Formats an integer into the ring with the locale's grouping separator, e.g. `1234567` as `1,234,567`
+ * for `en` and `1.234.567` for `de`. Shares the ring with the formatted strings; see the note on lifetime.
+ * */
+NYA_API NYA_ConstCString nya_i18n_format_integer(NYA_ConstCString locale, s64 n) __attr_no_discard;
+
+/**
+ * Formats a plural message: selects the variant for `n` in the loaded locale, then formats it with the
+ * arguments, exactly as _nya_i18n_format does. What a generated accessor for a plural key calls, passing
+ * the count both as `n` and as the first format argument.
+ * */
+NYA_API NYA_ConstCString _nya_i18n_format_plural(u32 id, s64 n, ...);
 
 #ifdef NYA_ASSET_HOT_RELOAD
 /**

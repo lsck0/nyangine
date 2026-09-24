@@ -58,7 +58,10 @@
   "menu_2d_scene": "2d-szene",
   "menu_3d_scene": "3d-szene",
 
-  "hud_players": "spieler %u",
+  "hud_players": {
+    "one": "%u Spieler",
+    "other": "%u Spieler"
+  },
   "hud_offline": "offline",
   "hud_hosting": "hostet auf port %u",
   "hud_hovering": "zeigt auf %s",

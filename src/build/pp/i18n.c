@@ -18,10 +18,21 @@ typedef struct {
      * The specifiers in the order they appear, one character each: 's', 'd', 'u', 'f'.
      * */
     char specifiers[NYA_I18N_MAX_ARGUMENTS + 1];
+
+    /** A plural message: an object of CLDR category variants rather than one string. */
+    b8 is_plural;
 } NYA_I18nKey;
 
 /** Reads the specifiers out of a format string. False when one is unsupported, naming it. */
 NYA_INTERNAL b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, NYA_ConstCString key, OUT NYA_I18nKey* out_key);
+
+/**
+ * Validates a plural message — an object of category variants — and fills `out_key` from its `other`
+ * variant. Panics if `other` is missing, if a variant uses a different argument set than `other`, or if
+ * the first argument is not an integer, since that first argument is the count the runtime selects on.
+ * The CLDR category names are the only object keys allowed.
+ * */
+NYA_INTERNAL void _nya_i18n_plural_key(NYA_Object* object, NYA_ConstCString where, NYA_ConstCString key, OUT NYA_I18nKey* out_key);
 
 /** Uppercases and sanitises a key into an enum suffix: `hud_score` becomes `HUD_SCORE`. */
 NYA_INTERNAL void _nya_i18n_enum_name(NYA_ConstCString key, OUT char* out, u64 capacity);
@@ -70,8 +81,8 @@ void nya_i18n_generate(void) {
         if (key[0] == '_') continue;
 
         NYA_Value* value = nya_object_get(base, key);
-        if (value == nullptr || value->type != NYA_TYPE_STRING) {
-            nya_log_panic("i18n: base locale key '%s' is not a string", key);
+        if (value == nullptr || (value->type != NYA_TYPE_STRING && value->type != NYA_TYPE_OBJECT)) {
+            nya_log_panic("i18n: base locale key '%s' is neither a string nor a plural object", key);
         }
 
         nya_assert(key_count < NYA_I18N_MAX_KEYS, "i18n: more than %d keys; raise NYA_I18N_MAX_KEYS", NYA_I18N_MAX_KEYS);
@@ -79,7 +90,11 @@ void nya_i18n_generate(void) {
         NYA_I18nKey* entry = &keys[key_count++];
         *entry             = (NYA_I18nKey){ .key = key };
 
-        if (!_nya_i18n_parse_specifiers(value->as_string, NYA_I18N_BASE_LOCALE, key, entry)) {
+        // A plural key's arguments come off its `other` variant; a plain key's off its one string.
+        if (value->type == NYA_TYPE_OBJECT) {
+            entry->is_plural = true;
+            _nya_i18n_plural_key(&value->as_object, NYA_I18N_BASE_LOCALE, key, entry);
+        } else if (!_nya_i18n_parse_specifiers(value->as_string, NYA_I18N_BASE_LOCALE, key, entry)) {
             nya_log_panic("i18n: base locale key '%s' uses an unsupported format specifier", key);
         }
     }
@@ -121,12 +136,23 @@ void nya_i18n_generate(void) {
         for (u32 i = 0; i < key_count; i++) {
             NYA_Value* value = nya_object_get(translated, keys[i].key);
 
-            if (value == nullptr || value->type != NYA_TYPE_STRING) {
+            if (value == nullptr) {
                 nya_log_panic("i18n: locale '%s' is missing key '%s'", name, keys[i].key);
             }
 
+            // A plural key stays plural in every locale: a translation that flattened it to one string
+            // would silently lose the count agreement the base spells out.
+            NYA_Type wanted = keys[i].is_plural ? NYA_TYPE_OBJECT : NYA_TYPE_STRING;
+            if (value->type != wanted) {
+                nya_log_panic(
+                    "i18n: locale '%s' key '%s' must be %s, like the base", name, keys[i].key, keys[i].is_plural ? "a plural object" : "a string"
+                );
+            }
+
             NYA_I18nKey translated_key = { .key = keys[i].key };
-            if (!_nya_i18n_parse_specifiers(value->as_string, name, keys[i].key, &translated_key)) {
+            if (keys[i].is_plural) {
+                _nya_i18n_plural_key(&value->as_object, name, keys[i].key, &translated_key);
+            } else if (!_nya_i18n_parse_specifiers(value->as_string, name, keys[i].key, &translated_key)) {
                 nya_log_panic("i18n: locale '%s' key '%s' uses an unsupported format specifier", name, keys[i].key);
             }
 
@@ -226,8 +252,13 @@ void nya_i18n_generate(void) {
             }
         }
 
-        nya_string_extend(out, ") {\n    return _nya_i18n_format(NYA_STRING_");
-        nya_string_extend(out, name);
+        // A plural accessor selects the variant on its first argument, the count, and passes that same
+        // argument on to be formatted; a plain one formats its string directly.
+        if (keys[i].is_plural) {
+            nya_string_extend_sprintf(out, ") {\n    return _nya_i18n_format_plural(NYA_STRING_%s, (s64)a0", name);
+        } else {
+            nya_string_extend_sprintf(out, ") {\n    return _nya_i18n_format(NYA_STRING_%s", name);
+        }
 
         for (u32 argument = 0; argument < keys[i].argument_count; argument++) nya_string_extend_sprintf(out, ", a%u", argument);
 
@@ -305,6 +336,66 @@ b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, N
     out_key->argument_count    = count;
 
     return true;
+}
+
+void _nya_i18n_plural_key(NYA_Object* object, NYA_ConstCString where, NYA_ConstCString key, OUT NYA_I18nKey* out_key) {
+    static const NYA_ConstCString category_names[] = { "zero", "one", "two", "few", "many", "other" };
+
+    // `other` is the variant every plural language has, and the one the accessor's arguments come from.
+    NYA_Value* other = nya_object_get(object, "other");
+    if (other == nullptr || other->type != NYA_TYPE_STRING) {
+        nya_log_panic("i18n: %s key '%s' is a plural message but has no 'other' variant", where, key);
+    }
+
+    if (!_nya_i18n_parse_specifiers(other->as_string, where, key, out_key)) {
+        nya_log_panic("i18n: %s key '%s' variant 'other' uses an unsupported format specifier", where, key);
+    }
+
+    // The count the runtime selects on is the first argument, so it has to be an integer.
+    if (out_key->argument_count == 0 || (out_key->specifiers[0] != 'd' && out_key->specifiers[0] != 'u')) {
+        nya_log_panic("i18n: %s key '%s' is plural but its first argument is not an integer count (put a %%d or %%u first)", where, key);
+    }
+
+    char expected[NYA_I18N_MAX_ARGUMENTS + 1] = { 0 };
+    (void)snprintf(expected, sizeof(expected), "%s", out_key->specifiers);
+    _nya_i18n_sort_specifiers(expected);
+
+    // Every variant present takes the same arguments as `other`, and no key may be one CLDR does not
+    // name: a typo like `"ohter"` would otherwise be dropped in silence and the language fall back.
+    nya_dict_foreach_key (object, slot) {
+        NYA_CString variant_name = *slot;
+        if (variant_name[0] == '_') continue;
+
+        b8 known = false;
+        for (u64 c = 0; c < sizeof(category_names) / sizeof(category_names[0]); c++) {
+            if (nya_string_equals(variant_name, category_names[c])) {
+                known = true;
+                break;
+            }
+        }
+
+        if (!known) {
+            nya_log_panic("i18n: %s key '%s' has variant '%s', which is not a CLDR plural category", where, key, variant_name);
+        }
+
+        NYA_Value* variant = nya_object_get(object, variant_name);
+        if (variant == nullptr || variant->type != NYA_TYPE_STRING) {
+            nya_log_panic("i18n: %s key '%s' variant '%s' is not a string", where, key, variant_name);
+        }
+
+        NYA_I18nKey variant_key = { .key = (NYA_CString)key };
+        if (!_nya_i18n_parse_specifiers(variant->as_string, where, key, &variant_key)) {
+            nya_log_panic("i18n: %s key '%s' variant '%s' uses an unsupported format specifier", where, key, variant_name);
+        }
+
+        char actual[NYA_I18N_MAX_ARGUMENTS + 1] = { 0 };
+        (void)snprintf(actual, sizeof(actual), "%s", variant_key.specifiers);
+        _nya_i18n_sort_specifiers(actual);
+
+        if (!nya_string_equals(expected, actual)) {
+            nya_log_panic("i18n: %s key '%s' variant '%s' takes {%s} but 'other' takes {%s}", where, key, variant_name, actual, expected);
+        }
+    }
 }
 
 void _nya_i18n_enum_name(NYA_ConstCString key, OUT char* out, u64 capacity) {
