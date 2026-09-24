@@ -588,6 +588,51 @@ void SDL_ReleaseGPUSampler(SDL_GPUDevice* device, SDL_GPUSampler* sampler) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** True for a character that can appear inside a GLSL identifier, so a token match can require a word boundary. */
+NYA_INTERNAL b8 _nya_gles_is_ident_char(GLchar c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/**
+ * Renames a fragment shader's input varyings so the program links against the vertex stage.
+ *
+ * SPIRV-Cross names HLSL stage IO by semantic with a direction prefix — the vertex stage writes
+ * `out_var_COLOR0`, the fragment stage reads `in_var_COLOR0` — and its GLSL ES target emits neither with a
+ * `layout(location=)`. GLES3 then matches varyings by name, the two names differ, and glLinkProgram fails
+ * ("FRAGMENT varying in_var_COLOR0 does not match any VERTEX varying"). Individually each shader is valid,
+ * which is why the offline validation and the headless (no-GL) self-checks never caught it; only a real
+ * link does. Rewriting the fragment's `in_var_` tokens to `out_var_` makes the names agree: a fragment
+ * stage's only `in_var_*` are the varyings the vertex stage produced (its vertex-attribute inputs live in
+ * the vertex stage, and are bound by location, not name), so the rename is total and safe. The match is
+ * anchored at a word boundary so an identifier that merely ends in "in_var_" is left alone, and it is done
+ * on a device-arena copy so the caller's source bytes are untouched.
+ * */
+NYA_INTERNAL const GLchar* _nya_gles_fragment_varying_fix(NYA_Arena* arena, const GLchar* source, GLint length, OUT GLint* out_length) {
+    static const GLchar needle[] = "in_var_";
+    static const GLchar repl[]   = "out_var_";
+    u64 needle_len = sizeof(needle) - 1;
+    u64 repl_len   = sizeof(repl) - 1;
+
+    // repl is one byte longer than needle, so the copy grows by at most the match count; sizing at 2x the
+    // source (plus the terminator) is a safe over-allocation that avoids a separate counting pass.
+    GLchar* buffer = (GLchar*)nya_arena_alloc(arena, (u64)length * 2 + 1);
+
+    u64 w = 0;
+    for (GLint i = 0; i < length;) {
+        b8 boundary = (i == 0) || !_nya_gles_is_ident_char(source[i - 1]);
+        if (boundary && (u64)(length - i) >= needle_len && memcmp(source + i, needle, needle_len) == 0) {
+            memcpy(buffer + w, repl, repl_len);
+            w += repl_len;
+            i += (GLint)needle_len;
+        } else {
+            buffer[w++] = source[i++];
+        }
+    }
+    buffer[w]   = 0;
+    *out_length = (GLint)w;
+    return buffer;
+}
+
 SDL_GPUShader* SDL_CreateGPUShader(SDL_GPUDevice* device, const SDL_GPUShaderCreateInfo* createinfo) {
     _nya_gles_trace("SDL_CreateGPUShader");
 
@@ -601,6 +646,13 @@ SDL_GPUShader* SDL_CreateGPUShader(SDL_GPUDevice* device, const SDL_GPUShaderCre
         shader->id = glCreateShader(shader->stage);
         const GLchar* source = (const GLchar*)createinfo->code; // GLSL ES 300 source bytes
         GLint         length = (GLint)createinfo->code_size;
+
+        // The fragment stage's input varyings carry SPIRV-Cross' `in_var_` prefix, which will not link
+        // against the vertex stage's `out_var_` outputs; normalise them here. See the helper above.
+        if (shader->stage == GL_FRAGMENT_SHADER) {
+            source = _nya_gles_fragment_varying_fix(device->arena, source, length, &length);
+        }
+
         glShaderSource(shader->id, 1, &source, &length);
         glCompileShader(shader->id);
 
