@@ -969,9 +969,13 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
     // a golden-hour sky: a deep blue overhead warming to a gold band at the horizon the low sun sits in, so the
     // whole valley reads as late-afternoon light rather than a flat grey day.
     nya_render3d_sky_draw(window, (NYA_Render3DSky){
+                                      // The camera looks down into the valley, so most of the frame is BELOW the
+                                      // sky's horizon line and shows `ground`. A near-black ground read as a black
+                                      // void; a warm haze here (close to the fog and horizon) makes the distance
+                                      // past the terrain read as atmosphere instead.
                                       .zenith        = { 0.16F, 0.32F, 0.60F, 1.0F },
                                       .horizon       = { 0.92F, 0.74F, 0.50F, 1.0F },
-                                      .ground        = { 0.16F, 0.15F, 0.13F, 1.0F },
+                                      .ground        = { 0.58F, 0.52F, 0.44F, 1.0F },
                                       .sun_direction = -sun,
                                       .sun_color     = { 1.0F, 0.80F, 0.52F, 1.0F },
                                       .sun_intensity = 1.9F,
