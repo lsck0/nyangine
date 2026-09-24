@@ -16,6 +16,9 @@
 #include "nyangine/http/http_totp.c"
 /**/
 #include "nyangine/http/http_router.c"
+// after the router, whose table it reads, and over serde and the message layer, whose encoding it
+// mirrors: it calls a route by its table entry, the request DTO in and the response DTO out.
+#include "nyangine/http/http_client.c"
 // after the router, whose route table it builds on: two routes an orchestrator polls for liveness and
 // readiness, the readiness checks a small registry the program composes.
 #include "nyangine/http/http_health.c"

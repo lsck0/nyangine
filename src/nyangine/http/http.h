@@ -68,6 +68,7 @@
 #pragma once
 
 #include "nyangine/http/http_auth.h"
+#include "nyangine/http/http_client.h"
 #include "nyangine/http/http_cookie.h"
 #include "nyangine/http/http_doc.h"
 #include "nyangine/http/http_feed.h"
