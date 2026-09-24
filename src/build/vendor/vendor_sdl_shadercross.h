@@ -34,7 +34,7 @@
     "/external/DirectXShaderCompiler/lib:" SHADERCROSS_HOST_SDL,
 #endif
 
-/* SPIRV-Cross, vendored inside sdl-shadercross. Where shadercross runs the binary, the build tool links the C library straight in and calls it in-process: nya_asset_compile_shaders cross compiles every .spv to GLSL ES 300 beside it, so a later GLES3/WebGL2 backend has shaders it can load. Three parts, wired exactly like libbacktrace (base_backtrace.h keys the code off __has_include, build.c appends the flags only when the artifact exists): SHADERCROSS_SPIRV_CROSS_INCLUDE so <spirv_cross_c.h> resolves and __has_include finds it, SHADERCROSS_SPIRV_CROSS_LINK for the linker, and SHADERCROSS_SPIRV_CROSS_SO the path main() tests first — the .so is a shadercross build output, so on a fresh checkout it does not exist until the vendors are built, and the tool is what builds them. Host only. A Windows host does not build shadercross (DXC will not compile under MinGW) and takes the compiled shaders, GLSL included, from a Linux machine, so there is nothing to link there. */
+/* SPIRV-Cross, vendored inside sdl-shadercross and linked into the build tool so nya_asset_compile_shaders cross-compiles every .spv to GLSL ES 300 in-process for a later GLES3/WebGL2 backend. Wired like libbacktrace: SHADERCROSS_SPIRV_CROSS_INCLUDE resolves <spirv_cross_c.h>, _LINK is for the linker, _SO is the path main() probes, and the flags are appended only when the artifact exists. Host only — a Windows host cannot build shadercross (DXC will not compile under MinGW) and takes the compiled shaders from a Linux machine. */
 #if OS_WINDOWS
 #define SHADERCROSS_SPIRV_CROSS_INCLUDE
 #define SHADERCROSS_SPIRV_CROSS_LINK

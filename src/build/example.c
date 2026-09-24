@@ -104,7 +104,7 @@ void example_runner(NYA_ArgCommand* command) {
     };
 
 #if !OS_WINDOWS
-    /* The shipping build of the same example, for --server: the artifact a container image copies. The differences from the run build above are all about what a server needs and a laptop does not — the release mode rather than debug (optimized, LTO'd, no sanitizers, no hot-reload entry point), the asset blob baked in so the binary carries its own web bundle and reads no files beside it (NYA_ASSET_PREFER_BLOB, which FLAGS_RELEASE turns on and which is why the dependency is bundle_assets, the rule that writes the blob, rather than the index alone), the linker's dead-code collection and the Linux hardening the game's release link uses, and finally -s to strip the debug info, which is what keeps the copied binary small. It still links the full project vendors, not the server subset: the example compiles the whole engine graph — core, http and crypto are behind NYA_NO_SDL today — so a genuinely minimal link waits on that wall; see the deploy README. */
+    /* The --server shipping build of the example, the artifact a container image copies: release rather than debug (optimized, LTO'd, no sanitizers, no hot-reload entry point), the asset blob baked in (NYA_ASSET_PREFER_BLOB, which is why the dependency is bundle_assets rather than the index alone), dead-code collected, Linux-hardened, and -s stripped. It still links the full project vendors, not the server subset — the example compiles the whole engine graph until the NYA_NO_SDL wall lands; see the deploy README. */
     NYA_BuildRule build_server_example = {
         .name        = nya_string_to_cstring(arena, build_name),
         .policy      = NYA_BUILD_ALWAYS,
@@ -135,7 +135,7 @@ void example_runner(NYA_ArgCommand* command) {
         .dependencies    = { &bundle_assets, },
     };
 
-    /* The headless build of a `.headless` example: the same shipping shape as build_server_example — release, stripped, dead-code collected, Linux-hardened — but compiled with FLAGS_SERVER_HEADLESS (NYA_NO_SDL + NYA_SERVER, so no core and no renderer are in the graph) and linked against the server vendor subset rather than the full project set. No SDL, box2d, box3d, ufbx or shadercross is on the line, so `ldd` on the result names no libSDL3 — the wall the deploy README describes as the one remaining. No FLAGS_PLUGINS: the module set FLAGS_SERVER_HEADLESS carries is the server's, and the plugin list would pull the core-bound Lua plugin. No asset dependency either: a headless example carries its own bytes (see examples/headless_server/main.c) rather than reading the bundle, so there is no shader or blob to build first. */
+    /* The headless build of a `.headless` example: the same shipping shape as build_server_example but compiled FLAGS_SERVER_HEADLESS (NYA_NO_SDL + NYA_SERVER, so no core or renderer in the graph) and linked against the server vendor subset — no SDL, box2d, box3d, ufbx or shadercross, so ldd on the result names no libSDL3. No FLAGS_PLUGINS (the list would pull the core-bound Lua plugin) and no asset dependency (a headless example carries its own bytes; see examples/headless_server/main.c). */
     NYA_BuildRule build_headless_server_example = {
         .name        = nya_string_to_cstring(arena, build_name),
         .policy      = NYA_BUILD_ALWAYS,
