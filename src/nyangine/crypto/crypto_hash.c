@@ -4,11 +4,7 @@
 #include "nyangine/crypto/crypto_secret.h"
 #include "monocypher.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** SHA-1 and SHA-256 share their block, their padding and their length encoding, so this is both. */
 #define _NYA_CRYPTO_MD_BLOCK_BYTES 64
@@ -60,10 +56,7 @@ NYA_INTERNAL _NYA_CryptoMd _nya_crypto_sha1_md(_NYA_CryptoSha1* sha1) __attr_no_
 NYA_INTERNAL void _nya_crypto_sha1_begin(OUT _NYA_CryptoSha1* out_sha1);
 NYA_INTERNAL void _nya_crypto_sha1_end(_NYA_CryptoSha1* sha1, OUT NYA_CryptoSha1Digest* out_digest);
 
-/**
- * RFC 2104's two pads for `key`. The key becomes one block: hashed when it is longer, through `hash`,
- * and zero padded when it is shorter, which is why any key length is accepted.
- * */
+/** RFC 2104's two pads for `key`: the key becomes one block, hashed when longer and zero padded when shorter. */
 NYA_INTERNAL void _nya_crypto_hmac_pads(
     const u8* key,
     u64       key_size,
@@ -79,17 +72,9 @@ NYA_INTERNAL void _nya_crypto_sha1_bytes(const u8* data, u64 size, OUT u8* out_d
 NYA_INTERNAL u32 _nya_crypto_rotate_right(u32 value, u32 bits) __attr_no_discard;
 NYA_INTERNAL u32 _nya_crypto_load_u32_be(const u8* bytes) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
-/*
- * FIPS 180-4 section 5.3.3 and 4.2.2. Nothing up my sleeve: the eight initial values are the fractional
- * parts of the square roots of the first eight primes, and the sixty four round constants those of the
- * cube roots of the first sixty four, each to thirty two bits.
- */
+// FIPS 180-4 5.3.3/4.2.2: initial values from sqrt fractions of the first 8 primes, rounds from cube roots of 64.
 NYA_INTERNAL const u32 _NYA_CRYPTO_SHA256_INITIAL[8] = {
     0x6A09E667U, 0xBB67AE85U, 0x3C6EF372U, 0xA54FF53AU, 0x510E527FU, 0x9B05688CU, 0x1F83D9ABU, 0x5BE0CD19U,
 };
@@ -103,24 +88,13 @@ NYA_INTERNAL const u32 _NYA_CRYPTO_SHA256_ROUND[64] = {
     0x682E6FF3U, 0x748F82EEU, 0x78A5636FU, 0x84C87814U, 0x8CC70208U, 0x90BEFFFAU, 0xA4506CEBU, 0xBEF9A3F7U, 0xC67178F2U,
 };
 
-/*
- * FIPS 180-4 section 5.3.1 and 4.2.1. The initial values count up and down in nibbles, and the four
- * round constants are the square roots of 2, 3, 5 and 10 times 2^30.
- */
+// FIPS 180-4 5.3.1/4.2.1: initial values count in nibbles, round constants are sqrt(2,3,5,10) times 2^30.
 NYA_INTERNAL const u32 _NYA_CRYPTO_SHA1_INITIAL[5] = { 0x67452301U, 0xEFCDAB89U, 0x98BADCFEU, 0x10325476U, 0xC3D2E1F0U };
 NYA_INTERNAL const u32 _NYA_CRYPTO_SHA1_ROUND[4]   = { 0x5A827999U, 0x6ED9EBA1U, 0x8F1BBCDCU, 0xCA62C1D6U };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * SHA-256
- * ─────────────────────────────────────────────────────────
- */
+// SHA-256
 
 void nya_crypto_sha256(const u8* data, u64 size, OUT NYA_CryptoSha256Digest* out_digest) {
     nya_assert(data != nullptr || size == 0);
@@ -185,11 +159,7 @@ void nya_crypto_hmac_sha256(const u8* key, u64 key_size, const u8* data, u64 siz
     nya_crypto_wipe(&inner, sizeof(inner));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * BLAKE2B
- * ─────────────────────────────────────────────────────────
- */
+// BLAKE2B
 
 void nya_crypto_blake2b(const u8* data, u64 size, OUT u8* out_hash, u64 hash_size) {
     nya_assert(data != nullptr || size == 0);
@@ -209,11 +179,7 @@ void nya_crypto_blake2b_keyed(const u8* key, u64 key_size, const u8* data, u64 s
     crypto_blake2b_keyed(out_hash, hash_size, key, key_size, data, size);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SHA-1
- * ─────────────────────────────────────────────────────────
- */
+// SHA-1
 
 void nya_crypto_sha1(const u8* data, u64 size, OUT NYA_CryptoSha1Digest* out_digest) {
     nya_assert(data != nullptr || size == 0);
@@ -252,23 +218,14 @@ void nya_crypto_hmac_sha1(const u8* key, u64 key_size, const u8* data, u64 size,
     nya_crypto_wipe(&inner, sizeof(inner));
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SHARED MERKLE-DAMGARD FRAME
- * ─────────────────────────────────────────────────────────
- */
+// THE SHARED MERKLE-DAMGARD FRAME
 
 __attr_no_sanitize("unsigned-integer-overflow") void _nya_crypto_md_update(_NYA_CryptoMd md, const u8* data, u64 size) {
     nya_assert(*md.block_used < _NYA_CRYPTO_MD_BLOCK_BYTES);
 
-    // the length field is 64 bits of bits, so a message past 2^61 bytes cannot be encoded. Nothing
-    // reaches that, but the standard says the hash is undefined there, so it is asserted rather than wrapped.
+    // the length field is 64 bits of bits, so a message past 2^61 bytes is undefined; asserted, not wrapped.
     nya_assert(size <= (U64_MAX / 8) - *md.total_bytes, "a message past 2^61 bytes has no SHA length encoding");
 
     *md.total_bytes += size;
@@ -310,8 +267,7 @@ void _nya_crypto_md_finish(_NYA_CryptoMd md) {
 
     md.block[used++] = 0x80U;
 
-    // no room for the length beside the terminator means a block of padding on its own, which is the case
-    // a 56 byte message hits and a hand written padding gets wrong.
+    // no room for the length beside the terminator means a padding-only block (the 56 byte message case).
     if (used > _NYA_CRYPTO_MD_BLOCK_BYTES - _NYA_CRYPTO_MD_LENGTH_BYTES) {
         nya_memset(md.block + used, 0, _NYA_CRYPTO_MD_BLOCK_BYTES - used);
         md.compress(md.state, md.block);
@@ -328,8 +284,7 @@ void _nya_crypto_md_finish(_NYA_CryptoMd md) {
 
 void _nya_crypto_md_store(const u32* state, u32 words, OUT u8* out_digest) {
     for (u32 i = 0; i < words; i++) {
-        // the index widened before the multiply: a u32 product used as a pointer offset is the shape
-        // that silently wraps on a larger input elsewhere.
+        // index widened before the multiply, else a u32 product used as an offset could silently wrap.
         u64 at = (u64)i * 4U;
 
         out_digest[at]     = (u8)((state[i] >> 24) & 0xFFU);
@@ -349,11 +304,7 @@ u32 _nya_crypto_load_u32_be(const u8* bytes) {
     return ((u32)bytes[0] << 24) | ((u32)bytes[1] << 16) | ((u32)bytes[2] << 8) | (u32)bytes[3];
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SHA-256
- * ─────────────────────────────────────────────────────────
- */
+// SHA-256
 
 _NYA_CryptoMd _nya_crypto_sha256_md(NYA_CryptoSha256* sha256) {
     return (_NYA_CryptoMd){
@@ -373,8 +324,7 @@ void _nya_crypto_sha256_bytes(const u8* data, u64 size, OUT u8* out_digest) {
     nya_crypto_wipe(&digest, sizeof(digest));
 }
 
-// the additions are modular by definition: FIPS 180-4 specifies 32 bit words that wrap, so the unsigned
-// overflow sanitizer would report the algorithm working correctly.
+// additions are modular by definition (FIPS 180-4's 32 bit words), so the overflow sanitizer is turned off here.
 __attr_no_sanitize("unsigned-integer-overflow") void _nya_crypto_sha256_compress(u32* state, const u8 block[_NYA_CRYPTO_MD_BLOCK_BYTES]) {
     u32 w[64] = { 0 };
 
@@ -428,11 +378,7 @@ __attr_no_sanitize("unsigned-integer-overflow") void _nya_crypto_sha256_compress
     nya_crypto_wipe(w, sizeof(w));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SHA-1
- * ─────────────────────────────────────────────────────────
- */
+// SHA-1
 
 _NYA_CryptoMd _nya_crypto_sha1_md(_NYA_CryptoSha1* sha1) {
     return (_NYA_CryptoMd){
@@ -508,11 +454,7 @@ __attr_no_sanitize("unsigned-integer-overflow") void _nya_crypto_sha1_compress(u
     nya_crypto_wipe(w, sizeof(w));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * HMAC
- * ─────────────────────────────────────────────────────────
- */
+// HMAC
 
 void _nya_crypto_hmac_pads(
     const u8* key,

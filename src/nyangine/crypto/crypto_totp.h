@@ -54,11 +54,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * 160 bits of secret, which is RFC 4226 section 4's R6: the key must be at least as long as the hash
@@ -76,11 +72,7 @@
 /** A code as text: the digits and a terminator. */
 #define NYA_CRYPTO_TOTP_CODE_BYTES (NYA_CRYPTO_TOTP_DIGITS + 1)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoTotpSecret NYA_CryptoTotpSecret;
 
@@ -92,11 +84,7 @@ struct NYA_CryptoTotpSecret {
     u8 bytes[NYA_CRYPTO_TOTP_SECRET_BYTES];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** A secret from the operating system's random source. Fails only when that source does, leaving it zero. */
 NYA_API NYA_Error nya_crypto_totp_secret_create(OUT NYA_CryptoTotpSecret* out_secret) __attr_no_discard;

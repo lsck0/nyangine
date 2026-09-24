@@ -4,11 +4,7 @@
 #include "nyangine/os/os_random.h"
 #include "monocypher.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_crypto_exchange_key_pair_create(OUT NYA_CryptoExchangeKeyPair* out_key_pair) {
     nya_assert(out_key_pair != nullptr);
@@ -55,8 +51,7 @@ b8 nya_crypto_exchange(
 
     crypto_x25519(out_shared->bytes, secret_key->bytes, public_key->bytes);
 
-    // every byte folded in regardless, as RFC 7748 section 6.1 suggests, so the check leaks nothing about
-    // where a legitimate secret happens to have a zero.
+    // every byte folded in regardless (RFC 7748 section 6.1), so the check leaks nothing about zero placement.
     u8 any = 0;
     for (u32 i = 0; i < NYA_CRYPTO_EXCHANGE_KEY_BYTES; i++) any |= out_shared->bytes[i];
 

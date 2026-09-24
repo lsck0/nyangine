@@ -5,24 +5,12 @@
 #include "monocypher.h"
 #include "optional/monocypher-ed25519.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/**
- * Whether a public key is a point whose order divides the cofactor 8. RFC 8032 lets such a key through, and
- * under one an all zero signature verifies for a fraction of all messages, which is a forgery for whoever
- * chose the key. libsodium refuses them for the same reason.
- * */
+/** Whether a public key is a small-order point: RFC 8032 admits them, but an all-zero sig then forges. */
 NYA_INTERNAL b8 _nya_crypto_sign_key_is_small_order(const NYA_CryptoSignPublicKey* public_key) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_crypto_sign_key_pair_create(OUT NYA_CryptoSignKeyPair* out_key_pair) {
     nya_assert(out_key_pair != nullptr);
@@ -75,18 +63,10 @@ b8 nya_crypto_sign_verify(const NYA_CryptoSignPublicKey* public_key, const u8* m
     return crypto_ed25519_check(signature->bytes, public_key->bytes, message != nullptr ? message : &none, size) == 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_crypto_sign_key_is_small_order(const NYA_CryptoSignPublicKey* public_key) {
-    /*
-     * The map to Curve25519 keeps a point's order, and X25519 clamps every scalar to a multiple of 8, so
-     * the product is zero for exactly these points. Rejected: libsodium's list of the encodings, which is
-     * a table of magic bytes to get right, where this derives the answer from the curve itself.
-     */
+    // Curve25519 keeps order and X25519 clamps scalars to a multiple of 8, so the product is zero for these points.
     u8 montgomery[NYA_CRYPTO_SIGN_PUBLIC_KEY_BYTES] = { 0 };
     crypto_eddsa_to_x25519(montgomery, public_key->bytes);
 

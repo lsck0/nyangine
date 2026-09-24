@@ -42,11 +42,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes one coordinate takes, which is also what each half of a signature takes. */
 #define NYA_CRYPTO_ECDSA_COORDINATE_BYTES 32
@@ -54,11 +50,7 @@
 /** Bytes a signature takes: `r` and `s`, each padded to the coordinate size. This is the JWS form. */
 #define NYA_CRYPTO_ECDSA_SIGNATURE_BYTES ((u64)NYA_CRYPTO_ECDSA_COORDINATE_BYTES * 2ULL)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoEcdsaPublicKey NYA_CryptoEcdsaPublicKey;
 
@@ -73,11 +65,7 @@ struct NYA_CryptoEcdsaPublicKey {
     u64 y[4];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Reads a key from the two big endian coordinates a JWKS carries as `x` and `y`.

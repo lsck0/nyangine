@@ -34,22 +34,14 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/crypto/crypto_secret.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The seed and the public key half, which is how monocypher lays an expanded secret key out. */
 #define NYA_CRYPTO_SIGN_SECRET_KEY_BYTES 64
 #define NYA_CRYPTO_SIGN_PUBLIC_KEY_BYTES 32
 #define NYA_CRYPTO_SIGNATURE_BYTES       64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoSignSecretKey NYA_CryptoSignSecretKey;
 typedef struct NYA_CryptoSignPublicKey NYA_CryptoSignPublicKey;
@@ -74,11 +66,7 @@ struct NYA_CryptoSignature {
     u8 bytes[NYA_CRYPTO_SIGNATURE_BYTES];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** A pair from the operating system's random source. Fails only when that source does, leaving it zero. */
 NYA_API NYA_Error nya_crypto_sign_key_pair_create(OUT NYA_CryptoSignKeyPair* out_key_pair) __attr_no_discard;

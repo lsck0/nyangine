@@ -32,20 +32,12 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** RFC 7748 section 5: scalars, u-coordinates and so every key here are 32 bytes. */
 #define NYA_CRYPTO_EXCHANGE_KEY_BYTES 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoExchangeSecretKey NYA_CryptoExchangeSecretKey;
 typedef struct NYA_CryptoExchangePublicKey NYA_CryptoExchangePublicKey;
@@ -69,11 +61,7 @@ struct NYA_CryptoSharedSecret {
     u8 bytes[NYA_CRYPTO_EXCHANGE_KEY_BYTES];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** A pair from the operating system's random source. Fails only when that source does, leaving it zero. */
 NYA_API NYA_Error nya_crypto_exchange_key_pair_create(OUT NYA_CryptoExchangeKeyPair* out_key_pair) __attr_no_discard;

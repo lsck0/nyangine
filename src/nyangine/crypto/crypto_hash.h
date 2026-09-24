@@ -32,11 +32,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** FIPS 180-4 fixes both, and nothing about them is configurable. */
 #define NYA_CRYPTO_SHA256_BYTES       32
@@ -49,11 +45,7 @@
 #define NYA_CRYPTO_BLAKE2B_BYTES_MAX     64
 #define NYA_CRYPTO_BLAKE2B_KEY_BYTES_MAX 64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoSha256Digest NYA_CryptoSha256Digest;
 typedef struct NYA_CryptoSha1Digest   NYA_CryptoSha1Digest;
@@ -80,11 +72,7 @@ struct NYA_CryptoSha256 {
     u32 block_used;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SHA-256
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SHA-256
 
 NYA_API void nya_crypto_sha256(const u8* data, u64 size, OUT NYA_CryptoSha256Digest* out_digest);
 
@@ -100,11 +88,7 @@ NYA_API void nya_crypto_sha256_end(NYA_CryptoSha256* sha256, OUT NYA_CryptoSha25
  * */
 NYA_API void nya_crypto_hmac_sha256(const u8* key, u64 key_size, const u8* data, u64 size, OUT NYA_CryptoSha256Digest* out_tag);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BLAKE2B
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// BLAKE2B
 
 /** `hash_size` from 1 to NYA_CRYPTO_BLAKE2B_BYTES_MAX; anything else asserts. */
 NYA_API void nya_crypto_blake2b(const u8* data, u64 size, OUT u8* out_hash, u64 hash_size);
@@ -115,11 +99,7 @@ NYA_API void nya_crypto_blake2b(const u8* data, u64 size, OUT u8* out_hash, u64 
  * */
 NYA_API void nya_crypto_blake2b_keyed(const u8* key, u64 key_size, const u8* data, u64 size, OUT u8* out_hash, u64 hash_size);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SHA-1
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SHA-1
 
 /**
  * SHA-1. For RFC 6455's Sec-WebSocket-Accept and RFC 6238's TOTP, and for nothing else.

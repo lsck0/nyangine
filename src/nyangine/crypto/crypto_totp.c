@@ -4,11 +4,7 @@
 #include "nyangine/crypto/crypto_totp.h"
 #include "nyangine/os/os_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** RFC 4226 counts in big endian over eight bytes, whatever the host does. */
 #define _NYA_CRYPTO_TOTP_COUNTER_BYTES 8
@@ -19,26 +15,17 @@
 /** Section 5.3's dynamic truncation: the offset is the low nibble of the last byte of the tag. */
 NYA_INTERNAL u32 _nya_crypto_totp_truncate(const NYA_CryptoSha1Digest* tag) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u32 _nya_crypto_totp_truncate(const NYA_CryptoSha1Digest* tag) {
     u32 offset = tag->bytes[NYA_CRYPTO_SHA1_BYTES - 1] & 0x0FU;
 
-    // the top bit is masked off so the number is the same on a machine that reads it as signed, which
-    // is the whole reason the RFC says 0x7F here rather than taking the four bytes as they are.
+    // top bit masked off (RFC's 0x7F) so the number reads the same on a machine that treats it as signed.
     return ((u32)(tag->bytes[offset] & 0x7FU) << 24) | ((u32)tag->bytes[offset + 1] << 16) | ((u32)tag->bytes[offset + 2] << 8) |
            (u32)tag->bytes[offset + 3];
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_crypto_totp_secret_create(OUT NYA_CryptoTotpSecret* out_secret) {
     nya_assert(out_secret != nullptr);
@@ -74,8 +61,7 @@ void nya_crypto_totp_code(const u8* key, u64 key_size, u64 counter, OUT char out
 
     u32 value = _nya_crypto_totp_truncate(&tag) % _NYA_CRYPTO_TOTP_MODULUS;
 
-    // written from the last digit back, so a code with leading zeros keeps them; an authenticator
-    // showing 004135 and a server printing 4135 is the classic way the two stop agreeing.
+    // written from the last digit back, so a code keeps its leading zeros (004135, not 4135).
     out_code[NYA_CRYPTO_TOTP_DIGITS] = '\0';
     for (u32 i = NYA_CRYPTO_TOTP_DIGITS; i > 0; i--) {
         out_code[i - 1] = (char)('0' + (value % 10U));

@@ -4,11 +4,7 @@
 #include "nyangine/os/os_random.h"
 #include "monocypher.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The bytes of a nonce a counter fills. The other sixteen stay zero. */
 #define _NYA_CRYPTO_NONCE_COUNTER_BYTES 8
@@ -16,11 +12,7 @@
 /** Asserts what both directions require of a message. */
 NYA_INTERNAL void _nya_crypto_aead_message_check(NYA_CryptoAeadMessage message);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_crypto_nonce_random(OUT NYA_CryptoNonce24* out_nonce) {
     nya_assert(out_nonce != nullptr);
@@ -68,16 +60,11 @@ b8 nya_crypto_aead_decrypt(const NYA_CryptoKey32* key, const NYA_CryptoNonce24* 
     u8  none = 0;
     u8* text = message.text != nullptr ? message.text : &none;
 
-    // monocypher checks the tag, in constant time, before it decrypts a byte, so a refused message is
-    // left exactly as it arrived rather than half decrypted.
+    // monocypher checks the tag in constant time before decrypting, so a refused message is left untouched.
     return crypto_aead_unlock(text, tag->bytes, key->bytes, nonce->bytes, message.associated, message.associated_size, text, message.text_size) == 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_crypto_aead_message_check(NYA_CryptoAeadMessage message) {
     nya_assert(message.text != nullptr || message.text_size == 0, "text without a buffer");

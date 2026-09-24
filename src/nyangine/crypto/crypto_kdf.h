@@ -38,11 +38,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * RFC 9106 section 4's second recommended option: t=3, p=4, m=2^16 KiB, a 128 bit salt. The first needs
@@ -66,11 +62,7 @@
 /** RFC 9106 section 3.1: a tag is at least four bytes. */
 #define NYA_CRYPTO_ARGON2ID_HASH_BYTES_MIN 4
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoArgon2idOptions NYA_CryptoArgon2idOptions;
 
@@ -93,11 +85,7 @@ struct NYA_CryptoArgon2idOptions {
     u32 lanes;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /** nya_crypto_argon2id with every option spelled out. */
 NYA_API NYA_Error _nya_crypto_argon2id(NYA_Arena* arena, OUT u8* out_hash, u64 hash_size, NYA_CryptoArgon2idOptions options) __attr_no_discard;

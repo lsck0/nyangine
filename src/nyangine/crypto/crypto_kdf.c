@@ -4,11 +4,7 @@
 #include "nyangine/crypto/crypto_secret.h"
 #include "monocypher.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** An Argon2 block is 1 KiB, so the memory cost in KiB is the block count. */
 #define _NYA_CRYPTO_ARGON2_BLOCK_BYTES 1024
@@ -17,11 +13,7 @@
 #define _NYA_CRYPTO_ARGON2_BLOCKS_PER_LANE_MIN 8
 #define _NYA_CRYPTO_ARGON2_LANES_MAX           ((1U << 24) - 1)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error _nya_crypto_argon2id(NYA_Arena* arena, OUT u8* out_hash, u64 hash_size, NYA_CryptoArgon2idOptions options) {
     nya_assert(arena != nullptr);
@@ -40,8 +32,7 @@ NYA_Error _nya_crypto_argon2id(NYA_Arena* arena, OUT u8* out_hash, u64 hash_size
     if (options.key == nullptr && options.key_size > 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a key size without a key");
     if (options.associated == nullptr && options.associated_size > 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an associated size without data");
 
-    // monocypher takes every size as a u32. A password is what a user typed, so its length is an input
-    // and gets an error rather than an assertion.
+    // monocypher takes every size as a u32; a password's length is an input, so this errors rather than asserts.
     if (options.password_size > U32_MAX || options.salt_size > U32_MAX || options.key_size > U32_MAX || options.associated_size > U32_MAX) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an Argon2id input past 4 GiB");
     }

@@ -46,11 +46,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The largest key this holds, in bits.
@@ -75,11 +71,7 @@
 /** Bytes a key of NYA_CRYPTO_RSA_MAX_BITS takes, which is also the size of a signature made with it. */
 #define NYA_CRYPTO_RSA_MAX_BYTES (NYA_CRYPTO_RSA_MAX_BITS / 8)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoRsaPublicKey NYA_CryptoRsaPublicKey;
 
@@ -102,11 +94,7 @@ struct NYA_CryptoRsaPublicKey {
     u64 exponent;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Reads a key from the two big endian numbers a JWKS or a certificate carries.

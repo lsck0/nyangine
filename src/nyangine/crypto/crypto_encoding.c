@@ -2,11 +2,7 @@
 #include "nyangine/crypto/crypto_encoding.h"
 #include "nyangine/crypto/crypto_secret.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 #define _NYA_CRYPTO_BASE32_BITS    5
 #define _NYA_CRYPTO_BASE32_PADDING '='
@@ -21,17 +17,10 @@ NYA_INTERNAL char _nya_crypto_base32_character(u32 value) __attr_no_discard;
 /** The value of one character, and whether it is in the alphabet at all, without a branch on which. */
 NYA_INTERNAL u32 _nya_crypto_base32_value(char character, OUT u32* out_valid) __attr_no_discard;
 
-/**
- * Bytes a final group of `characters` data characters holds, or zero for a count RFC 4648 never produces:
- * one, three and six characters would each end part way through a byte.
- * */
+/** Bytes a final group of `characters` holds, or zero for a count RFC 4648 never produces. */
 NYA_INTERNAL u64 _nya_crypto_base32_tail_bytes(u64 characters) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_crypto_base32_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_length) {
     nya_assert(data != nullptr || size == 0);
@@ -111,8 +100,7 @@ NYA_Error nya_crypto_base32_decode(const char* text, u64 length, OUT u8* out_dat
     u64 size = ((data_length / NYA_CRYPTO_BASE32_GROUP_CHARACTERS) * NYA_CRYPTO_BASE32_GROUP_BYTES) + tail_bytes;
     if (size > capacity) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "base32 of " FMTu64 " bytes does not fit " FMTu64, size, capacity);
 
-    // the bits the last character carries past the last byte have to be zero, or one secret would have
-    // several spellings and a stored one could be edited into another that still decodes the same.
+    // bits the last character carries past the last byte must be zero, else one secret has several spellings.
     if (tail_characters != 0) {
         u32 valid      = 0;
         u32 last       = _nya_crypto_base32_value(text[data_length - 1], &valid);
@@ -151,11 +139,7 @@ NYA_Error nya_crypto_base32_decode(const char* text, u64 length, OUT u8* out_dat
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 char _nya_crypto_base32_character(u32 value) {
     nya_assert(value < _NYA_CRYPTO_BASE32_LETTERS + _NYA_CRYPTO_BASE32_DIGITS);
@@ -194,11 +178,7 @@ u64 _nya_crypto_base32_tail_bytes(u64 characters) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * BASE64URL
- * ─────────────────────────────────────────────────────────
- */
+// BASE64URL
 
 /** The value of one base64url character, or 64 for anything else. */
 NYA_INTERNAL u8 _nya_crypto_base64url_value(char character) __attr_no_discard;
@@ -241,8 +221,7 @@ b8 nya_crypto_base64url_encode(const u8* data, u64 size, char* out_text, u64 cap
 b8 nya_crypto_base64url_decode(const char* text, u64 size, u8* out_data, u64 capacity, u64* out_size) {
     *out_size = 0;
 
-    // a base64 group is two, three or four characters; one leftover character encodes nothing and is
-    // the shape a truncated token has.
+    // a base64 group is two to four characters; one leftover encodes nothing (a truncated token).
     if (size == 0 || size % 4 == 1) return false;
 
     u64 decoded = (size / 4) * 3 + (size % 4 == 0 ? 0 : size % 4 - 1);
@@ -262,11 +241,7 @@ b8 nya_crypto_base64url_decode(const char* text, u64 size, u8* out_data, u64 cap
             if (values[offset] == 64) return false;
         }
 
-        /*
-         * A short final group carries bits that encode nothing: two characters hold one byte and four
-         * spare bits, three hold two bytes and two spare. Those have to be zero, or one signature has
-         * several spellings and a token can be edited into a different string that still verifies.
-         */
+        // a short final group's spare bits must be zero, else one signature has several spellings.
         if (group == 2 && (values[1] & 0x0FU) != 0) return false;
         if (group == 3 && (values[2] & 0x03U) != 0) return false;
 

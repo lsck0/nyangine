@@ -29,20 +29,12 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** 256 bits, the key size of every symmetric primitive here and the seed size of both curves. */
 #define NYA_CRYPTO_KEY_BYTES 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoKey32 NYA_CryptoKey32;
 
@@ -54,11 +46,7 @@ struct NYA_CryptoKey32 {
     u8 bytes[NYA_CRYPTO_KEY_BYTES];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** A key from the operating system's random source. Fails only when that source does, leaving `out_key` zero. */
 NYA_API NYA_Error nya_crypto_key_create(OUT NYA_CryptoKey32* out_key) __attr_no_discard;

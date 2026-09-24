@@ -34,20 +34,12 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/crypto/crypto_secret.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_CRYPTO_NONCE_BYTES 24
 #define NYA_CRYPTO_TAG_BYTES   16
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CryptoNonce24     NYA_CryptoNonce24;
 typedef struct NYA_CryptoTag16       NYA_CryptoTag16;
@@ -74,11 +66,7 @@ struct NYA_CryptoAeadMessage {
     u64       associated_size;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** A nonce from the operating system's random source. Fails only when that source does. */
 NYA_API NYA_Error nya_crypto_nonce_random(OUT NYA_CryptoNonce24* out_nonce) __attr_no_discard;

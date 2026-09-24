@@ -31,11 +31,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Five bytes are one group of eight characters, and a short last group is padded to eight. */
 #define NYA_CRYPTO_BASE32_GROUP_BYTES      5
@@ -45,11 +41,7 @@
 #define NYA_CRYPTO_BASE32_LENGTH(size)                                                                                                               \
     ((((size) + NYA_CRYPTO_BASE32_GROUP_BYTES - 1) / NYA_CRYPTO_BASE32_GROUP_BYTES) * NYA_CRYPTO_BASE32_GROUP_CHARACTERS)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * `size` bytes as padded base32 in `out_text`, terminated, with the length before the terminator in
@@ -65,11 +57,7 @@ NYA_API NYA_Error nya_crypto_base32_encode(const u8* data, u64 size, OUT char* o
  * */
 NYA_API NYA_Error nya_crypto_base32_decode(const char* text, u64 length, OUT u8* out_data, u64 capacity, OUT u64* out_size) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * BASE64URL
- * ─────────────────────────────────────────────────────────
- */
+// BASE64URL
 
 /**
  * base64url without padding, which is the alphabet every token format uses: a JWS, a PKCE challenge,

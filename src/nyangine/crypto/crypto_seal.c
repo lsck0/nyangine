@@ -7,11 +7,7 @@
 
 #include <string.h>
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The bytes before the ciphertext: the version byte and the nonce. */
 #define _NYA_CRYPTO_SEAL_PREFIX_BYTES (1 + NYA_CRYPTO_NONCE_BYTES)
@@ -19,11 +15,7 @@
 /** The smallest a box can be: the prefix, an empty ciphertext, and the tag. */
 #define _NYA_CRYPTO_SEAL_MIN_BLOB (_NYA_CRYPTO_SEAL_PREFIX_BYTES + NYA_CRYPTO_TAG_BYTES)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_crypto_seal(void* key, NYA_Arena* arena, NYA_ConstCString aad, u8* plaintext, u64 plaintext_size, NYA_String** out_text) {
     nya_assert(arena != nullptr);
@@ -39,8 +31,7 @@ NYA_Error nya_crypto_seal(void* key, NYA_Arena* arena, NYA_ConstCString aad, u8*
 
     const NYA_CryptoKey32* aead_key = key;
 
-    // A fresh random nonce per seal: 24 bytes are wide enough that random never repeats in practice,
-    // which is what lets this keep no counter.
+    // A fresh random nonce per seal: 24 bytes never repeat in practice, so this keeps no counter.
     NYA_CryptoNonce24 nonce = { 0 };
     if (!nya_crypto_nonce_random(&nonce).ok) {
         nya_crypto_wipe(plaintext, plaintext_size);
@@ -69,8 +60,7 @@ NYA_Error nya_crypto_seal(void* key, NYA_Arena* arena, NYA_ConstCString aad, u8*
 
     nya_memcpy(blob + _NYA_CRYPTO_SEAL_PREFIX_BYTES + plaintext_size, tag.bytes, sizeof(tag.bytes));
 
-    // The blob is ciphertext and tag now, no longer a secret. Two bytes of slack over the exact encoded
-    // length keep the terminator and any rounding comfortably inside the buffer.
+    // The blob is ciphertext and tag now, no longer a secret; the slack keeps the terminator inside the buffer.
     u64         capacity = blob_size * 2 + 4;
     NYA_String* text     = nya_string_create_with_capacity(arena, capacity);
 
@@ -100,8 +90,7 @@ NYA_Error nya_crypto_unseal(void* key, NYA_Arena* arena, NYA_ConstCString aad, c
     u8* blob      = nya_arena_alloc(arena, capacity);
     u64 blob_size = 0;
 
-    // A string that does not decode, or is too short to be a box, is simply not one. The same closed
-    // answer as a wrong key, so nothing tells the difference between "not a box" and "not yours".
+    // Not-a-box gets the same closed answer as a wrong key, so nothing distinguishes the two.
     if (!nya_crypto_base64url_decode(text, text_size, blob, capacity, &blob_size) || blob_size < _NYA_CRYPTO_SEAL_MIN_BLOB ||
         blob[0] != NYA_CRYPTO_SEAL_VERSION) {
         nya_crypto_wipe(blob, capacity);
@@ -116,8 +105,7 @@ NYA_Error nya_crypto_unseal(void* key, NYA_Arena* arena, NYA_ConstCString aad, c
     NYA_CryptoTag16 tag = { 0 };
     nya_memcpy(tag.bytes, blob + _NYA_CRYPTO_SEAL_PREFIX_BYTES + ciphertext_size, sizeof(tag.bytes));
 
-    // Decrypts in place only when the tag matches. A wrong key, a wrong field, or a single altered byte
-    // all land here as false, and the plaintext is never even looked at.
+    // Decrypts in place only when the tag matches; a wrong key, field, or altered byte all land here as false.
     b8 opened = nya_crypto_aead_decrypt(aead_key, &nonce,
                                         (NYA_CryptoAeadMessage){
                                             .text            = blob + _NYA_CRYPTO_SEAL_PREFIX_BYTES,
