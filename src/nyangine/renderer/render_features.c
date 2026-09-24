@@ -38,6 +38,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_RENDER_FEATURE_NAMES[NYA_RENDER_FEATURE_COUNT
     [NYA_RENDER_FEATURE_INK]               = "ink",
     [NYA_RENDER_FEATURE_AMBIENT_OCCLUSION] = "ambient occlusion",
     [NYA_RENDER_FEATURE_SSAO]              = "ssao",
+    [NYA_RENDER_FEATURE_SSR]               = "ssr",
     [NYA_RENDER_FEATURE_ANTIALIAS]         = "antialias",
     [NYA_RENDER_FEATURE_DEPTH_OF_FIELD]    = "depth of field",
     [NYA_RENDER_FEATURE_SPEED_LINES]       = "speed lines",
