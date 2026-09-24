@@ -75,6 +75,14 @@ s32 main(void) {
     nya_check(nya_web_socket_receive(socket, body, sizeof(body)) == -1, "receiving on a null link reads -1");
     nya_web_socket_close(socket); // a no-op on null, must not crash
 
+    // ── input: the canvas queue has no DOM off wasm, so attach refuses and poll never yields ──
+    nya_check(!nya_web_input_attach("#canvas"), "canvas input has no DOM off wasm and refuses to attach");
+    nya_check(!nya_web_input_attach(nullptr), "a null selector is refused");
+    NYA_WebInputEvent event = { 0 };
+    nya_check(!nya_web_input_poll(&event), "poll yields nothing off wasm");
+    nya_check(!nya_web_input_poll(nullptr), "a null event pointer is refused");
+    nya_web_input_detach(); // a no-op when nothing is attached, must not crash
+
     if (nya_check_failures() == 0) printf("  PASSED\n");
     return nya_check_failures() == 0 ? 0 : 1;
 }

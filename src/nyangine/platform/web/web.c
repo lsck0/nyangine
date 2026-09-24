@@ -4,6 +4,7 @@
 // nothing of each other; the order here is only alphabetical.
 #include "nyangine/platform/web/web_clock.c"
 #include "nyangine/platform/web/web_fetch.c"
+#include "nyangine/platform/web/web_input.c"
 #include "nyangine/platform/web/web_random.c"
 #include "nyangine/platform/web/web_socket.c"
 #include "nyangine/platform/web/web_storage.c"
