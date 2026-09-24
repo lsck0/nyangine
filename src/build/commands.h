@@ -99,6 +99,12 @@ void bench_runner(NYA_ArgCommand* command);
 void check_runner(NYA_ArgCommand* command);
 
 /**
+ * Reads a project.nya manifest and prints the build plan it resolves to — profile, flags, vendor
+ * subset and binaries. The first slice of consuming nyangine as a vendored dependency. See project.c.
+ * */
+void project_runner(NYA_ArgCommand* command);
+
+/**
  * Bounded model checking of the untrusted-input parsers with CBMC: proves the invariants of the
  * harnesses under tests/cbmc for every input under a small bound. Skips with a notice when `cbmc` is not
  * installed. See verify.c.

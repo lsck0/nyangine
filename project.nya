@@ -1,0 +1,33 @@
+// The manifest that describes this repository to `./build project` — the first slice of consuming
+// nyangine as a vendored dependency. `./build project` reads it and prints the build plan it resolves
+// to: the profile's compile flags, the vendor subset it links, and the binaries it ships. A consumer
+// that pulls the engine in as a submodule keeps a file like this at its own root, with `sources`
+// pointing at its code and the engine living under vendor/nyangine. See src/build/project.c.
+//
+// Hand-edited, so the header checksum below is not verified (NYA_SERDE_NO_CHECKSUM), the same as
+// assets/config/engine.nya.
+nya 2 0
+{
+    name: string "gnyame";
+    // cli | tui | server | desktop | game | web — selects the compile flags and the vendor subset.
+    profile: string "game";
+    // Engine modules to compile in. Empty is base/os only.
+    modules: string[] ["db", "tls", "curl", "discord", "lua"];
+    // The consumer's own source roots, folded into the unity build.
+    sources: string[] ["src/gnyame"];
+    // Asset roots the asset and reflection generators walk.
+    assets: string[] ["assets"];
+    // The binaries this project ships. Each may name its own profile; without one it takes the project's.
+    binaries: array[] [
+        object {
+            name: string "gnyame";
+            entry: string "src/gnyame";
+            profile: string "game";
+        },
+        object {
+            name: string "gnyame-cli";
+            entry: string "src/gnyame_cli";
+            profile: string "cli";
+        }
+    ];
+}

@@ -706,6 +706,23 @@ NYA_INTERNAL NYA_ArgCommand new_command = {
     .parameters  = { &new_name, &new_kind, },
 };
 
+NYA_INTERNAL NYA_ArgParameter project_manifest = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    // variadic to make it optional: bare `./build project` reads ./project.nya. More than one is refused.
+    .variadic    = true,
+    .name        = "manifest",
+    .description = "The project.nya to resolve. Defaults to ./project.nya.",
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE },
+};
+
+NYA_INTERNAL NYA_ArgCommand project_command = {
+    .name        = "project",
+    .description = "Read a project.nya manifest and print the build plan it resolves to. See project.c.",
+    .handler     = &project_runner,
+    .parameters  = { &project_manifest, },
+};
+
 NYA_INTERNAL NYA_ArgCommand check = {
     .name        = "check",
     .description = "Run clang-tidy over the translation units.",
@@ -862,6 +879,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &run,
             &build,
             &new_command,
+            &project_command,
             &dist,
             &check,
             &typos,

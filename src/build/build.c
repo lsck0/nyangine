@@ -42,5 +42,8 @@
 // The project scaffolder: writes a new source tree from in-source templates. No dependency on the
 // rules above, so its place here is only that it is another code command beside them.
 #include "build/new.c"
+// Beside new.c: reads a project.nya manifest and resolves it to a build plan. The first slice of
+// consuming the engine as a vendored dependency.
+#include "build/project.c"
 // Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"
