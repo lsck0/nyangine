@@ -1,0 +1,339 @@
+name: Scheduled
+
+# The slow, non-deterministic checks that do not belong on every push: an AFL++ campaign seeded from
+# the committed corpus, the deterministic simulation over a spread of random seeds, and the benchmarks.
+# They run nightly and on demand, never on push, so a red result here points at a real regression rather
+# than at a runner that was too busy, and a batch of pushes never cancels one of these mid-campaign.
+#
+# Kept apart from ci.yml on purpose: CI is the gate a merge waits on and must stay fast and deterministic;
+# this file is allowed to take an hour and to find something new each night.
+
+on:
+  schedule:
+    # 04:00 UTC, when the shared runners are quietest, so the benchmark numbers are least contaminated.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+# One campaign per branch at a time, and a running one is left to finish rather than cancelled: a
+# half-run fuzzing session or a benchmark interrupted mid-measurement tells you nothing.
+concurrency:
+  group: scheduled-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# Denied at the top and granted read per job, the same shape as ci.yml. Nothing here writes to the repo;
+# it uploads its findings as run artifacts instead.
+permissions: {}
+
+jobs:
+  # AFL++ over each parser and input boundary, seeded from tests/fuzz/corpus. Two gates, in order: the
+  # corpus is first replayed through the ordinary test build, which fails loudly on a mismatched toolchain
+  # or a corpus that no longer passes — so the campaign below can never report a vacuous green — and then
+  # the time-boxed campaign runs, with any crash it discovers failing the job and kept as an artifact.
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      # One target's crash must not cancel the others: a nightly campaign wants every target's result.
+      fail-fast: false
+      matrix:
+        target:
+          - base64
+          - compress
+          - db_sql
+          - http_cookie
+          - http_request
+          - http_unseal
+          - lexer
+          - net_message
+          - net_wire
+          - password_hash
+          - reflect_decode
+          - rfc3339
+          - rfc9110
+          - savegame
+          - serde_json
+          - serde_jsonc
+          - serde_nya
+          - serde_nya_binary
+          - tilemap
+          - url
+          - websocket_frame
+    env:
+      # How long each campaign runs, compile time included. Overridable by a repository variable so the
+      # budget can be tuned without editing this file.
+      FUZZ_SECONDS: ${{ vars.FUZZ_SECONDS || '300' }}
+      # Through the environment, never expanded straight into a run: script, so the matrix value is data
+      # rather than shell source. It is a fixed name from the list above, but the habit is the point.
+      TARGET: ${{ matrix.target }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          lfs: true
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-linux
+        with:
+          llvm-version: 22
+          ccache-key: fuzz
+
+      # afl-clang-fast (the instrumenting compiler) and afl-fuzz (the driver). AFL_CC points the wrapper
+      # at the pinned clang the rest of the build uses, since the engine needs clang 22's -fdefer-ts and
+      # -fenable-matrix and the distro's default clang is older.
+      - name: Install AFL++
+        run: sudo apt-get install -y --no-install-recommends afl++
+
+      # Not optional: if the fuzzer is missing, `./build run fuzz` prints a notice and returns cleanly,
+      # which would let the campaign step below pass without fuzzing anything. Assert it is really here.
+      - name: Verify the fuzzer is installed
+        run: |
+          command -v afl-fuzz       || { echo "::error::afl-fuzz is not on PATH"; exit 1; }
+          command -v afl-clang-fast || { echo "::error::afl-clang-fast is not on PATH"; exit 1; }
+
+      # First gate: compile the target and replay its committed corpus through the ordinary test path.
+      # This is deterministic and toolchain-independent of AFL, so a failure here is a real regression.
+      - name: Replay the committed corpus
+        run: ./build run test "fuzz_${TARGET}"
+
+      # Second gate: the campaign itself. afl-fuzz owns the terminal until interrupted, so timeout sends
+      # it SIGINT at the budget and SIGKILL if it does not stop; a non-zero exit from being interrupted is
+      # expected and is not the signal we read — the crashes directory is.
+      - name: Fuzz from the corpus
+        env:
+          AFL_CC: clang
+          AFL_SKIP_CPUFREQ: "1"
+          AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES: "1"
+        run: |
+          timeout --preserve-status --signal=INT --kill-after=30s "${FUZZ_SECONDS}" \
+            ./build run fuzz "${TARGET}" || true
+
+      # The real verdict. AFL writes reproducers under <findings>/*/crashes/id:*; any such file is a bug
+      # this build has, so the job fails and the reproducers are kept for a maintainer to replay.
+      - name: Check for crashes
+        id: crashes
+        run: |
+          shopt -s nullglob globstar
+          found=(".fuzz/${TARGET}"/**/crashes/id:*)
+          if [ ${#found[@]} -gt 0 ]; then
+            echo "::error::fuzzing ${TARGET} found ${#found[@]} crash(es)"
+            mkdir -p "tests/fuzz/crashes/${TARGET}"
+            cp "${found[@]}" "tests/fuzz/crashes/${TARGET}/"
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "no crashes for ${TARGET}"
+
+      # Even on the failure above, so the reproducers travel off the ephemeral runner.
+      - name: Upload crash reproducers
+        if: always() && steps.crashes.outputs.hit == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: tests/fuzz/crashes/${{ matrix.target }}/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The deterministic simulation, run over a spread of freshly drawn seeds. Each run prints the seed and
+  # the exact command that replays it, so a seed that fails is captured here and reproduces bit for bit
+  # on a developer's machine. A single failing seed fails the job and every seed's replay line is kept.
+  simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      SIM_RUNS: ${{ vars.SIM_RUNS || '32' }}
+      SIM_STEPS: ${{ vars.SIM_STEPS || '200000' }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          lfs: true
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-linux
+        with:
+          llvm-version: 22
+          ccache-key: simulation
+
+      - name: Run the simulation over random seeds
+        run: |
+          mkdir -p sim-out
+          failures=0
+          for i in $(seq 1 "${SIM_RUNS}"); do
+            echo "── simulation run ${i} of ${SIM_RUNS} ──"
+            # No --seed: the build draws a fresh one and prints its replay line. Capture both streams so
+            # the seed is recorded whether the run passes or fails.
+            if ./build run simulation --steps "${SIM_STEPS}" > "sim-out/run-${i}.log" 2>&1; then
+              grep -h "Replay it with" "sim-out/run-${i}.log" || true
+            else
+              failures=$((failures + 1))
+              echo "::error::a simulation seed failed; its replay command follows"
+              grep -h "Replay it with" "sim-out/run-${i}.log" | tee -a sim-out/failing-seeds.txt
+              cat "sim-out/run-${i}.log"
+            fi
+          done
+          echo "${failures} of ${SIM_RUNS} seeds failed."
+          [ "${failures}" -eq 0 ]
+
+      - name: Upload the failing seeds
+        if: always() && hashFiles('sim-out/failing-seeds.txt') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: simulation-failing-seeds
+          path: sim-out/
+          retention-days: 14
+
+  # The benchmarks, on a runner held as fixed as the host allows: a shared GitHub runner is noisy, so the
+  # runner label is overridable to a dedicated self-hosted one where the numbers mean more. Each run is
+  # compared against the previous night's, cached under a stable key; a case that slows past a threshold
+  # is flagged, and a gross regression fails the job. The numbers are kept as an artifact either way.
+  bench:
+    runs-on: ${{ vars.BENCH_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          lfs: true
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-linux
+        with:
+          llvm-version: 22
+          ccache-key: bench
+
+      # Last night's numbers, to compare against. A stable key with a restore prefix, so each run reads
+      # the newest earlier one; the run saves its own below under a unique key.
+      - name: Restore the benchmark baseline
+        id: baseline
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bench-baseline.txt
+          key: bench-baseline-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: bench-baseline-${{ runner.os }}-
+
+      - name: Run the benchmarks
+        run: ./build run bench | tee bench-current.txt
+
+      # Parse the ns/iter column out of each report and compare case by case. A slowdown past the warn
+      # threshold is surfaced as a warning and written to the step summary; one past the fail threshold,
+      # far beyond runner noise, fails the job. A brand new case, or a run with no baseline, only informs.
+      - name: Flag regressions against the baseline
+        env:
+          WARN_RATIO: ${{ vars.BENCH_WARN_RATIO || '1.25' }}
+          FAIL_RATIO: ${{ vars.BENCH_FAIL_RATIO || '2.0' }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+
+          def parse(path):
+              # A report row is two-space indented: "  <case>  <ns/iter> <ns/item> ...". The case name may
+              # contain spaces, so anchor on the first float and take everything before it as the name.
+              rows = {}
+              if not os.path.exists(path):
+                  return rows
+              row = re.compile(r"^  (\S.*?)\s+(\d+\.\d+)\s")
+              for line in open(path, encoding="utf-8", errors="replace"):
+                  if line.startswith("== ") or line.lstrip().startswith("case"):
+                      continue
+                  m = row.match(line.rstrip("\n"))
+                  if m:
+                      rows[m.group(1).strip()] = float(m.group(2))
+              return rows
+
+          warn_ratio = float(os.environ["WARN_RATIO"])
+          fail_ratio = float(os.environ["FAIL_RATIO"])
+          current  = parse("bench-current.txt")
+          baseline = parse("bench-baseline.txt")
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          out = open(summary, "a", encoding="utf-8") if summary else sys.stdout
+          out.write("## Benchmark regressions\n\n")
+
+          if not baseline:
+              out.write("No baseline yet; recording this run as the first.\n")
+              out.write(f"{len(current)} cases measured.\n")
+              sys.exit(0)
+
+          failed = False
+          flagged = 0
+          for name, now in sorted(current.items()):
+              was = baseline.get(name)
+              if was is None or was <= 0:
+                  continue
+              ratio = now / was
+              if ratio >= warn_ratio:
+                  flagged += 1
+                  out.write(f"- `{name}`: {was:.1f} -> {now:.1f} ns/iter ({ratio:.2f}x)\n")
+                  level = "error" if ratio >= fail_ratio else "warning"
+                  print(f"::{level}::{name} slowed {ratio:.2f}x ({was:.1f} -> {now:.1f} ns/iter)")
+                  failed = failed or ratio >= fail_ratio
+          if flagged == 0:
+              out.write("No regressions past the threshold.\n")
+          sys.exit(1 if failed else 0)
+          PY
+
+      # This run becomes the next comparison's baseline, kept whether or not a regression was flagged.
+      - name: Publish this run as the baseline
+        if: always()
+        run: cp bench-current.txt bench-baseline.txt
+
+      - name: Save the benchmark baseline
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bench-baseline.txt
+          key: bench-baseline-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Upload the benchmark numbers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmarks
+          path: bench-current.txt
+          retention-days: 30
+
+  # A nightly audit of the workflow files themselves: zizmor reads .github/workflows for the mistakes a
+  # human review misses — an unpinned action, an over-broad token, a script-injection sink. Advisory, and
+  # kept off the per-push path so a new zizmor release tightening a rule never blocks an unrelated merge.
+  workflow-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Audit the workflows with zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          # Scan the workflow directory; do not upload SARIF, which would need security-events: write.
+          advanced-security: false
+          inputs: .github/workflows/
