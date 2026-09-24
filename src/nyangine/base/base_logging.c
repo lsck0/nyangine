@@ -13,6 +13,11 @@ typedef struct {
 } _NYA_LogSinkEntry;
 
 typedef struct {
+    NYA_LogRecordSink callback;
+    void*             user_data;
+} _NYA_LogRecordSinkEntry;
+
+typedef struct {
     NYA_CrashObserver callback;
     void*             user_data;
 } _NYA_CrashObserverEntry;
@@ -25,6 +30,8 @@ NYA_INTERNAL NYA_LogLevel _nya_log_level_current = NYA_LOG_LEVEL_INFO;
 
 NYA_INTERNAL _NYA_LogSinkEntry       _nya_log_sinks[NYA_LOG_SINK_MAX]             = { 0 };
 NYA_INTERNAL u32                     _nya_log_sink_count                          = 0;
+NYA_INTERNAL _NYA_LogRecordSinkEntry _nya_log_record_sinks[NYA_LOG_SINK_MAX]      = { 0 };
+NYA_INTERNAL u32                     _nya_log_record_sink_count                   = 0;
 NYA_INTERNAL _NYA_CrashObserverEntry _nya_crash_observers[NYA_CRASH_OBSERVER_MAX] = { 0 };
 NYA_INTERNAL u32                     _nya_crash_observer_count                    = 0;
 
@@ -97,6 +104,23 @@ NYA_INTERNAL NYA_ConstCString _NYA_LOG_LEVEL_NAME_MAP[NYA_LOG_LEVEL_COUNT] = {
 
 NYA_INTERNAL void _nya_log_emit(NYA_LogLevel level, NYA_ConstCString message, u32 length);
 NYA_INTERNAL void _nya_crash_report(const NYA_CrashInfo* info);
+
+/** Appends into a caller's line buffer, bounded and null terminated, advancing `length`. A write that runs out of
+ * room is truncated rather than dropped: a human line is read, not parsed, so a cut tail loses nothing a reader
+ * cannot see is cut. */
+NYA_INTERNAL void _nya_log_line_append(OUT char* buffer, u32 capacity, u32* length, NYA_ConstCString format, ...) __attr_fmt_printf(4, 5);
+
+/** Composes the human line and hands the record to every record sink. The shared tail of both log entry points. */
+NYA_INTERNAL void _nya_log_dispatch(
+    NYA_LogLevel        level,
+    NYA_ConstCString    function,
+    NYA_ConstCString    file,
+    u32                 line,
+    NYA_ConstCString    message,
+    const NYA_LogField* fields,
+    u32                 count,
+    b8                  fields_overflowed
+);
 NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) __attr_noreturn;
 
 /*
@@ -164,6 +188,41 @@ b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data) {
 
 void nya_log_sink_clear(void) {
     _nya_log_sink_count = 0;
+}
+
+void nya_log_record_sink_add(NYA_LogRecordSink sink, void* user_data) {
+    // See nya_log_sink_add's identical comment; guarded against the registry being full because a program
+    // that registers no record sink should never have paid for the ceiling.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        ceiling_registered = true;
+        if (nya_ceiling_count() < NYA_CEILING_REGISTRY_MAX) {
+            nya_ceiling_register("log_record_sinks", NYA_LOG_SINK_MAX, &_nya_log_record_sink_count);
+        }
+    }
+
+    if (sink == nullptr) return;
+    if (_nya_log_record_sink_count >= NYA_LOG_SINK_MAX) return;
+
+    _nya_log_record_sinks[_nya_log_record_sink_count++] = (_NYA_LogRecordSinkEntry){ .callback = sink, .user_data = user_data };
+}
+
+b8 nya_log_record_sink_remove(NYA_LogRecordSink sink, void* user_data) {
+    if (sink == nullptr) return false;
+
+    for (u32 i = 0; i < _nya_log_record_sink_count; i++) {
+        if (_nya_log_record_sinks[i].callback != sink || _nya_log_record_sinks[i].user_data != user_data) continue;
+
+        // Shifted down rather than swapped, so record sinks stay in registration order as the line sinks do.
+        for (u32 j = i + 1; j < _nya_log_record_sink_count; j++) _nya_log_record_sinks[j - 1] = _nya_log_record_sinks[j];
+
+        _nya_log_record_sink_count--;
+        _nya_log_record_sinks[_nya_log_record_sink_count] = (_NYA_LogRecordSinkEntry){ 0 };
+
+        return true;
+    }
+
+    return false;
 }
 
 /*
@@ -471,9 +530,46 @@ void _nya_crash_prevent_pop(jmp_buf* previous) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCString file, u32 line, NYA_ConstCString format, ...) {
-    if (level < _nya_log_level_current) return;
+void _nya_log_line_append(OUT char* buffer, u32 capacity, u32* length, NYA_ConstCString format, ...) {
+    if (*length + 1 >= capacity) return;
 
+    u32 room = capacity - *length;
+
+    va_list args;
+    va_start(args, format);
+    s32 written = vsnprintf(&buffer[*length], room, format, args);
+    va_end(args);
+
+    if (written < 0) return;
+
+    *length += ((u32)written < room) ? (u32)written : room - 1;
+}
+
+/** One field as ` key=value`, human side. Unquoted: a person reads this, and a machine reads the JSON instead. */
+NYA_INTERNAL void _nya_log_field_append_human(OUT char* buffer, u32 capacity, u32* length, const NYA_LogField* field) {
+    NYA_ConstCString key = field->key != nullptr ? field->key : "?";
+
+    switch (field->kind) {
+        case NYA_LOG_FIELD_STRING:
+            _nya_log_line_append(buffer, capacity, length, " %s=%s", key, field->as_string != nullptr ? field->as_string : "(null)");
+            break;
+        case NYA_LOG_FIELD_INT:   _nya_log_line_append(buffer, capacity, length, " %s=%lld", key, (long long)field->as_int); break;
+        case NYA_LOG_FIELD_FLOAT: _nya_log_line_append(buffer, capacity, length, " %s=%g", key, field->as_float); break;
+        case NYA_LOG_FIELD_BOOL:  _nya_log_line_append(buffer, capacity, length, " %s=%s", key, field->as_bool ? "true" : "false"); break;
+        default:                  break;
+    }
+}
+
+void _nya_log_dispatch(
+    NYA_LogLevel        level,
+    NYA_ConstCString    function,
+    NYA_ConstCString    file,
+    u32                 line,
+    NYA_ConstCString    message,
+    const NYA_LogField* fields,
+    u32                 count,
+    b8                  fields_overflowed
+) {
     char buffer[NYA_LOG_MESSAGE_MAX_LENGTH];
     s32  written = _nya_log_tag[0] != '\0'
                        ? snprintf(buffer, sizeof(buffer), "[%s] [%s] %s (%s:%u): ", _NYA_LOG_LEVEL_NAME_MAP[level], _nya_log_tag, function, file, line)
@@ -482,17 +578,221 @@ void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCS
 
     u32 length = (u32)written < sizeof(buffer) ? (u32)written : sizeof(buffer) - 1;
 
-    va_list args;
-    va_start(args, format);
-    written = vsnprintf(&buffer[length], sizeof(buffer) - length, format, args);
-    va_end(args);
+    _nya_log_line_append(buffer, sizeof(buffer), &length, "%s", message != nullptr ? message : "");
 
-    if (written > 0) {
-        u32 remaining  = (u32)sizeof(buffer) - length;
-        length        += ((u32)written < remaining) ? (u32)written : remaining - 1;
-    }
+    for (u32 i = 0; i < count; i++) _nya_log_field_append_human(buffer, sizeof(buffer), &length, &fields[i]);
+
+    // Visible on the human line rather than only in the record: a reader of the ring sees the fields were
+    // refused rather than reading a line that quietly carries none.
+    if (fields_overflowed) _nya_log_line_append(buffer, sizeof(buffer), &length, "%s", " (fields dropped: over NYA_LOG_FIELD_MAX)");
 
     _nya_log_emit(level, buffer, length);
+
+    // The structured seam. The human line above is already in the ring and the file, so a record sink is a
+    // second rendering of the same event and never the only copy of it.
+    if (_nya_log_record_sink_count > 0) {
+        NYA_LogRecord record = {
+            .level             = level,
+            .function          = function,
+            .file              = file,
+            .line              = line,
+            .tag               = _nya_log_tag,
+            .message           = message != nullptr ? message : "",
+            .fields            = fields,
+            .field_count       = count,
+            .fields_overflowed = fields_overflowed,
+        };
+
+        for (u32 i = 0; i < _nya_log_record_sink_count; i++) _nya_log_record_sinks[i].callback(&record, _nya_log_record_sinks[i].user_data);
+    }
+}
+
+void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCString file, u32 line, NYA_ConstCString format, ...) {
+    if (level < _nya_log_level_current) return;
+
+    // Formatted first, then dispatched as a fieldless record, so a plain nya_log_* line reaches a record
+    // sink too, as one JSON object with a message and no fields.
+    char    body[NYA_LOG_MESSAGE_MAX_LENGTH];
+    va_list args;
+    va_start(args, format);
+    s32 written = vsnprintf(body, sizeof(body), format, args);
+    va_end(args);
+    if (written < 0) body[0] = '\0';
+
+    _nya_log_dispatch(level, function, file, line, body, nullptr, 0, false);
+}
+
+void _nya_log_fields(
+    NYA_LogLevel     level,
+    NYA_ConstCString function,
+    NYA_ConstCString file,
+    u32              line,
+    NYA_ConstCString message,
+    const NYA_LogField* fields,
+    u32              count
+) {
+    if (level < _nya_log_level_current) return;
+
+    // Refused whole, never a prefix: a truncated set of fields is a record that looks complete and is not.
+    b8 overflowed = count > NYA_LOG_FIELD_MAX;
+    if (overflowed) {
+        fields = nullptr;
+        count  = 0;
+    }
+
+    _nya_log_dispatch(level, function, file, line, message, fields, count, overflowed);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * JSON RENDERING
+ * ─────────────────────────────────────────────────────────
+ *
+ * Hand rolled rather than through serde, because base sits below it: a base module cannot reach up to
+ * nya_serialize, and a JSON line must render with no allocation anyway. Every append reserves two trailing
+ * bytes for the closing brace and the terminator, so a member that does not fit fails cleanly and the object
+ * is still closed and still parses. This is the same fail-whole-or-not-at-all discipline http_log's record
+ * builder uses, applied a member at a time.
+ */
+
+/** Copies `n` bytes when they fit alongside the two reserved bytes. False, having written nothing, otherwise. */
+NYA_INTERNAL b8 _nya_log_json_raw(OUT char* out, u64 capacity, u32* length, NYA_ConstCString bytes, u64 n) {
+    if ((u64)*length + n + 2 > capacity) return false;
+
+    nya_memcpy(out + *length, bytes, n);
+    *length += (u32)n;
+
+    return true;
+}
+
+/** Writes `text` as a quoted, escaped JSON string. False, mid-write, when a unit does not fit. */
+NYA_INTERNAL b8 _nya_log_json_string(OUT char* out, u64 capacity, u32* length, NYA_ConstCString text) {
+    if (text == nullptr) text = "";
+    if (!_nya_log_json_raw(out, capacity, length, "\"", 1)) return false;
+
+    for (const u8* p = (const u8*)text; *p != '\0'; p++) {
+        switch (*p) {
+            case '"':  if (!_nya_log_json_raw(out, capacity, length, "\\\"", 2)) return false; continue;
+            case '\\': if (!_nya_log_json_raw(out, capacity, length, "\\\\", 2)) return false; continue;
+            case '\n': if (!_nya_log_json_raw(out, capacity, length, "\\n", 2)) return false; continue;
+            case '\r': if (!_nya_log_json_raw(out, capacity, length, "\\r", 2)) return false; continue;
+            case '\t': if (!_nya_log_json_raw(out, capacity, length, "\\t", 2)) return false; continue;
+            default:   break;
+        }
+
+        // JSON forbids a raw control character in a string; only a \u escape can carry it.
+        if (*p < 0x20) {
+            char esc[8];
+            s32  written = snprintf(esc, sizeof(esc), "\\u%04x", (u32)*p);
+            if (written < 0 || !_nya_log_json_raw(out, capacity, length, esc, (u64)written)) return false;
+            continue;
+        }
+
+        char c = (char)*p;
+        if (!_nya_log_json_raw(out, capacity, length, &c, 1)) return false;
+    }
+
+    return _nya_log_json_raw(out, capacity, length, "\"", 1);
+}
+
+/** Writes `"key":`, with a leading comma unless it is the first member. */
+NYA_INTERNAL b8 _nya_log_json_key(OUT char* out, u64 capacity, u32* length, b8 first, NYA_ConstCString key) {
+    if (!first && !_nya_log_json_raw(out, capacity, length, ",", 1)) return false;
+    if (!_nya_log_json_string(out, capacity, length, key)) return false;
+
+    return _nya_log_json_raw(out, capacity, length, ":", 1);
+}
+
+/** A `"key":"value"` member, rolled back whole when it does not fit so a partial member never lands. */
+NYA_INTERNAL b8 _nya_log_json_member_string(OUT char* out, u64 capacity, u32* length, b8* first, NYA_ConstCString key, NYA_ConstCString value) {
+    u32 checkpoint = *length;
+
+    if (!_nya_log_json_key(out, capacity, length, *first, key) || !_nya_log_json_string(out, capacity, length, value)) {
+        *length = checkpoint;
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+/** A `"key":literal` member, the literal already valid JSON (a number or a boolean), written unquoted. */
+NYA_INTERNAL b8 _nya_log_json_member_literal(OUT char* out, u64 capacity, u32* length, b8* first, NYA_ConstCString key, NYA_ConstCString literal) {
+    u32 checkpoint = *length;
+
+    if (!_nya_log_json_key(out, capacity, length, *first, key) || !_nya_log_json_raw(out, capacity, length, literal, strlen(literal))) {
+        *length = checkpoint;
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+u32 nya_log_record_render_json(const NYA_LogRecord* record, OUT char* out, u64 capacity) {
+    if (out == nullptr || capacity == 0) return 0;
+
+    // Smaller than "{}" and a terminator cannot hold valid JSON, so return the empty string rather than a
+    // brace with nowhere to close it.
+    if (record == nullptr || capacity < 3) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    u32 length    = 0;
+    out[length++] = '{';
+
+    b8 first = true;
+
+    NYA_ConstCString level_name = (u32)record->level < NYA_LOG_LEVEL_COUNT ? _NYA_LOG_LEVEL_NAME_MAP[record->level] : "?";
+    _nya_log_json_member_string(out, capacity, &length, &first, "level", level_name);
+    _nya_log_json_member_string(out, capacity, &length, &first, "function", record->function);
+    _nya_log_json_member_string(out, capacity, &length, &first, "file", record->file);
+
+    char line_text[16];
+    (void)snprintf(line_text, sizeof(line_text), "%u", record->line);
+    _nya_log_json_member_literal(out, capacity, &length, &first, "line", line_text);
+
+    if (record->tag != nullptr && record->tag[0] != '\0') _nya_log_json_member_string(out, capacity, &length, &first, "tag", record->tag);
+
+    _nya_log_json_member_string(out, capacity, &length, &first, "message", record->message);
+
+    for (u32 i = 0; i < record->field_count; i++) {
+        const NYA_LogField* field = &record->fields[i];
+        NYA_ConstCString     key   = field->key != nullptr ? field->key : "?";
+
+        b8 ok = true;
+        switch (field->kind) {
+            case NYA_LOG_FIELD_STRING: ok = _nya_log_json_member_string(out, capacity, &length, &first, key, field->as_string); break;
+
+            case NYA_LOG_FIELD_INT: {
+                char value[24];
+                (void)snprintf(value, sizeof(value), "%lld", (long long)field->as_int);
+                ok = _nya_log_json_member_literal(out, capacity, &length, &first, key, value);
+                break;
+            }
+
+            case NYA_LOG_FIELD_FLOAT: {
+                char value[32];
+                (void)snprintf(value, sizeof(value), "%g", field->as_float);
+                ok = _nya_log_json_member_literal(out, capacity, &length, &first, key, value);
+                break;
+            }
+
+            case NYA_LOG_FIELD_BOOL: ok = _nya_log_json_member_literal(out, capacity, &length, &first, key, field->as_bool ? "true" : "false"); break;
+
+            default: break;
+        }
+
+        // A member that would overflow stops the fields here rather than writing half of one; the object is
+        // still closed below, so a reader always gets a whole record or a shorter whole record, never a torn one.
+        if (!ok) break;
+    }
+
+    out[length++] = '}';
+    out[length]   = '\0';
+
+    return length;
 }
 
 void _nya_crash_raise(
