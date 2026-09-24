@@ -35,7 +35,7 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 ## In flight (2026-09-24)
 
-Agents running (shipping-hardening DONE `2c758ee8`: RELRO+BIND_NOW+NX+fortify verified from the ELF): UI style from a `.nya` theme via reflection, hot-reloaded; the `web_frontend` example (nya_ui app against http_server, SSR + CSR); signed plugins (Ed25519 over the plugin, pinned publisher keys, refuse-unsigned by default); planar reflection for the water surface. Marked done in place as each lands.
+Agents running (DONE: shipping-hardening `2c758ee8`, UI theme files `14e26f05`, planar water reflection `03999130`): the `web_frontend` example (nya_ui app against http_server, SSR + CSR); signed plugins (Ed25519 over the plugin, pinned publisher keys, refuse-unsigned by default). Marked done in place as each lands.
 
 ## Standing decisions
 
