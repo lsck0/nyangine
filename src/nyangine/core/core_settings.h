@@ -94,6 +94,7 @@ struct NYA_SettingsGraphics {
     b8 depth_of_field;
     b8 eye_adaptation;
     b8 light_shafts;
+    b8 reflections;
 
     /** Off unless the player wants it. */
     b8 motion_blur;

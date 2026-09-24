@@ -419,6 +419,11 @@ void nya_settings_graphics_apply(NYA_Window* window) {
     ssao.enabled      = ssao.enabled && graphics->ambient_occlusion;
     nya_post_ssao_set(window, ssao);
 
+    // screen-space reflections answer to their own reflections quality switch.
+    NYA_PostSsr ssr = nya_post_ssr(window);
+    ssr.enabled     = ssr.enabled && graphics->reflections;
+    nya_post_ssr_set(window, ssr);
+
     NYA_PostBloom bloom = nya_post_bloom(window);
     bloom.enabled       = bloom.enabled && graphics->bloom;
     nya_post_bloom_set(window, bloom);
