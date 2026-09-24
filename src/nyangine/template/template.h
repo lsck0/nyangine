@@ -41,11 +41,7 @@
 #include "nyangine/base/base_object.h"
 #include "nyangine/base/base_string.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** The largest rendered output, in bytes (4 MiB). A template that would exceed it is refused whole. */
 #define NYA_TEMPLATE_MAX_OUTPUT 4194304U
@@ -59,11 +55,7 @@
 /** The longest single path segment (a key or an index) the resolver will look up. */
 #define NYA_TEMPLATE_MAX_SEGMENT 128U
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 /**
  * Which language interpolated values are escaped for. The choice is the core safety control: it is
@@ -80,11 +72,7 @@ typedef enum NYA_TemplateEscape {
     NYA_TEMPLATE_ESCAPE_LATEX,
 } NYA_TemplateEscape;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Renders `template_text` against `context` and writes a freshly allocated result to `*out_string`.

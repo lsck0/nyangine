@@ -1,9 +1,7 @@
 #include "nyangine/nyangine.h"
 
 /*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * OVERVIEW
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ───────────────────────────────────── OVERVIEW ─────────────────────────────────────
  *
  * The renderer is a single left-to-right pass over the template. Literal text between constructs is
  * copied out verbatim — it is authored, so it is trusted. The three constructs are `{{ }}`
@@ -22,11 +20,7 @@
  * depth are capped at their own gates. Hitting any cap fails the whole render rather than truncating.
  */
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── STATE ─────────────────────────────────────
 
 /** One loop variable in scope: the name it binds, the element it points at, and its position. */
 typedef struct {
@@ -57,19 +51,11 @@ typedef enum {
     _NYA_TEMPLATE_STOP_ELSE,
 } _NyaTemplateStop;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API ─────────────────────────────────────
 
 NYA_INTERNAL NYA_Error _nya_template_render_block(_NyaTemplate* t, b8 emit, u32 depth, const char** cursor, OUT _NyaTemplateStop* stop);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TEXT HELPERS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TEXT HELPERS ─────────────────────────────────────
 
 /** A slice `[ptr, ptr + length)` of the template text, since none of it is null terminated in place. */
 typedef struct {
@@ -115,11 +101,7 @@ NYA_INTERNAL const char* _nya_template_find2(const char* from, const char* end, 
     return nullptr;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * OUTPUT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OUTPUT ─────────────────────────────────────
 
 /** The one place output grows, so the one place the size cap is enforced. */
 NYA_INTERNAL NYA_Error _nya_template_put(_NyaTemplate* t, b8 emit, const u8* data, u64 length) {
@@ -160,9 +142,7 @@ NYA_INTERNAL NYA_Error _nya_template_put_escaped(_NyaTemplate* t, b8 emit, const
                 break;
 
             case NYA_TEMPLATE_ESCAPE_LATEX:
-                // The ten characters LaTeX gives a meaning. The backslash and the two accent
-                // characters cannot be escaped with a backslash — that would produce a live command —
-                // so they map to their text-mode command names.
+                // The ten characters LaTeX gives a meaning; the backslash and two accents map to their text-mode command names, since a backslash escape would be a live command.
                 switch (c) {
                     case '\\': replacement = "\\textbackslash{}"; break;
                     case '&':  replacement = "\\&"; break;
@@ -191,11 +171,7 @@ NYA_INTERNAL NYA_Error _nya_template_put_escaped(_NyaTemplate* t, b8 emit, const
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VALUES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── VALUES ─────────────────────────────────────
 
 /** Renders one scalar value to text, mirroring serde's type mapping. Objects and arrays render empty. */
 NYA_INTERNAL NYA_String* _nya_template_value_to_string(NYA_Arena* arena, const NYA_Value* v) {
@@ -233,8 +209,7 @@ NYA_INTERNAL NYA_String* _nya_template_value_to_string(NYA_Arena* arena, const N
 
         case NYA_TYPE_STRING: nya_string_extend(out, v->as_string != nullptr ? v->as_string : ""); break;
 
-        // Objects, arrays, wide strings and raw pointers have no single natural rendering, so they
-        // interpolate as nothing rather than as an address or a debug shape someone might trust.
+        // Objects, arrays, wide strings and raw pointers have no natural rendering, so they interpolate as nothing rather than an address someone might trust.
         default: break;
     }
 
@@ -297,9 +272,7 @@ NYA_INTERNAL b8 _nya_template_truthy(const NYA_Value* v) {
 }
 
 /*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PATH RESOLUTION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ───────────────────────────────────── PATH RESOLUTION ─────────────────────────────────────
  *
  * A path is dot separated: `user.address.city`, `items.0.title`. The first segment names a loop
  * variable in scope, the reserved `forloop` cursor inside a loop, or a key of the root context. Each
@@ -413,11 +386,7 @@ NYA_INTERNAL b8 _nya_template_resolve(_NyaTemplate* t, _NyaTemplateSlice path, O
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DATE FILTER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── DATE FILTER ─────────────────────────────────────
 
 /** Formats an instant (nanoseconds since the Unix epoch) per `format`: "date", "time", else RFC 3339. */
 NYA_INTERNAL NYA_String* _nya_template_format_date(NYA_Arena* arena, s64 ns, _NyaTemplateSlice format) {
@@ -444,11 +413,7 @@ NYA_INTERNAL NYA_String* _nya_template_format_date(NYA_Arena* arena, s64 ns, _Ny
     return out;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERPOLATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── INTERPOLATION ─────────────────────────────────────
 
 /** Reads `name` or `name:arg` from a filter list, advancing `list` past it. */
 NYA_INTERNAL _NyaTemplateSlice _nya_template_filter(_NyaTemplateSlice* list, OUT _NyaTemplateSlice* arg) {
@@ -509,12 +474,10 @@ NYA_INTERNAL NYA_Error _nya_template_render_interp(_NyaTemplate* t, b8 emit, _Ny
         if (name.length == 0) continue;
 
         if (_nya_template_slice_eq(name, "raw")) {
-            // Opts the value out of autoescaping. Dangerous: only for values the author trusts to be
-            // safe in the output language, since it lets markup or commands through unchanged.
+            // Opts the value out of autoescaping. Dangerous: only for values the author trusts in the output language.
             autoescape = false;
         } else if (_nya_template_slice_eq(name, "escape")) {
-            // Escapes now, and turns autoescaping off so the final step does not double-encode. In a
-            // NONE render there is no active language, so escape defaults to HTML — the safe reading.
+            // Escapes now and turns autoescaping off so the final step does not double-encode; a NONE render escapes as HTML, the safe reading.
             NYA_TemplateEscape as = t->mode == NYA_TEMPLATE_ESCAPE_NONE ? NYA_TEMPLATE_ESCAPE_HTML : t->mode;
             NYA_String*        escaped = nya_string_create(t->arena);
             _NyaTemplate       sink    = *t;
@@ -547,11 +510,7 @@ NYA_INTERNAL NYA_Error _nya_template_render_interp(_NyaTemplate* t, b8 emit, _Ny
     return _nya_template_put(t, emit, text->items, text->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONTROL BLOCKS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONTROL BLOCKS ─────────────────────────────────────
 
 /** `{% if path %}...{% else %}...{% endif %}`. `cursor` starts just after the opening tag. */
 NYA_INTERNAL NYA_Error _nya_template_render_if(_NyaTemplate* t, b8 emit, u32 depth, _NyaTemplateSlice condition, const char** cursor) {
@@ -698,11 +657,7 @@ NYA_INTERNAL NYA_Error _nya_template_render_block(_NyaTemplate* t, b8 emit, u32 
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API ─────────────────────────────────────
 
 NYA_Error nya_template_render(
     NYA_Arena* arena, NYA_ConstCString template_text, const NYA_Object* context, NYA_TemplateEscape mode, OUT NYA_String** out_string) {
