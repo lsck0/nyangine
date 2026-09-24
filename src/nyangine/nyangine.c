@@ -111,6 +111,11 @@
 #include "nyangine/renderer/renderer.c"
 #if !NYA_HEADLESS_ENABLED
 #include "nyangine/renderer/render_trace.c"
+// Real renderer only: the GPU compute pipeline skin and its particle-field proof call the SDL_GPU compute
+// API, which the headless and terminal 2D backends do not carry. Desktop only within that — WebGL2 has no
+// compute stage, so both are compiled out on the web build by the !OS_WASM guard in their own files.
+#include "nyangine/renderer/render_compute.c"
+#include "nyangine/renderer/render_compute_particles.c"
 #endif
 // ui.c first: it defines the module's one static state, which every other ui_*.c file reads. The rest are
 // independent of each other and only ordered to read alphabetically.

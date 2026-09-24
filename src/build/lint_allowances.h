@@ -49,6 +49,8 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_command_destroy", "made as a struct literal, then run; there is no create" },
     { "nya_gpu_buffer_create", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },
     { "nya_gpu_buffer_release", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },
+    { "nya_gpu_compute_pipeline_create", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },
+    { "nya_gpu_compute_pipeline_release", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },
     { "nya_gpu_texture_create", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },
     { "nya_gpu_texture_release", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },
     { "nya_gpu_transfer_buffer_create", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },

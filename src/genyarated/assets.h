@@ -63,6 +63,8 @@
 #define NYA_ASSET_SHADER_MESH3D_SHADOW_SKINNED_VERT      "./assets/shader/source/mesh3d_shadow_skinned.vert.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_SKINNED_VERT             "./assets/shader/source/mesh3d_skinned.vert.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_TEXTURED_FRAG            "./assets/shader/source/mesh3d_textured.frag.hlsl"
+#define NYA_ASSET_SHADER_PARTICLE_RENDER_COMP            "./assets/shader/source/particle_render.comp.hlsl"
+#define NYA_ASSET_SHADER_PARTICLE_UPDATE_COMP            "./assets/shader/source/particle_update.comp.hlsl"
 #define NYA_ASSET_SHADER_PROCEDURAL_FRAG                 "./assets/shader/source/procedural.frag.hlsl"
 #define NYA_ASSET_SHADER_PROCEDURAL_VERT                 "./assets/shader/source/procedural.vert.hlsl"
 #define NYA_ASSET_SHADER_SHAPE_FRAG                      "./assets/shader/source/shape.frag.hlsl"

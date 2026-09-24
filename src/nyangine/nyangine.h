@@ -66,6 +66,10 @@
 #include "nyangine/renderer/render_fluid.h"
 #include "nyangine/debug/debug.h"
 #include "nyangine/renderer/renderer.h"
+// after renderer.h: the GPU compute pipeline skin and its particle-field effect. Desktop only — WebGL2 has
+// no compute stage — so both are empty on the web build; see render_compute.h and the renderer-web wall.
+#include "nyangine/renderer/render_compute.h"
+#include "nyangine/renderer/render_compute_particles.h"
 #include "nyangine/ui/ui.h"
 #include "nyangine/ui/ui_present.h"
 #include "nyangine/ui/ui_present_cell.h"

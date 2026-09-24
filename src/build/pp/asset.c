@@ -167,6 +167,13 @@ void nya_asset_compile_shaders(void) {
             NYA_EXPECT(nya_build(&rule));
         }
 
+        // Compute shaders are desktop only: WebGL2/GLES3, the GLSL ES 300 backend's target, has no compute
+        // stage at all, so there is nothing to cross-compile and no web variant to try. Skip the whole GLSL
+        // step for a `.comp` shader, which leaves `./build build shaders` green with no spurious `.comp.glsl`
+        // or `.comp.web.spv` beside it. The engine's compute path is gated the same way behind !OS_WASM; see
+        // render_compute_particles.c and the renderer-web wall.
+        if (nya_string_ends_with(shader, ".comp")) continue;
+
         // Beside the .spv, its GLSL ES 300 form for a later GLES3/WebGL2 backend. Compiled by the build
         // tool in-process (shadercross has no GLSL target), and only when the .spv is newer than it: a
         // changed shared include rebuilt the .spv above, so comparing against it also catches that.
