@@ -339,10 +339,11 @@ s32 main(void) {
         nya_assert(nya_http_websocket_route_add(&ECHO_ROUTE).ok);
         nya_assert(nya_http_websocket_route_add(&ECHO_ROUTE).kind == NYA_ERROR_ALREADY_EXISTS, "a path is mounted once");
 
-        static const NYA_HttpWebSocketRoute RELATIVE = { .path = "ws/relative", .summary = "no" };
-        static const NYA_HttpWebSocketRoute SILENT   = { .path = "/ws/silent" };
+        // Not RELATIVE: windows.h (wingdi.h) defines that as a macro, and this test compiles there too.
+        static const NYA_HttpWebSocketRoute RELATIVE_ROUTE = { .path = "ws/relative", .summary = "no" };
+        static const NYA_HttpWebSocketRoute SILENT         = { .path = "/ws/silent" };
 
-        nya_assert(nya_http_websocket_route_add(&RELATIVE).kind == NYA_ERROR_INVALID_ARGUMENT);
+        nya_assert(nya_http_websocket_route_add(&RELATIVE_ROUTE).kind == NYA_ERROR_INVALID_ARGUMENT);
         nya_assert(nya_http_websocket_route_add(&SILENT).kind == NYA_ERROR_INVALID_ARGUMENT, "a route says what it is, for the log line");
 
         nya_http_websocket_route_remove(&ECHO_ROUTE);
