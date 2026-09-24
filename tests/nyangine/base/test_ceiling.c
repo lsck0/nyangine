@@ -72,6 +72,43 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: unregistering removes a ceiling so a freed counter is never read back.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        _nya_ceiling_registry_reset_for_test();
+
+        static u32 a = 1;
+        static u32 b = 2;
+        static u32 c = 3;
+
+        nya_ceiling_register("a", 10, &a);
+        nya_ceiling_register("b", 10, &b);
+        nya_ceiling_register("c", 10, &c);
+        nya_assert(nya_ceiling_count() == 3);
+
+        // remove the middle one: the count drops and its name is gone, the other two stay readable.
+        nya_ceiling_unregister("b");
+        nya_assert(nya_ceiling_count() == 2, "unregister drops the count, got " FMTu32, nya_ceiling_count());
+
+        b8 saw_a = false, saw_b = false, saw_c = false;
+        for (u32 index = 0; index < nya_ceiling_count(); index++) {
+            NYA_ConstCString name = nya_ceiling_name_at(index);
+            if (nya_string_equals(name, "a")) saw_a = true;
+            if (nya_string_equals(name, "b")) saw_b = true;
+            if (nya_string_equals(name, "c")) saw_c = true;
+        }
+        nya_assert(saw_a && saw_c, "the ceilings that were not removed stay registered");
+        nya_assert(!saw_b, "the removed ceiling is gone, not merely reordered");
+
+        // a name that is not registered is a no-op, and it can be registered again afterwards.
+        nya_ceiling_unregister("not_here");
+        nya_assert(nya_ceiling_count() == 2, "unregistering an absent name changes nothing");
+
+        nya_ceiling_register("b", 10, &b);
+        nya_assert(nya_ceiling_count() == 3, "a name can be registered again after it was removed");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the registry's own ceiling warns and refuses rather than growing.
     // ─────────────────────────────────────────────────────────────────────────────
     {

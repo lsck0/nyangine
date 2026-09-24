@@ -73,6 +73,21 @@ void nya_ceiling_register(NYA_ConstCString name, u32 capacity, const u32* live) 
     _nya_ceiling_registry.count++;
 }
 
+void nya_ceiling_unregister(NYA_ConstCString name) {
+    nya_assert(name != nullptr, "a ceiling must be unregistered by name");
+
+    for (u32 index = 0; index < _nya_ceiling_registry.count; index++) {
+        if (strcmp(_nya_ceiling_registry.entries[index].name, name) != 0) continue;
+
+        // The last entry fills the hole and the count shrinks; the sorted order is rebuilt on every
+        // query, so the entries need not stay in any order here.
+        _nya_ceiling_registry.count--;
+        _nya_ceiling_registry.entries[index]                       = _nya_ceiling_registry.entries[_nya_ceiling_registry.count];
+        _nya_ceiling_registry.entries[_nya_ceiling_registry.count] = (_NYA_CeilingEntry){ 0 };
+        return;
+    }
+}
+
 u32 nya_ceiling_count(void) {
     return _nya_ceiling_registry.count;
 }

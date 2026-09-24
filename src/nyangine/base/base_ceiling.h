@@ -48,6 +48,13 @@
  * */
 NYA_API void nya_ceiling_register(NYA_ConstCString name, u32 capacity, const u32* live);
 
+/**
+ * Removes the ceiling registered under `name`, so a subsystem retracts it before the counter it points
+ * at is freed — otherwise the registry keeps a dangling `live` a later query would read. A name that is
+ * not registered is a no-op. If a name was registered more than once, one registration is removed.
+ * */
+NYA_API void nya_ceiling_unregister(NYA_ConstCString name);
+
 /** How many ceilings are registered. */
 NYA_API u32 nya_ceiling_count(void) __attr_no_discard;
 

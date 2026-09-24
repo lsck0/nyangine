@@ -602,6 +602,13 @@ void nya_system_http_deinit(void) {
 
     _NYA_HttpState* state = _NYA_HTTP;
 
+    // Retract the ceilings init registered: two of them point into `state`, which this frees, so a
+    // metrics query after deinit would read freed memory. Done up front so both the graceful path and
+    // the leak-on-purpose path below drop them, and so a re-init does not register a second copy.
+    nya_ceiling_unregister("http_connections");
+    nya_ceiling_unregister("http_rate_buckets");
+    nya_ceiling_unregister("http_websockets");
+
     // first, so a drain that arrives while the rest of this is running finds nothing to do.
     atomic_store_explicit(&state->stopping, true, memory_order_release);
 
