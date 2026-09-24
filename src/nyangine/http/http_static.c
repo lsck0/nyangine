@@ -3,6 +3,7 @@
 
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_filesystem.h"
+#include "nyangine/base/base_hash.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_string.h"
@@ -253,6 +254,25 @@ NYA_ConstCString nya_http_static_url(NYA_ConstCString asset) {
 }
 
 u32 nya_http_static_file_count(void) { return _NYA_HTTP_STATIC.file_count; }
+
+u64 nya_http_static_fingerprint(void) {
+    // Nothing mounted folds to zero rather than to a hash of nothing, so a watch reads "no bundle yet" as
+    // a value apart from any real one and never signals a reload onto an empty server.
+    if (_NYA_HTTP_STATIC.file_count == 0) return 0;
+
+    // FNV-1a over each file's ETag in mount order, with a NUL between them so two files cannot pool into
+    // the same stream as one. The ETag is the hash http_static already took at mount, so this is a fold
+    // over sixteen-odd bytes a file, not a second walk of the bytes going out.
+    u64 hash = NYA_HASH_FNV1A_OFFSET_BASIS;
+
+    for (u32 index = 0; index < _NYA_HTTP_STATIC.file_count; index++) {
+        const char* etag = _NYA_HTTP_STATIC.files[index].etag;
+
+        hash = nya_hash_fnv1a_continue(hash, etag, strlen(etag) + 1);
+    }
+
+    return hash;
+}
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -227,3 +227,17 @@ NYA_API NYA_ConstCString nya_http_static_url(NYA_ConstCString asset) __attr_no_d
 
 /** How many files the current mount serves. Zero when nothing is mounted. */
 NYA_API u32 nya_http_static_file_count(void) __attr_no_discard;
+
+/**
+ * One number over every mounted file's content hash, in mount order: the bundle's version, and the whole
+ * of what a live-reload watch has to compare between two mounts.
+ *
+ * A mount is a snapshot, so this changes only when the bundle is unmounted and mounted again with
+ * different bytes — a new file, a dropped one, or one whose hash moved — which is exactly a rebuild. Zero
+ * when nothing is mounted, a value a real bundle never folds to, so a watcher tells "nothing yet" from
+ * "these bytes" without a second flag. It is FNV-1a over the ETags http_static already computed, not a
+ * second pass over the bytes, so polling it costs nothing. Not stable across builds or machines and never
+ * a cache key or an ETag of its own: the per-file hash is the identity a client sees, this only says
+ * whether the set of them moved. See http_livereload.h for the watch that reads it.
+ * */
+NYA_API u64 nya_http_static_fingerprint(void) __attr_no_discard;
