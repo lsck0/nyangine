@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# commit-msg — reject a commit whose message breaks this repository's rules.
+#
+# git runs this with the path to the proposed message. All the judgement lives in commit-msg-lint.sh
+# beside it, which the same `./build commit-check` calls, so the hook and CI never drift apart.
+#
+# Install it once, from the repository root:
+#
+#   git config core.hooksPath hooks
+#
+# After that every commit here runs through it. A genuinely unavoidable exception is `git commit
+# --no-verify`, which skips every hook.
+
+here=$(dirname "$0")
+exec sh "$here/commit-msg-lint.sh" "$1"
