@@ -176,9 +176,12 @@ NYA_INTERNAL void wasm_game_runner(NYA_ArgCommand* command) {
     if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL_3D)) {
         nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL_3D);
     }
+    if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL_SCENE)) {
+        nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL_SCENE);
+    }
 
-    nya_log_info("Built %s and %s; %s and %s are exported. Serve %s over HTTP and open game.html.", WASM_GAME_JS_OUTPUT,
-                 WASM_GAME_WASM_OUTPUT, WASM_GAME_SYMBOL, WASM_GAME_SYMBOL_3D, WASM_OUTPUT_DIRECTORY);
+    nya_log_info("Built %s and %s; %s, %s and %s are exported. Serve %s over HTTP and open game.html.", WASM_GAME_JS_OUTPUT,
+                 WASM_GAME_WASM_OUTPUT, WASM_GAME_SYMBOL, WASM_GAME_SYMBOL_3D, WASM_GAME_SYMBOL_SCENE, WASM_OUTPUT_DIRECTORY);
 }
 
 /** Writes the completion script for whatever the parser currently describes. See main, which short circuits to this. */

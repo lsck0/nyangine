@@ -345,6 +345,9 @@
 // The 3D self-check export: the off-screen depth/MSAA/resolve frame's call-sequence assertion, callable from
 // node beside the 2D one. See nyangine_game3d_selfcheck in src/web/wasm_game.c.
 #define WASM_GAME_SYMBOL_3D   "nyangine_game3d_selfcheck"
+// The live-scene self-check export: one deterministic frame of the moving, interactive scene (the orbit ring
+// plus the player, across both 2D pipelines), asserting the batch's own vertex/index/draw-call counts.
+#define WASM_GAME_SYMBOL_SCENE "nyangine_game_scene_selfcheck"
 
 /*
  * The two compiled GLSL ES 300 shaders the 2D path needs (batch2d vertex + textured fragment), baked into
@@ -372,7 +375,7 @@
     WASM_UI_VENDOR_INCLUDES,                                           \
     "-sUSE_WEBGL2=1", "-sFULL_ES3=1", "-sMIN_WEBGL_VERSION=2", "-sMAX_WEBGL_VERSION=2", \
     WASM_GAME_SHADER_EMBEDS,                                           \
-    "-sEXPORTED_FUNCTIONS=_main,_" WASM_GAME_SYMBOL ",_" WASM_GAME_SYMBOL_3D, \
+    "-sEXPORTED_FUNCTIONS=_main,_" WASM_GAME_SYMBOL ",_" WASM_GAME_SYMBOL_3D ",_" WASM_GAME_SYMBOL_SCENE, \
     "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
     "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineGameModule",        \
     "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"

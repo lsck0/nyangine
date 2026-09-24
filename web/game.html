@@ -1,10 +1,15 @@
 <!doctype html>
 <!--
-  The game slice, live: the engine's 2D render path — a cleared background and a textured sprite — drawn
-  to a real WebGL2 canvas by the wasm module `nyangine_game.{js,wasm}` that `./build wasm-game` builds.
-  The module stands up the SDL_GPU → GLES3 shim (src/nyangine/renderer/gpu_gles) and drives the engine's
-  real nya_render2d_* API over it — nya_render2d_texture + nya_render2d_flush, compiled verbatim from
-  render2d.c — so the browser is just another GPU backend under the shipping 2D renderer.
+  The game slice, live: the engine's 2D render path — a moving, interactive scene — drawn to a real WebGL2
+  canvas by the wasm module `nyangine_game.{js,wasm}` that `./build wasm-game` builds. The module stands up
+  the SDL_GPU → GLES3 shim (src/nyangine/renderer/gpu_gles) and drives the engine's real nya_render2d_* API
+  over it — nya_render2d_rect_rotated, nya_render2d_texture_ex, nya_render2d_circle + nya_render2d_flush,
+  compiled verbatim from render2d.c — so the browser is just another GPU backend under the shipping 2D
+  renderer. Browser input reaches the scene through the canvas input seam (platform/web/web_input.c): the
+  page's mouse and key events become engine NYA_Events the scene consumes.
+
+  Controls: WASD or the arrow keys steer the big sprite; move the mouse to drag the cursor ring; click to
+  spawn a bouncing sprite.
 
   Contrast web/ui.html, which renders the immediate-mode UI to the DOM with no GPU. Here there is a real
   WebGL2 context and real draw calls.
@@ -31,13 +36,17 @@
       #status { font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; color:var(--dim); text-align:center; max-width:640px; }
       #status .err { color:#ff7b72; }
       #status .ok { color:#7ee787; }
+      #hint { font:12px/1.4 system-ui,sans-serif; color:var(--dim); text-align:center; margin:0; }
+      /* The canvas takes keyboard focus so WASD/arrows reach it; a focus ring would fight the scene, so drop it. */
+      #canvas:focus { outline:2px solid var(--accent); outline-offset:3px; }
     </style>
   </head>
   <body>
     <div id="wrap">
-      <h1>nyangine · 2D render path on WebGL2</h1>
-      <canvas id="canvas" tabindex="-1"></canvas>
+      <h1>nyangine · interactive 2D scene on WebGL2</h1>
+      <canvas id="canvas" tabindex="0"></canvas>
       <p id="status">loading…</p>
+      <p id="hint">WASD / arrows steer the sprite · mouse drags the cursor ring · click spawns a bouncer</p>
     </div>
 
     <script>
@@ -62,13 +71,14 @@
     <script>
       createNyangineGameModule({ canvas: canvas })
         .then((Module) => {
-          // main() already ran setup, the one-frame self-check, and registered the render loop. Read the
-          // self-check back for a status line: 1 means the shim ran the frame in the right SDL_GPU order.
-          const selfcheck = Module.cwrap("nyangine_game_selfcheck", "number", []);
-          const ok = selfcheck() === 1;
-          status.innerHTML = ok
-            ? '<span class="ok">running</span> — the 2D path drew through the SDL_GPU→GLES3 shim; the checkerboard sprite is on a live WebGL2 canvas.'
-            : '<span class="err">the shim call sequence did not match — see the console.</span>';
+          // main() already ran setup, the self-checks, attached the canvas input, and registered the render
+          // loop. Read the checks back for a status line: 1 means the shim ran each frame in the right order.
+          const frame = Module.cwrap("nyangine_game_selfcheck", "number", [])() === 1;
+          const scene = Module.cwrap("nyangine_game_scene_selfcheck", "number", [])() === 1;
+          canvas.focus(); // so the keys reach the scene without a click first
+          status.innerHTML = (frame && scene)
+            ? '<span class="ok">running</span> — the interactive 2D scene is drawing through the SDL_GPU→GLES3 shim on a live WebGL2 canvas.'
+            : '<span class="err">a shim self-check did not match — see the console.</span>';
         })
         .catch((error) => {
           status.innerHTML = '<span class="err">failed to load the wasm module — is it served over HTTP, and has ./build wasm-game run?</span> ' + String(error);

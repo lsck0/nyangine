@@ -79,6 +79,11 @@
 // 2D flush issues resolve to the shim, not to a vendored SDL. ──
 #include "nyangine/renderer/gpu_gles/gpu_gles.c"
 
+// ── the canvas input seam: the browser's pointer and key events, queued and drained the way a device is.
+// The scene below turns each drained event into an engine NYA_Event, so the browser drives the same input
+// vocabulary a native game reads. clang-format is handled inside the file (its EM_JS bodies are wrapped). ──
+#include "nyangine/platform/web/web_input.c"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE APP + WINDOW + ASSET/RENDER BACKEND — what core_app.c, core_window.c, core_asset.c and renderer.c
@@ -846,24 +851,373 @@ int nyangine_game3d_selfcheck(void) {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE LIVE SCENE — a moving, interactive 2D scene driven entirely through the public nya_render2d_* API
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * draw_frame() above is the canonical one-sprite frame the self-check pins to an exact shim sequence, and it
+ * stays that way — it is the contract node proves. This is what the browser actually shows: a ring of
+ * rotating colour-cycling rectangles (the SHAPES pipeline), a player sprite the arrows/WASD steer and that
+ * spins with time (the TEXTURED pipeline), sprites the mouse spawns and that bounce off the edges, and a
+ * ring the cursor drags around. Every one of these is an ordinary render2d call — the same batch, sort and
+ * flush render2d.c runs on native — so the browser is exercising the whole 2D module, not a stub.
+ *
+ * Input reaches the scene as engine NYA_Events: pump_input drains the browser's canvas queue (web_input.c)
+ * and turns each raw event into the exact NYA_Event a native game reads from nya_system_event_poll, which
+ * scene_event_apply then consumes. That is the point of the seam — the browser speaks the engine's own
+ * input vocabulary, not a bespoke web one.
+ */
+
+#include <math.h> // sinf/cosf for the orbit and the colour wheel; emcc links libm.
+
+#define SCENE_ORBIT_COUNT   6   // rotating rectangles in the background ring (SHAPES pipeline)
+#define SCENE_MAX_BOUNCERS  48  // clicked-in sprites, capped so the batch never overflows
+#define SCENE_PLAYER_SPEED  260.0F // pixels per second the held keys steer the player at
+
+/** One clicked-in sprite: a position, a velocity it drifts along, and a spin, bounced off the screen edges. */
+typedef struct {
+    f32 x, y;
+    f32 vx, vy;
+    f32 spin;
+} Bouncer;
+
+/** The whole scene's mutable state: the player, the cursor, the bouncers, the held keys and the frame clock. */
+typedef struct {
+    f32 player_x, player_y;
+    f32 cursor_x, cursor_y;
+    b8  has_cursor;
+
+    Bouncer bouncers[SCENE_MAX_BOUNCERS];
+    u32     bouncer_count;
+    u32     rng; // a small LCG, so a spawned sprite's velocity varies without pulling in the CSPRNG
+
+    b8 key_left, key_right, key_up, key_down; // held between a KEY_DOWN and its KEY_UP
+
+    f64 last_now_ms; // emscripten_get_now at the previous tick, for the frame delta
+    b8  ready;
+} Scene;
+
+NYA_INTERNAL Scene SCENE = { 0 };
+
+/** A colour cycling through the wheel by `t` (radians), at alpha `a`. Three cosines 120° apart. */
+NYA_INTERNAL NYA_Color color_wheel(f32 t, f32 a) {
+    return (NYA_Color){
+        .r = 0.5F + 0.5F * cosf(t),
+        .g = 0.5F + 0.5F * cosf(t + 2.0944F),
+        .b = 0.5F + 0.5F * cosf(t + 4.1888F),
+        .a = a,
+    };
+}
+
+/** The next value of the scene's LCG, in [0, 1). Numerical Recipes' constants; good enough to scatter velocities. */
+NYA_INTERNAL f32 scene_rand(void) {
+    SCENE.rng = SCENE.rng * 1664525u + 1013904223u;
+    return (f32)(SCENE.rng >> 8) / (f32)(1u << 24);
+}
+
+/** Adds a bouncer at (x, y) with a scattered velocity, unless the cap is reached. Called on a left click. */
+NYA_INTERNAL void scene_spawn_bouncer(f32 x, f32 y) {
+    if (SCENE.bouncer_count >= SCENE_MAX_BOUNCERS) return;
+    SCENE.bouncers[SCENE.bouncer_count++] = (Bouncer){
+        .x    = x,
+        .y    = y,
+        .vx   = (scene_rand() - 0.5F) * 360.0F,
+        .vy   = (scene_rand() - 0.5F) * 360.0F,
+        .spin = (scene_rand() - 0.5F) * 6.0F,
+    };
+}
+
+/** The browser key code (a code point or a NYA_WEB_KEY_* sentinel) as the engine's NYA_Keycode. */
+NYA_INTERNAL NYA_Keycode web_key_to_nya(u32 web_key) {
+    switch (web_key) {
+        case NYA_WEB_KEY_LEFT:  return NYA_KEY_LEFT;
+        case NYA_WEB_KEY_RIGHT: return NYA_KEY_RIGHT;
+        case NYA_WEB_KEY_UP:    return NYA_KEY_UP;
+        case NYA_WEB_KEY_DOWN:  return NYA_KEY_DOWN;
+        default:                      return (NYA_Keycode)web_key; // a printable key's code point is its engine keycode
+    }
+}
+
+/**
+ * The bridge the whole seam exists for: one raw canvas event as the NYA_Event a native game reads. The
+ * window handle, position and button/key are filled the way core_event.c fills them from an SDL event, so
+ * scene_event_apply below is written against the engine's event vocabulary, not the browser's.
+ * */
+NYA_INTERNAL NYA_Event web_event_to_nya(const NYA_WebInputEvent* in) {
+    NYA_Event out = { 0 };
+    switch (in->kind) {
+        case NYA_WEB_INPUT_MOUSE_MOVED:
+            out.type                 = NYA_EVENT_MOUSE_MOVED;
+            out.as_mouse_moved_event = (NYA_MouseMovedEvent){
+                .window = WINDOW.handle, .x = in->x, .y = in->y, .delta_x = in->delta_x, .delta_y = in->delta_y };
+            break;
+        case NYA_WEB_INPUT_MOUSE_DOWN:
+        case NYA_WEB_INPUT_MOUSE_UP:
+            out.type                  = in->kind == NYA_WEB_INPUT_MOUSE_DOWN ? NYA_EVENT_MOUSE_BUTTON_DOWN : NYA_EVENT_MOUSE_BUTTON_UP;
+            out.as_mouse_button_event = (NYA_MouseButtonEvent){
+                .window  = WINDOW.handle,
+                .is_down = in->kind == NYA_WEB_INPUT_MOUSE_DOWN,
+                .button  = (NYA_MouseButton)in->button,
+                .clicks  = 1,
+                .x       = in->x,
+                .y       = in->y };
+            break;
+        case NYA_WEB_INPUT_WHEEL:
+            out.type                 = NYA_EVENT_MOUSE_WHEEL_MOVED;
+            out.as_mouse_wheel_event = (NYA_MouseWheelEvent){
+                .window = WINDOW.handle, .amount_x = in->delta_x, .amount_y = in->delta_y, .mouse_x = in->x, .mouse_y = in->y };
+            break;
+        case NYA_WEB_INPUT_KEY_DOWN:
+        case NYA_WEB_INPUT_KEY_UP:
+            out.type         = in->kind == NYA_WEB_INPUT_KEY_DOWN ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP;
+            out.as_key_event = (NYA_KeyEvent){
+                .window    = WINDOW.handle,
+                .is_down   = in->kind == NYA_WEB_INPUT_KEY_DOWN,
+                .is_repeat = in->repeat,
+                .key       = web_key_to_nya(in->key) };
+            break;
+    }
+    return out;
+}
+
+/** Applies one NYA_Event to the scene: the cursor follows moves, a left click spawns, and the keys steer the player. */
+NYA_INTERNAL void scene_event_apply(const NYA_Event* event) {
+    switch (event->type) {
+        case NYA_EVENT_MOUSE_MOVED:
+            SCENE.cursor_x   = event->as_mouse_moved_event.x;
+            SCENE.cursor_y   = event->as_mouse_moved_event.y;
+            SCENE.has_cursor = true;
+            break;
+        case NYA_EVENT_MOUSE_BUTTON_DOWN:
+            if (event->as_mouse_button_event.button == NYA_MOUSE_BUTTON_LEFT) {
+                scene_spawn_bouncer(event->as_mouse_button_event.x, event->as_mouse_button_event.y);
+            }
+            break;
+        case NYA_EVENT_KEY_DOWN:
+        case NYA_EVENT_KEY_UP: {
+            b8 down = event->type == NYA_EVENT_KEY_DOWN;
+            switch (event->as_key_event.key) {
+                case NYA_KEY_LEFT:  case NYA_KEY_A: SCENE.key_left  = down; break;
+                case NYA_KEY_RIGHT: case NYA_KEY_D: SCENE.key_right = down; break;
+                case NYA_KEY_UP:    case NYA_KEY_W: SCENE.key_up    = down; break;
+                case NYA_KEY_DOWN:  case NYA_KEY_S: SCENE.key_down  = down; break;
+                default: break;
+            }
+        } break;
+        default: break;
+    }
+}
+
+/** Drains the browser's canvas queue, turning each event into an NYA_Event the scene consumes. Empty under node. */
+NYA_INTERNAL void pump_input(void) {
+    NYA_WebInputEvent raw;
+    while (nya_web_input_poll(&raw)) {
+        NYA_Event event = web_event_to_nya(&raw);
+        scene_event_apply(&event);
+    }
+}
+
+/**
+ * One live frame at `time` seconds, advanced by `dt` seconds. Integrates the held keys and the bouncers,
+ * then draws the ring, the bouncers, the player and the cursor through the public render2d API and flushes.
+ * Passing dt == 0 (as the self-check does) freezes the integration, so a fresh scene draws deterministically.
+ * */
+NYA_INTERNAL void draw_scene(f32 time, f32 dt) {
+    if (!SCENE.ready) return;
+
+    NYA_RenderSystemWindow* render = &WINDOW.render_system;
+    NYA_Render2DBatch*      batch  = &render->draw_batch;
+
+    render->render_commands = SDL_AcquireGPUCommandBuffer(GAME.device);
+
+    SDL_GPUTexture* swapchain = nullptr;
+    u32             width = 0, height = 0;
+    if (!SDL_WaitAndAcquireGPUSwapchainTexture(render->render_commands, (SDL_Window*)&WINDOW, &swapchain, &width, &height)) {
+        SDL_SubmitGPUCommandBuffer(render->render_commands);
+        render->render_commands = nullptr;
+        return;
+    }
+    if (width == 0) width = 640;
+    if (height == 0) height = 480;
+
+    WINDOW.screen_width  = width;
+    WINDOW.screen_height = height;
+
+    // ── advance the simulation ──
+    f32 move_x = (SCENE.key_right ? 1.0F : 0.0F) - (SCENE.key_left ? 1.0F : 0.0F);
+    f32 move_y = (SCENE.key_down ? 1.0F : 0.0F) - (SCENE.key_up ? 1.0F : 0.0F);
+    SCENE.player_x = nya_clamp(SCENE.player_x + move_x * SCENE_PLAYER_SPEED * dt, 0.0F, (f32)width);
+    SCENE.player_y = nya_clamp(SCENE.player_y + move_y * SCENE_PLAYER_SPEED * dt, 0.0F, (f32)height);
+
+    for (u32 i = 0; i < SCENE.bouncer_count; i++) {
+        Bouncer* b = &SCENE.bouncers[i];
+        b->x += b->vx * dt;
+        b->y += b->vy * dt;
+        if (b->x < 0.0F) { b->x = 0.0F; b->vx = -b->vx; }
+        if (b->y < 0.0F) { b->y = 0.0F; b->vy = -b->vy; }
+        if (b->x > (f32)width)  { b->x = (f32)width;  b->vx = -b->vx; }
+        if (b->y > (f32)height) { b->y = (f32)height; b->vy = -b->vy; }
+    }
+
+    // ── the frame counters, zeroed the way nya_render_begin does on native ──
+    batch->frame_flushes        = 0;
+    batch->frame_vertices       = 0;
+    batch->frame_indices        = 0;
+    batch->frame_dropped_draws  = 0;
+    batch->pending_flush_reason = NYA_RENDER2D_FLUSH_FRAME_END;
+    for (u32 i = 0; i < NYA_RENDER2D_FLUSH_REASON_COUNT; i++) batch->frame_flush_reasons[i] = 0;
+
+    batch->target_texture        = swapchain;
+    batch->target_msaa           = nullptr;
+    batch->target_depth          = nullptr;
+    batch->target_normal         = nullptr;
+    batch->target_normal_msaa    = nullptr;
+    batch->target_normal_written = false;
+    batch->target_is_texture     = false;
+    batch->resolve_pending       = false;
+    batch->target_sample_count   = SDL_GPU_SAMPLECOUNT_1;
+    batch->target_width          = width;
+    batch->target_height         = height;
+    batch->camera                = (NYA_Camera2D){ .kind = NYA_CAMERA2D_KIND_NONE };
+    render->render_pass_normals  = false;
+
+    render->render_pass = SDL_BeginGPURenderPass(render->render_commands,
+        &(SDL_GPUColorTargetInfo){
+            .texture     = swapchain,
+            .load_op     = SDL_GPU_LOADOP_CLEAR,
+            .store_op    = SDL_GPU_STOREOP_STORE,
+            .clear_color = { 0.05F, 0.06F, 0.09F, 1.0F },
+        },
+        1, nullptr);
+
+    f32 cx     = (f32)width * 0.5F;
+    f32 cy     = (f32)height * 0.5F;
+    f32 radius = nya_min((f32)width, (f32)height) * 0.30F;
+
+    // ── the background ring: SCENE_ORBIT_COUNT colour-cycling rectangles orbiting the centre (SHAPES pipeline) ──
+    for (u32 i = 0; i < SCENE_ORBIT_COUNT; i++) {
+        f32 phase = (f32)i / (f32)SCENE_ORBIT_COUNT * 6.2832F;
+        f32 angle = time * 0.6F + phase;
+        f32x2 center = { cx + cosf(angle) * radius, cy + sinf(angle) * radius };
+        nya_render2d_rect_rotated(&WINDOW, center, (f32x2){ 56.0F, 56.0F }, angle * 1.5F, color_wheel(phase + time, 0.9F));
+    }
+
+    // ── the bouncers: spawned sprites, each the checkerboard, spinning (TEXTURED pipeline) ──
+    for (u32 i = 0; i < SCENE.bouncer_count; i++) {
+        const Bouncer* b = &SCENE.bouncers[i];
+        nya_render2d_texture_ex(&WINDOW, SPRITE_TEXTURE_HANDLE, (NYA_Render2DTexture){
+            .x        = b->x,
+            .y        = b->y,
+            .width    = 40.0F,
+            .height   = 40.0F,
+            .rotation = time * b->spin,
+            .origin   = { 20.0F, 20.0F },
+            .tint     = { 1.0F, 1.0F, 1.0F, 1.0F },
+        });
+    }
+
+    // ── the player: a larger checkerboard the keys steer and time spins, about its own centre (TEXTURED pipeline) ──
+    f32 player_size = nya_min((f32)width, (f32)height) * 0.18F;
+    nya_render2d_texture_ex(&WINDOW, SPRITE_TEXTURE_HANDLE, (NYA_Render2DTexture){
+        .x        = SCENE.player_x,
+        .y        = SCENE.player_y,
+        .width    = player_size,
+        .height   = player_size,
+        .rotation = time * 0.9F,
+        .origin   = { player_size * 0.5F, player_size * 0.5F },
+        .tint     = { 1.0F, 1.0F, 1.0F, 1.0F },
+    });
+
+    // ── the cursor ring, drawn where the mouse last was (SHAPES pipeline) ──
+    if (SCENE.has_cursor) {
+        nya_render2d_circle(&WINDOW, (f32x2){ SCENE.cursor_x, SCENE.cursor_y }, 10.0F, color_wheel(time * 3.0F, 0.85F));
+    }
+
+    nya_render2d_flush(&WINDOW);
+
+    SDL_EndGPURenderPass(render->render_pass);
+    render->render_pass = nullptr;
+
+    SDL_SubmitGPUCommandBuffer(render->render_commands);
+    render->render_commands = nullptr;
+}
+
+/** Stands the GPU module up (once) and initialises the scene: the player centred, no cursor, no bouncers. */
+NYA_INTERNAL void scene_bringup(void) {
+    if (!GAME.ready) game_bringup();
+
+    SCENE = (Scene){
+        .player_x    = (f32)WINDOW.screen_width * 0.5F,
+        .player_y    = (f32)WINDOW.screen_height * 0.5F,
+        .rng         = 0x1234567u,
+        .last_now_ms = emscripten_get_now(),
+        .ready       = true,
+    };
+}
+
+/**
+ * Runs the scene bring-up (once) and one deterministic scene frame (a fresh scene, no input, dt == 0), then
+ * asserts the batch drew exactly what the scene submits with nothing spawned: the SCENE_ORBIT_COUNT ring
+ * rectangles plus the one player sprite, batched into the two pipeline ranges (SHAPES then TEXTURED). This
+ * proves the multi-sprite, two-pipeline scene runs through render2d on the shim, the way the 2D self-check
+ * proves the single canonical frame. Callable from node as nyangine_game_scene_selfcheck.
+ * */
+EMSCRIPTEN_KEEPALIVE
+int nyangine_game_scene_selfcheck(void) {
+    scene_bringup(); // resets the scene: no cursor, no bouncers, keys up — so the frame is deterministic.
+
+    nya_gpu_gles_trace_reset();
+    draw_scene(0.0F, 0.0F);
+
+    // SCENE_ORBIT_COUNT rotated rects + one player sprite, each a quad (4 vertices, 6 indices), in two ranges.
+    u32 quads             = SCENE_ORBIT_COUNT + 1;
+    u32 expected_vertices = quads * 4;
+    u32 expected_indices  = quads * 6;
+
+    NYA_Render2DFrameStats stats = nya_render2d_frame_stats(&WINDOW);
+    b8 ok = stats.draw_calls == 2 && stats.vertices == expected_vertices && stats.indices == expected_indices;
+    if (!ok) {
+        nya_log_error("wasm_game scene selfcheck: batch drew %u calls / %u vertices / %u indices, expected 2 / %u / %u.",
+                      stats.draw_calls, stats.vertices, stats.indices, expected_vertices, expected_indices);
+    }
+
+    nya_log_info("wasm_game scene selfcheck: %s (%u draw calls, %u vertices); WebGL2 context %s.",
+                 ok ? "OK" : "MISMATCH", stats.draw_calls, stats.vertices,
+                 nya_gpu_gles_context_ok() ? "live (drawing real pixels)" : "absent (trace-only, headless)");
+    return ok ? 1 : 0;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ENTRY
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** The per-tick callback emscripten_set_main_loop drives; each tick clears and draws the sprite. */
+/** The per-tick callback emscripten_set_main_loop drives: drain the browser's input, then draw the live scene. */
 NYA_INTERNAL void tick(void) {
-    draw_frame();
+    f64 now_ms = emscripten_get_now();
+    f32 dt     = (f32)((now_ms - SCENE.last_now_ms) / 1000.0);
+    SCENE.last_now_ms = now_ms;
+    dt = nya_clamp(dt, 0.0F, 0.05F); // never step more than a frame's worth, so a background tab does not leap
+
+    pump_input();
+    draw_scene((f32)(now_ms / 1000.0), dt);
 }
 
 /**
- * Stands the 2D module up, runs the self-check once (so every load — browser or node — proves the sequence),
- * then hands the frame to emscripten_set_main_loop for the browser. Under node the loop callback may not be
- * pumped, but the self-check already ran a full render2d frame.
+ * Stands the module up, runs every self-check once (so each load — browser or node — proves the sequences and
+ * the scene), attaches the canvas input, then hands the frame to emscripten_set_main_loop for the browser.
+ * Under node the loop callback may not be pumped, but the self-checks already ran their frames.
  * */
 int main(void) {
     game_bringup();
     (void)nyangine_game_selfcheck();
     (void)nyangine_game3d_selfcheck(); // the off-screen depth/MSAA/resolve path, beside the 2D swapchain frame.
+
+    scene_bringup();
+    (void)nyangine_game_scene_selfcheck(); // the moving, interactive scene's own deterministic proof.
+
+    // The canvas input: the browser's pointer/key events, drained each tick by pump_input. A no-op under node.
+    (void)nya_web_input_attach("#canvas");
 
     // 0 fps = drive from requestAnimationFrame; do not block (simulate_infinite_loop = false), so the
     // module instantiation returns and node can call exports.
