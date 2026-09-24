@@ -956,6 +956,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsGraphics_FIELDS[] = {
     { .name = "depth_of_field", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, depth_of_field), .hint = NYA_HINT_NONE },
     { .name = "eye_adaptation", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, eye_adaptation), .hint = NYA_HINT_NONE },
     { .name = "light_shafts", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, light_shafts), .hint = NYA_HINT_NONE },
+    { .name = "reflections", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, reflections), .hint = NYA_HINT_NONE },
     { .name = "motion_blur", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, motion_blur), .hint = NYA_HINT_NONE },
     { .name = "shadows", .type = &_NYA_REFLECT_NYA_GraphicsQuality, .offset = nya_offsetof(NYA_SettingsGraphics, shadows), .hint = NYA_HINT_NONE },
     { .name = "fov", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, fov), .hint = NYA_HINT_NONE },
@@ -968,7 +969,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
     .size = sizeof(NYA_SettingsGraphics),
     .alignment = alignof(NYA_SettingsGraphics),
     .fields = _NYA_REFLECT_NYA_SettingsGraphics_FIELDS,
-    .field_count = 11,
+    .field_count = 12,
 };
 
 /* NYA_HttpMetricsDto, src/nyangine/debug/debug_metrics.h */
