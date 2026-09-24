@@ -32,11 +32,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Not a pipe. Minus one and not zero: zero is stdin on Linux and a valid, if null, handle on Windows. */
 #define NYA_OS_PIPE_NONE ((NYA_OsPipe)(-1))
@@ -51,11 +47,7 @@
 #define NYA_OS_PROCESS_WAIT_MAX       64
 #define NYA_OS_PROCESS_WAIT_PIPES_MAX (NYA_OS_PROCESS_WAIT_MAX * 2)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_OsProcessStatus  NYA_OsProcessStatus;
 typedef struct NYA_OsProcess      NYA_OsProcess;
@@ -116,17 +108,9 @@ struct NYA_OsProcessSpawn {
     b8 suppress_output;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────────
- * PIPES
- * ─────────────────────────────────────────────────────────────
- */
+// PIPES
 
 /**
  * A pipe for a child's output: `out_write` is what it is given, `out_read` what this process keeps.
@@ -147,11 +131,7 @@ NYA_API void nya_os_pipe_close(NYA_OsPipe pipe);
  * */
 NYA_API NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u64 capacity, OUT u64* out_taken) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────
- * PROCESSES
- * ─────────────────────────────────────────────────────────────
- */
+// PROCESSES
 
 /** This process's id. Unique among running processes, reused after one exits. */
 NYA_API u32 nya_os_process_id(void) __attr_no_discard;

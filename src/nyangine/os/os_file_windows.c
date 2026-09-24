@@ -6,11 +6,7 @@
 static_assert(NYA_OS_PATH_MAX == MAX_PATH, "NYA_OS_PATH_MAX must be what the host's ANSI calls take");
 static_assert(sizeof(WIN32_FIND_DATAA) <= sizeof(((NYA_OsDirectory*)nullptr)->storage), "NYA_OsDirectory must hold one find data");
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /** GetLastError as one of the few kinds both platforms can tell apart, so a missing file reads as missing here too. */
 NYA_INTERNAL NYA_OsFileStatus _nya_os_file_status(void) {
@@ -56,8 +52,7 @@ NYA_INTERNAL NYA_OsFileKind _nya_os_file_kind(DWORD attributes, b8 follow_links)
 
     b8 directory = (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
 
-    // A reparse point is checked first: a directory symlink carries both bits, and reporting it as a
-    // plain directory is what makes a tree walk follow links into a loop.
+    // A reparse point is checked first: a directory symlink carries both bits, and reporting it as a plain directory makes a tree walk follow links into a loop.
     if (!follow_links && (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) return NYA_OS_FILE_KIND_SYMLINK;
 
     return directory ? NYA_OS_FILE_KIND_DIRECTORY : NYA_OS_FILE_KIND_FILE;
@@ -68,11 +63,7 @@ NYA_INTERNAL DWORD _nya_os_file_chunk(u64 size) {
     return size > 0xFFFFFFFFULL ? 0xFFFFFFFFU : (DWORD)size;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * HANDLES
- * ─────────────────────────────────────────────────────────
- */
+// HANDLES
 
 NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* out_file) {
     if (path == nullptr || out_file == nullptr) return NYA_OS_FILE_STATUS_INVALID;
@@ -80,8 +71,7 @@ NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* o
     DWORD access = 0;
     if (flags & NYA_OS_FILE_OPEN_READ) access |= GENERIC_READ;
     if (flags & NYA_OS_FILE_OPEN_WRITE) access |= GENERIC_WRITE;
-    // FILE_APPEND_DATA rather than GENERIC_WRITE, so writes always land at the end even if something
-    // else seeks the handle.
+    // FILE_APPEND_DATA rather than GENERIC_WRITE, so writes always land at the end even if something else seeks the handle.
     if (flags & NYA_OS_FILE_OPEN_APPEND) access |= FILE_APPEND_DATA;
     if (access == 0) access = GENERIC_READ;
 
@@ -94,9 +84,7 @@ NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* o
         creation = OPEN_ALWAYS;
     }
 
-    // FILE_SHARE_DELETE as well, so a file held open can still be renamed over, which is how an atomic
-    // write replaces it: without it a reader holding the old file blocks every writer, where POSIX lets
-    // both be.
+    // FILE_SHARE_DELETE too, so a file held open can still be renamed over (how an atomic write replaces it); without it a reader would block every writer.
     HANDLE handle = CreateFileA(path, access, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, creation, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (handle == INVALID_HANDLE_VALUE) return _nya_os_file_status();
 
@@ -183,11 +171,7 @@ NYA_OsFileStatus nya_os_directory_sync(const char* path) {
     return NYA_OS_FILE_STATUS_UNSUPPORTED;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * QUERIES
- * ─────────────────────────────────────────────────────────
- */
+// QUERIES
 
 NYA_OsFileStatus nya_os_file_stat(const char* path, b8 follow_links, OUT NYA_OsFileStat* out_stat) {
     if (path == nullptr || out_stat == nullptr) return NYA_OS_FILE_STATUS_INVALID;
@@ -245,11 +229,7 @@ NYA_OsFileStatus nya_os_path_absolute(const char* path, OUT char* out_path, u64 
     return NYA_OS_FILE_STATUS_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTATION
- * ─────────────────────────────────────────────────────────
- */
+// MUTATION
 
 /** MOVEFILE_REPLACE_EXISTING is what makes this behave like rename() does on POSIX. */
 NYA_OsFileStatus nya_os_file_rename(const char* source, const char* destination) {
@@ -312,17 +292,12 @@ NYA_OsFileStatus nya_os_directory_destroy(const char* path) {
     return RemoveDirectoryA(path) ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * DIRECTORY ITERATION
- * ─────────────────────────────────────────────────────────
- */
+// DIRECTORY ITERATION
 
 NYA_OsFileStatus nya_os_directory_open(const char* path, OUT NYA_OsDirectory* out_directory) {
     if (path == nullptr || out_directory == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
-    // FindFirstFile wants a wildcard rather than a directory, which is this call's own convention and
-    // so is made here rather than by every caller.
+    // FindFirstFile wants a wildcard rather than a directory, this call's own convention, so it is added here rather than by every caller.
     char pattern[NYA_OS_PATH_MAX];
     if (snprintf(pattern, sizeof(pattern), "%s\\*", path) >= (int)sizeof(pattern)) return NYA_OS_FILE_STATUS_INVALID;
 
@@ -373,11 +348,7 @@ void nya_os_directory_close(NYA_OsDirectory* directory) {
     *directory = (NYA_OsDirectory){ 0 };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WELL KNOWN LOCATIONS
- * ─────────────────────────────────────────────────────────
- */
+// WELL KNOWN LOCATIONS
 
 NYA_OsFileStatus nya_os_working_directory_get(OUT char* out_path, u64 size) {
     if (out_path == nullptr || size == 0) return NYA_OS_FILE_STATUS_INVALID;

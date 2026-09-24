@@ -1,7 +1,6 @@
 #include "nyangine/os/os_process.h"
 
-// after the engine's own header, which asks for POSIX 2008: these only declare what they declare once
-// they have seen that request.
+// After the engine's own header, which asks for POSIX 2008: these declare what they declare only once they have seen that request.
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
@@ -15,11 +14,7 @@
 /** How long a timed wait sleeps between asking again. waitpid has no timeout of its own. */
 #define _NYA_OS_PROCESS_POLL_MS 1
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PIPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PIPES
 
 NYA_OsProcessStatus nya_os_pipe_open(OUT NYA_OsPipe* out_read, OUT NYA_OsPipe* out_write) {
     if (out_read == nullptr || out_write == nullptr) return NYA_OS_PROCESS_FAILED;
@@ -27,14 +22,11 @@ NYA_OsProcessStatus nya_os_pipe_open(OUT NYA_OsPipe* out_read, OUT NYA_OsPipe* o
     s32 ends[2];
     if (pipe(ends) != 0) return NYA_OS_PROCESS_FAILED;
 
-    // close-on-exec, so a command spawned while another is running does not inherit its pipes. pipe2
-    // would do this atomically but is not declared under _XOPEN_SOURCE, and nothing here forks from two
-    // threads at once. The child's own end is put on its stdout or stderr by dup2, which clears the flag.
+    // close-on-exec so a concurrently spawned command does not inherit these pipes; dup2 later clears the flag on the child's own end.
     (void)fcntl(ends[0], F_SETFD, FD_CLOEXEC);
     (void)fcntl(ends[1], F_SETFD, FD_CLOEXEC);
 
-    // the read end never blocks, so one reader can hold several children's pipes and take whatever is
-    // ready on any of them; a blocking read on a silent child would be the deadlock this all avoids.
+    // The read end never blocks, so one reader can hold several children's pipes and take whatever is ready; a blocking read on a silent child would deadlock.
     (void)fcntl(ends[0], F_SETFL, O_NONBLOCK);
 
     *out_read  = (NYA_OsPipe)ends[0];
@@ -67,11 +59,7 @@ NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u64 capaci
     return NYA_OS_PROCESS_FAILED;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PROCESSES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PROCESSES
 
 u32 nya_os_process_id(void) {
     return (u32)getpid();
@@ -92,17 +80,14 @@ NYA_INTERNAL b8 _nya_os_which_emit(const char* path, char* out, u64 out_size) {
 b8 nya_os_process_which(const char* name, OUT char* out_path, u64 out_size) {
     if (name == nullptr || name[0] == '\0') return false;
 
-    // A name the caller already spelled with a directory in it is not a PATH lookup: execvp runs it as
-    // it stands, so this checks it as it stands too.
+    // A name the caller spelled with a directory in it is not a PATH lookup: execvp runs it as it stands, so this checks it as it stands too.
     if (strchr(name, '/') != nullptr) {
         if (access(name, X_OK) != 0) return false;
 
         return _nya_os_which_emit(name, out_path, out_size);
     }
 
-    // execvp searches PATH, and an empty or absent PATH means the confstr default rather than nothing —
-    // but a program with no PATH set at all is a broken environment, and "/usr/bin:/bin" is what any
-    // machine that could run gpg has. The bare name is never looked up in the working directory.
+    // execvp searches PATH; with none set, "/usr/bin:/bin" is used rather than the working directory, since the bare name must never resolve there.
     const char* path = getenv("PATH");
     if (path == nullptr || path[0] == '\0') path = "/usr/local/bin:/usr/bin:/bin";
 
@@ -113,8 +98,7 @@ b8 nya_os_process_which(const char* name, OUT char* out_path, u64 out_size) {
         const char* separator = strchr(cursor, ':');
         u64         dir_length = separator != nullptr ? (u64)(separator - cursor) : strlen(cursor);
 
-        // An empty entry ("::" or a leading colon) means the working directory in execvp's rules; the
-        // engine never wants a program found there, so it is skipped rather than searched as ".".
+        // An empty entry ("::" or a leading colon) means the working directory in execvp's rules; skipped rather than searched as ".", which the engine never wants.
         if (dir_length > 0 && dir_length + 1 + name_length + 1 <= sizeof(candidate)) {
             memcpy(candidate, cursor, dir_length);
             candidate[dir_length] = '/';
@@ -140,8 +124,7 @@ NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NY
 
     // CHILD
     if (pid == 0) {
-        // the parent may ignore SIGPIPE (CI runners do), and exec keeps an ignored disposition.
-        // a child like `yes | head` then prints "Broken pipe" instead of dying quietly.
+        // The parent may ignore SIGPIPE (CI runners do) and exec keeps that, so a child like `yes | head` prints "Broken pipe" instead of dying quietly.
         (void)signal(SIGPIPE, SIG_DFL);
 
         s32 devnull_fd = -1;
@@ -156,8 +139,7 @@ NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NY
             }
         }
 
-        // the duplicates on 1 and 2 are what the child writes through; these are the originals, and
-        // every one of them left open is one the parent's read end would never see end of file behind.
+        // The duplicates on 1 and 2 are what the child writes through; these originals left open would each hide end of file from the parent's read end.
         if (spawn->stdout_pipe != NYA_OS_PIPE_NONE) close((s32)spawn->stdout_pipe);
         if (spawn->stderr_pipe != NYA_OS_PIPE_NONE && spawn->stderr_pipe != spawn->stdout_pipe) close((s32)spawn->stderr_pipe);
         if (devnull_fd >= 0) close(devnull_fd);
@@ -171,9 +153,7 @@ NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NY
 
         for (u32 i = 0; spawn->environment != nullptr && spawn->environment[i] != nullptr; i++) (void)putenv(spawn->environment[i]);
 
-        // the caller's vector, handed straight to the kernel: it is already argv, terminator and all.
-        // _exit, not exit: exit would run the parent's atexit handlers and flush its stdio buffers a
-        // second time from this copy of the process.
+        // The caller's vector is already argv, terminator and all; _exit not exit, so the parent's atexit handlers and stdio buffers are not run again from this copy.
         execvp(spawn->program, (char* const*)spawn->arguments);
         perror("execvp");
         _exit(127);
@@ -191,8 +171,7 @@ NYA_OsProcessStatus nya_os_process_wait(NYA_OsProcess process, u32 timeout_ms, O
     u32 waited_ms = 0;
 
     while (true) {
-        // Initialised, because a failed waitpid leaves it untouched and the macros below would then be
-        // reading whatever the stack held.
+        // Initialised, because a failed waitpid leaves it untouched and the macros below would then read whatever the stack held.
         s32   status = 0;
         pid_t reaped = waitpid((pid_t)process.handle, &status, timeout_ms == NYA_OS_PROCESS_WAIT_FOREVER ? 0 : WNOHANG);
 
@@ -200,8 +179,7 @@ NYA_OsProcessStatus nya_os_process_wait(NYA_OsProcess process, u32 timeout_ms, O
         if (reaped < 0) return errno == EINTR ? NYA_OS_PROCESS_PENDING : NYA_OS_PROCESS_FAILED;
 
         if (reaped > 0) {
-            // 128 plus the signal for a killed child, which is what a shell reports and the number the
-            // Windows side terminates with, so both targets answer the same thing.
+            // 128 plus the signal for a killed child, which is what a shell reports and what the Windows side terminates with, so both targets agree.
             if (WIFEXITED(status)) {
                 *out_exit_code = WEXITSTATUS(status);
             } else if (WIFSIGNALED(status)) {
@@ -213,16 +191,14 @@ NYA_OsProcessStatus nya_os_process_wait(NYA_OsProcess process, u32 timeout_ms, O
 
         if (waited_ms >= timeout_ms) return NYA_OS_PROCESS_PENDING;
 
-        // waitpid takes no timeout, so a bounded wait is asking again on a slow tick. Only a caller that
-        // wants one pays for it: zero answers at once above and forever blocks in waitpid itself.
+        // waitpid takes no timeout, so a bounded wait asks again on a slow tick; only a caller that wants one pays (zero answers now, forever blocks in waitpid).
         (void)nanosleep(&(struct timespec){ .tv_nsec = _NYA_OS_PROCESS_POLL_MS * 1'000'000L }, nullptr);
         waited_ms += _NYA_OS_PROCESS_POLL_MS;
     }
 }
 
 void nya_os_process_wait_any(const NYA_OsProcess* processes, u32 process_count, const NYA_OsPipe* pipes, u32 pipe_count, u32 timeout_ms) {
-    // the pipes and not the processes: a process id cannot be waited on here without a pidfd, and it is
-    // the output that has to be read anyway — a child filling a pipe cannot exit until someone does.
+    // The pipes, not the processes: a pid cannot be waited on here without a pidfd, and the output must be read anyway since a child filling a pipe cannot exit.
     (void)processes;
     (void)process_count;
 
@@ -236,8 +212,7 @@ void nya_os_process_wait_any(const NYA_OsProcess* processes, u32 process_count, 
 
     s32 timeout = timeout_ms == NYA_OS_PROCESS_WAIT_FOREVER ? -1 : (s32)timeout_ms;
 
-    // with no pipe left open this is a plain sleep, which is what a child between closing its output and
-    // exiting needs. an interrupted poll just returns early, which a hint may do.
+    // With no pipe left open this is a plain sleep, what a child between closing its output and exiting needs; an interrupted poll just returns early.
     if (fd_count == 0 && timeout < 0) timeout = _NYA_OS_PROCESS_POLL_MS;
 
     (void)poll(fd_count > 0 ? fds : nullptr, (nfds_t)fd_count, timeout);

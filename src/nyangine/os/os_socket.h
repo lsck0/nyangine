@@ -50,11 +50,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** A socket that was never opened, and what a closed one is set to. Zero, so a zeroed struct holds none. */
 #define NYA_OS_SOCKET_NONE ((NYA_OsSocket){ .handle = 0 })
@@ -77,11 +73,7 @@
 /** A wait that only ends when a socket is ready. The same spelling os_thread.h and os_process.h take. */
 #define NYA_OS_SOCKET_WAIT_FOREVER ((u32)0xFFFFFFFF)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_OsSocketKind   NYA_OsSocketKind;
 typedef enum NYA_OsSocketStatus NYA_OsSocketStatus;
@@ -193,11 +185,7 @@ struct NYA_OsSocketWait {
     b8 is_closed;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Starts the host's socket library, once per process, and refers to it until the matching stop.
@@ -220,11 +208,7 @@ NYA_API void nya_os_socket_stop(void);
  * */
 NYA_API s64 nya_os_socket_descriptor(NYA_OsSocket socket) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPENING
- * ─────────────────────────────────────────────────────────
- */
+// OPENING
 
 /**
  * Opens a socket of `kind`, bound to `port` or to whatever the host picks when `port` is zero.
@@ -269,11 +253,7 @@ NYA_API NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, OUT NYA_
 /** Closes a socket. A socket that was never opened is a no-op, so a zeroed struct is safe to close. */
 NYA_API void nya_os_socket_close(NYA_OsSocket socket);
 
-/*
- * ─────────────────────────────────────────────────────────
- * MOVING BYTES
- * ─────────────────────────────────────────────────────────
- */
+// MOVING BYTES
 
 /**
  * Sends one datagram to `to`.
@@ -311,11 +291,7 @@ NYA_API NYA_OsSocketStatus nya_os_socket_send(NYA_OsSocket socket, const u8* dat
  * */
 NYA_API NYA_OsSocketStatus nya_os_socket_receive(NYA_OsSocket socket, OUT u8* out_data, u64 capacity, OUT u64* out_read) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * WAITING, AND ASKING
- * ─────────────────────────────────────────────────────────
- */
+// WAITING, AND ASKING
 
 /**
  * Waits until one of `sockets` is ready or `timeout_ms` passes, and fills in what each one turned out
@@ -340,11 +316,7 @@ NYA_API NYA_OsSocketStatus nya_os_socket_address(NYA_OsSocket socket, OUT NYA_Os
 /** Turns Nagle's algorithm off, so a small write goes now rather than waiting for company. */
 NYA_API NYA_OsSocketStatus nya_os_socket_set_no_delay(NYA_OsSocket socket, b8 no_delay) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ADDRESSES
- * ─────────────────────────────────────────────────────────
- */
+// ADDRESSES
 
 /**
  * Turns a host name or a literal into an address, and may take as long as the host's resolver does.

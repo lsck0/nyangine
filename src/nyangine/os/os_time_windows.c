@@ -16,10 +16,7 @@ u64 nya_os_time_wall_ns(void) {
     return (intervals - _NYA_OS_TIME_EPOCH_INTERVALS) * 100ULL;
 }
 
-/*
- * QueryPerformanceCounter, which is the Windows monotonic clock. GetTickCount64 is monotonic too but
- * only has millisecond resolution and a ~15 ms update period, which is coarser than a frame.
- */
+// QueryPerformanceCounter, the Windows monotonic clock; GetTickCount64 is monotonic too but its ~15 ms update period is coarser than a frame.
 
 /** The counter's ticks per second, asked once: it is fixed while the system runs. */
 NYA_INTERNAL s64 _nya_os_time_frequency(void) {

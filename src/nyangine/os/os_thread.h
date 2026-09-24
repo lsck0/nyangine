@@ -39,11 +39,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** A wait that only ends when the semaphore is posted. The same spelling nya_os_process_wait takes. */
 #define NYA_OS_THREAD_WAIT_FOREVER ((u32)0xFFFFFFFF)
@@ -56,11 +52,7 @@
 #define _NYA_OS_MUTEX_WORDS     8
 #define _NYA_OS_SEMAPHORE_WORDS 8
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_OsThreadStatus  NYA_OsThreadStatus;
 typedef struct NYA_OsThread      NYA_OsThread;
@@ -106,17 +98,9 @@ struct NYA_OsSemaphore {
     u64 storage[_NYA_OS_SEMAPHORE_WORDS];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────────
- * THREADS
- * ─────────────────────────────────────────────────────────────
- */
+// THREADS
 
 /**
  * Starts `start->function` on a thread of its own and returns as soon as it is running.
@@ -163,11 +147,7 @@ NYA_API u64 nya_os_thread_id_current(void) __attr_no_discard;
  * */
 NYA_API void nya_os_thread_name_set(NYA_ConstCString name);
 
-/*
- * ─────────────────────────────────────────────────────────────
- * MUTEXES
- * ─────────────────────────────────────────────────────────────
- */
+// MUTEXES
 
 /**
  * Prepares `mutex` for use. Not recursive: a thread that locks one twice deadlocks against itself.
@@ -186,11 +166,7 @@ NYA_API void nya_os_mutex_lock(NYA_OsMutex* mutex);
 /** Gives `mutex` back. The thread that took it is the one that may. */
 NYA_API void nya_os_mutex_unlock(NYA_OsMutex* mutex);
 
-/*
- * ─────────────────────────────────────────────────────────────
- * SEMAPHORES
- * ─────────────────────────────────────────────────────────────
- */
+// SEMAPHORES
 
 /** Prepares `semaphore` with `initial` tokens in it. Shared between the threads of one process and no further. */
 NYA_API NYA_OsThreadStatus nya_os_semaphore_init(OUT NYA_OsSemaphore* semaphore, u32 initial) __attr_no_discard;

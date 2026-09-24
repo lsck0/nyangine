@@ -23,11 +23,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The longest path the host's calls take, which is what every buffer here is sized to. Windows is
@@ -56,11 +52,7 @@ enum {
     NYA_OS_FILE_OPEN_EXCLUSIVE = 1 << 5,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_OsFileStatus       NYA_OsFileStatus;
 typedef enum NYA_OsFileKind         NYA_OsFileKind;
@@ -174,17 +166,9 @@ struct NYA_OsDirectoryEntry {
     b8             has_metadata;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * HANDLES
- * ─────────────────────────────────────────────────────────
- */
+// HANDLES
 
 /** `flags` is NYA_OS_FILE_OPEN_* flags, a u32 because a combination is not itself an enumerator. */
 NYA_API NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* out_file) __attr_no_discard;
@@ -213,11 +197,7 @@ NYA_API NYA_OsFileStatus nya_os_file_sync(NYA_OsFile* file) __attr_no_discard;
  * */
 NYA_API NYA_OsFileStatus nya_os_directory_sync(const char* path) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * QUERIES
- * ─────────────────────────────────────────────────────────
- */
+// QUERIES
 
 /**
  * Everything one stat knows.
@@ -237,11 +217,7 @@ NYA_API NYA_OsFileStatus nya_os_file_mode_set(const char* path, u32 mode) __attr
 /** Resolves links and relative segments. The result is in the host's own spelling, backslashes and all. */
 NYA_API NYA_OsFileStatus nya_os_path_absolute(const char* path, OUT char* out_path, u64 size) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTATION
- * ─────────────────────────────────────────────────────────
- */
+// MUTATION
 
 /** Moves `source` onto `destination`, across volumes too, replacing whatever was there. */
 NYA_API NYA_OsFileStatus nya_os_file_rename(const char* source, const char* destination) __attr_no_discard;
@@ -269,11 +245,7 @@ NYA_API NYA_OsFileStatus nya_os_directory_create(const char* path) __attr_no_dis
 /** Removes one empty directory. */
 NYA_API NYA_OsFileStatus nya_os_directory_destroy(const char* path) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * DIRECTORY ITERATION
- * ─────────────────────────────────────────────────────────
- */
+// DIRECTORY ITERATION
 
 NYA_API NYA_OsFileStatus nya_os_directory_open(const char* path, OUT NYA_OsDirectory* out_directory) __attr_no_discard;
 
@@ -281,11 +253,7 @@ NYA_API NYA_OsFileStatus nya_os_directory_open(const char* path, OUT NYA_OsDirec
 NYA_API b8   nya_os_directory_next(NYA_OsDirectory* directory, OUT NYA_OsDirectoryEntry* out_entry) __attr_no_discard;
 NYA_API void nya_os_directory_close(NYA_OsDirectory* directory);
 
-/*
- * ─────────────────────────────────────────────────────────
- * WELL KNOWN LOCATIONS
- * ─────────────────────────────────────────────────────────
- */
+// WELL KNOWN LOCATIONS
 
 NYA_API NYA_OsFileStatus nya_os_working_directory_get(OUT char* out_path, u64 size) __attr_no_discard;
 NYA_API NYA_OsFileStatus nya_os_working_directory_set(const char* path) __attr_no_discard;

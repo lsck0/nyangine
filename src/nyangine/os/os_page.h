@@ -14,17 +14,9 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * ─────────────────────────────────────────────────────────
- * VIRTUAL MEMORY
- * ─────────────────────────────────────────────────────────
- */
+// VIRTUAL MEMORY
 
 /** Bytes per page, which every commit is rounded to. */
 NYA_API u64 nya_os_page_size(void) __attr_no_discard;
@@ -48,11 +40,7 @@ NYA_API b8 nya_os_page_commit(void* address, u64 size) __attr_no_discard;
  * */
 NYA_API b8 nya_os_page_release(void* address, u64 size) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * RESIDENCE
- * ─────────────────────────────────────────────────────────
- */
+// RESIDENCE
 
 /**
  * Bytes of a mapped range that are in physical memory right now, in whole pages. The range need not be page aligned.

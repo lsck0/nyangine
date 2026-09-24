@@ -1,7 +1,6 @@
 #include "nyangine/os/os_socket.h"
 
-// after the engine's own header: base_basic.h asks for POSIX 2008, and these only declare what it
-// wants once they have seen that.
+// After the engine's own header: base_basic.h asks for POSIX 2008, and these declare what it wants only once they have seen that.
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -15,11 +14,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /**
  * A descriptor as a handle and back.
@@ -71,8 +66,7 @@ NYA_INTERNAL b8 _nya_os_socket_prepare(s32 descriptor) {
 
     if (fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) < 0) return false;
 
-    // A socket a child process inherits is a port that stays bound after the server is gone, which is
-    // the thing SO_REUSEADDR is usually blamed for.
+    // A socket a child inherits is a port that stays bound after the server is gone, which is what SO_REUSEADDR is usually blamed for.
     s32 descriptor_flags = fcntl(descriptor, F_GETFD, 0);
     if (descriptor_flags >= 0) (void)fcntl(descriptor, F_SETFD, descriptor_flags | FD_CLOEXEC);
 
@@ -127,12 +121,7 @@ NYA_INTERNAL b8 _nya_os_address_from_host(const struct sockaddr* host, OUT NYA_O
         out_address->port  = ntohs(v6->sin6_port);
         out_address->scope = v6->sin6_scope_id;
 
-        /*
-         * A v4 address arriving on a dual stack socket comes back mapped into v6 as ::ffff:1.2.3.4,
-         * and reporting that as v6 would mean a caller comparing it against what it resolved never
-         * matches. So it is unmapped here, once, and everything above this sees the family that was
-         * actually on the wire.
-         */
+        // A v4 address on a dual-stack socket comes back mapped as ::ffff:1.2.3.4; unmapped here once so everything above sees the family actually on the wire.
         const u8* bytes = (const u8*)&v6->sin6_addr;
 
         static const u8 MAPPED_PREFIX[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF };
@@ -194,8 +183,7 @@ NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind_one(s32 type, NYA_OsAddress 
 NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress address, OUT s32* out_descriptor) {
     *out_descriptor = -1;
 
-    // An address the caller named is bound in its own family and nothing else: dual stack is about
-    // answering on every interface, which is what having no address to bind means.
+    // An address the caller named is bound in its own family only: dual stack is about answering on every interface, which is what having no address to bind means.
     if (address.kind != NYA_OS_ADDRESS_NONE) return _nya_os_socket_bind_one(type, address, out_descriptor);
 
     u16 port = address.port;
@@ -203,8 +191,7 @@ NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress addr
     b8  dual       = true;
     s32 descriptor = socket(AF_INET6, type, 0);
 
-    // A host with IPv6 switched off is a host this still has to serve, so the family is what it can
-    // get rather than what it wants.
+    // A host with IPv6 off still has to be served, so the family is what it can get rather than what it wants.
     if (descriptor < 0) {
         dual       = false;
         descriptor = socket(AF_INET, type, 0);
@@ -225,8 +212,7 @@ NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress addr
     if (dual) {
         s32 off = 0;
 
-        // One socket for both families. A host that refuses is one where this becomes a v6 only
-        // socket, which is worse than a v4 one, so a refusal starts over on v4.
+        // One socket for both families; a host that refuses becomes a v6-only socket, worse than v4, so a refusal starts over on v4.
         if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off)) != 0) {
             (void)close(descriptor);
 
@@ -259,15 +245,10 @@ NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress addr
     return NYA_OS_SOCKET_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE LIBRARY
- * ─────────────────────────────────────────────────────────
- */
+// THE LIBRARY
 
 NYA_OsSocketStatus nya_os_socket_start(void) {
-    // Nothing to start: sockets are syscalls here. The call exists for Windows, and a program that
-    // skipped it there would work everywhere except where it shipped.
+    // Nothing to start: sockets are syscalls here. The call exists for Windows, where a program that skipped it would work everywhere except where it shipped.
     return NYA_OS_SOCKET_OK;
 }
 
@@ -277,11 +258,7 @@ s64 nya_os_socket_descriptor(NYA_OsSocket socket) {
 
 void nya_os_socket_stop(void) {}
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPENING
- * ─────────────────────────────────────────────────────────
- */
+// OPENING
 
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, NYA_OsSocket* out_socket) {
     return nya_os_socket_open_at(kind, (NYA_OsAddress){ .port = port }, backlog, out_socket);
@@ -357,8 +334,7 @@ NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, NYA_OsSocket* ou
     s32                connected = connect(descriptor, (const struct sockaddr*)&storage, (socklen_t)size);
     NYA_OsSocketStatus status    = connected == 0 ? NYA_OS_SOCKET_OK : _nya_os_socket_status(errno);
 
-    // Under way is not failed: the caller waits for writability and then asks what came of it. Anything
-    // else is over before it started, and the descriptor goes with it.
+    // Under way is not failed: the caller waits for writability then asks what came of it; anything else is over before it started and the descriptor goes with it.
     if (status != NYA_OS_SOCKET_OK && status != NYA_OS_SOCKET_WOULD_BLOCK) {
         (void)close(descriptor);
         return status;
@@ -377,11 +353,7 @@ void nya_os_socket_close(NYA_OsSocket socket) {
     (void)close(descriptor);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MOVING BYTES
- * ─────────────────────────────────────────────────────────
- */
+// MOVING BYTES
 
 NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size) {
     s32 descriptor = _nya_os_socket_fd(socket);
@@ -396,8 +368,7 @@ NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, 
 
     if (sent < 0) return _nya_os_socket_status(errno);
 
-    // A datagram the host took only part of is a datagram nobody can reassemble, so it is reported as
-    // not taken at all rather than as a success that lost bytes.
+    // A datagram the host took only part of cannot be reassembled, so it is reported as not taken at all rather than a success that lost bytes.
     return (u64)sent == size ? NYA_OS_SOCKET_OK : NYA_OS_SOCKET_FAILED;
 }
 
@@ -428,8 +399,7 @@ NYA_OsSocketStatus nya_os_socket_send(NYA_OsSocket socket, const u8* data, u64 s
     s32 descriptor = _nya_os_socket_fd(socket);
     if (descriptor < 0) return NYA_OS_SOCKET_FAILED;
 
-    // MSG_NOSIGNAL, because the default for writing to a closed socket is to kill the process with
-    // SIGPIPE, and a peer that hung up is an ordinary event in a server.
+    // MSG_NOSIGNAL, because writing to a closed socket otherwise kills the process with SIGPIPE, and a peer that hung up is an ordinary event in a server.
     ssize_t sent = send(descriptor, data, (size_t)size, MSG_NOSIGNAL);
 
     if (sent < 0) return _nya_os_socket_status(errno);
@@ -449,8 +419,7 @@ NYA_OsSocketStatus nya_os_socket_receive(NYA_OsSocket socket, u8* out_data, u64 
 
     if (read < 0) return _nya_os_socket_status(errno);
 
-    // Zero bytes on a stream is the end of it and nothing else, which is why it is never OK: a caller
-    // that read it as a quiet moment would ask again forever.
+    // Zero bytes on a stream is its end and nothing else, which is why it is never OK: a caller that read it as a quiet moment would ask again forever.
     if (read == 0) return NYA_OS_SOCKET_CLOSED;
 
     *out_read = (u64)read;
@@ -458,11 +427,7 @@ NYA_OsSocketStatus nya_os_socket_receive(NYA_OsSocket socket, u8* out_data, u64 
     return NYA_OS_SOCKET_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WAITING, AND ASKING
- * ─────────────────────────────────────────────────────────
- */
+// WAITING, AND ASKING
 
 NYA_OsSocketStatus nya_os_socket_wait(NYA_OsSocketWait* sockets, u32 count, u32 timeout_ms, u32* out_ready) {
     *out_ready = 0;
@@ -483,8 +448,7 @@ NYA_OsSocketStatus nya_os_socket_wait(NYA_OsSocketWait* sockets, u32 count, u32 
     s32 timeout = timeout_ms == NYA_OS_SOCKET_WAIT_FOREVER ? -1 : (s32)timeout_ms;
     s32 ready   = poll(watched, (nfds_t)count, timeout);
 
-    // Interrupted by a signal, which is a timeout that happened to be early rather than a failure: a
-    // profiler's timer must not take a server down.
+    // Interrupted by a signal is a timeout that happened early, not a failure: a profiler's timer must not take a server down.
     if (ready < 0) return errno == EINTR ? NYA_OS_SOCKET_OK : _nya_os_socket_status(errno);
 
     for (u32 index = 0; index < count; index++) {
@@ -537,11 +501,7 @@ NYA_OsSocketStatus nya_os_socket_set_no_delay(NYA_OsSocket socket, b8 no_delay) 
     return NYA_OS_SOCKET_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ADDRESSES
- * ─────────────────────────────────────────────────────────
- */
+// ADDRESSES
 
 NYA_OsSocketStatus nya_os_address_resolve(NYA_ConstCString host, u16 port, NYA_OsAddressKind prefer, NYA_OsAddress* out_address) {
     memset(out_address, 0, sizeof(NYA_OsAddress));
@@ -562,16 +522,14 @@ NYA_OsSocketStatus nya_os_address_resolve(NYA_ConstCString host, u16 port, NYA_O
 
     if (!read) return NYA_OS_SOCKET_UNREACHABLE;
 
-    // The port is the caller's, not the resolver's: nothing above this asks a name server which port
-    // it meant, and asking for one by service name is a second API nothing here wants.
+    // The port is the caller's, not the resolver's: nothing above asks a name server which port it meant, and asking by service name is a second API nothing wants.
     out_address->port = port;
 
     return NYA_OS_SOCKET_OK;
 }
 
 NYA_OsAddress nya_os_address_any(NYA_OsAddressKind kind, u16 port) {
-    // Zeroed bytes are what both families spell "every interface" with, so there is nothing to fill in
-    // but the family and the port.
+    // Zeroed bytes are how both families spell "every interface", so there is nothing to fill in but the family and the port.
     return (NYA_OsAddress){ .kind = kind == NYA_OS_ADDRESS_V6 ? NYA_OS_ADDRESS_V6 : NYA_OS_ADDRESS_V4, .port = port };
 }
 
@@ -614,8 +572,7 @@ b8 nya_os_address_text(NYA_OsAddress address, b8 with_port, char* out_text, u64 
     if (address.kind == NYA_OS_ADDRESS_V6) {
         if (inet_ntop(AF_INET6, address.bytes, host, sizeof(host)) == nullptr) return false;
 
-        // The brackets are not decoration: `::1:80` is a perfectly good address on its own, so a v6
-        // address with a port after it has to say where the address ends.
+        // The brackets are not decoration: `::1:80` is a valid address on its own, so a v6 address with a port must say where the address ends.
         s32 written = with_port ? snprintf(out_text, (size_t)capacity, "[%s]:%u", host, address.port) : snprintf(out_text, (size_t)capacity, "%s", host);
 
         return written > 0 && (u64)written < capacity;

@@ -1,7 +1,6 @@
 #include "nyangine/os/os_thread.h"
 
-// after the engine's own header: base_basic.h asks for POSIX 2008, and these only declare what it
-// wants once they have seen that.
+// After the engine's own header: base_basic.h asks for POSIX 2008, and these declare what it wants only once they have seen that.
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/prctl.h>
@@ -12,11 +11,7 @@ static_assert(alignof(pthread_mutex_t) <= alignof(u64), "NYA_OsMutex's storage m
 static_assert(sizeof(sem_t) <= sizeof(((NYA_OsSemaphore*)nullptr)->storage), "NYA_OsSemaphore must hold a sem_t");
 static_assert(alignof(sem_t) <= alignof(u64), "NYA_OsSemaphore's storage must be aligned like a sem_t");
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /**
  * What pthread_create is actually given, since it takes a function returning void* and the engine's
@@ -40,17 +35,12 @@ NYA_INTERNAL sem_t* _nya_os_semaphore_handle(NYA_OsSemaphore* semaphore) {
     return (sem_t*)semaphore->storage;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THREADS
- * ─────────────────────────────────────────────────────────
- */
+// THREADS
 
 NYA_OsThreadStatus nya_os_thread_spawn(NYA_OsThreadStart* start, OUT NYA_OsThread* out_thread) {
     pthread_t thread = 0;
 
-    // the default attributes, which is an 8 MB stack here; a thread that needs a different one has a
-    // reason this layer cannot know.
+    // The default attributes, an 8 MB stack here; a thread that needs a different one has a reason this layer cannot know.
     if (pthread_create(&thread, nullptr, _nya_os_thread_entry, start) != 0) return NYA_OS_THREAD_FAILED;
 
     out_thread->handle = (u64)(uintptr_t)thread;
@@ -72,11 +62,7 @@ u64 nya_os_thread_id_current(void) {
     return (u64)(uintptr_t)pthread_self();
 }
 
-/*
- * prctl rather than pthread_setname_np, which is a GNU extension and would need _GNU_SOURCE for the
- * whole engine. Both end up in the same place — the kernel's 16 byte comm field — and prctl names the
- * calling thread, which is the only one this is called for.
- */
+// prctl not pthread_setname_np (a GNU extension needing _GNU_SOURCE); both set the kernel's 16-byte comm field, and prctl names the calling thread.
 void nya_os_thread_name_set(NYA_ConstCString name) {
     char truncated[16] = { 0 };
 
@@ -84,11 +70,7 @@ void nya_os_thread_name_set(NYA_ConstCString name) {
     (void)prctl(PR_SET_NAME, truncated, 0, 0, 0);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTEXES
- * ─────────────────────────────────────────────────────────
- */
+// MUTEXES
 
 NYA_OsThreadStatus nya_os_mutex_init(OUT NYA_OsMutex* mutex) {
     if (pthread_mutex_init(_nya_os_mutex_handle(mutex), nullptr) != 0) return NYA_OS_THREAD_FAILED;
@@ -108,15 +90,10 @@ void nya_os_mutex_unlock(NYA_OsMutex* mutex) {
     (void)pthread_mutex_unlock(_nya_os_mutex_handle(mutex));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SEMAPHORES
- * ─────────────────────────────────────────────────────────
- */
+// SEMAPHORES
 
 NYA_OsThreadStatus nya_os_semaphore_init(OUT NYA_OsSemaphore* semaphore, u32 initial) {
-    // zero: shared between the threads of this process and no further, which is what every caller here
-    // means and what keeps it out of the file system's namespace.
+    // Zero: shared between the threads of this process and no further, which is what every caller means and keeps it out of the filesystem namespace.
     if (sem_init(_nya_os_semaphore_handle(semaphore), 0, (unsigned int)initial) != 0) return NYA_OS_THREAD_FAILED;
 
     return NYA_OS_THREAD_OK;
@@ -147,12 +124,7 @@ NYA_OsThreadStatus nya_os_semaphore_wait(NYA_OsSemaphore* semaphore, u32 timeout
         return errno == EAGAIN ? NYA_OS_THREAD_TIMEOUT : NYA_OS_THREAD_FAILED;
     }
 
-    /*
-     * sem_timedwait takes an absolute CLOCK_REALTIME deadline, so the deadline is computed once and
-     * waited toward: a signal cuts the wait short and retrying with the same absolute time is what
-     * keeps "at least this long" true. sem_clockwait would take the monotonic clock instead and is a
-     * GNU extension the engine does not ask its headers for; see the header for why that is bearable.
-     */
+    // sem_timedwait takes an absolute CLOCK_REALTIME deadline computed once, so retrying after a signal keeps "at least this long"; sem_clockwait is an unrequested GNU extension.
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
 

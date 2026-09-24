@@ -4,11 +4,7 @@
 #include "nyangine/os/os_page.h"
 #include "nyangine/os/os_process.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** How long a wait with nothing waitable in it sleeps, since an anonymous pipe cannot be waited on. */
 #define _NYA_OS_PROCESS_POLL_MS 1
@@ -47,11 +43,7 @@ NYA_INTERNAL void _nya_os_process_command_line(_NYA_OsProcessText* text, const N
  * */
 NYA_INTERNAL void _nya_os_process_environment(_NYA_OsProcessText* text, const NYA_OsProcessSpawn* spawn);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PIPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PIPES
 
 NYA_OsProcessStatus nya_os_pipe_open(OUT NYA_OsPipe* out_read, OUT NYA_OsPipe* out_write) {
     if (out_read == nullptr || out_write == nullptr) return NYA_OS_PROCESS_FAILED;
@@ -62,8 +54,7 @@ NYA_OsProcessStatus nya_os_pipe_open(OUT NYA_OsPipe* out_read, OUT NYA_OsPipe* o
     HANDLE write_end = nullptr;
     if (!CreatePipe(&read_end, &write_end, &sa, 0)) return NYA_OS_PROCESS_FAILED;
 
-    // the read end stays in this process alone: a child holding a copy of it is a writer that never
-    // goes away, and the pipe would not break when the one that matters exits.
+    // The read end stays in this process alone: a child holding a copy is a writer that never goes away, so the pipe would not break when the one that matters exits.
     if (!SetHandleInformation(read_end, HANDLE_FLAG_INHERIT, 0)) {
         CloseHandle(read_end);
         CloseHandle(write_end);
@@ -89,8 +80,7 @@ NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u64 capaci
 
     HANDLE handle = (HANDLE)(intptr_t)pipe;
 
-    // Asked first because ReadFile on a pipe blocks until something arrives, and it fails with
-    // ERROR_BROKEN_PIPE once the child has exited and closed its end, which is the end of file here.
+    // Asked first because ReadFile on a pipe blocks until data arrives and fails with ERROR_BROKEN_PIPE once the child closes its end, which is end of file here.
     DWORD available = 0;
     if (!PeekNamedPipe(handle, nullptr, 0, nullptr, &available, nullptr)) return NYA_OS_PROCESS_CLOSED;
     if (available == 0) return NYA_OS_PROCESS_PENDING;
@@ -104,11 +94,7 @@ NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u64 capaci
     return NYA_OS_PROCESS_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PROCESSES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PROCESSES
 
 u32 nya_os_process_id(void) {
     return (u32)GetCurrentProcessId();
@@ -117,21 +103,17 @@ u32 nya_os_process_id(void) {
 b8 nya_os_process_which(const char* name, OUT char* out_path, u64 out_size) {
     if (name == nullptr || name[0] == '\0') return false;
 
-    // SearchPathA walks the same order CreateProcess resolves a bare name in, and the ".exe" default
-    // extension lets a caller ask for "gpg" and find "gpg.exe" the way the shell does. It writes the
-    // resolved path into a buffer, so a caller that only wants the yes/no still needs one.
+    // SearchPathA resolves a bare name as CreateProcess does, with a ".exe" default so "gpg" finds "gpg.exe"; it needs a buffer even for a yes/no caller.
     char   scratch[NYA_OS_PATH_MAX];
     char*  buffer   = out_path != nullptr && out_size >= NYA_OS_PATH_MAX ? out_path : scratch;
     DWORD  capacity = out_path != nullptr && out_size >= NYA_OS_PATH_MAX ? (DWORD)out_size : (DWORD)sizeof(scratch);
 
     DWORD written = SearchPathA(nullptr, name, ".exe", capacity, buffer, nullptr);
 
-    // Zero is not found; a value past the buffer is a path too long to hold, which this reports as a
-    // miss rather than pretending to have resolved it.
+    // Zero is not found; a value past the buffer is a path too long to hold, reported as a miss rather than a pretended resolution.
     if (written == 0 || written >= capacity) return false;
 
-    // When the caller passed a buffer too small to search into, the result landed in the scratch and
-    // has to be reported as not-fitting rather than copied blindly.
+    // When the caller's buffer was too small to search into, the result landed in the scratch and is reported as not-fitting rather than copied blindly.
     if (out_path != nullptr && buffer == scratch) return false;
 
     return true;
@@ -142,8 +124,7 @@ NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NY
     if (spawn->program == nullptr || spawn->program[0] == '\0') return NYA_OS_PROCESS_FAILED;
     if (spawn->arguments == nullptr || spawn->arguments[0] == nullptr) return NYA_OS_PROCESS_FAILED;
 
-    // One reservation for both blocks, for the length of this call: there is no arena below base, and
-    // neither block is worth a fixed buffer of a megabyte on the stack.
+    // One reservation for both blocks for this call's length: there is no arena below base, and neither block is worth a megabyte fixed buffer on the stack.
     const u64 scratch_bytes = 2 * _NYA_OS_PROCESS_SCRATCH_BYTES;
 
     char* scratch = nya_os_page_reserve(scratch_bytes);
@@ -168,8 +149,7 @@ NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NY
     HANDLE       nul_handle = nullptr;
 
     if (spawn->stdout_pipe != NYA_OS_PIPE_NONE || spawn->stderr_pipe != NYA_OS_PIPE_NONE) {
-        // whichever end was not given keeps this process's own stream: naming one of the three in
-        // STARTUPINFO means naming all three, and a null handle would leave the child without it.
+        // Whichever end was not given keeps this process's own stream: STARTUPINFO names all three or none, and a null handle would leave the child without it.
         si.hStdInput   = GetStdHandle(STD_INPUT_HANDLE);
         si.hStdOutput  = spawn->stdout_pipe != NYA_OS_PIPE_NONE ? (HANDLE)(intptr_t)spawn->stdout_pipe : GetStdHandle(STD_OUTPUT_HANDLE);
         si.hStdError   = spawn->stderr_pipe != NYA_OS_PIPE_NONE ? (HANDLE)(intptr_t)spawn->stderr_pipe : GetStdHandle(STD_ERROR_HANDLE);
@@ -189,8 +169,7 @@ NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NY
 
     PROCESS_INFORMATION pi = { 0 };
 
-    // No application name: the command line names the program, which is what lets a bare name be found
-    // on PATH the way execvp finds it. Handles are inherited, since that is what hands over the pipes.
+    // No application name: the command line names the program, letting a bare name be found on PATH as execvp does; handles are inherited to hand over the pipes.
     BOOL created = CreateProcessA(
         nullptr,
         command_line.items,
@@ -232,8 +211,7 @@ NYA_OsProcessStatus nya_os_process_wait(NYA_OsProcess process, u32 timeout_ms, O
 }
 
 void nya_os_process_wait_any(const NYA_OsProcess* processes, u32 process_count, const NYA_OsPipe* pipes, u32 pipe_count, u32 timeout_ms) {
-    // the processes and not the pipes: an anonymous pipe is not a waitable object, so only an exit wakes
-    // this early. a child blocked on a full pipe is drained by the next read, at most one timeout later.
+    // The processes, not the pipes: an anonymous pipe is not waitable, so only an exit wakes this early; a child blocked on a full pipe is drained by the next read.
     (void)pipes;
     (void)pipe_count;
 
@@ -246,8 +224,7 @@ void nya_os_process_wait_any(const NYA_OsProcess* processes, u32 process_count, 
     }
 
     if (count == 0) {
-        // nothing to wait on, so the wait is the sleep the caller asked for. A wait meant to last until
-        // something happens becomes a short one: with no object behind it, it would never end.
+        // Nothing to wait on, so the wait is the sleep the caller asked for; a wait meant to last until something happens becomes short, since no object backs it.
         Sleep(timeout_ms == NYA_OS_PROCESS_WAIT_FOREVER ? _NYA_OS_PROCESS_POLL_MS : timeout_ms);
         return;
     }
@@ -258,16 +235,11 @@ void nya_os_process_wait_any(const NYA_OsProcess* processes, u32 process_count, 
 NYA_OsProcessStatus nya_os_process_kill(NYA_OsProcess process) {
     if (process.handle == 0) return NYA_OS_PROCESS_FAILED;
 
-    // 137 is what the Linux side reports for a killed child, 128 plus SIGKILL, and Windows lets the
-    // killer pick the number, so both targets answer the same thing for the same end.
+    // 137 is what the Linux side reports for a killed child (128 plus SIGKILL), and Windows lets the killer pick the number, so both targets agree.
     return TerminateProcess((HANDLE)(uintptr_t)process.handle, 137) != 0 ? NYA_OS_PROCESS_OK : NYA_OS_PROCESS_FAILED;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_INTERNAL void _nya_os_process_text_push(_NYA_OsProcessText* text, const char* bytes, u64 length) {
     if (text->length + length > text->capacity) {

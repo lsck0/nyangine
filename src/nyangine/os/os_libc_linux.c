@@ -20,8 +20,7 @@
 #if defined(__GLIBC__) && !__GLIBC_PREREQ(2, 43)
 void* memset_explicit(void* destination, int byte, size_t count) {
     memset(destination, byte, count);
-    // The whole point of the C23 function over memset: a barrier so the clear of about-to-be-freed
-    // secret bytes is not elided as a dead store, which is exactly what glibc's own version guarantees.
+    // The point of the C23 function over memset: a barrier so clearing about-to-be-freed secret bytes is not elided as a dead store.
     __asm__ __volatile__("" : : "r"(destination) : "memory");
     return destination;
 }

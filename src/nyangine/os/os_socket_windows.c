@@ -3,9 +3,7 @@
 // after winsock2.h, which has to be included before windows.h or the older winsock declarations win.
 #include <windows.h>
 #include <ws2tcpip.h>
-// for SIO_UDP_CONNRESET, which is not in ws2tcpip.h and is what keeps one refused datagram from
-// taking a udp server down; see nya_os_socket_open. mingw-w64 declares this ioctl in mswsock.h, not
-// the mstcpip.h the Windows SDK keeps it in.
+// For SIO_UDP_CONNRESET (not in ws2tcpip.h), which stops one refused datagram taking a udp server down; mingw-w64 keeps it in mswsock.h, not mstcpip.h.
 #include <mswsock.h>
 
 #include <stdio.h>
@@ -15,11 +13,7 @@
 
 static_assert(sizeof(SOCKET) <= sizeof(u64), "NYA_OsSocket must hold a SOCKET");
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /**
  * How many callers asked for the library.
@@ -207,12 +201,7 @@ NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress addr
         return NYA_OS_SOCKET_FAILED;
     }
 
-    /*
-     * SO_REUSEADDR does not mean here what it means on Linux: on Windows it lets a second process bind
-     * a port somebody else is already listening on, which is a port this program does not own and a
-     * connection it should never see. SO_EXCLUSIVEADDRUSE says the opposite, and a restart binds
-     * anyway because Windows does not hold a listening socket in TIME_WAIT the way Linux does.
-     */
+    // SO_REUSEADDR on Windows lets another process steal a listening port, so use SO_EXCLUSIVEADDRUSE; a restart still binds, as Windows has no listening TIME_WAIT.
     s32 on = 1;
     (void)setsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&on, sizeof(on));
 
@@ -251,11 +240,7 @@ NYA_INTERNAL NYA_OsSocketStatus _nya_os_socket_bind(s32 type, NYA_OsAddress addr
     return NYA_OS_SOCKET_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE LIBRARY
- * ─────────────────────────────────────────────────────────
- */
+// THE LIBRARY
 
 NYA_OsSocketStatus nya_os_socket_start(void) {
     if (_NYA_OS_SOCKET_STARTS > 0) {
@@ -265,8 +250,7 @@ NYA_OsSocketStatus nya_os_socket_start(void) {
 
     WSADATA data = { 0 };
 
-    // 2.2, which every Windows this builds for has had since Windows 98 and which is what getaddrinfo
-    // and the v6 stack need.
+    // 2.2, which every Windows this builds for has had since Windows 98 and which getaddrinfo and the v6 stack need.
     if (WSAStartup(MAKEWORD(2, 2), &data) != 0) return NYA_OS_SOCKET_FAILED;
 
     _NYA_OS_SOCKET_STARTS = 1;
@@ -286,11 +270,7 @@ void nya_os_socket_stop(void) {
     if (_NYA_OS_SOCKET_STARTS == 0) (void)WSACleanup();
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPENING
- * ─────────────────────────────────────────────────────────
- */
+// OPENING
 
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, NYA_OsSocket* out_socket) {
     return nya_os_socket_open_at(kind, (NYA_OsAddress){ .port = port }, backlog, out_socket);
@@ -317,12 +297,7 @@ NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress ad
             return status;
         }
     } else {
-        /*
-         * Windows answers a datagram socket with WSAECONNRESET when an earlier datagram was refused by
-         * the peer, and does it on the *next read*, which takes a perfectly good server down because
-         * one client went away. SIO_UDP_CONNRESET turns that off, and there is no Linux equivalent
-         * because Linux never had the behaviour.
-         */
+        // Windows raises WSAECONNRESET on the next read after a refused datagram, downing a good server; SIO_UDP_CONNRESET turns that off (no Linux equivalent).
         DWORD off      = 0;
         DWORD returned = 0;
 
@@ -397,11 +372,7 @@ void nya_os_socket_close(NYA_OsSocket socket) {
     (void)closesocket(handle);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MOVING BYTES
- * ─────────────────────────────────────────────────────────
- */
+// MOVING BYTES
 
 NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size) {
     SOCKET handle = _nya_os_socket_handle(socket);
@@ -472,11 +443,7 @@ NYA_OsSocketStatus nya_os_socket_receive(NYA_OsSocket socket, u8* out_data, u64 
     return NYA_OS_SOCKET_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WAITING, AND ASKING
- * ─────────────────────────────────────────────────────────
- */
+// WAITING, AND ASKING
 
 NYA_OsSocketStatus nya_os_socket_wait(NYA_OsSocketWait* sockets, u32 count, u32 timeout_ms, u32* out_ready) {
     *out_ready = 0;
@@ -496,10 +463,7 @@ NYA_OsSocketStatus nya_os_socket_wait(NYA_OsSocketWait* sockets, u32 count, u32 
         sockets[index].is_closed   = false;
     }
 
-    /*
-     * WSAPoll with no sockets returns at once rather than sleeping, which would turn a server with an
-     * empty connection table into a spin. Sleeping here is what the caller asked for either way.
-     */
+    // WSAPoll with no sockets returns at once rather than sleeping, which would spin an empty server; sleep here instead, which is what the caller asked for.
     if (count == 0) {
         Sleep(timeout_ms == NYA_OS_SOCKET_WAIT_FOREVER ? INFINITE : (DWORD)timeout_ms);
         return NYA_OS_SOCKET_OK;
@@ -560,11 +524,7 @@ NYA_OsSocketStatus nya_os_socket_set_no_delay(NYA_OsSocket socket, b8 no_delay) 
     return NYA_OS_SOCKET_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ADDRESSES
- * ─────────────────────────────────────────────────────────
- */
+// ADDRESSES
 
 NYA_OsSocketStatus nya_os_address_resolve(NYA_ConstCString host, u16 port, NYA_OsAddressKind prefer, NYA_OsAddress* out_address) {
     memset(out_address, 0, sizeof(NYA_OsAddress));

@@ -1,18 +1,13 @@
 #include "nyangine/os/os_file.h"
 
-// after the engine's own header: base_basic.h asks for POSIX 2008, and these only declare what it
-// wants once they have seen that.
+// After the engine's own header: base_basic.h asks for POSIX 2008, and these declare what it wants only once they have seen that.
 #include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>
 
 static_assert(NYA_OS_PATH_MAX == PATH_MAX, "NYA_OS_PATH_MAX must be what the host's calls take");
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /**
  * errno as one of the few kinds both platforms can tell apart. The same split base_error.c makes, so
@@ -58,11 +53,7 @@ NYA_INTERNAL NYA_OsFileKind _nya_os_file_kind(mode_t mode) {
     return NYA_OS_FILE_KIND_UNKNOWN;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * HANDLES
- * ─────────────────────────────────────────────────────────
- */
+// HANDLES
 
 NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* out_file) {
     if (path == nullptr || out_file == nullptr) return NYA_OS_FILE_STATUS_INVALID;
@@ -167,11 +158,7 @@ NYA_OsFileStatus nya_os_directory_sync(const char* path) {
     return status;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * QUERIES
- * ─────────────────────────────────────────────────────────
- */
+// QUERIES
 
 NYA_OsFileStatus nya_os_file_stat(const char* path, b8 follow_links, OUT NYA_OsFileStat* out_stat) {
     if (path == nullptr || out_stat == nullptr) return NYA_OS_FILE_STATUS_INVALID;
@@ -216,11 +203,7 @@ NYA_OsFileStatus nya_os_path_absolute(const char* path, OUT char* out_path, u64 
     return NYA_OS_FILE_STATUS_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTATION
- * ─────────────────────────────────────────────────────────
- */
+// MUTATION
 
 NYA_OsFileStatus nya_os_file_rename(const char* source, const char* destination) {
     if (source == nullptr || destination == nullptr) return NYA_OS_FILE_STATUS_INVALID;
@@ -228,10 +211,7 @@ NYA_OsFileStatus nya_os_file_rename(const char* source, const char* destination)
     return rename(source, destination) == 0 ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
 }
 
-/*
- * rename() is the atomic replace here, and it has no transient refusal: nothing a POSIX kernel does to
- * a rename clears by waiting, so this never answers BUSY and the caller's retry runs once.
- */
+// rename() is the atomic replace and has no transient refusal, so this never answers BUSY and the caller's retry runs once.
 NYA_OsFileStatus nya_os_file_replace(const char* source, const char* destination) {
     if (source == nullptr || destination == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
@@ -272,11 +252,7 @@ NYA_OsFileStatus nya_os_directory_destroy(const char* path) {
     return rmdir(path) == 0 ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * DIRECTORY ITERATION
- * ─────────────────────────────────────────────────────────
- */
+// DIRECTORY ITERATION
 
 NYA_OsFileStatus nya_os_directory_open(const char* path, OUT NYA_OsDirectory* out_directory) {
     if (path == nullptr || out_directory == nullptr) return NYA_OS_FILE_STATUS_INVALID;
@@ -308,11 +284,7 @@ void nya_os_directory_close(NYA_OsDirectory* directory) {
     *directory = (NYA_OsDirectory){ 0 };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WELL KNOWN LOCATIONS
- * ─────────────────────────────────────────────────────────
- */
+// WELL KNOWN LOCATIONS
 
 NYA_OsFileStatus nya_os_working_directory_get(OUT char* out_path, u64 size) {
     if (out_path == nullptr || size == 0) return NYA_OS_FILE_STATUS_INVALID;
