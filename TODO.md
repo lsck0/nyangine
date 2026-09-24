@@ -367,8 +367,10 @@ browser, from the same `component()` function.
       `emcc` 6.0.9 is installed (WebGL2/GLES3). The engine uses **no** compute pipeline or compute pass (the 53
       SDL_GPU calls are all graphics), which is exactly what WebGL2 can host; push-constant uniforms map to a UBO
       and the texture+sampler bindings map to combined `sampler2D`, both native SPIRV-Cross GLSL-ES behaviour.
-- `[ ]` **Remaining SSR:** text-field value write-back (needs text injection), custom style beyond colours
-  (track/ink/scrim), engine per-frame animation (needs WebSocket frame streaming).
+- `[x]` **Remaining SSR (landed `4b3528a`)** — text-field value write-back (the client posts `{id,event:text,value}`,
+    `ui_ssr` injects it into the field via focus + ctrl-A + `nya_input_text`, per-session in the sealed cookie,
+    XSS-escaped) and custom style beyond colours (panel border from `ink`, scrim, and `--nya-track`/`--nya-accent`/
+    `--nya-radius`/`--nya-pad` custom properties reach the DOM). Font sizing stays the monospace-cell approximation.
 
 ## Phase 0 — ground truth
 
