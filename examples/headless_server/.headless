@@ -1,0 +1,7 @@
+This marker opts the example into the headless-server build.
+
+When `./build --server` builds this example, the presence of this file switches it from the
+full-graph server build (NYA_PROJECT_VENDORS, the whole engine linked and dead-stripped) to the
+headless one: compiled with -DNYA_NO_SDL -DNYA_SERVER so no core and no renderer are in the graph,
+and linked against NYA_SERVER_VENDORS_LINUX_X86_64 — no libSDL3 on the line at all. See
+src/build/example.c (build_headless_server_example) and docs/layering-core-split.md.
