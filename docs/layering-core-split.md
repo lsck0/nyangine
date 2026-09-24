@@ -135,8 +135,11 @@ lines change; nothing a program does changes.
    `acme`/`net`/`http`/`db`/`accounts`/`serde`/`template` with **no** `core` and **no** renderer, and it
    compiles clean — the very thing the ground-truth note called impossible while http sat inside the SDL
    block. This retires "a CLI/server links the whole engine" for the http/net half at the compile seam.
-   Still open on this axis: a headless *link* (step 6–7) — a server binary needs an app loop that ticks
-   `nya_http_server_tick` itself rather than `core_app.c` doing it, and the `NYA_SERVER_VENDORS` link set.
+   The headless *link* this note left open landed in step 7: a server binary now ticks
+   `nya_http_server_tick` from its own loop and links the `NYA_SERVER_VENDORS` subset. What made it a
+   link rather than only a compile was two more translation-unit seams to match this header one —
+   nyangine.c compiling crypto/tls/net/acme/http (and their reflection) behind the same guard, not just
+   nyangine.h declaring them.
 
 5. **Give the runtime core a home off `NYA_App`.** Introduce the smaller aggregate the free systems live
    on (registry, callbacks, jobs, save, config, events), owned by a headless program directly, with
@@ -150,11 +153,32 @@ lines change; nothing a program does changes.
    tilemap, nav) and `core.h` becomes `core_runtime.h` + `core_engine.h`. `NYA_NO_SDL` guards
    `core_engine.h` only.
 
-7. **A headless server example builds under `-DNYA_NO_SDL`.** The proof the whole thing was for:
-   `examples/web_server` (or a new one) compiles and links with no SDL vendor on the line, and the
-   `NYA_SERVER_VENDORS_LINUX_X86_64` subset in `src/build/vendor/vendor.h` becomes the real link set
-   rather than a link-time `--gc-sections` trick. This retires `NYA_NO_SDL` as "no core" and turns it
-   into "these components are absent", which is the components refactor.
+7. **[done] A headless server example builds *and links* under `-DNYA_NO_SDL -DNYA_SERVER`.** The proof
+   the whole thing was for: `examples/headless_server` compiles and links with no SDL vendor on the line
+   — `ldd` on the release binary names no `libSDL3` — against the `NYA_SERVER_VENDORS_LINUX_X86_64` subset
+   in `src/build/vendor/vendor.h`, the real link set rather than a link-time `--gc-sections` trick. An
+   example opts in with a `.headless` marker beside its `main.c`; `./build run example <name> --server`
+   then compiles it with the server module set and links the subset (see `build_headless_server_example`
+   in `src/build/example.c`). Two seams beyond the header of step 4 were needed to make the *link* work:
+
+   - **nyangine.c compiles the server half behind the same guard.** crypto, tls, net, smtp, acme and http
+     move from the `#ifndef NYA_NO_SDL` block into `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)`, so
+     their translation units are actually compiled for a server, not merely declared. Two SDL-free
+     dependencies come with them: `debug_trace.h` (its scopes are no-ops outside a development build) and
+     the reflection *declarations*, both included in the server seam of nyangine.h when `NYA_NO_SDL` is set.
+   - **The reflection table splits along the wall.** `src/build/pp/reflection.c` now emits the engine
+     reflections into two files instead of one: `reflection_engine_server.c` holds the builtins and every
+     annotated type in a server-safe module (base, math, serde, net, http, and — behind `NYA_MODULE_DB` —
+     db and accounts), and `reflection_engine.c` keeps the SDL-bound ones (core, renderer, ui, physics,
+     debug, replicate) plus the `NYA_REFLECT_ENGINE_TYPES` table over all of them. A headless build
+     compiles only the server file; a full build compiles both. This is the reflection table coming off
+     the wall for the server types — the per-component split the note below anticipated, done ahead of the
+     rest of the components refactor because http_openapi and the accounts DTOs reference reflection
+     unconditionally, so the link cannot happen without it.
+
+   Still `--gc-sections` in the build: nothing, for a headless link. What is not yet done is step 6 —
+   `core.h` is still one umbrella, not `core_runtime.h` + `core_engine.h` — but a server never includes
+   it, so the link does not wait on that tidy-up.
 
 ## Honest blockers and scope
 
@@ -165,5 +189,8 @@ lines change; nothing a program does changes.
   value is the wall's keystone: until the free systems live somewhere a program can own without the
   renderer's type being complete, any header that reaches `nya_app_get()` drags SDL in, and that is most
   of the engine's surface. This is deliberately left to the components design rather than forced here.
-- `reflection_engine` stays inside the wall throughout: it describes types that only exist in an SDL
-  build, so it moves only when the components refactor gives each component its own reflection table.
+- `reflection_engine` is now split along the wall (step 7): the server-safe types are in
+  `reflection_engine_server.c`, which a headless build compiles, and only the SDL-bound descriptions
+  stay in `reflection_engine.c`. The split is by source directory, not yet per component — the full
+  per-component reflection table the components refactor wants is still ahead, but the server half no
+  longer needs the SDL half to link.
