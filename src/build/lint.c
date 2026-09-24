@@ -106,6 +106,10 @@ NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     // smtp is a mail client above tls, whose client session it borrows, and below http, the one thing
     // here with a reason to send a verification mail. It shares accounts' rank: neither includes the other.
     { "smtp",     5 },
+    // acme is beside smtp: a certificate client that signs with crypto and reaches the CA over a
+    // transport the program wires, so it needs neither the socket nor http. It holds the HTTP-01
+    // challenge as data an http route reads, which is why http depends on nothing of it and it stays here.
+    { "acme",     5 },
     { "http",     6 }, { "core",     7 },
     // replicate is net's other half: a world on the wire rather than bytes on it, so it is written in
     // entities and sits above the app loop where net sits below it. See replicate.h.

@@ -29,6 +29,11 @@
 // on it. Its own header answers when the build has no TLS library at all.
 #include "nyangine/tls/tls.h"
 
+// Beside tls: an ACME client that gets and renews the certificate tls is handed. It signs with crypto and
+// reaches the CA over a transport the program wires, so it needs no socket of its own; its OpenSSL half
+// (the CSR) answers NYA_ERROR_NOT_SUPPORTED where there is no OpenSSL, the same as tls.
+#include "nyangine/acme/acme.h"
+
 #ifndef NYA_NO_SDL
 // Before core, which names a body and a physics system in core_app.h, core_entity.h and
 // core_world.h. Guarded with core rather than beside math because box2d and box3d are on the
