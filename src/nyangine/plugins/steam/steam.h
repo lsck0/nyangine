@@ -70,11 +70,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /** How long a lobby data key may be, buffer included. Steam's own limit is 255. */
 #define NYA_STEAM_MAX_KEY 256
@@ -116,11 +112,7 @@
 /** The longest peer-to-peer message this module will carry, which is one network datagram. */
 #define NYA_STEAM_MAX_MESSAGE 1200
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_SteamInitResult NYA_SteamInitResult;
 typedef enum NYA_SteamLobbyKind  NYA_SteamLobbyKind;
@@ -236,17 +228,9 @@ struct NYA_SteamMessage {
     b8          reliable;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * SYSTEM FUNCTIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── SYSTEM FUNCTIONS ─────────────────────────────────────
 
 /**
  * True when Steam is relaunching the game through the client and this process should exit now. Call before anything
@@ -262,11 +246,7 @@ NYA_API void nya_system_steam_update(void);
 
 NYA_API void nya_system_steam_deinit(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CONNECTION
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE CONNECTION ─────────────────────────────────────
 
 /** Whether the client connection is up. Everything below answers emptily while this is false. */
 NYA_API b8 nya_steam_is_connected(void) __attr_no_discard;
@@ -291,11 +271,7 @@ NYA_API NYA_ConstCString nya_steam_friend_name(NYA_SteamId user) __attr_no_disca
  * */
 NYA_API b8 nya_steam_poll(OUT NYA_SteamEvent* out_event);
 
-/*
- * ─────────────────────────────────────────────────────────
- * LOBBIES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LOBBIES ─────────────────────────────────────
 
 /**
  * Asks Steam for a new lobby. The answer arrives as LOBBY_ENTERED or LOBBY_FAILED, never here.
@@ -367,16 +343,9 @@ NYA_API NYA_Error nya_steam_lobby_invite(NYA_SteamId user) __attr_no_discard;
  * */
 NYA_API NYA_Error nya_steam_lobby_invite_open(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ACHIEVEMENTS AND STATS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── ACHIEVEMENTS AND STATS ─────────────────────────────────────
 
-/*
- * Achievements and stats are written locally and pushed with nya_steam_stats_store. Steam shows the
- * unlock toast on the store, not on the set, so a game that never stores never congratulates anybody.
- */
+// Achievements and stats are written locally and pushed with nya_steam_stats_store; Steam shows the unlock toast on the store, not the set, so a game that never stores never congratulates anybody.
 
 /** Whether `name` is unlocked. False when nothing is connected or the name is not one of the game's. */
 NYA_API b8 nya_steam_achievement_get(NYA_ConstCString name) __attr_no_discard;
@@ -411,11 +380,7 @@ NYA_API NYA_Error nya_steam_stat_set_float(NYA_ConstCString name, f32 value) __a
  * */
 NYA_API NYA_Error nya_steam_stats_store(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * CLOUD
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CLOUD ─────────────────────────────────────
 
 /**
  * Whether the Cloud is on for this account and this game. Both switches must be on, and a player may
@@ -447,11 +412,7 @@ NYA_API NYA_Error nya_steam_cloud_read(NYA_ConstCString name, OUT u8* out_data, 
 /** Removes `name` from the Cloud. Not an error when it was not there. */
 NYA_API NYA_Error nya_steam_cloud_delete(NYA_ConstCString name) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * RICH PRESENCE
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── RICH PRESENCE ─────────────────────────────────────
 
 /**
  * Sets one rich presence key. `steam_display` selects a localization token from the partner site, and
@@ -462,18 +423,9 @@ NYA_API NYA_Error nya_steam_rich_presence_set(NYA_ConstCString key, NYA_ConstCSt
 /** Clears every rich presence key. What leaving a session, or quitting, wants. */
 NYA_API void nya_steam_rich_presence_clear(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * PEER TO PEER
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PEER TO PEER ─────────────────────────────────────
 
-/*
- * The Steam transport (net_steam.c) is the only caller. It is exposed rather than kept private because
- * the transport lives in net/ and the client connection lives here, and because a game doing something
- * this transport does not cover should be able to send a byte to a lobby member without reimplementing
- * the connection.
- */
+// Exposed rather than private because net_steam.c (its only caller) lives in net/ while the connection lives here, and a game reaching past the transport should not reimplement the connection.
 
 /** Sends one message to `user`, reliably or not, on `channel`. */
 NYA_API NYA_Error nya_steam_p2p_send(NYA_SteamId user, const u8* data, u64 size, b8 reliable, u32 channel) __attr_no_discard;
@@ -500,11 +452,7 @@ NYA_API NYA_Error nya_steam_p2p_accept(NYA_SteamId user) __attr_no_discard;
 /** Closes the session with `user`. Idempotent. */
 NYA_API void nya_steam_p2p_close(NYA_SteamId user);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE BACKEND
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE BACKEND ─────────────────────────────────────
 
 /**
  * What the module needs from a Steam client, as a table it can be handed.

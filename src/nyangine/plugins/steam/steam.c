@@ -1,20 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STEAM'S CALLBACK IDS AND STRUCTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── STEAM'S CALLBACK IDS AND STRUCTS ─────────────────────────────────────
 
-/*
- * Mirrored from the Steamworks SDK headers rather than included from them: those are C++ and this
- * engine is not. The ids are `k_iSteamXxxCallbacks + n` written out, and each struct is laid out
- * exactly as `#pragma pack(8)` leaves the original on x86-64. A static assert on every size is what
- * catches an SDK update moving a field; see the sizes below, which are the numbers the SDK produces.
- *
- * These are always compiled, with or without the Steamworks library, because the decoder that reads
- * them is what a test drives with a fake client.
- */
+// Mirrored from the C++ Steamworks SDK headers, laid out as `#pragma pack(8)` leaves them on x86-64; a static assert per size catches an SDK field move. Always compiled, so the decoder is testable with a fake client.
 
 #define _NYA_STEAM_CALLBACK_LOBBY_INVITE         503
 #define _NYA_STEAM_CALLBACK_LOBBY_ENTER          504
@@ -101,10 +89,7 @@ typedef struct {
     _NYA_SteamNetworkingIdentity remote;
 } _NYA_SteamSessionRequest;
 
-/*
- * The SDK's own sizes on x86-64. A mismatch after an SDK bump is a silently misread callback, which
- * is the worst kind of bug to find later: it reads as a lobby id that never resolves.
- */
+// The SDK's own sizes on x86-64: a mismatch after an SDK bump is a silently misread callback that reads as a lobby id that never resolves.
 static_assert(sizeof(_NYA_SteamLobbyInvite) == 24, "LobbyInvite_t is three u64");
 static_assert(sizeof(_NYA_SteamLobbyEnter) == 24, "LobbyEnter_t pads the bool out to the next u32");
 static_assert(sizeof(_NYA_SteamLobbyChatUpdate) == 32, "LobbyChatUpdate_t is three u64 and a u32");
@@ -112,11 +97,7 @@ static_assert(sizeof(_NYA_SteamLobbyCreated) == 16, "LobbyCreated_t pads EResult
 static_assert(sizeof(_NYA_SteamGameLobbyJoinRequested) == 16, "GameLobbyJoinRequested_t is two CSteamID");
 static_assert(sizeof(_NYA_SteamNetworkingIdentity) == 136, "SteamNetworkingIdentity reserves 32 u32 after the type tag");
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 typedef struct {
     const NYA_SteamBackend* backend;
@@ -188,11 +169,7 @@ NYA_INTERNAL NYA_Error _nya_steam_unavailable(NYA_ConstCString what) __attr_no_d
 /** The backend the build provides, or null when there is none. Defined at the bottom of this file. */
 NYA_INTERNAL const NYA_SteamBackend* _nya_steam_backend_default(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 b8 nya_steam_id_is_set(NYA_SteamId id) {
     return id.value != 0;
@@ -202,11 +179,7 @@ b8 nya_steam_id_equals(NYA_SteamId a, NYA_SteamId b) {
     return a.value == b.value;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SYSTEM FUNCTIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── SYSTEM FUNCTIONS ─────────────────────────────────────
 
 void nya_steam_backend_set(const NYA_SteamBackend* backend) {
     nya_assert(!_NYA_STEAM.connected, "the Steam backend cannot be swapped while a client is connected");
@@ -220,8 +193,7 @@ b8 nya_system_steam_restart_if_necessary(u32 app_id) {
 
     const NYA_SteamBackend* backend = _NYA_STEAM.backend_is_overridden ? _NYA_STEAM.backend : _nya_steam_backend_default();
 
-    // no library to ask, so nothing is relaunching and the game carries on. This is the branch a
-    // debug build takes, and it is why gnyame passes its app id unconditionally.
+    // No library to ask, so nothing relaunches and the game carries on — the branch a debug build takes, and why gnyame passes its app id unconditionally.
     if (backend == nullptr || backend->restart_if_necessary == nullptr) return false;
 
     return backend->restart_if_necessary(app_id);
@@ -233,8 +205,7 @@ NYA_SteamInitResult nya_system_steam_init(void) {
     if (!_NYA_STEAM.backend_is_overridden) _NYA_STEAM.backend = _nya_steam_backend_default();
 
     if (_NYA_STEAM.backend == nullptr || _NYA_STEAM.backend->connect == nullptr) {
-        // once, and at info: a build without the Steamworks library is the ordinary case for every
-        // target but the two Steam ones, and this is not something a player can fix.
+        // Once, at info: a build without the Steamworks library is ordinary for every target but the two Steam ones, and no player can fix it.
         nya_log_info("This build has no Steamworks library; Steam lobbies, invites, achievements and Cloud are off.");
         return NYA_SYSTEM_STEAM_INIT_NO_STEAM_CLIENT;
     }
@@ -243,7 +214,7 @@ NYA_SteamInitResult nya_system_steam_init(void) {
 
     NYA_SteamInitResult result = _NYA_STEAM.backend->connect(message, sizeof(message));
 
-    // a result this SDK does not name reads as a generic failure rather than indexing past the table.
+    // A result this SDK does not name reads as a generic failure rather than indexing past the table.
     if ((u32)result >= NYA_SYSTEM_STEAM_INIT_COUNT) result = NYA_SYSTEM_STEAM_INIT_FAILED_GENERIC;
 
     if (result != NYA_SYSTEM_STEAM_INIT_OK) {
@@ -276,8 +247,7 @@ void nya_system_steam_deinit(void) {
 
     nya_assert(_NYA_STEAM.backend != nullptr);
 
-    // before the connection goes: leaving tells the other members, where closing the pipe would leave
-    // this player in the lobby until Steam times them out.
+    // Before the connection goes: leaving tells the other members, where closing the pipe would leave this player in the lobby until Steam times them out.
     nya_steam_lobby_leave();
 
     if (_NYA_STEAM.backend->disconnect != nullptr) _NYA_STEAM.backend->disconnect();
@@ -287,18 +257,14 @@ void nya_system_steam_deinit(void) {
 
     _NYA_STEAM = (_NYA_SteamSystem){ 0 };
 
-    // a test's fake survives a deinit, so a test can bring the module up twice against it.
+    // A test's fake survives a deinit, so a test can bring the module up twice against it.
     if (overridden) {
         _NYA_STEAM.backend               = backend;
         _NYA_STEAM.backend_is_overridden = true;
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE CONNECTION
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE CONNECTION ─────────────────────────────────────
 
 b8 nya_steam_is_connected(void) {
     return _NYA_STEAM.connected;
@@ -325,19 +291,14 @@ b8 nya_steam_poll(OUT NYA_SteamEvent* out_event) {
     return _nya_steam_queue_poll(_NYA_STEAM.events, &_NYA_STEAM.event_count, out_event);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * LOBBIES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LOBBIES ─────────────────────────────────────
 
 NYA_Error nya_steam_lobby_create(NYA_SteamLobbyKind kind, u32 max_members) {
     nya_assert(kind < NYA_STEAM_LOBBY_KIND_COUNT);
 
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->lobby_create == nullptr) return _nya_steam_unavailable("create a lobby");
 
-    // clamped rather than refused: 250 is Steam's ceiling and a game asking for more has a bug that
-    // should not cost the player their session.
+    // Clamped rather than refused: 250 is Steam's ceiling, and a game asking for more has a bug that should not cost the player their session.
     u32 members = nya_clamp(max_members, 1U, 250U);
 
     if (members != max_members) nya_log_warn("A Steam lobby holds 1 to 250 members; %u became %u.", max_members, members);
@@ -351,8 +312,7 @@ NYA_Error nya_steam_lobby_join(NYA_SteamId lobby) {
     if (!nya_steam_id_is_set(lobby)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Steam lobby id of zero");
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->lobby_join == nullptr) return _nya_steam_unavailable("join a lobby");
 
-    // the old one first: Steam allows being in several, but this module tracks one, and a game that
-    // joined a second would have a `current` that disagreed with what the player is in.
+    // The old one first: Steam allows being in several, but this module tracks one, so a second join would make `current` disagree with the player.
     if (nya_steam_id_is_set(_NYA_STEAM.lobby) && !nya_steam_id_equals(_NYA_STEAM.lobby, lobby)) nya_steam_lobby_leave();
 
     if (!_NYA_STEAM.backend->lobby_join(lobby.value)) return nya_error(NYA_ERROR_NOT_OK, "Steam refused to start joining the lobby");
@@ -376,8 +336,7 @@ NYA_SteamId nya_steam_lobby_current(void) {
 NYA_Error nya_steam_lobby_list_request(NYA_ConstCString key, NYA_ConstCString value, u32 max_results) {
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->lobby_list_request == nullptr) return _nya_steam_unavailable("search for lobbies");
 
-    // both or neither: a key with no value filters on the empty string, which matches nothing and
-    // reads as "the search is broken".
+    // Both or neither: a key with no value filters on the empty string, which matches nothing and reads as a broken search.
     b8 filtered = key != nullptr && key[0] != '\0';
 
     if (filtered && (value == nullptr || value[0] == '\0')) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a lobby search key with no value");
@@ -401,8 +360,7 @@ u32 nya_steam_lobby_list_count(void) {
 NYA_SteamId nya_steam_lobby_list_at(u32 index) {
     if (!_NYA_STEAM.connected) return NYA_STEAM_ID_NONE;
 
-    // an index past the end is a caller reading a list that shrank under it between two frames, which
-    // is an ordinary race rather than a bug, so it answers "nothing" instead of asserting.
+    // An index past the end is a caller reading a list that shrank between frames — an ordinary race, not a bug — so it answers nothing instead of asserting.
     if (index >= _NYA_STEAM.lobby_count) return NYA_STEAM_ID_NONE;
 
     return _NYA_STEAM.lobbies[index];
@@ -480,7 +438,7 @@ NYA_Error nya_steam_lobby_member_data_set(NYA_ConstCString key, NYA_ConstCString
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->lobby_member_data_set == nullptr) return _nya_steam_unavailable("write lobby member data");
     if (!nya_steam_id_is_set(_NYA_STEAM.lobby)) return nya_error(NYA_ERROR_NOT_FOUND, "not in a Steam lobby");
 
-    // Steam's setter has no return: it queues the write and reports it as a LOBBY_DATA_CHANGED.
+    // Steam's setter has no return; it queues the write and reports it as a LOBBY_DATA_CHANGED.
     _NYA_STEAM.backend->lobby_member_data_set(_NYA_STEAM.lobby.value, key, value);
 
     return NYA_OK;
@@ -507,11 +465,7 @@ NYA_Error nya_steam_lobby_invite_open(void) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ACHIEVEMENTS AND STATS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── ACHIEVEMENTS AND STATS ─────────────────────────────────────
 
 b8 nya_steam_achievement_get(NYA_ConstCString name) {
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->achievement_get == nullptr) return false;
@@ -591,8 +545,7 @@ f32 nya_steam_stat_get_float(NYA_ConstCString name) {
 NYA_Error nya_steam_stat_set_float(NYA_ConstCString name, f32 value) {
     if (!_nya_steam_key_is_valid(name)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a stat name that is empty or too long");
 
-    // a stat Steam stores as NaN comes back as NaN forever and there is no way to clear it from the
-    // client, so it is refused here rather than written once and regretted.
+    // A NaN stat comes back as NaN forever with no way to clear it from the client, so it is refused rather than written once and regretted.
     if (isnan((f64)value) || isinf((f64)value)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a stat value that is not a finite number");
 
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->stat_set_float == nullptr) return _nya_steam_unavailable("set a stat");
@@ -610,11 +563,7 @@ NYA_Error nya_steam_stats_store(void) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * CLOUD
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CLOUD ─────────────────────────────────────
 
 b8 nya_steam_cloud_enabled(void) {
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->cloud_enabled == nullptr) return false;
@@ -652,7 +601,7 @@ NYA_Error nya_steam_cloud_write(NYA_ConstCString name, const u8* data, u64 size)
     if (!_nya_steam_key_is_valid(name)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Cloud file name that is empty or too long");
     if (data == nullptr && size != 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Cloud write with no data");
 
-    // Steam's own limit on one file. Refused rather than split, since a game that hit it wants to know.
+    // Steam's own limit on one file; refused rather than split, since a game that hit it wants to know.
     if (size > (u64)INT32_MAX) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Cloud file larger than Steam accepts");
 
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->cloud_write == nullptr) return _nya_steam_unavailable("write to the Steam Cloud");
@@ -675,8 +624,7 @@ NYA_Error nya_steam_cloud_read(NYA_ConstCString name, OUT u8* out_data, u64 capa
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->cloud_read == nullptr) return _nya_steam_unavailable("read from the Steam Cloud");
     if (!_NYA_STEAM.backend->cloud_exists(name)) return nya_error(NYA_ERROR_NOT_FOUND, "'%s' is not in the Steam Cloud", name);
 
-    // the size before the read: the file was written on another machine, possibly by a later version of
-    // the game, and a truncated save is worse than no save.
+    // The size before the read: the file was written on another machine, maybe a later version, and a truncated save is worse than no save.
     u64 size = _NYA_STEAM.backend->cloud_size(name);
 
     if (size > capacity) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "'%s' is %llu bytes and the buffer holds %llu", name, (unsigned long long)size,
@@ -686,7 +634,7 @@ NYA_Error nya_steam_cloud_read(NYA_ConstCString name, OUT u8* out_data, u64 capa
 
     if (read < 0) return nya_error(NYA_ERROR_IO, "the Steam Cloud read failed");
 
-    // a short read means the file changed between the size and the read, which Steam allows.
+    // A short read means the file changed between the size and the read, which Steam allows.
     *out_size = (u64)read;
 
     return NYA_OK;
@@ -696,7 +644,7 @@ NYA_Error nya_steam_cloud_delete(NYA_ConstCString name) {
     if (!_nya_steam_key_is_valid(name)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Cloud file name that is empty or too long");
     if (!_NYA_STEAM.connected || _NYA_STEAM.backend->cloud_delete == nullptr) return _nya_steam_unavailable("delete from the Steam Cloud");
 
-    // not an error: a teardown deleting a file that was never written should not have to check first.
+    // Not an error: a teardown deleting a file that was never written should not have to check first.
     if (!_NYA_STEAM.backend->cloud_exists(name)) return NYA_OK;
 
     if (!_NYA_STEAM.backend->cloud_delete(name)) return nya_error(NYA_ERROR_IO, "the Steam Cloud delete failed");
@@ -704,11 +652,7 @@ NYA_Error nya_steam_cloud_delete(NYA_ConstCString name) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * RICH PRESENCE
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── RICH PRESENCE ─────────────────────────────────────
 
 NYA_Error nya_steam_rich_presence_set(NYA_ConstCString key, NYA_ConstCString value) {
     if (!_nya_steam_key_is_valid(key)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a rich presence key that is empty or too long");
@@ -731,17 +675,13 @@ void nya_steam_rich_presence_clear(void) {
     _NYA_STEAM.backend->rich_presence_clear();
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * PEER TO PEER
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PEER TO PEER ─────────────────────────────────────
 
 NYA_Error nya_steam_p2p_send(NYA_SteamId user, const u8* data, u64 size, b8 reliable, u32 channel) {
     if (!nya_steam_id_is_set(user)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Steam user id of zero");
     if (data == nullptr || size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an empty peer to peer message");
 
-    // the transport fragments above this, so anything larger is a caller that did not.
+    // The transport fragments above this, so anything larger is a caller that did not.
     if (size > NYA_STEAM_MAX_MESSAGE) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a %llu byte message; the limit is %d", (unsigned long long)size,
                                                        NYA_STEAM_MAX_MESSAGE);
 
@@ -762,8 +702,7 @@ u32 nya_steam_p2p_receive(u32 channel, OUT NYA_SteamMessage* out_messages, u32 c
 
     u32 taken = _NYA_STEAM.backend->p2p_receive(channel, out_messages, nya_min(capacity, (u32)NYA_STEAM_MAX_RECEIVE));
 
-    // a backend claiming more than it was asked for would have written past the caller's array, so this
-    // is checked rather than trusted: the fake is a test's code and the real one is a shared library.
+    // A backend claiming more than it was asked for wrote past the caller's array, so this is checked, not trusted: the real one is a shared library.
     nya_assert(taken <= capacity, "the %s backend returned %u messages for a buffer of %u", _NYA_STEAM.backend->name, taken, capacity);
 
     return taken;
@@ -790,18 +729,10 @@ void nya_steam_p2p_close(NYA_SteamId user) {
     _NYA_STEAM.backend->p2p_close(user.value);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE CALLBACK DECODER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE CALLBACK DECODER ─────────────────────────────────────
 
 void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
-    /*
-     * Every callback is checked for its own size before a field is read.
-     */
-    // Steam is a shared library loaded at runtime and its structs are an ABI; a short buffer here is a
-    // version mismatch, not a bug in this file, so it is dropped with a line rather than asserted on.
+    // Every callback is size-checked before a field is read: Steam's structs are a runtime ABI, so a short buffer is a version mismatch, dropped rather than asserted on.
     if (data == nullptr) return;
 
     switch (callback_id) {
@@ -815,8 +746,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
                 break;
             }
 
-            // no LOBBY_ENTERED here: Steam sends a LobbyEnter_t for a created lobby too, and raising
-            // both would have a game push its lobby screen twice.
+            // No LOBBY_ENTERED here: Steam sends a LobbyEnter_t for a created lobby too, and raising both would push the lobby screen twice.
             _NYA_STEAM.lobby = (NYA_SteamId){ .value = created->lobby };
         } break;
 
@@ -827,8 +757,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
 
             if (entered->lobby == 0) break;
 
-            // k_EChatRoomEnterResponseSuccess is 1, and everything else (full, banned, does not exist,
-            // limited account) means this player is not in it.
+            // k_EChatRoomEnterResponseSuccess is 1; everything else (full, banned, gone, limited account) means this player is not in it.
             if (entered->response != 1) {
                 _NYA_STEAM.lobby = NYA_STEAM_ID_NONE;
                 _nya_steam_event_push((NYA_SteamEvent){ .kind = NYA_STEAM_EVENT_LOBBY_FAILED, .lobby = { .value = entered->lobby }, .reason = entered->response });
@@ -851,8 +780,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
                 .reason = update->member_state_change,
             });
 
-            // this player was the one who left, so the lobby they are in is now none. Steam sends this
-            // for a kick and a ban as well as a leave, and all three end the session the same way.
+            // This player was the one who left (kick, ban and leave all arrive here and end the session the same way), so their lobby is now none.
             b8 entered = (update->member_state_change & _NYA_STEAM_CHAT_MEMBER_ENTERED) != 0;
 
             if (!entered && update->user_changed == _NYA_STEAM.user.value && update->lobby == _NYA_STEAM.lobby.value) {
@@ -865,7 +793,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
 
             const _NYA_SteamLobbyDataUpdate* update = data;
 
-            // a failed update is Steam saying the lobby is gone, which the member list already reports.
+            // A failed update is Steam saying the lobby is gone, which the member list already reports.
             if (update->success == 0) break;
 
             _nya_steam_event_push((NYA_SteamEvent){
@@ -894,8 +822,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
 
                 u64 lobby = _NYA_STEAM.backend->lobby_list_at(i);
 
-                // a zero id in the middle of a list is a row Steam could not resolve; skipped, so the
-                // list a game shows has no unjoinable holes in it.
+                // A zero id mid-list is a row Steam could not resolve; skipped, so the list a game shows has no unjoinable holes.
                 if (lobby == 0) continue;
 
                 _NYA_STEAM.lobbies[_NYA_STEAM.lobby_count] = (NYA_SteamId){ .value = lobby };
@@ -910,8 +837,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
 
             const _NYA_SteamLobbyInvite* invite = data;
 
-            // an invite the player has not accepted yet. Raised as a join request so a game can show
-            // its own prompt; accepting it from the Steam overlay produces a GameLobbyJoinRequested.
+            // An invite not yet accepted, raised as a join request so a game can show its own prompt; accepting from the overlay produces a GameLobbyJoinRequested.
             _nya_steam_event_push((NYA_SteamEvent){
                 .kind  = NYA_STEAM_EVENT_JOIN_REQUESTED,
                 .lobby = { .value = invite->lobby },
@@ -956,8 +882,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
 
             const _NYA_SteamSessionRequest* request = data;
 
-            // only a Steam account can be addressed back, so an IP or generic identity is dropped: the
-            // transport answers by steam id and has nothing to answer one of those with.
+            // Only a Steam account can be addressed back, so an IP or generic identity is dropped: the transport answers by steam id and has nothing to answer one of those with.
             if (request->remote.type != _NYA_STEAM_IDENTITY_TYPE_STEAM_ID) break;
             if (request->remote.steam_id == 0) break;
 
@@ -965,11 +890,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
         } break;
 
         case _NYA_STEAM_CALLBACK_SESSION_FAILED: {
-            /*
-             * SteamNetConnectionInfo_t opens with the identity, so only that prefix is read.
-             */
-            // the rest of the struct is connection diagnostics this module does not use, and reading
-            // only the head is what keeps it from having to track their layout across SDK versions.
+            // SteamNetConnectionInfo_t opens with the identity, so only that prefix is read; the rest is diagnostics whose layout this module then need not track across SDK versions.
             if (size < sizeof(_NYA_SteamNetworkingIdentity)) break;
 
             const _NYA_SteamNetworkingIdentity* remote = data;
@@ -984,11 +905,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 void _nya_steam_queue_push(NYA_SteamEvent* queue, OUT u32* count, OUT u64* dropped, NYA_ConstCString what, NYA_SteamEvent event) {
     nya_assert(queue != nullptr);
@@ -1047,8 +964,7 @@ NYA_ConstCString _nya_steam_scratch_set(NYA_ConstCString text) {
         return _NYA_STEAM.scratch;
     }
 
-    // bounded, because the bytes are another player's lobby value and Steam's own limit is what the
-    // buffer is sized to rather than something this module gets to assume.
+    // Bounded, since the bytes are another player's lobby value and the buffer is sized to Steam's own limit, not to something this module assumes.
     u64 length = strnlen(text, sizeof(_NYA_STEAM.scratch) - 1);
 
     nya_memcpy(_NYA_STEAM.scratch, text, length);
@@ -1069,20 +985,12 @@ NYA_Error _nya_steam_unavailable(NYA_ConstCString what) {
     return nya_error(NYA_ERROR_NOT_SUPPORTED, "no Steam client to %s", what);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE STEAMWORKS BACKEND
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE STEAMWORKS BACKEND ─────────────────────────────────────
 
 #ifndef NYA_PLUGIN_STEAM
 
 const NYA_SteamBackend* _nya_steam_backend_default(void) {
-    /*
-     * No Steamworks library in this build.
-     */
-    // returning null rather than a table of stubs: every call above already checks, and a stub table
-    // would make nya_steam_is_connected true for a client that is not there.
+    // No Steamworks library in this build: null, not a stub table, since every call above already checks and stubs would make nya_steam_is_connected lie.
     return nullptr;
 }
 

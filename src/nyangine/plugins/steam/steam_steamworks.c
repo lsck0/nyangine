@@ -13,11 +13,7 @@
  * wrappers around them.
  * */
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE FLAT API
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── THE FLAT API ─────────────────────────────────────
 
 typedef void ISteamUser;
 typedef void ISteamFriends;
@@ -156,11 +152,7 @@ extern s32  SteamAPI_ISteamNetworkingMessages_ReceiveMessagesOnChannel(ISteamNet
 extern bool SteamAPI_ISteamNetworkingMessages_AcceptSessionWithUser(ISteamNetworkingMessages* self, const _NYA_SteamNetworkingIdentity* remote);
 extern bool SteamAPI_ISteamNetworkingMessages_CloseSessionWithUser(ISteamNetworkingMessages* self, const _NYA_SteamNetworkingIdentity* remote);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /**
  * Where a received message's bytes are copied to, so the SDK's own allocation is released inside the
@@ -178,11 +170,7 @@ NYA_INTERNAL _NYA_SteamworksState _NYA_STEAMWORKS = { 0 };
 /** A SteamNetworkingIdentity naming one Steam account, which is the only kind this module addresses. */
 NYA_INTERNAL _NYA_SteamNetworkingIdentity _nya_steamworks_identity(u64 user) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 _NYA_SteamNetworkingIdentity _nya_steamworks_identity(u64 user) {
     return (_NYA_SteamNetworkingIdentity){
@@ -206,9 +194,7 @@ NYA_INTERNAL NYA_SteamInitResult _nya_steamworks_connect(OUT char* out_message, 
     if (result < 0 || result >= NYA_SYSTEM_STEAM_INIT_COUNT) return NYA_SYSTEM_STEAM_INIT_FAILED_GENERIC;
     if (result != NYA_SYSTEM_STEAM_INIT_OK) return (NYA_SteamInitResult)result;
 
-    // manual dispatch, not SteamAPI_RunCallbacks: the automatic one delivers through C++ callback
-    // objects registered by CCallback templates, which this engine has no way to declare. The two are
-    // mutually exclusive, so nothing may call SteamAPI_RunCallbacks after this.
+    // Manual dispatch, not SteamAPI_RunCallbacks: the automatic one delivers through C++ CCallback objects this engine cannot declare, and the two are mutually exclusive.
     SteamAPI_ManualDispatch_Init();
     _NYA_STEAMWORKS.pipe = SteamAPI_GetHSteamPipe();
 
@@ -228,21 +214,14 @@ NYA_INTERNAL void _nya_steamworks_run_callbacks(void) {
 
     _NYA_SteamCallbackMsg message = { 0 };
 
-    /*
-     * Bounded: a client flooding callbacks must not hold the frame.
-     */
-    // sixty-four is well past what a full lobby produces in one frame, and whatever is left waits for
-    // the next one rather than being dropped.
+    // Bounded so a flood of callbacks cannot hold the frame: 64 is well past a full lobby's output, and the rest waits for the next frame rather than being dropped.
     for (u32 drained = 0; drained < 64 && SteamAPI_ManualDispatch_GetNextCallback(_NYA_STEAMWORKS.pipe, &message); drained++) {
         if (message.callback == _NYA_STEAM_CALLBACK_CALL_COMPLETED && message.param != nullptr
             && message.param_size >= (s32)sizeof(_NYA_SteamCallCompleted)) {
-            /*
-             * The result of an asynchronous call: create a lobby, join one, search for them.
-             */
+            // The result of an asynchronous call: create a lobby, join one, search for them.
             const _NYA_SteamCallCompleted* completed = (const _NYA_SteamCallCompleted*)message.param;
 
-            // bounded by the largest result this module decodes, so a call whose result is bigger than
-            // anything here is skipped rather than heap-allocated on a number Steam chose.
+            // Sized to the largest result this module decodes, so a bigger one is skipped rather than heap-allocated on a number Steam chose.
             u8 result[256] = { 0 };
 
             if (completed->param_size <= sizeof(result)) {
@@ -277,7 +256,7 @@ NYA_INTERNAL NYA_ConstCString _nya_steamworks_user_name(void) { return SteamAPI_
 NYA_INTERNAL NYA_ConstCString _nya_steamworks_friend_name(u64 user) { return SteamAPI_ISteamFriends_GetFriendPersonaName(SteamAPI_SteamFriends_v018(), user); }
 
 NYA_INTERNAL b8 _nya_steamworks_lobby_create(u32 kind, u32 max_members) {
-    // a zero handle is Steam refusing to even start the call, which is what a disconnected client does.
+    // A zero handle is Steam refusing to even start the call, which is what a disconnected client does.
     return SteamAPI_ISteamMatchmaking_CreateLobby(SteamAPI_SteamMatchmaking_v009(), (s32)kind, (s32)max_members) != 0;
 }
 
@@ -292,7 +271,7 @@ NYA_INTERNAL void _nya_steamworks_lobby_leave(u64 lobby) {
 NYA_INTERNAL b8 _nya_steamworks_lobby_list_request(NYA_ConstCString key, NYA_ConstCString value, u32 max_results) {
     ISteamMatchmaking* matchmaking = SteamAPI_SteamMatchmaking_v009();
 
-    // the filters apply to the next RequestLobbyList and are cleared by it, so they go first.
+    // The filters apply to the next RequestLobbyList and are cleared by it, so they go first.
     if (key != nullptr && value != nullptr) {
         // 0 is k_ELobbyComparisonEqual.
         SteamAPI_ISteamMatchmaking_AddRequestLobbyListStringFilter(matchmaking, key, value, 0);
@@ -326,8 +305,7 @@ NYA_INTERNAL void _nya_steamworks_lobby_member_data_set(u64 lobby, NYA_ConstCStr
 NYA_INTERNAL u32 _nya_steamworks_lobby_member_count(u64 lobby) {
     s32 count = SteamAPI_ISteamMatchmaking_GetNumLobbyMembers(SteamAPI_SteamMatchmaking_v009(), lobby);
 
-    // Steam returns a signed count and zero for a lobby this client is not in; a negative one would be
-    // a huge unsigned count to every caller above.
+    // Steam returns a signed count (zero for a lobby this client is not in); a negative one would be a huge unsigned count to every caller above.
     return count > 0 ? (u32)count : 0;
 }
 
@@ -350,9 +328,7 @@ NYA_INTERNAL b8 _nya_steamworks_lobby_invite(u64 lobby, u64 user) {
 }
 
 NYA_INTERNAL b8 _nya_steamworks_overlay_invite_open(u64 lobby) {
-    // Steam's call returns nothing and quietly does nothing when the overlay is off, so there is no way
-    // to tell the two apart from here. True, and a game wanting certainty should offer a join secret
-    // beside the button; see nya_steam_lobby_invite_open.
+    // Steam's call returns nothing and does nothing when the overlay is off, indistinguishable from here; returns true, so a game wanting certainty offers a join secret too. See nya_steam_lobby_invite_open.
     SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog(SteamAPI_SteamFriends_v018(), lobby);
 
     return true;
@@ -401,8 +377,7 @@ NYA_INTERNAL b8 _nya_steamworks_stats_store(void) {
 NYA_INTERNAL b8 _nya_steamworks_cloud_enabled(void) {
     ISteamRemoteStorage* storage = SteamAPI_SteamRemoteStorage_v016();
 
-    // both switches: the player may turn the Cloud off for the account or for this game alone, and
-    // writing while either is off puts the file somewhere Steam will never sync.
+    // Both switches: the player may turn the Cloud off for the account or the game alone, and writing while either is off puts the file where Steam never syncs.
     return SteamAPI_ISteamRemoteStorage_IsCloudEnabledForAccount(storage) && SteamAPI_ISteamRemoteStorage_IsCloudEnabledForApp(storage);
 }
 
@@ -445,8 +420,7 @@ NYA_INTERNAL b8 _nya_steamworks_p2p_send(u64 user, const u8* data, u32 size, b8 
 
     s32 flags = (reliable ? _NYA_STEAM_SEND_RELIABLE : _NYA_STEAM_SEND_UNRELIABLE) | _NYA_STEAM_SEND_AUTO_RESTART;
 
-    // k_EResultOK. Everything else is a session that is not there, a message too large, or a peer that
-    // has blocked this account; all of them are the caller's peer being unusable rather than a crash.
+    // k_EResultOK; everything else (no session, too large, a peer that blocked this account) is the caller's peer being unusable rather than a crash.
     return SteamAPI_ISteamNetworkingMessages_SendMessageToUser(SteamAPI_SteamNetworkingMessages_SteamAPI_v002(), &remote, data, size, flags, (s32)channel)
         == _NYA_STEAM_RESULT_OK;
 }
@@ -461,8 +435,7 @@ NYA_INTERNAL u32 _nya_steamworks_p2p_receive(u32 channel, OUT NYA_SteamMessage* 
 
     if (taken <= 0) return 0;
 
-    // Steam promised at most `capacity`; a larger answer would already have written past the array
-    // above, so this is a check on the library rather than on the caller.
+    // Steam promised at most `capacity`; a larger answer already wrote past the array above, so this checks the library, not the caller.
     nya_assert((u32)taken <= capacity, "Steam returned %d messages for a request of %u", taken, capacity);
 
     _NYA_STEAMWORKS.receive_used = 0;
@@ -473,9 +446,7 @@ NYA_INTERNAL u32 _nya_steamworks_p2p_receive(u32 channel, OUT NYA_SteamMessage* 
         _NYA_SteamNetworkingMessage* message = messages[i];
         if (message == nullptr) continue;
 
-        // the payload came off the network from another player's client. copied into this module's own
-        // buffer, so the SDK's allocation is released inside this call and nothing above holds a
-        // pointer into it.
+        // The payload came off the network from another player's client; copied into this module's own buffer so the SDK's allocation is released inside this call.
         b8 addressable = message->peer.type == _NYA_STEAM_IDENTITY_TYPE_STEAM_ID && message->peer.steam_id != 0;
         b8 fits        = message->size > 0 && message->size <= (s32)NYA_STEAM_MAX_MESSAGE
                   && _NYA_STEAMWORKS.receive_used + (u32)message->size <= sizeof(_NYA_STEAMWORKS.receive_buffer);
@@ -496,8 +467,7 @@ NYA_INTERNAL u32 _nya_steamworks_p2p_receive(u32 channel, OUT NYA_SteamMessage* 
             kept++;
         }
 
-        // released whether it was kept or dropped: the SDK counts a reference per message and leaks
-        // the buffer otherwise.
+        // Released whether kept or dropped: the SDK counts a reference per message and leaks the buffer otherwise.
         if (message->release != nullptr) message->release(message);
     }
 
