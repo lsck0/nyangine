@@ -227,6 +227,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_NetChatMessage,
+    &_NYA_REFLECT_NYA_SerdeSecretExample,
     &_NYA_REFLECT_NYA_UIOverflow,
     &_NYA_REFLECT_NYA_UIStateColors,
     &_NYA_REFLECT_NYA_UISkin,

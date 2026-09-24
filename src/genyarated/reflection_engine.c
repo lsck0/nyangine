@@ -1997,6 +1997,45 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage = {
     .field_count = 5,
 };
 
+/* NYA_SerdeSecretExample, src/nyangine/serde/serde_reflect.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample_label_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_SerdeSecretExample*)nullptr)->label),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (32),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample_password_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_SerdeSecretExample*)nullptr)->password),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (64),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample_api_token_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_SerdeSecretExample*)nullptr)->api_token),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (64),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_SerdeSecretExample_FIELDS[] = {
+    { .name = "label", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_label_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, label), .hint = NYA_HINT_NONE },
+    { .name = "password", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_password_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, password), .hint = NYA_HINT_NONE, .is_secret = true },
+    { .name = "pin", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SerdeSecretExample, pin), .hint = NYA_HINT_NONE, .is_secret = true },
+    { .name = "api_token", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_api_token_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, api_token), .hint = NYA_HINT_NONE, .is_redacted = true },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample = {
+    .name = "NYA_SerdeSecretExample",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_SerdeSecretExample),
+    .alignment = alignof(NYA_SerdeSecretExample),
+    .fields = _NYA_REFLECT_NYA_SerdeSecretExample_FIELDS,
+    .field_count = 4,
+};
+
 /* NYA_UIOverflow, src/nyangine/ui/ui.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_UIOverflow_VARIANTS[] = {
@@ -2235,6 +2274,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_NetChatMessage,
+    &_NYA_REFLECT_NYA_SerdeSecretExample,
     &_NYA_REFLECT_NYA_UIOverflow,
     &_NYA_REFLECT_NYA_UIStateColors,
     &_NYA_REFLECT_NYA_UISkin,
