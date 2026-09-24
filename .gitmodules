@@ -1,69 +1,108 @@
+# Vendored dependency pins.
+#
+# Provenance rule (TODO Phase 7 / Distribution): every submodule is either pinned to a release
+# tag or carries a `# pin:` note here saying why it is not on one and what it is waiting for.
+# `./build sbom` reads this file plus each submodule's HEAD, so this is the tree of record; the
+# notes below are comments the parser ignores. A pin is only moved onto a tag when the tag's
+# commit equals the current pin, since any other move changes the built code.
+
 [submodule "vendor/box2d"]
 	path = vendor/box2d
 	url = https://github.com/erincatto/box2d.git
 	ignore = dirty
+	# pin: 35 commits past v3.1.1 on main (the latest Box2D v3 release). Tracks main ahead of the
+	# tag; move to the next release tag once one is cut.
 [submodule "vendor/box3d"]
 	path = vendor/box3d
 	url = https://github.com/erincatto/box3d.git
 	ignore = dirty
+	# pin: pre-1.0, 18 commits past the only tag v0.1.0, on main. No stable release exists yet;
+	# revisit when Box3D cuts a 1.x release.
 [submodule "vendor/curl"]
 	path = vendor/curl
 	url = https://github.com/curl/curl.git
 	ignore = dirty
+	# pin: untagged main commit, 254 past curl-8_21_0; curl-8_22_0 was tagged later on this line.
+	# Candidate bump to curl-8_22_0 once verified against the vendor build.
 [submodule "vendor/libbacktrace"]
 	path = vendor/libbacktrace
 	url = https://github.com/ianlancetaylor/libbacktrace.git
 	ignore = dirty
+	# pin: master. Upstream ships no tags or releases (rolling master), so there is nothing to
+	# pin to.
 [submodule "vendor/lua"]
 	path = vendor/lua
 	url = https://github.com/LuaJIT/LuaJIT.git
 	ignore = dirty
+	# pin: v2.1 branch HEAD. LuaJIT publishes no release tags; upstream recommends tracking the
+	# branch, so there is nothing to pin to.
 [submodule "vendor/lz4"]
 	path = vendor/lz4
 	url = https://github.com/lz4/lz4.git
 	ignore = dirty
+	# pin: dev branch, far past v1.9.2; the v1.10.0 release sits on a diverged line. Tracks dev;
+	# revisit when a release lands on this line.
 [submodule "vendor/sdl"]
 	path = vendor/sdl
 	url = https://github.com/libsdl-org/SDL.git
 	ignore = dirty
+	# pin: untagged main commit release-3.4.0-1237, kept for a fix not yet in a tagged release.
+	# The release-3.4.x point releases are on a diverged release branch, so this pin will not equal
+	# a tag until the fix ships in one.
 [submodule "vendor/sdl-image"]
 	path = vendor/sdl-image
 	url = https://github.com/libsdl-org/SDL_image.git
 	ignore = dirty
+	# pin: main, past release-3.4.0; the point-release tags are on a diverged branch. Kept in step
+	# with the SDL main pin; bump together when SDL moves onto a release tag.
 [submodule "vendor/sdl-mixer"]
 	path = vendor/sdl-mixer
 	url = https://github.com/libsdl-org/SDL_mixer.git
 	ignore = dirty
-	ignore = dirty
+	# pin: main, past release-3.2.0; the point-release tags are on a diverged branch. Kept in step
+	# with the SDL main pin.
 [submodule "vendor/sdl-shadercross"]
 	path = vendor/sdl-shadercross
 	url = https://github.com/libsdl-org/SDL_shadercross.git
 	ignore = dirty
+	# pin: main. SDL_shadercross has never cut a release (no tags upstream), so there is nothing to
+	# pin to.
 [submodule "vendor/sdl-ttf"]
 	path = vendor/sdl-ttf
 	url = https://github.com/libsdl-org/SDL_ttf.git
 	ignore = dirty
+	# pin: main, past release-3.2.0; the point-release tags are on a diverged branch. Kept in step
+	# with the SDL main pin.
 [submodule "vendor/sqlean"]
 	path = vendor/sqlean
 	url = https://github.com/nalgeon/sqlean.git
 	ignore = dirty
+	# pin: release tag 0.28.3.
 [submodule "vendor/sqlite"]
 	path = vendor/sqlite
 	url = https://github.com/sqlite/sqlite.git
 	ignore = dirty
+	# pin: major-release branch, 617 commits along it; the version-3.53.x release tags are on a
+	# diverged line. Tracks this line; no matching release tag to pin to.
 [submodule "vendor/sqlvec"]
 	path = vendor/sqlvec
 	url = https://github.com/asg017/sqlite-vec.git
 	ignore = dirty
+	# pin: release tag v0.1.10-alpha.4, the newest upstream release (sqlite-vec is pre-1.0; its
+	# latest tagged releases are alphas).
 [submodule "vendor/steam"]
 	path = vendor/steam
 	url = https://github.com/rlabrecque/SteamworksSDK.git
 	ignore = dirty
+	# pin: mirror commit for Steamworks SDK v1.65 (the commit subject names the version). This
+	# mirror carries no git tags, so the version lives in the commit, not a tag.
 [submodule "vendor/ufbx"]
 	path = vendor/ufbx
 	url = https://github.com/ufbx/ufbx.git
 	ignore = dirty
+	# pin: release tag v0.23.0.
 [submodule "vendor/monocypher"]
 	path = vendor/monocypher
 	url = https://github.com/LoupVaillant/Monocypher.git
 	ignore = dirty
+	# pin: release tag 4.0.3.
