@@ -157,6 +157,20 @@ NYA_API NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u6
 NYA_API u32 nya_os_process_id(void) __attr_no_discard;
 
 /**
+ * Whether `name` names a program that could be run, and where it resolved to.
+ *
+ * The same lookup a spawn does without the fork: a name with a path separator in it is checked as it
+ * stands, and a bare name is searched for on PATH exactly as execvp would search — so a true here is a
+ * program nya_os_process_spawn will find, and a false is a missing dependency caught before the spawn
+ * that would have failed obscurely with exit code 127. `out_path` receives the resolved path and may
+ * be null when only the yes/no is wanted; `out_size` bounds it, NYA_OS_PATH_MAX being enough for any.
+ *
+ * False when it is on no PATH entry, when `name` is null or empty, or when the resolved path did not
+ * fit `out_path`. This layer is below the assertion machinery, so a bad argument is refused, not asserted.
+ * */
+NYA_API b8 nya_os_process_which(const char* name, OUT char* out_path, u64 out_size) __attr_no_discard;
+
+/**
  * Starts `spawn->program` and returns as soon as it is running, without waiting for it.
  *
  * FAILED when the operating system refused to start it, which on Linux includes a program that is not

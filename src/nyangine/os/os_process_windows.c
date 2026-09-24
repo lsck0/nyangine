@@ -114,6 +114,29 @@ u32 nya_os_process_id(void) {
     return (u32)GetCurrentProcessId();
 }
 
+b8 nya_os_process_which(const char* name, OUT char* out_path, u64 out_size) {
+    if (name == nullptr || name[0] == '\0') return false;
+
+    // SearchPathA walks the same order CreateProcess resolves a bare name in, and the ".exe" default
+    // extension lets a caller ask for "gpg" and find "gpg.exe" the way the shell does. It writes the
+    // resolved path into a buffer, so a caller that only wants the yes/no still needs one.
+    char   scratch[NYA_OS_PATH_MAX];
+    char*  buffer   = out_path != nullptr && out_size >= NYA_OS_PATH_MAX ? out_path : scratch;
+    DWORD  capacity = out_path != nullptr && out_size >= NYA_OS_PATH_MAX ? (DWORD)out_size : (DWORD)sizeof(scratch);
+
+    DWORD written = SearchPathA(nullptr, name, ".exe", capacity, buffer, nullptr);
+
+    // Zero is not found; a value past the buffer is a path too long to hold, which this reports as a
+    // miss rather than pretending to have resolved it.
+    if (written == 0 || written >= capacity) return false;
+
+    // When the caller passed a buffer too small to search into, the result landed in the scratch and
+    // has to be reported as not-fitting rather than copied blindly.
+    if (out_path != nullptr && buffer == scratch) return false;
+
+    return true;
+}
+
 NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NYA_OsProcess* out_process) {
     if (spawn == nullptr || out_process == nullptr) return NYA_OS_PROCESS_FAILED;
     if (spawn->program == nullptr || spawn->program[0] == '\0') return NYA_OS_PROCESS_FAILED;

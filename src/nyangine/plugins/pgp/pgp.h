@@ -109,6 +109,21 @@
  * */
 NYA_API b8 nya_pgp_available(void) __attr_no_discard;
 
+/**
+ * Crashes now, with a message naming gpg, unless gpg is on PATH.
+ *
+ * The hard-requirement counterpart to nya_pgp_available. A program whose login *requires* the PGP
+ * second factor calls this once at startup, so a machine without gpg fails at launch with a
+ * descriptive message rather than every affected user's login failing later with an internal error. A
+ * program that merely offers PGP when it happens to be present calls nya_pgp_available instead and
+ * never this: the dependency is the program's to declare, not the engine's to impose.
+ *
+ * Checks PATH, not that gpg runs; nya_pgp_available does the deeper `gpg --version` probe lazily at
+ * first use. A gpg on PATH that is somehow broken is a far rarer thing than one that is simply absent,
+ * which is the case this exists to turn into a launch-time crash.
+ * */
+NYA_API void nya_pgp_require(void);
+
 /** The version gpg reported, or an empty string when there is none. For a log line and an overlay. */
 NYA_API NYA_ConstCString nya_pgp_version(void) __attr_no_discard;
 

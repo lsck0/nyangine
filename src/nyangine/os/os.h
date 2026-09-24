@@ -4,6 +4,7 @@
  * ── the os module ──
  *
  * os_file.h     files, directories and the paths the host names by itself
+ * os_library.h  whether a shared library the machine provides can be loaded
  * os_page.h     virtual memory: reserve, commit, release, and what is resident
  * os_process.h  starting another program, its pipes, and waiting for it
  * os_random.h   the kernel's random source
@@ -33,6 +34,7 @@
 #pragma once
 
 #include "nyangine/os/os_file.h"
+#include "nyangine/os/os_library.h"
 #include "nyangine/os/os_page.h"
 #include "nyangine/os/os_process.h"
 #include "nyangine/os/os_random.h"

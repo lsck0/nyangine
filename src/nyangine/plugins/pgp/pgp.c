@@ -4,6 +4,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_command.h"
 #include "nyangine/base/base_filesystem.h"
+#include "nyangine/base/base_preflight.h"
 #include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/os/os_random.h"
 #include "nyangine/plugins/pgp/pgp.h"
@@ -97,6 +98,10 @@ NYA_ConstCString nya_pgp_version(void) {
     (void)nya_pgp_available();
 
     return _NYA_PGP.version;
+}
+
+void nya_pgp_require(void) {
+    nya_require_program("gpg", "the PGP second-factor login flow (encrypting a one-time code to a user's public key)");
 }
 
 NYA_Error nya_pgp_encrypt(NYA_Arena* arena, NYA_ConstCString recipient_key, const u8* message, u64 message_size, NYA_String** out_armored) {

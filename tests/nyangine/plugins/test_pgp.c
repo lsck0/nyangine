@@ -35,6 +35,11 @@ s32 main(void) {
 
   printf("  %s\n", nya_pgp_version());
 
+  // The hard-requirement gate a program with a mandatory PGP login calls at startup. gpg is on PATH in
+  // this arm, so it returns; on a machine without gpg it crashes with a descriptive message naming gpg
+  // and the feature (see base_preflight). The absence path is covered in test_preflight.
+  nya_pgp_require();
+
   /*
    * A key of this test's own, in a home of this test's own. Generated unattended, which is what
    * `%no-protection` is for: a passphrase would need a pinentry and a person.

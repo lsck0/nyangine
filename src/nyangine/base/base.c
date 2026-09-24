@@ -28,6 +28,8 @@
 #include "nyangine/base/base_integrity.c"
 #include "nyangine/base/base_lexer.c"
 #include "nyangine/base/base_logging.c"
+// after base_logging.c: a failed requirement crashes through nya_log_panic.
+#include "nyangine/base/base_preflight.c"
 #include "nyangine/base/base_object.c"
 #include "nyangine/base/base_reflection.c"
 #include "nyangine/base/base_path.c"

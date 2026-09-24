@@ -44,6 +44,7 @@
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/base/base_path.h"
 #include "nyangine/base/base_perf.h"
+#include "nyangine/base/base_preflight.h"
 #include "nyangine/base/base_ring.h"
 #include "nyangine/base/base_socket.h"
 #include "nyangine/base/base_string.h"

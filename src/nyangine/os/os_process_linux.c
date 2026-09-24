@@ -5,6 +5,8 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -73,6 +75,59 @@ NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u64 capaci
 
 u32 nya_os_process_id(void) {
     return (u32)getpid();
+}
+
+/** Copies `path` into `out`/`out_size` when there is room. True on a fit, false when it was too small. */
+NYA_INTERNAL b8 _nya_os_which_emit(const char* path, char* out, u64 out_size) {
+    if (out == nullptr || out_size == 0) return true;
+
+    u64 length = strlen(path);
+    if (length + 1 > out_size) return false;
+
+    memcpy(out, path, length + 1);
+
+    return true;
+}
+
+b8 nya_os_process_which(const char* name, OUT char* out_path, u64 out_size) {
+    if (name == nullptr || name[0] == '\0') return false;
+
+    // A name the caller already spelled with a directory in it is not a PATH lookup: execvp runs it as
+    // it stands, so this checks it as it stands too.
+    if (strchr(name, '/') != nullptr) {
+        if (access(name, X_OK) != 0) return false;
+
+        return _nya_os_which_emit(name, out_path, out_size);
+    }
+
+    // execvp searches PATH, and an empty or absent PATH means the confstr default rather than nothing —
+    // but a program with no PATH set at all is a broken environment, and "/usr/bin:/bin" is what any
+    // machine that could run gpg has. The bare name is never looked up in the working directory.
+    const char* path = getenv("PATH");
+    if (path == nullptr || path[0] == '\0') path = "/usr/local/bin:/usr/bin:/bin";
+
+    char candidate[NYA_OS_PATH_MAX];
+    u64  name_length = strlen(name);
+
+    for (const char* cursor = path; *cursor != '\0';) {
+        const char* separator = strchr(cursor, ':');
+        u64         dir_length = separator != nullptr ? (u64)(separator - cursor) : strlen(cursor);
+
+        // An empty entry ("::" or a leading colon) means the working directory in execvp's rules; the
+        // engine never wants a program found there, so it is skipped rather than searched as ".".
+        if (dir_length > 0 && dir_length + 1 + name_length + 1 <= sizeof(candidate)) {
+            memcpy(candidate, cursor, dir_length);
+            candidate[dir_length] = '/';
+            memcpy(candidate + dir_length + 1, name, name_length + 1);
+
+            if (access(candidate, X_OK) == 0) return _nya_os_which_emit(candidate, out_path, out_size);
+        }
+
+        if (separator == nullptr) break;
+        cursor = separator + 1;
+    }
+
+    return false;
 }
 
 NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NYA_OsProcess* out_process) {
