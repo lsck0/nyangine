@@ -122,14 +122,26 @@ float2 ripple_gradient(float2 p) {
   const float2 d2 = float2(0.707, -0.707);
   const float2 d3 = float2(-0.174, -0.985);
 
-  const float4 k = float4(1.0, 1.7, 2.3, 3.1);   // per-direction wavenumbers
-  const float4 a = float4(0.5, 0.3, 0.13, 0.07); // amplitudes, falling with wavenumber
+  // coarse octave: the broad swell-ripples.
+  const float4 k0 = float4(1.0, 1.7, 2.3, 3.1);   // per-direction wavenumbers
+  const float4 a0 = float4(0.5, 0.3, 0.13, 0.07); // amplitudes, falling with wavenumber
 
   float2 g = 0.0;
-  g += d0 * (cos(dot(p, d0) * k.x) * a.x * k.x);
-  g += d1 * (cos(dot(p, d1) * k.y) * a.y * k.y);
-  g += d2 * (cos(dot(p, d2) * k.z) * a.z * k.z);
-  g += d3 * (cos(dot(p, d3) * k.w) * a.w * k.w);
+  g += d0 * (cos(dot(p, d0) * k0.x) * a0.x * k0.x);
+  g += d1 * (cos(dot(p, d1) * k0.y) * a0.y * k0.y);
+  g += d2 * (cos(dot(p, d2) * k0.z) * a0.z * k0.z);
+  g += d3 * (cos(dot(p, d3) * k0.w) * a0.w * k0.w);
+
+  // fine octave, domain-warped by the coarse slope so the chop rides the broad ripples rather than tiling
+  // under them at a fixed offset. This higher-frequency content is what stops the surface reading as one
+  // uniform wave — without it the four low wavenumbers above are too smooth to break up a still sheet.
+  float2 q = p * 3.7 + (g * 0.6);
+  const float4 k1 = float4(4.3, 5.9, 7.7, 9.4);
+  const float4 a1 = float4(0.10, 0.07, 0.05, 0.03);
+  g += d1 * (cos(dot(q, d1) * k1.x) * a1.x * k1.x);
+  g += d3 * (cos(dot(q, d3) * k1.y) * a1.y * k1.y);
+  g += d0 * (cos(dot(q, d0) * k1.z) * a1.z * k1.z);
+  g += d2 * (cos(dot(q, d2) * k1.w) * a1.w * k1.w);
 
   return g;
 }
