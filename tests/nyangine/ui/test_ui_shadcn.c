@@ -53,7 +53,7 @@ static f32x2 center_of(NYA_Rectf rect) {
     return (f32x2){ rect.x + (rect.width * 0.5F), rect.y + (rect.height * 0.5F) };
 }
 
-/* ── The trees under test. Not a line of them knows a presenter is even installed. ── */
+/* The trees under test. Not a line of them knows a presenter is even installed. */
 
 /** A card with a heading and a subtitle, one button for a body. */
 static void card_screen(NYA_UIPass pass) {
@@ -181,7 +181,7 @@ s32 main(void) {
 
     nya_ui_presenter_set(&window, nya_ui_recorder_presenter(&recorder));
 
-    // ── A card is a framed panel, a heading and a subtitle over a rule, then the body: built from panels and labels.
+    // A card is a framed panel, a heading and a subtitle over a rule, then the body: built from panels and labels.
     {
         draw_twice(&recorder, card_screen);
 
@@ -200,7 +200,7 @@ s32 main(void) {
         nya_check(title < sub && sub < rule && rule < body, "the header comes before the body it introduces, got %d %d %d %d", title, sub, rule, body);
     }
 
-    // ── A badge fits its own text, so it does not fill the row the way a button does.
+    // A badge fits its own text, so it does not fill the row the way a button does.
     {
         draw_twice(&recorder, badge_screen);
 
@@ -213,7 +213,7 @@ s32 main(void) {
                   (f64)button->rect.width);
     }
 
-    // ── A progress bar is a track with the accent filled over a fraction of it, and only that fraction.
+    // A progress bar is a track with the accent filled over a fraction of it, and only that fraction.
     {
         fraction = 0.5F;
         draw_twice(&recorder, progress_screen);
@@ -238,7 +238,7 @@ s32 main(void) {
         nya_check(full_fill != nullptr && full_fill->rect.width == full_track->rect.width, "a full bar fills the whole track");
     }
 
-    // ── A breadcrumb: the current crumb is plain text, the rest are buttons, and a click navigates to one.
+    // A breadcrumb: the current crumb is plain text, the rest are buttons, and a click navigates to one.
     {
         crumb = 0;
         draw_twice(&recorder, crumb_draw);
@@ -261,7 +261,7 @@ s32 main(void) {
         nya_check(nya_ui_recorder_find(&recorder, NYA_UI_WIDGET_BUTTON, "home") != nullptr, "and the one it left is a link now");
     }
 
-    // ── The buttons carry the keyboard: focus lands on the first crumb link and confirm navigates to it.
+    // The buttons carry the keyboard: focus lands on the first crumb link and confirm navigates to it.
     {
         crumb = 0;
         nya_ui_focus_reset(&window);

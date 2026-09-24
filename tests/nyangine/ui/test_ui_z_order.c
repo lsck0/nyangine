@@ -211,7 +211,7 @@ s32 main(void) {
     f32x2 chrome  = center_of(placed.under);
     f32x2 free    = center_of(placed.free);
 
-    // ── A widget under a higher panel never takes the pointer; the one in the panel above it does.
+    // A widget under a higher panel never takes the pointer; the one in the panel above it does.
     {
         nya_check(rank_of("over") > rank_of("under"), "the panel declared last draws over the one before it");
 
@@ -219,7 +219,7 @@ s32 main(void) {
         nya_check(activated == ACTIVATED_OVER, "a click where both buttons are goes to the upper panel's, got %d", activated);
     }
 
-    // ── A click on the upper panel's chrome claims the pointer rather than falling through to the button under it.
+    // A click on the upper panel's chrome claims the pointer rather than falling through to the button under it.
     {
         // hover first, from the last block's point: a covered widget must not take focus either, or the next confirm would activate it with the pointer nowhere near.
         pointer_move(chrome);
@@ -233,7 +233,7 @@ s32 main(void) {
         nya_check(activated == ACTIVATED_NONE, "a click on the title and padding of a panel activates nothing under it, got %d", activated);
     }
 
-    // ── Clicking a panel raises it, and it stays raised in the passes after.
+    // Clicking a panel raises it, and it stays raised in the passes after.
     {
         s32 activated = click_scene(free, 0, 0);
         nya_check(activated == ACTIVATED_NONE, "the strip below the upper panel holds no widget");
@@ -247,7 +247,7 @@ s32 main(void) {
         nya_check(rank_of("under") > rank_of("over"), "and it is still over after a pass that clicked nothing");
     }
 
-    // ── An explicit z beats declaration order and every raise inside it.
+    // An explicit z beats declaration order and every raise inside it.
     {
         for (u32 pass = 0; pass < 2; pass++) (void)scene(NYA_UI_PASS_DRAW, 0, 1);
         nya_check(rank_of("over") > rank_of("under"), "a higher z is over a panel raised above it");

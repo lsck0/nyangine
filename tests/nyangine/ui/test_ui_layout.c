@@ -230,7 +230,7 @@ s32 main(void) {
 
     f32 line = ceilf(nya_font_metrics(nya_font(FACE, 20.0F)).line_height);
 
-    // ── The default look is flat: no outline, shadow or pop, and labels run past their room.
+    // The default look is flat: no outline, shadow or pop, and labels run past their room.
     {
         NYA_Window  other    = { .handle = { .index = 3, .generation = 1 }, .screen_width = 100, .screen_height = 100 };
         NYA_UIStyle defaults = nya_ui_style_get(&other);
@@ -240,7 +240,7 @@ s32 main(void) {
         nya_check(defaults.button.focused.a > 0.0F && defaults.text.disabled.a > 0.0F, "and has a colour for every state");
     }
 
-    // ── Along a row: fixed takes its pixels, fit its content, and grow shares the rest by weight, to the pixel.
+    // Along a row: fixed takes its pixels, fit its content, and grow shares the rest by weight, to the pixel.
     {
         NYA_Rectf  rects[4];
         NYA_UISize mixed[4]    = { nya_ui_fixed(100), nya_ui_fit(), nya_ui_grow(1), nya_ui_grow(2) };
@@ -261,7 +261,7 @@ s32 main(void) {
         nya_check(contiguous(rects, 3, MARGIN, 1.0F, MARGIN + 100.0F), "with no pixel lost to rounding");
     }
 
-    // ── Min and max bound any kind, and a bounded grow leaves its siblings their shares of what was left before.
+    // Min and max bound any kind, and a bounded grow leaves its siblings their shares of what was left before.
     {
         NYA_Rectf  rects[3];
         NYA_UISize bounded[3]  = { { .kind = NYA_UI_SIZE_FIXED, .value = 40.0F, .min = 80.0F }, { .kind = NYA_UI_SIZE_GROW, .value = 1.0F, .max = 50.0F }, nya_ui_grow(1) };
@@ -275,7 +275,7 @@ s32 main(void) {
         nya_check(wide.width == 700.0F, "min widens a fitting panel, got %f", (f64)wide.width);
     }
 
-    // ── Nesting: a row inside a row splits its cell, a column inside a row stacks in its cell, and across a column fills.
+    // Nesting: a row inside a row splits its cell, a column inside a row stacks in its cell, and across a column fills.
     {
         NYA_Rectf cell = { 0 };
         NYA_Rectf half = { 0 };
@@ -313,7 +313,7 @@ s32 main(void) {
         nya_check(low.y == MARGIN + FRAME + 30.0F + GAP && low.width == content, "the tallest cell sets the row's height, and a space fills the column, got %f", (f64)low.y);
     }
 
-    // ── Scale: the style's, or 1, and never the window's size. See ui.h for why the window is deliberately not in it.
+    // Scale: the style's, or 1, and never the window's size. See ui.h for why the window is deliberately not in it.
     {
         struct {
             u32 height;
@@ -358,7 +358,7 @@ s32 main(void) {
         }
     }
 
-    // ── Overflow: visible runs past a panel held to the safe area, wrap breaks the line in the room, shrink drops a size.
+    // Overflow: visible runs past a panel held to the safe area, wrap breaks the line in the room, shrink drops a size.
     {
         f32 room = 300.0F - (MARGIN * 2.0F) - (FRAME * 2.0F);
 
@@ -390,7 +390,7 @@ s32 main(void) {
         nya_ui_style_set(&narrow, style);
     }
 
-    // ── Focus moves by lines up and down and by cells left and right; a slider keeps left and right.
+    // Focus moves by lines up and down and by cells left and right; a slider keeps left and right.
     {
         f32 value = 0.0F;
 
@@ -422,7 +422,7 @@ s32 main(void) {
         nya_check(after(NYA_KEY_DOWN, &value) == 0, "and down from the last line wraps to the first");
     }
 
-    // ── Disabled widgets draw but take no focus and never act; the keys step over them.
+    // Disabled widgets draw but take no focus and never act; the keys step over them.
     {
         nya_ui_focus_reset(&window);
 
@@ -452,7 +452,7 @@ s32 main(void) {
         nya_check(activated == 2, "down from the first skips the disabled one, got %d", activated);
     }
 
-    // ── A pushed style applies until popped, and both must balance.
+    // A pushed style applies until popped, and both must balance.
     {
         NYA_Rectf pushed = { 0 };
         NYA_Rectf popped = { 0 };
@@ -486,7 +486,7 @@ s32 main(void) {
         nya_check(popped.y == MARGIN + 10.0F + GAP + 50.0F + GAP, "and after the pop the window's gap is back, got %f", (f64)popped.y);
     }
 
-    // ── A skinned panel pads by its skin's insets, scaled; a region with no texture stays flat and keeps the style's padding.
+    // A skinned panel pads by its skin's insets, scaled; a region with no texture stays flat and keeps the style's padding.
     {
         NYA_UIStyle skinned = style;
         (void)snprintf(skinned.panel_skin.texture, sizeof(skinned.panel_skin.texture), "%s", "./assets/ui/sheet.png");
@@ -524,7 +524,7 @@ s32 main(void) {
         nya_check(inside.x == (MARGIN * 2.0F) + (FRAME * 2.0F), "without a texture the panel is flat and padded by the style, got %f", (f64)inside.x);
     }
 
-    // ── Scrolling: the wheel over the panel scrolls it and clamps, the pointer only reaches what shows, and focus scrolls into view.
+    // Scrolling: the wheel over the panel scrolls it and clamps, the pointer only reaches what shows, and focus scrolls into view.
     {
         nya_ui_focus_reset(&window);
 

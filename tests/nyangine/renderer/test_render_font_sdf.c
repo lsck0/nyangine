@@ -46,7 +46,7 @@ s32 main(void) {
     defer nya_system_events_deinit();
     defer nya_system_callback_deinit();
 
-    /* ── Asking before the face exists is accepted, and lands once it does. The whole bug, in the order a game actually writes it: register, ask, draw later. */
+    /* Asking before the face exists is accepted, and lands once it does. The whole bug, in the order a game actually writes it: register, ask, draw later. */
     {
         nya_font_clear();
 
@@ -70,7 +70,7 @@ s32 main(void) {
         nya_check(nya_font_sdf(title), "and reported through the font API");
     }
 
-    /* ── The mode is on the face before anything can measure or draw through it. Ordering, not just eventual arrival. render2d bakes an atlas sized from the face's metrics the first time a glyph is drawn, so a mode applied after the first measurement is a mode applied after the metrics it changes have already been read. */
+    /* The mode is on the face before anything can measure or draw through it. Ordering, not just eventual arrival. render2d bakes an atlas sized from the face's metrics the first time a glyph is drawn, so a mode applied after the first measurement is a mode applied after the metrics it changes have already been read. */
     {
         nya_font_clear();
 
@@ -94,7 +94,7 @@ s32 main(void) {
                   (f64)measured.x, (f64)measured.y);
     }
 
-    // ── Turning it back off is pushed too, not just remembered.
+    // Turning it back off is pushed too, not just remembered.
     {
         nya_font_clear();
 
@@ -112,7 +112,7 @@ s32 main(void) {
         nya_check(!nya_font_sdf(body), "and reported off");
     }
 
-    // ── A distance field measures as wide as the same face in coverage, so centred text lands where it would. SDL_ttf alone widens it by up to the field's spread.
+    // A distance field measures as wide as the same face in coverage, so centred text lands where it would. SDL_ttf alone widens it by up to the field's spread.
     {
         nya_font_clear();
 
@@ -140,7 +140,7 @@ s32 main(void) {
         nya_check(nya_font_sdf_set(title, false), "off should be accepted");
     }
 
-    // ── A font nobody asked about is left alone.
+    // A font nobody asked about is left alone.
     {
         nya_font_clear();
 

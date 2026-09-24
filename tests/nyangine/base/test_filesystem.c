@@ -179,7 +179,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_filesystem");
     defer      nya_arena_destroy(arena);
 
-    // ── A handle knows where it is, and truncating moves the end without moving the handle.
+    // A handle knows where it is, and truncating moves the end without moving the handle.
     {
         NYA_ConstCString path = "test_handle.bin";
         NYA_EXPECT(nya_file_write(path, "0123456789"));
@@ -225,7 +225,7 @@ s32 main(void) {
         NYA_EXPECT(nya_filesystem_delete(path));
     }
 
-    // ── A tree is created, listed, walked, copied and deleted whole.
+    // A tree is created, listed, walked, copied and deleted whole.
     {
         NYA_ConstCString root = "test_tree/one/two";
         NYA_EXPECT(nya_filesystem_create_directory(root));
@@ -275,7 +275,7 @@ s32 main(void) {
         nya_check(!nya_filesystem_exists("test_tree") && !nya_filesystem_exists("test_tree_copy"), "a recursive delete should leave nothing behind");
     }
 
-    // ── What one stat knows, and what a resolved path looks like.
+    // What one stat knows, and what a resolved path looks like.
     {
         NYA_ConstCString path = "test_info.txt";
         NYA_EXPECT(nya_file_write(path, "info"));
@@ -306,7 +306,7 @@ s32 main(void) {
         NYA_EXPECT(nya_filesystem_delete(path));
     }
 
-    // ── A replace lands in one step and keeps the permissions of what it replaced.
+    // A replace lands in one step and keeps the permissions of what it replaced.
     {
         NYA_ConstCString target = "test_replace.txt";
         NYA_ConstCString staged = "test_replace.txt.new";
@@ -323,7 +323,7 @@ s32 main(void) {
         NYA_EXPECT(nya_filesystem_delete(target));
     }
 
-    // ── The working directory moves and comes back, and the well known locations answer.
+    // The working directory moves and comes back, and the well known locations answer.
     {
         NYA_String* before = nullptr;
         NYA_EXPECT(nya_filesystem_working_directory(arena, &before));

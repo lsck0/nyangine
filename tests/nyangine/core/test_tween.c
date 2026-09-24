@@ -33,7 +33,7 @@ s32 main(void) {
     defer nya_system_tween_deinit();
     defer nya_system_callback_deinit();
 
-    // ── A scalar tween reaches its target and finishes.
+    // A scalar tween reaches its target and finishes.
     {
         f32       value = 0.0F;
         NYA_Tween t     = nya_tween_f32(&value, 10.0F, 0.5F);
@@ -50,7 +50,7 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "and free its slot");
     }
 
-    // ── A stale handle resolves to nothing rather than to whatever reused the slot.
+    // A stale handle resolves to nothing rather than to whatever reused the slot.
     {
         f32       value = 0.0F;
         NYA_Tween old   = nya_tween_f32(&value, 1.0F, 0.1F);
@@ -65,7 +65,7 @@ s32 main(void) {
         nya_tween_cancel(fresh);
     }
 
-    // ── Delay: nothing moves until it elapses, and `from` is read at that moment, not at creation.
+    // Delay: nothing moves until it elapses, and `from` is read at that moment, not at creation.
     {
         f32 value = 0.0F;
         (void)nya_tween_f32(&value, 10.0F, 0.5F, .delay = 0.3F);
@@ -79,7 +79,7 @@ s32 main(void) {
         nya_check(fabsf(value - 10.0F) < 0.001F, "it should still land on the target, got %f", (f64)value);
     }
 
-    // ── Vector targets write every component and leave neighbouring memory alone.
+    // Vector targets write every component and leave neighbouring memory alone.
     {
         struct { f32x3 v; f32 guard; } packed = { .v = { 0.0F, 0.0F, 0.0F }, .guard = 1234.0F };
 
@@ -93,7 +93,7 @@ s32 main(void) {
         nya_check(packed.guard == 1234.0F, "a f32x3 tween must not write past three floats");
     }
 
-    // ── Completion callbacks run once, with the address, and survive through the registry.
+    // Completion callbacks run once, with the address, and survive through the registry.
     {
         completions   = 0;
         completed_for = nullptr;
@@ -109,7 +109,7 @@ s32 main(void) {
         nya_check(completions == 1, "and not run again afterwards, ran %u", completions);
     }
 
-    // ── Cancelling stops the tween, leaves the value alone, and does not run the callback.
+    // Cancelling stops the tween, leaves the value alone, and does not run the callback.
     {
         completions = 0;
 
@@ -127,7 +127,7 @@ s32 main(void) {
         nya_check(completions == 0, "a cancelled tween must not run its completion callback");
     }
 
-    // ── Cancel-by-target takes everything writing to an address. This is the teardown call.
+    // Cancel-by-target takes everything writing to an address. This is the teardown call.
     {
         f32 value = 0.0F;
         f32 other = 0.0F;
@@ -144,7 +144,7 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "cancel_all should empty the pool");
     }
 
-    // ── The scan stops at the last live slot, so a live tween past a freed one is still found.
+    // The scan stops at the last live slot, so a live tween past a freed one is still found.
     {
         f32 first = 0.0F;
         f32 last  = 0.0F;
@@ -159,7 +159,7 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "nothing should be left, got %u", nya_tween_count());
     }
 
-    // ── Repeat restarts from the original value rather than drifting.
+    // Repeat restarts from the original value rather than drifting.
     {
         f32 value = 0.0F;
         (void)nya_tween_f32(&value, 10.0F, 0.1F, .repeat = 3);
@@ -169,7 +169,7 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "and then finish");
     }
 
-    // ── Yoyo comes back to where it started on an even number of runs.
+    // Yoyo comes back to where it started on an even number of runs.
     {
         f32 value = 0.0F;
         (void)nya_tween_f32(&value, 10.0F, 0.1F, .repeat = 2, .yoyo = true);
@@ -178,7 +178,7 @@ s32 main(void) {
         nya_check(fabsf(value) < 0.5F, "two yoyo runs should return to the start, got %f", (f64)value);
     }
 
-    // ── Forever does not finish on its own.
+    // Forever does not finish on its own.
     {
         f32       value = 0.0F;
         NYA_Tween t     = nya_tween_f32(&value, 10.0F, 0.05F, .repeat = NYA_TWEEN_REPEAT_FOREVER);
@@ -189,7 +189,7 @@ s32 main(void) {
         nya_tween_cancel(t);
     }
 
-    // ── A zero duration is a set: it lands immediately rather than never.
+    // A zero duration is a set: it lands immediately rather than never.
     {
         f32 value = 0.0F;
         (void)nya_tween_f32(&value, 7.0F, 0.0F);
@@ -199,7 +199,7 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "and finish");
     }
 
-    // ── A sequence runs its steps in order, each waiting for the one before.
+    // A sequence runs its steps in order, each waiting for the one before.
     {
         f32 a = 0.0F;
         f32 b = 0.0F;
@@ -243,7 +243,7 @@ s32 main(void) {
         nya_tween_cancel_target(&plain);
     }
 
-    // ── nya_tween_progress reports the eased fraction, and 1 for anything that is not running.
+    // nya_tween_progress reports the eased fraction, and 1 for anything that is not running.
     {
         f32 value = 0.0F;
 
@@ -262,7 +262,7 @@ s32 main(void) {
         nya_check(!nya_tween_active(handle), "which is the same thing as its handle no longer resolving");
     }
 
-    // ── An empty sequence is not an error.
+    // An empty sequence is not an error.
     {
         nya_check(nya_tween_sequence(nullptr, 0).index == 0, "a null sequence yields no handle");
         nya_check(nya_tween_sequence((NYA_TweenSpec[]){ nya_tween_spec_f32(nullptr, 0.0F, 0.0F) }, 0).index == 0,

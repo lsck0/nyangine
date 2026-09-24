@@ -61,7 +61,7 @@ s32 main(void) {
     defer nya_world_destroy(world);
     defer nya_system_callback_deinit();
 
-    // ── Defaults fill in, so a zeroed tuning is a working character.
+    // Defaults fill in, so a zeroed tuning is a working character.
     {
         NYA_CharacterTuning2D tuning = nya_character2d_tuning_defaults((NYA_CharacterTuning2D){ 0 });
 
@@ -72,7 +72,7 @@ s32 main(void) {
         nya_check(tuning.air_control < 1.0F, "air control should be less than ground control");
     }
 
-    // ── An entity with no body is ignored rather than asserted on.
+    // An entity with no body is ignored rather than asserted on.
     {
         NYA_CharacterController2D controller = { 0 };
         NYA_EntityHandle          bare       = nya_entity_spawn(.name = "bare");
@@ -83,7 +83,7 @@ s32 main(void) {
         nya_entity_despawn(bare);
     }
 
-    // ── Falling, landing, and the landed edge firing exactly once.
+    // Falling, landing, and the landed edge firing exactly once.
     {
         NYA_CharacterController2D controller = { 0 };
         Scene                     scene      = scene_create(0.0F);
@@ -101,7 +101,7 @@ s32 main(void) {
         scene_destroy(&scene);
     }
 
-    // ── Jumping leaves the ground, and gravity brings it back.
+    // Jumping leaves the ground, and gravity brings it back.
     {
         NYA_CharacterController2D controller = { 0 };
         Scene                     scene      = scene_create(0.0F);
@@ -122,7 +122,7 @@ s32 main(void) {
         scene_destroy(&scene);
     }
 
-    // ── Coyote time: a jump still works shortly after leaving the ground.
+    // Coyote time: a jump still works shortly after leaving the ground.
     {
         NYA_CharacterController2D controller = { .tuning = { .coyote_time_s = 0.10F } };
         Scene                     scene      = scene_create(0.0F);
@@ -141,7 +141,7 @@ s32 main(void) {
         nya_entity_despawn(scene.body);
     }
 
-    // ── And stops working once the window closes.
+    // And stops working once the window closes.
     {
         NYA_CharacterController2D controller = { .tuning = { .coyote_time_s = 0.05F } };
         Scene                     scene      = scene_create(0.0F);
@@ -157,7 +157,7 @@ s32 main(void) {
         nya_entity_despawn(scene.body);
     }
 
-    // ── Jump buffering: a press just before landing fires on touchdown.
+    // Jump buffering: a press just before landing fires on touchdown.
     {
         // started just above the floor so the fall is a few ticks. The buffer is a real time window, and a press from far above should expire.
         NYA_CharacterController2D controller = { .tuning = { .jump_buffer_s = 0.15F } };
@@ -185,7 +185,7 @@ s32 main(void) {
         scene_destroy(&scene);
     }
 
-    // ── A press far too early expires rather than waiting forever.
+    // A press far too early expires rather than waiting forever.
     {
         NYA_CharacterController2D controller = { .tuning = { .jump_buffer_s = 0.05F } };
         Scene                     scene      = scene_create(-400.0F);
@@ -223,7 +223,7 @@ s32 main(void) {
         scene_destroy(&scene);
     }
 
-    // ── Variable height: releasing early gives a lower jump than holding.
+    // Variable height: releasing early gives a lower jump than holding.
     {
         Scene scene = scene_create(0.0F);
 
@@ -260,7 +260,7 @@ s32 main(void) {
         scene_destroy(&scene2);
     }
 
-    // ── Horizontal input accelerates rather than teleporting, and facing is remembered through a stop.
+    // Horizontal input accelerates rather than teleporting, and facing is remembered through a stop.
     {
         NYA_CharacterController2D controller = { 0 };
         Scene                     scene      = scene_create(0.0F);
@@ -286,7 +286,7 @@ s32 main(void) {
         scene_destroy(&scene);
     }
 
-    // ── Reset clears both windows, so a respawn cannot inherit a queued jump.
+    // Reset clears both windows, so a respawn cannot inherit a queued jump.
     {
         NYA_CharacterController2D controller = { .buffer_left_s = 1.0F, .coyote_left_s = 1.0F, .jumping = true };
 

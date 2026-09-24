@@ -161,7 +161,7 @@ s32 main(void) {
 
     f32 expanded_height = laid.bounds.height;
 
-    // ── The close button writes the caller's flag, and only the caller can write it back.
+    // The close button writes the caller's flag, and only the caller can write it back.
     {
         Scene closed = click_scene(close);
         nya_check(!state.open, "the close button closes the window");
@@ -177,7 +177,7 @@ s32 main(void) {
         nya_check(back.body_seen, "and shows again when the caller says so");
     }
 
-    // ── The chevron folds the body away and leaves the title bar, and the window shrinks to it.
+    // The chevron folds the body away and leaves the title bar, and the window shrinks to it.
     {
         Scene folded = click_scene(collapse);
         nya_check(state.collapsed, "the chevron collapses the window");
@@ -194,7 +194,7 @@ s32 main(void) {
 
     for (u32 pass = 0; pass < 2; pass++) laid = scene(NYA_UI_PASS_DRAW);
 
-    // ── The hamburger's list floats over the body and takes the click the widget under it would have had.
+    // The hamburger's list floats over the body and takes the click the widget under it would have had.
     {
         nya_check(state.menu_picked == NYA_UI_MENU_NONE, "a pass that picked nothing reports nothing");
 
@@ -222,7 +222,7 @@ s32 main(void) {
         nya_check(freed.button_hit, "and reaches it once the list is gone");
     }
 
-    // ── The corner grip resizes the window where it stands.
+    // The corner grip resizes the window where it stands.
     {
         for (u32 pass = 0; pass < 2; pass++) laid = scene(NYA_UI_PASS_DRAW);
 

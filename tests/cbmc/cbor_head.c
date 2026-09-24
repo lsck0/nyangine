@@ -41,7 +41,7 @@ typedef uint64_t u64;
  * pointers, so the checks are a no-op here and the copied body stays verbatim. */
 #define nya_assert(...) ((void)0)
 
-/* ── mirrored from src/nyangine/serde/serde_cbor.h ──────────────────────────────────────────────── */
+/* mirrored from src/nyangine/serde/serde_cbor.h */
 
 typedef struct {
     const u8* data;
@@ -49,7 +49,7 @@ typedef struct {
     u64       offset;
 } NYA_CborReader;
 
-/* ── mirrored from src/nyangine/serde/serde_cbor.c ──────────────────────────────────────────────── */
+/* mirrored from src/nyangine/serde/serde_cbor.c */
 
 #define _NYA_CBOR_INFO_1_BYTE  24
 #define _NYA_CBOR_INFO_2_BYTES 25
@@ -101,7 +101,7 @@ static b8 _nya_cbor_head(NYA_CborReader* reader, u8* out_major, u64* out_argumen
     return true;
 }
 
-/* ── the harness ────────────────────────────────────────────────────────────────────────────────── */
+/* the harness */
 
 /* Small enough that CBMC's --unwinding-assertions prove the argument-reading loop (at most eight bytes
  * wide) really does exit, yet big enough to admit every argument width and a cursor anywhere inside. */

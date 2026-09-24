@@ -45,7 +45,7 @@ s32 main(void) {
     NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ 0 }, &vm));
     defer nya_lua_destroy(vm);
 
-    // ── Running code, and both kinds of failure.
+    // Running code, and both kinds of failure.
     {
         NYA_EXPECT(nya_lua_run(vm, "answer = 6 * 7", "inline"));
 
@@ -66,7 +66,7 @@ s32 main(void) {
         nya_check(strstr((const char*)runtime.message, "deliberate") != nullptr, "and should carry Lua's message, got '%s'", runtime.message);
     }
 
-    // ── Calling a function, with arguments and a result.
+    // Calling a function, with arguments and a result.
     {
         NYA_EXPECT(nya_lua_run(vm, "function greet(who) return 'hello ' .. who end", "greet"));
 
@@ -97,7 +97,7 @@ s32 main(void) {
                   NYA_ERRORKIND_NAME_MAP[missing.kind]);
     }
 
-    // ── A table becomes an object; an array-shaped table becomes an array.
+    // A table becomes an object; an array-shaped table becomes an array.
     {
         NYA_EXPECT(nya_lua_run(vm,
                                "settings = { volume = 0.5, name = 'nyangine', fullscreen = true }"
@@ -133,7 +133,7 @@ s32 main(void) {
         nya_check(sparse.type == NYA_TYPE_OBJECT, "a table with a hole is not a sequence, got %s", NYA_TYPE_NAME_MAP[sparse.type]);
     }
 
-    // ── The other direction: an object becomes a keyed table, an array a 1..n one.
+    // The other direction: an object becomes a keyed table, an array a 1..n one.
     {
         NYA_Object config = nya_object_create_on_stack(arena);
         nya_object_add(&config, "level", nya_lua_number(7.0));
@@ -162,7 +162,7 @@ s32 main(void) {
         nya_check(list_ok.as_b8, "an array should arrive keyed from one, which is what makes it a sequence in Lua");
     }
 
-    // ── Bound C functions, including one that returns nothing.
+    // Bound C functions, including one that returns nothing.
     {
         u32 marker = 1;
 
@@ -200,7 +200,7 @@ s32 main(void) {
         nya_check(cycle.type == NYA_TYPE_OBJECT, "it still converts as far as the limit");
     }
 
-    /* ── The stack stays balanced. The failure this catches is cumulative: a path that pops one fewer than it pushes is invisible once and fatal after a few thousand calls. Run enough times that a leak of a single slot per iteration would be unmistakable, then check what Lua thinks is on the stack. */
+    /* The stack stays balanced. The failure this catches is cumulative: a path that pops one fewer than it pushes is invisible once and fatal after a few thousand calls. Run enough times that a leak of a single slot per iteration would be unmistakable, then check what Lua thinks is on the stack. */
     {
         NYA_EXPECT(nya_lua_run(vm, "function churn(t) return { n = (t.n or 0) + 1, tag = 'x' } end", "churn"));
 
@@ -223,7 +223,7 @@ s32 main(void) {
         nya_check(depth == 0, "the Lua stack should be empty between calls, got %d", depth);
     }
 
-    // ── Restricted mode removes what reaches outside the process.
+    // Restricted mode removes what reaches outside the process.
     {
         NYA_LuaVM* limited = nullptr;
         NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true }, &limited));
@@ -243,7 +243,7 @@ s32 main(void) {
         nya_check(kept.as_b8, "and keep string, math and table");
     }
 
-    // ── A VM with no standard library at all.
+    // A VM with no standard library at all.
     {
         NYA_LuaVM* bare = nullptr;
         NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .no_standard_library = true }, &bare));
@@ -256,7 +256,7 @@ s32 main(void) {
         nya_check(empty.as_b8, "no standard library means none of it");
     }
 
-    // ── Introspection, and the degenerate cases every one of these has to survive.
+    // Introspection, and the degenerate cases every one of these has to survive.
     {
         nya_check(nya_lua_memory_bytes(vm) > 0, "a live VM has allocated something");
         nya_check(nya_lua_memory_bytes(nullptr) == 0, "and nothing has not");

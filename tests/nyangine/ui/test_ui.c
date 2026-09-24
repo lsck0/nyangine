@@ -138,7 +138,7 @@ s32 main(void) {
 
     NYA_ConstCString abc[3] = { "a", "b", "c" };
 
-    // ── A zeroed style is the default look, and a set one reads back with its zeros filled in.
+    // A zeroed style is the default look, and a set one reads back with its zeros filled in.
     {
         NYA_Window other = { .handle = { .index = 2, .generation = 1 }, .screen_width = 100, .screen_height = 100 };
 
@@ -154,7 +154,7 @@ s32 main(void) {
         nya_check(nya_ui_style_get(&other).padding == NYA_UI_PADDING, "a new window in the same slot starts over");
     }
 
-    // ── Layout: a top left panel stacks full width buttons inside its frame, a pass later it can centre, and a row splits it.
+    // Layout: a top left panel stacks full width buttons inside its frame, a pass later it can centre, and a row splits it.
     {
         // the pointer finds the second button exactly where the frame, the first button and the gap put it.
         pointer_move((f32x2){ SECOND.x + 1.0F, SECOND.y + 1.0F });
@@ -215,7 +215,7 @@ s32 main(void) {
         nya_check(under.y == MARGIN + frame + 40.0F + 6.0F && under.x == MARGIN + frame, "and what follows goes under the row, got %f", (f64)under.y);
     }
 
-    // ── Focus starts on the first widget, moves with up and down, and wraps at both ends.
+    // Focus starts on the first widget, moves with up and down, and wraps at both ends.
     {
         nya_ui_focus_reset(&window);
         tick();
@@ -239,7 +239,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── Tab goes to the next widget whatever line it is on, and shift-tab to the one before, both wrapping.
+    // Tab goes to the next widget whatever line it is on, and shift-tab to the one before, both wrapping.
     {
         nya_ui_focus_reset(&window);
         tick();
@@ -270,7 +270,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── A press acts once: not in a draw pass, not again after the tick that saw it, and cancel reads the same way.
+    // A press acts once: not in a draw pass, not again after the tick that saw it, and cancel reads the same way.
     {
         tap(NYA_KEY_RETURN);
         nya_check(menu(NYA_UI_PASS_DRAW, abc) == -1, "a draw pass never activates");
@@ -290,7 +290,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── A held direction repeats after a delay, once per tick however many passes read it.
+    // A held direction repeats after a delay, once per tick however many passes read it.
     {
         nya_ui_focus_reset(&window);
         nya_app_get()->frame_stats.delta_time_s = 0.1F;
@@ -320,7 +320,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── Ids: relabelled rows keep focus by position, and reordered ones keep it by label.
+    // Ids: relabelled rows keep focus by position, and reordered ones keep it by label.
     {
         nya_ui_focus_reset(&window);
         tap(NYA_KEY_DOWN);
@@ -349,7 +349,7 @@ s32 main(void) {
         nya_ui_end(ui);
     }
 
-    // ── The pointer: moving focuses, press and release on the same widget activates, anything else does not.
+    // The pointer: moving focuses, press and release on the same widget activates, anything else does not.
     {
         pointer_move(center_of(SECOND));
         pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
@@ -380,7 +380,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── Sliders step and clamp, toggles flip on confirm and take a side from left and right.
+    // Sliders step and clamp, toggles flip on confirm and take a side from left and right.
     {
         nya_ui_focus_reset(&window);
 
@@ -412,7 +412,7 @@ s32 main(void) {
         }
     }
 
-    // ── A press on a slider's label only focuses it; one on its track grabs the knob, which follows the pointer off the row.
+    // A press on a slider's label only focuses it; one on its track grabs the knob, which follows the pointer off the row.
     {
         f32 value = 0.5F;
         b8  on    = false;
@@ -451,7 +451,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── Capacity: a widget past the table is refused and left out of the focus cycle, and so is a panel.
+    // Capacity: a widget past the table is refused and left out of the focus cycle, and so is a panel.
     {
         nya_ui_focus_reset(&window);
 
@@ -497,7 +497,7 @@ s32 main(void) {
         nya_check(reused, "the next pass takes over the stalest slot");
     }
 
-    // ── A modal layer takes keys and clicks but lets the pointer's motion through.
+    // A modal layer takes keys and clicks but lets the pointer's motion through.
     {
         NYA_Event down  = { .type = NYA_EVENT_KEY_DOWN };
         NYA_Event click = { .type = NYA_EVENT_MOUSE_BUTTON_DOWN };

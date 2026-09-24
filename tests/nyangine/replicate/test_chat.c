@@ -211,7 +211,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
 
   printf("  [%s] playing on port %u\n", name, port);
 
-  // ── phase one: everyone says one thing ────────────────────────────────────
+  // phase one: everyone says one thing
   nya_assert(wait_for_system("go"), "[%s] never received the go system line", name);
 
   /* The system line itself, checked here rather than in a phase of its own. */
@@ -238,7 +238,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
     sleep_ms(2);
   }
 
-  // ── what alice said, as everyone received it ──────────────────────────────
+  // what alice said, as everyone received it
   {
     const NYA_NetChatMessage* line = find_line(MESSY_EXPECT);
 
@@ -251,7 +251,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
     nya_assert(nya_net_peer_is_set(line->sender), "[%s] a player line arrived with no sender", name);
   }
 
-  // ── what bob said, and the name he asked for and did not get ──────────────
+  // what bob said, and the name he asked for and did not get
   {
     const NYA_NetChatMessage* line = find_line(SPOOF_TEXT);
 
@@ -265,7 +265,7 @@ static s32 child_main(u32 index, s32 port_pipe) {
 
   printf("  [%s] phase one passed\n", name);
 
-  // ── phase two: bob floods ─────────────────────────────────────────────────
+  // phase two: bob floods
   nya_assert(wait_for_system("flood"), "[%s] never received the flood system line", name);
 
   if (is_bob) {
@@ -315,11 +315,11 @@ s32 main(void) {
   {
     char out[NYA_NET_CHAT_TEXT_MAX] = { 0 };
 
-    // ── whitespace is collapsed and trimmed ──────────────────────────────────
+    // whitespace is collapsed and trimmed
     nya_assert(nya_net_chat_sanitize("   a   b   ", out, sizeof(out)) == 3);
     nya_assert(nya_string_equals(out, "a b"), "collapsed to \"%s\"", out);
 
-    // ── a line with nothing left is a line with nothing in it ────────────────
+    // a line with nothing left is a line with nothing in it
     nya_assert(nya_net_chat_sanitize("\x01\x02\x1F\x7F   ", out, sizeof(out)) == 0);
     nya_assert(out[0] == '\0', "an emptied line is still terminated");
 
@@ -337,7 +337,7 @@ s32 main(void) {
     nya_assert(nya_net_chat_sanitize("あ", tiny, sizeof(tiny)) == 0);
     nya_assert(tiny[0] == '\0');
 
-    // ── malformed input becomes replacement characters, never itself ───────── An overlong '/', the classic filter bypass: a check for a literal '/' never sees this spelling.
+    // malformed input becomes replacement characters, never itself — An overlong '/', the classic filter bypass: a check for a literal '/' never sees this spelling.
     nya_assert(all_replacement("\xC0\xAF"), "an overlong encoding survived");
 
     // A surrogate half, which is not encodable in UTF-8 at all.
@@ -346,7 +346,7 @@ s32 main(void) {
     // A truncated three-byte lead with nothing following it.
     nya_assert(all_replacement("\xE2\x80"), "a truncated sequence survived");
 
-    // ── the history ring keeps the newest and drops the oldest ───────────────
+    // the history ring keeps the newest and drops the oldest
     nya_net_chat_clear();
 
     nya_assert(nya_net_chat_count() == 0);
@@ -424,7 +424,7 @@ s32 main(void) {
 
   u64 tick = 1;
 
-  // ── wait for both players ────────────────────────────────────────────────
+  // wait for both players
   u64 deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
 
   while (nya_net_server_peer_count() < 2 && nya_clock_get_monotonic_ms() < deadline) {
@@ -439,7 +439,7 @@ s32 main(void) {
 
   printf("  [server] both players joined\n");
 
-  // ── phase one ────────────────────────────────────────────────────────────
+  // phase one
   NYA_EXPECT(nya_net_chat_broadcast_system("go"));
 
   deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
@@ -461,7 +461,7 @@ s32 main(void) {
     sleep_ms(2);
   }
 
-  // ── phase two ────────────────────────────────────────────────────────────
+  // phase two
   NYA_EXPECT(nya_net_chat_broadcast_system("flood"));
 
   u32 before_flood = SERVER_CHAT_SEEN;
@@ -484,7 +484,7 @@ s32 main(void) {
 
   printf("  [server] received all %u flooded lines and relayed at most %d\n", delivered, NYA_NET_CHAT_BURST);
 
-  // ── collect the children ─────────────────────────────────────────────────
+  // collect the children
   for (u32 i = 0; i < 2; i++) {
     s32 status = 0;
 

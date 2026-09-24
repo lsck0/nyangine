@@ -100,7 +100,7 @@ s32 main(void) {
     pump();
     nya_check(nya_gamepad_count() == 1, "the virtual pad connects, got %u", nya_gamepad_count());
 
-    // ── The d-pad and the stick move focus once per press, a press held from before the menu does not, and south confirms.
+    // The d-pad and the stick move focus once per press, a press held from before the menu does not, and south confirms.
     {
         button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN, true);
         nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_UPDATING_ENDED });
@@ -136,7 +136,7 @@ s32 main(void) {
         tick();
     }
 
-    // ── Walking reads the stick and the d-pad through the ordinary action query.
+    // Walking reads the stick and the d-pad through the ordinary action query.
     {
         nya_check(!nya_input_action_pressed(GNY_ACTION_MOVE_LEFT), "nothing held, nothing walks");
 

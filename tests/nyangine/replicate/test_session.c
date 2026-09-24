@@ -173,7 +173,7 @@ s32 main(void) {
 
     f32 start_x = entity->position.x;
 
-    // ── the host moves ────────────────────────────────────────────────────────
+    // the host moves
     HELD_ACTIONS = 1ULL << ACTION_RIGHT;
 
     run_ticks(&tick, 30, true);
@@ -251,7 +251,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(server_view->name, "remote"), "the name crossed the handshake");
     nya_assert(!server_view->is_local, "a UDP peer is not local");
 
-    // ── snapshots flow, and are acknowledged ──────────────────────────────────
+    // snapshots flow, and are acknowledged
     {
       u64 before = nya_net_client_server_tick();
 
@@ -277,7 +277,7 @@ s32 main(void) {
       printf("  server tick %llu, client applied %llu\n", (unsigned long long)tick, (unsigned long long)nya_net_client_server_tick());
     }
 
-    // ── commands reach the server and move the player ─────────────────────────
+    // commands reach the server and move the player
     {
       NYA_EntityHandle player = SPAWNED[peer.index];
       nya_assert(nya_entity_is_valid(player));
@@ -305,7 +305,7 @@ s32 main(void) {
       HELD_ACTIONS = 0;
     }
 
-    // ── the client leaves cleanly ─────────────────────────────────────────────
+    // the client leaves cleanly
     {
       DESPAWN_CALLS = 0;
 

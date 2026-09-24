@@ -22,7 +22,7 @@ static b8 covers(const NYA_NineSliceAxis* axis, f32 start, f32 length) {
 s32 main(void) {
     NYA_NineSliceAxis axis;
 
-    // ── Stretched: the corners keep their size, the middle takes the rest.
+    // Stretched: the corners keep their size, the middle takes the rest.
     {
         nya_render2d_nine_slice_axis(0.0F, 48.0F, 12.0F, 8.0F, 100.0F, 300.0F, 1.0F, NYA_NINE_SLICE_STRETCH, &axis);
 
@@ -33,7 +33,7 @@ s32 main(void) {
         nya_check(!axis.middle[0] && !axis.middle[2], "and only the middle is middle");
     }
 
-    // ── Scaled: corners grow with the scale and snap to whole pixels; a region in a sheet offsets the source.
+    // Scaled: corners grow with the scale and snap to whole pixels; a region in a sheet offsets the source.
     {
         nya_render2d_nine_slice_axis(64.0F, 48.0F, 12.0F, 8.0F, 0.0F, 300.0F, 1.5F, NYA_NINE_SLICE_STRETCH, &axis);
 
@@ -45,7 +45,7 @@ s32 main(void) {
         nya_check(axis.destination_size[0] == roundf(5.0F * 1.25F) && covers(&axis, 0.0F, 100.0F), "a fractional border rounds and the middle absorbs it");
     }
 
-    // ── Degenerate: shorter than both corners, they shrink in proportion and meet, and there is no middle.
+    // Degenerate: shorter than both corners, they shrink in proportion and meet, and there is no middle.
     {
         nya_render2d_nine_slice_axis(0.0F, 48.0F, 12.0F, 12.0F, 0.0F, 10.0F, 1.0F, NYA_NINE_SLICE_STRETCH, &axis);
         nya_check(axis.count == 2 && axis.destination_size[0] == 5.0F && axis.destination_size[1] == 5.0F && covers(&axis, 0.0F, 10.0F), "even corners halve the space");
@@ -61,7 +61,7 @@ s32 main(void) {
         nya_check(axis.source_size[0] + axis.source_size[axis.count - 1] <= 20.0F, "borders wider than the source are cut back to it");
     }
 
-    // ── Tiled: the middle repeats at the source size, the last piece cut short in source and destination alike.
+    // Tiled: the middle repeats at the source size, the last piece cut short in source and destination alike.
     {
         nya_render2d_nine_slice_axis(0.0F, 50.0F, 10.0F, 10.0F, 0.0F, 200.0F, 1.0F, NYA_NINE_SLICE_TILE, &axis);
         nya_check(axis.count == 2 + 6 && covers(&axis, 0.0F, 200.0F), "180 of middle is six tiles of 30, got %u", axis.count);

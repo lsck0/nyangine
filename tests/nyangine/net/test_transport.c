@@ -244,7 +244,7 @@ s32 main(void) {
 
     printf("  connected on port %u\n", port);
 
-    // ── one small reliable message each way ────────────────────────────────────
+    // one small reliable message each way
     {
       u8 payload[100];
       fill(payload, sizeof(payload), 0x5A);
@@ -259,7 +259,7 @@ s32 main(void) {
       nya_assert(cc.last_byte[0] == (u8)(0x5A ^ 0xFF), "the whole message arrived, not a prefix of it");
     }
 
-    // ── a message far larger than one datagram ─────────────────────────────────
+    // a message far larger than one datagram
     printf("TEST: udp fragments and reassembles a large message\n");
     {
       /* Well past NYA_NET_MAX_DATAGRAM, so this is split into fragments the transport tracks itself. */
@@ -279,7 +279,7 @@ s32 main(void) {
       nya_assert(cc.last_byte[before] == (u8)(0x7C ^ 0xFF), "including the very last byte");
     }
 
-    // ── ordering, and exactly-once, on the reliable channel ────────────────────
+    // ordering, and exactly-once, on the reliable channel
     printf("TEST: udp reliable messages arrive once and in order\n");
     {
       u32 before = cc.messages;
@@ -309,7 +309,7 @@ s32 main(void) {
       nya_assert(cc.messages == before + count, "a retransmit delivered a duplicate");
     }
 
-    // ── the client talks back ──────────────────────────────────────────────────
+    // the client talks back
     {
       u32 before = cs.messages;
 
@@ -324,7 +324,7 @@ s32 main(void) {
       nya_assert(cs.first_byte[before] == 0x33);
     }
 
-    // ── the round trip is measured ─────────────────────────────────────────────
+    // the round trip is measured
     {
       NYA_NetPeerStats stats = nya_net_transport_stats(server, server_to_client);
 
@@ -338,7 +338,7 @@ s32 main(void) {
       nya_assert(address != nullptr && address[0] != '\0');
     }
 
-    // ── a disconnect is seen by the far end ────────────────────────────────────
+    // a disconnect is seen by the far end
     printf("TEST: udp disconnect reaches the peer\n");
     {
       nya_net_transport_disconnect(server, server_to_client, NYA_NET_DISCONNECT_REQUESTED);
@@ -457,7 +457,7 @@ s32 main(void) {
 
     _NYA_NetUdpState* server_state = server->state;
 
-    // ── a keepalive goes out when there is nothing else to say ────────────────
+    // a keepalive goes out when there is nothing else to say
     {
       /* A connection with no traffic is indistinguishable from a dead one, so a player standing still in a menu would be dropped at the timeout. The keepalive is an empty data packet whose only content is the acknowledgement in its header. */
       u64 before = server_state->peers[to_client.index].stats.packets_sent;
@@ -473,7 +473,7 @@ s32 main(void) {
       nya_assert(cc.disconnects == 0, "a keepalive disconnected the client");
     }
 
-    // ── a peer that stops being heard from is removed ─────────────────────────
+    // a peer that stops being heard from is removed
     {
       u32 before = 0;
       for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
@@ -574,7 +574,7 @@ s32 main(void) {
 
     NYA_NetPeerId to_client = cs.last_peer;
 
-    // ── latency is latency ─────────────────────────────────────────────────────
+    // latency is latency
     nya_net_transport_condition(server, (NYA_NetConditions){ .latency_ms = 120 });
 
     u8 ping[32];
@@ -597,7 +597,7 @@ s32 main(void) {
     nya_assert(cc.messages == before + 1, "the delayed datagram never arrived");
     nya_assert(took_ms >= 115, "120 ms of latency delivered in %llu ms", (unsigned long long)took_ms);
 
-    // ── everything at once, both ways ──────────────────────────────────────────
+    // everything at once, both ways
     NYA_NetConditions bad = { .latency_ms = 40, .jitter_ms = 20, .loss_percent = 10.0F, .duplicate_percent = 10.0F, .reorder_percent = 10.0F };
 
     nya_net_transport_condition(server, bad);
@@ -709,7 +709,7 @@ s32 main(void) {
 
     nya_assert(nya_memcmp(nya_net_transport_public_key(server), server_identity.public_key, NYA_NET_KEY_SIZE) == 0, "the server is not who it was told to be");
 
-    // ── a client expecting someone else refuses this server ─────────────────────
+    // a client expecting someone else refuses this server
     {
       NYA_NetUdpOptions options = { 0 };
       nya_memcpy(options.server_key, impostor.public_key, NYA_NET_KEY_SIZE);
@@ -739,7 +739,7 @@ s32 main(void) {
       nya_net_transport_destroy(client);
     }
 
-    // ── the right key, and a player key the server can read back ────────────────
+    // the right key, and a player key the server can read back
     {
       NYA_NetUdpOptions options = { .identity = player_identity };
       nya_memcpy(options.server_key, server_identity.public_key, NYA_NET_KEY_SIZE);

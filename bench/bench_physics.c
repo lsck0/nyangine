@@ -73,7 +73,7 @@ s32 main(void) {
     defer nya_world_destroy(world);
     defer nya_system_callback_deinit();
 
-    // ── 2D: box2d, the solver a top-down or side-on game steps every tick ──
+    // 2D: box2d, the solver a top-down or side-on game steps every tick
     for (u32 c = 0; c < nya_carray_length(counts); c++) {
         const u32 count = counts[c];
 
@@ -96,7 +96,7 @@ s32 main(void) {
 
     nya_entity_clear();
 
-    // ── 3D: box3d (Jolt), the solver a 3D scene steps every tick ──
+    // 3D: box3d (Jolt), the solver a 3D scene steps every tick
     for (u32 c = 0; c < nya_carray_length(counts); c++) {
         const u32 count = counts[c];
 

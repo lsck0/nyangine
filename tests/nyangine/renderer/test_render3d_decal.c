@@ -54,7 +54,7 @@ s32 main(void) {
 
   nya_render3d_begin(&window, (NYA_Camera3DPerspective){ .position = { 0.0F, 5.0F, 5.0F } });
 
-  // ── Off, a decal is ignored and nothing is allocated.
+  // Off, a decal is ignored and nothing is allocated.
   {
     nya_render3d_decal_probe_set(&window, nya_callback(flat_ground_probe), nullptr);
     nya_render3d_decal(&window, decal_at(0.0F));
@@ -66,7 +66,7 @@ s32 main(void) {
   nya_render3d_decals_set(&window, (NYA_Render3DDecals){ .enabled = true, .lift = -1.0F });
   nya_check(nya_render3d_decals(&window).lift == 0.0F, "a negative lift should clamp to zero");
 
-  // ── A decal drapes onto the ground, lifted, with its sheet cell's uvs.
+  // A decal drapes onto the ground, lifted, with its sheet cell's uvs.
   {
     nya_render3d_decal(&window, decal_at(0.0F));
 
@@ -89,7 +89,7 @@ s32 main(void) {
     nya_check(first.uv[0] == 0.5F && last.uv[0] == 1.0F && last.uv[1] == 1.0F, "the grid should span the cell");
   }
 
-  // ── The same box is remembered, not probed again, until the probe is set again.
+  // The same box is remembered, not probed again, until the probe is set again.
   {
     u32 calls = probe_calls;
 
@@ -101,7 +101,7 @@ s32 main(void) {
     nya_check(probe_calls == calls + NYA_RENDER3D_DECAL_VERTICES, "setting the probe again should forget the grids");
   }
 
-  // ── Where the probe finds nothing the normal is zero, which the shader cuts the decal at.
+  // Where the probe finds nothing the normal is zero, which the shader cuts the decal at.
   {
     u32 base = decals->count * NYA_RENDER3D_DECAL_VERTICES;
 
@@ -117,7 +117,7 @@ s32 main(void) {
     nya_check(landed == 3 * (NYA_RENDER3D_DECAL_GRID + 1), "only the columns over ground should land, got %u", landed);
   }
 
-  // ── Nothing is staged outside a scene, and past the ceiling a decal is dropped and counted.
+  // Nothing is staged outside a scene, and past the ceiling a decal is dropped and counted.
   {
     u32 staged = decals->count;
 
@@ -133,7 +133,7 @@ s32 main(void) {
     nya_check(nya_render3d_frame_stats(&window).dropped_draws == 1, "a decal past the ceiling should be counted as dropped");
   }
 
-  // ── Switching decals off releases what they held and keeps the probe.
+  // Switching decals off releases what they held and keeps the probe.
   {
     nya_render3d_decals_set(&window, (NYA_Render3DDecals){ 0 });
 

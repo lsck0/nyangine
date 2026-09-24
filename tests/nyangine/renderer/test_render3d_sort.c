@@ -46,7 +46,7 @@ s32 main(void) {
     #define NEXT_DEPTH(scale)                                                                                                                        \
         ((f32)((state = (u32)((((u64)state * 1664525ull) + 1013904223ull) & 0xFFFFFFFFull)) >> 8) / 16777216.0F * (scale))
 
-    // ── Random depths, over a range of counts including the awkward small ones.
+    // Random depths, over a range of counts including the awkward small ones.
     {
         const u32 counts[] = { 2, 3, 4, 7, 15, 16, 17, 255, 256, 257, 1024, 4096 };
 
@@ -62,7 +62,7 @@ s32 main(void) {
         }
     }
 
-    // ── Already sorted, reverse sorted, and all-equal: the distributions a radix pass is worst at.
+    // Already sorted, reverse sorted, and all-equal: the distributions a radix pass is worst at.
     {
         const u32 count = 512;
 
@@ -81,7 +81,7 @@ s32 main(void) {
         nya_check(agrees_with_qsort(equal, count, arena), "all-equal input should agree");
     }
 
-    // ── The values a squared distance actually takes: zero, tiny, and very large.
+    // The values a squared distance actually takes: zero, tiny, and very large.
     {
         NYA_Render3DSortKey keys[] = {
             { .depth = 0.0F, .first = 0 },
@@ -95,7 +95,7 @@ s32 main(void) {
         nya_check(agrees_with_qsort(keys, nya_carray_length(keys), arena), "extreme magnitudes should agree");
     }
 
-    // ── The result is ordered, and every input key survives exactly once.
+    // The result is ordered, and every input key survives exactly once.
     {
         const u32            count = 2000;
         NYA_Render3DSortKey* keys  = nya_arena_alloc(arena, count * sizeof(NYA_Render3DSortKey));
@@ -127,7 +127,7 @@ s32 main(void) {
         nya_check(seen == count, "only %u of %u keys survived the sort", seen, count);
     }
 
-    // ── A single key, and none at all, are handled rather than reading past the array.
+    // A single key, and none at all, are handled rather than reading past the array.
     {
         NYA_Render3DSortKey one[1]  = { { .depth = 7.0F, .first = 0 } };
         NYA_Render3DSortKey work[1] = { { 0 } };

@@ -134,7 +134,7 @@ s32 main(void) {
     defer nya_ui_recorder_deinit(&cells);
     defer nya_ui_recorder_deinit(&wider);
 
-    // ── No font is registered yet, on purpose: a recorded pass measures in cells and needs neither a face nor a GPU.
+    // No font is registered yet, on purpose: a recorded pass measures in cells and needs neither a face nor a GPU.
     {
         nya_check(!nya_font_valid(nya_font_resolve(NYA_FONT_NONE)), "the test starts with no usable face");
 
@@ -149,7 +149,7 @@ s32 main(void) {
         nya_check(nya_ui_recorder_find(&cells, NYA_UI_WIDGET_BUTTON, "volume") == nullptr, "and nothing else answers to it");
     }
 
-    // ── An input pass draws nothing, whatever the presenter is: only a draw pass declares widgets to anyone.
+    // An input pass draws nothing, whatever the presenter is: only a draw pass declares widgets to anyone.
     {
         nya_ui_recorder_reset(&cells);
         (void)screen(NYA_UI_PASS_INPUT);
@@ -158,7 +158,7 @@ s32 main(void) {
         nya_check(nya_ui_recorder_count(&cells) == 0, "an input pass records nothing, got %u", nya_ui_recorder_count(&cells));
     }
 
-    // ── Every size comes out of the presenter: the same tree in bigger cells is the same widgets, bigger.
+    // Every size comes out of the presenter: the same tree in bigger cells is the same widgets, bigger.
     {
         draw_twice(&cells);
         NYA_Rectf small = nya_ui_recorder_find(&cells, NYA_UI_WIDGET_BUTTON, "apply")->rect;
@@ -174,7 +174,7 @@ s32 main(void) {
         nya_check(big->rect.width == small.width, "while a fixed panel width stays what the caller asked for");
     }
 
-    // ── The pass reads as text, which is what makes a recorded UI something a person can check.
+    // The pass reads as text, which is what makes a recorded UI something a person can check.
     {
         char dump[2048];
         u32  wrote = nya_ui_recorder_write(&cells, dump, sizeof(dump));
@@ -188,7 +188,7 @@ s32 main(void) {
         nya_check(short_write < sizeof(cut) && cut[short_write] == '\0', "a buffer too small is cut rather than overrun");
     }
 
-    // ── The same keys, through both presenters, decide the same thing. The face is loaded here and not before.
+    // The same keys, through both presenters, decide the same thing. The face is loaded here and not before.
     {
         nya_font_default_set(nya_font(FACE, 20.0F));
         for (u32 i = 0; i < 32 && nya_font_metrics(NYA_FONT_NONE).line_height <= 0.0F; i++) nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
@@ -223,7 +223,7 @@ s32 main(void) {
         nya_check(through[0].quality == through[1].quality, "and the same choice");
     }
 
-    // ── And the shape presenter is what a window goes back to when it is handed nothing.
+    // And the shape presenter is what a window goes back to when it is handed nothing.
     {
         nya_ui_presenter_set(&window, nullptr);
         nya_check(nya_ui_presenter_get(&window) == nya_ui_presenter_shape(), "null puts the shape presenter back");

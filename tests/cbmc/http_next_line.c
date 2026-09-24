@@ -37,7 +37,7 @@ typedef uint64_t u64;
 /* The engine tags out-parameters with an OUT marker for the reader; it is not semantically meaningful. */
 #define OUT
 
-/* ── mirrored from src/nyangine/http/http_message.c ─────────────────────────────────────────────── */
+/* mirrored from src/nyangine/http/http_message.c */
 
 typedef enum {
     _NYA_HTTP_LINE_INCOMPLETE = 0,
@@ -67,7 +67,7 @@ static _NYA_HttpLine _nya_http_next_line(const u8* data, u64 size, u64 line_max,
     return _NYA_HTTP_LINE_INCOMPLETE;
 }
 
-/* ── the harness ────────────────────────────────────────────────────────────────────────────────── */
+/* the harness */
 
 /* Small enough for --unwinding-assertions to prove the scan loop terminates (it steps at most once per
  * byte), big enough to admit an empty buffer, a bare CRLF, and a run of bytes with the CRLF anywhere. */

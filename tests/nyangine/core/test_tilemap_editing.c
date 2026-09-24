@@ -37,7 +37,7 @@ s32 main(void) {
     const u32 ground = nya_tilemap_layer_find(map, "ground");
     nya_check(ground != NYA_TILEMAP_LAYER_NONE, "the fixture should have a 'ground' layer");
 
-    // ── Writing a tile is readable back, and reports that it wrote.
+    // Writing a tile is readable back, and reports that it wrote.
     {
         const u32 original = nya_tilemap_tile_at(map, ground, 3, 4);
 
@@ -50,7 +50,7 @@ s32 main(void) {
         (void)nya_tilemap_tile_set(map, ground, 3, 4, original);
     }
 
-    // ── Off the map does nothing and says so, rather than asserting. A brush dragged past the edge is ordinary, so this is the contract that keeps an editor from having to bounds check.
+    // Off the map does nothing and says so, rather than asserting. A brush dragged past the edge is ordinary, so this is the contract that keeps an editor from having to bounds check.
     {
         nya_check(!nya_tilemap_tile_set(map, ground, -1, 0, 1), "negative x should be refused");
         nya_check(!nya_tilemap_tile_set(map, ground, 0, -1, 1), "negative y should be refused");
@@ -59,7 +59,7 @@ s32 main(void) {
         nya_check(nya_tilemap_tile_at(map, ground, -1, -1) == 0, "reading off the map is empty, not a crash");
     }
 
-    // ── Resizing is anchored top-left: existing tiles keep their coordinates.
+    // Resizing is anchored top-left: existing tiles keep their coordinates.
     {
         NYA_Tilemap* resizable = nullptr;
         NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &resizable));
@@ -80,7 +80,7 @@ s32 main(void) {
         nya_check(!nya_tilemap_tile_set(resizable, layer, 30, 20, 1), "and what no longer fits is off the map");
     }
 
-    // ── The document round trips: save, load, and the tiles are the same.
+    // The document round trips: save, load, and the tiles are the same.
     {
         NYA_Tilemap* edited = nullptr;
         NYA_EXPECT(nya_tilemap_load(arena, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &edited));
@@ -128,7 +128,7 @@ s32 main(void) {
         NYA_EXPECT(nya_filesystem_delete(SAVE_PATH));
     }
 
-    // ── An unknown layer name is reported, not guessed at.
+    // An unknown layer name is reported, not guessed at.
     {
         nya_check(nya_tilemap_layer_find(map, "no such layer") == NYA_TILEMAP_LAYER_NONE,
                   "a missing layer should report NONE");

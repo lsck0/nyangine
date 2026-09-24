@@ -182,7 +182,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     NYA_Arena* arena = nya_arena_create(.name = "net_echo");
     defer      nya_arena_destroy(arena);
 
-    // ── which halves to run ─────────────────────────────────────────────────────────────────────
+    // which halves to run
     b8               listen_only  = false;
     b8               connect_only = false;
     /* Zero means the system picks, which is what the in-process run wants: two copies of this example, or a test suite beside it, must not have to agree on a number to stay out of each other's way. --listen overrides it, because a client in another terminal has to be told where to go. */
@@ -210,7 +210,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     b8 run_server = !connect_only;
     b8 run_client = !listen_only;
 
-    // ── the server ──────────────────────────────────────────────────────────────────────────────
+    // the server
     NYA_NetTransport* server = nullptr;
     Endpoint          server_endpoint = { .label = "server" };
 
@@ -229,7 +229,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         nya_log_info("server: listening on %u.", port);
     }
 
-    // ── the client ──────────────────────────────────────────────────────────────────────────────
+    // the client
     NYA_NetTransport* client = nullptr;
     Endpoint          client_endpoint = { .label = "client" };
 
@@ -241,7 +241,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         nya_log_info("client: connecting to %s:%u.", address, port);
     }
 
-    // ── the loop ────────────────────────────────────────────────────────────────────────────────
+    // the loop
     u64 deadline = nya_clock_get_monotonic_ms() + TIMEOUT_MS;
 
     while (nya_clock_get_monotonic_ms() < deadline) {

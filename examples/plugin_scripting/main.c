@@ -117,7 +117,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         return EXIT_FAILURE;
     }
 
-    // ── reading a table the script defined ──────────────────────────────────────────────────────
+    // reading a table the script defined
     NYA_Value settings = { 0 };
     NYA_EXPECT(nya_lua_global_get(vm, arena, "settings", &settings), "while reading `settings`");
 
@@ -130,7 +130,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     NYA_String* as_json = nya_serialize(arena, &settings.as_object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
     nya_log_info("settings as json:\n" NYA_FMT_STRING, NYA_FMT_STRING_ARG(as_json));
 
-    // ── calling into the script ─────────────────────────────────────────────────────────────────
+    // calling into the script
     if (!nya_lua_has_function(vm, "play")) {
         nya_log_error("The script defines no `play`.");
         return EXIT_FAILURE;
@@ -142,7 +142,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_log_info("play(%d) returned %.0f; the binding summed %lld.", (s32)rounds->as_f64, result.as_f64, (long long)score.total);
 
-    // ── writing a global back ───────────────────────────────────────────────────────────────────
+    // writing a global back
     NYA_Value verdict = nya_lua_string(score.total >= 60 ? "good round" : "poor round");
     NYA_EXPECT(nya_lua_global_set(vm, "verdict", &verdict), "while writing `verdict`");
 
@@ -150,7 +150,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_log_info("LuaJIT holds %llu bytes.", (unsigned long long)nya_lua_memory_bytes(vm));
 
-    // ── what a plugin's VM looks like ─────────────────────────────────────────────────────────── The same call the plugin host makes for every plugin it loads. A permission the plugin did not get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement mechanism, and it is why there is nothing for a script to reach around.
+    // what a plugin's VM looks like — The same call the plugin host makes for every plugin it loads. A permission the plugin did not get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement mechanism, and it is why there is nothing for a script to reach around.
     NYA_LuaVM* sandboxed = nullptr;
     NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true }, &sandboxed), "while creating the second VM");
     defer nya_lua_destroy(sandboxed);

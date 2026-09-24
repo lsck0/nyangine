@@ -78,7 +78,7 @@ s32 main(void) {
     NYA_EXPECT(nya_tilemap_load(arena, FIXTURE, &map));
     nya_assert(map != nullptr);
 
-    // ── The animation came off the tileset, with its durations in seconds.
+    // The animation came off the tileset, with its durations in seconds.
     {
         nya_check(map->tileset_count == 1, "one tileset, got " FMTu32, map->tileset_count);
         nya_check(map->tilesets[0].animation_count == 1, "one animated tile, got " FMTu32, map->tilesets[0].animation_count);
@@ -97,7 +97,7 @@ s32 main(void) {
         nya_check(nya_tilemap_animation_for(map, 6) == nullptr, "a tile with properties but no animation is not animated");
     }
 
-    // ── The clock picks the frame, and a tile with no animation is left alone.
+    // The clock picks the frame, and a tile with no animation is left alone.
     {
         // Global id 1 is local 0, the animated one. Frames are local 0, 1, 2 → global 1, 2, 3.
         nya_check(nya_tilemap_tile_frame(map, 1) == 1, "at rest it shows its first frame");
@@ -117,7 +117,7 @@ s32 main(void) {
         nya_check(nya_tilemap_tile_frame(map, 0) == 0, "and so is an empty cell");
     }
 
-    // ── The flip bits survive a frame change.
+    // The flip bits survive a frame change.
     {
         u32 flipped = 1 | NYA_TILEMAP_FLIP_HORIZONTAL;
 
@@ -129,7 +129,7 @@ s32 main(void) {
         nya_check((resolved & NYA_TILEMAP_FLIP_HORIZONTAL) != 0, "and the tile should still be flipped");
     }
 
-    // ── The edge mask: four bits, in the documented order.
+    // The edge mask: four bits, in the documented order.
     {
         // A plus shape centred at (2, 2), so that cell has all four edge neighbours and no others do.
         const char* plus = "....."
@@ -154,7 +154,7 @@ s32 main(void) {
                   "an isolated cell has no neighbours");
     }
 
-    /* ── The blob mask: 47 cases out of 256, and a corner only counts with both its edges. Asserted as properties rather than as specific indices. Which index a given neighbourhood gets is a consequence of the enumeration order, and pinning those numbers here would mean this test had to be rewritten to match any change to it rather than catching one. */
+    /* The blob mask: 47 cases out of 256, and a corner only counts with both its edges. Asserted as properties rather than as specific indices. Which index a given neighbourhood gets is a consequence of the enumeration order, and pinning those numbers here would mean this test had to be rewritten to match any change to it rather than catching one. */
     {
         const char* solid = "#####"
                             "#####"
@@ -189,7 +189,7 @@ s32 main(void) {
         nya_check(reached == 47, "all 47 blob cases should be reachable, got " FMTu32, reached);
     }
 
-    // ── Auto-tiling a layer rewrites its filled cells and leaves the empty ones alone.
+    // Auto-tiling a layer rewrites its filled cells and leaves the empty ones alone.
     {
         u32 ground = nya_tilemap_layer_find(map, "ground");
         nya_check(ground != NYA_TILEMAP_LAYER_NONE, "the ground layer should be there");
@@ -214,7 +214,7 @@ s32 main(void) {
                   nya_tilemap_tile_at(map, ground, 2, 2) - 100);
     }
 
-    // ── The refusals.
+    // The refusals.
     {
         u32 ground = nya_tilemap_layer_find(map, "ground");
         u32 lookup[16] = { 0 };

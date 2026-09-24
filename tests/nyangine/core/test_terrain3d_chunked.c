@@ -31,7 +31,7 @@ s32 main(void) {
 
     NYA_Window window = { .screen_width = 320, .screen_height = 200 };
 
-    // ── An unchunked terrain has no chunks, and update is a no-op on it.
+    // An unchunked terrain has no chunks, and update is a no-op on it.
     {
         NYA_Terrain3D* plain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .entity_type = KIND_TERRAIN }, &plain));
@@ -44,7 +44,7 @@ s32 main(void) {
         nya_check(plain->chunks_rebuilt == 0, "updating an unchunked terrain does nothing");
     }
 
-    // ── The chunk grid covers the resolution, rounding up.
+    // The chunk grid covers the resolution, rounding up.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(
@@ -70,7 +70,7 @@ s32 main(void) {
         }
     }
 
-    // ── A resolution that is not a whole number of chunks is covered, not refused.
+    // A resolution that is not a whole number of chunks is covered, not refused.
     {
         u32 awkward = (NYA_TERRAIN3D_CHUNK_CELLS * 2) + 3;
 
@@ -91,7 +91,7 @@ s32 main(void) {
         nya_check(covered == awkward, "the chunks should cover every cell: " FMTu32 " against " FMTu32, covered, awkward);
     }
 
-    /* ── The LOD bands: nearer is finer, the levels double, and it saturates. Asserted as ordering and saturation rather than as specific distances. The band boundaries are a policy that should be tunable without this file objecting; what must not change is that they go the right way and stop. */
+    /* The LOD bands: nearer is finer, the levels double, and it saturates. Asserted as ordering and saturation rather than as specific distances. The band boundaries are a policy that should be tunable without this file objecting; what must not change is that they go the right way and stop. */
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,
@@ -122,7 +122,7 @@ s32 main(void) {
         nya_check(nya_terrain3d_lod_for_distance(nullptr, 100.0F) == 0, "and nothing at all is level zero rather than a crash");
     }
 
-    /* ── An update rebuilds only what changed, which is the whole reason the levels are banded. A rebuild uploads geometry, so an update that touched every chunk whenever the camera moved would make walking around a landscape stutter continuously rather than never. */
+    /* An update rebuilds only what changed, which is the whole reason the levels are banded. A rebuild uploads geometry, so an update that touched every chunk whenever the camera moved would make walking around a landscape stutter continuously rather than never. */
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,
@@ -189,7 +189,7 @@ s32 main(void) {
         }
     }
 
-    /* ── Hysteresis: drifting across a band boundary must not rebuild on every crossing. A chunk sitting on a boundary otherwise changes level every few frames as the viewer moves back and forth over it, and every change uploads geometry. Seen in the demo as one chunk flipping between 72 and 192 vertices while the camera orbited past it, which is what this pins. */
+    /* Hysteresis: drifting across a band boundary must not rebuild on every crossing. A chunk sitting on a boundary otherwise changes level every few frames as the viewer moves back and forth over it, and every change uploads geometry. Seen in the demo as one chunk flipping between 72 and 192 vertices while the camera orbited past it, which is what this pins. */
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,
@@ -233,7 +233,7 @@ s32 main(void) {
         nya_terrain3d_release(terrain, &window);
     }
 
-    // ── Height sampling is unaffected by chunking: the collider and the samples are not chunked.
+    // Height sampling is unaffected by chunking: the collider and the samples are not chunked.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(

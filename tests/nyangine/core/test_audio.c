@@ -253,7 +253,7 @@ s32 main(void) {
 
     NYA_AudioFilterState filter;
 
-    // ── No filter must be bit exact, not merely close ──
+    // No filter must be bit exact, not merely close
     {
       _nya_audio_filter_reset(&filter);
 
@@ -268,7 +268,7 @@ s32 main(void) {
       }
     }
 
-    // ── A low cutoff must crush treble and let bass through ──
+    // A low cutoff must crush treble and let bass through
     {
       /* A one pole at 500Hz passes about 98% of a 100Hz tone and about 6.5% of an 8kHz one. The thresholds are loose, but a filter that did nothing would fail the treble check by a factor of ten. */
       f64 bass   = filter_response(500.0F, 100.0F);
@@ -279,7 +279,7 @@ s32 main(void) {
       nya_assert(treble < bass, "the filter must be a low pass, not a high pass: %f treble against %f bass", treble, bass);
     }
 
-    // ── Glide must rate limit the coefficient rather than snapping ──
+    // Glide must rate limit the coefficient rather than snapping
     {
       _nya_audio_filter_reset(&filter);
       atomic_store_explicit(&filter.target_hz, 500.0F, memory_order_relaxed);
@@ -308,7 +308,7 @@ s32 main(void) {
       nya_assert(filter.coefficient > snapped, "a glided filter must lag an unglided one");
     }
 
-    // ── More channels than there is state for must pass through, not filter half of them ──
+    // More channels than there is state for must pass through, not filter half of them
     {
       _nya_audio_filter_reset(&filter);
       atomic_store_explicit(&filter.target_hz, 500.0F, memory_order_relaxed);
@@ -325,7 +325,7 @@ s32 main(void) {
       }
     }
 
-    // ── The bus effects setter, which is the only part of this a game touches ──
+    // The bus effects setter, which is the only part of this a game touches
     {
       nya_audio_bus_effects_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioEffects){ .pass = { .lowpass_hz = 700.0F, .glide_ms = 120.0F } });
 
@@ -383,7 +383,7 @@ s32 main(void) {
       nya_audio_voice_set_pitch(voice, 0.0F);
       nya_assert(nya_audio_voice_valid(voice), "a refused pitch must leave the voice alone");
 
-      // ── The generational property, which is the point of the handle ──
+      // The generational property, which is the point of the handle
       nya_audio_voice_stop(voice, 0);
 
       NYA_SoundVoice second = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
@@ -407,7 +407,7 @@ s32 main(void) {
         nya_audio_voice_stop(varied, 0);
       }
 
-      // ── Placement, which unlike pan can be read back off the track ──
+      // Placement, which unlike pan can be read back off the track
       nya_audio_listener_set((NYA_AudioListener){ .position = { 0.0F, 0.0F }, .reference_distance = 1.0F, .plane = NYA_AUDIO_PLANE_SIDE });
 
       NYA_SoundVoice placed = nya_audio_play_sound_at(TEST_WAV_PATH, (f32x2){ 3.0F, -4.0F }, (NYA_SoundParams){ .gain = 1.0F });
@@ -432,7 +432,7 @@ s32 main(void) {
         nya_audio_voice_stop(placed, 0);
       }
 
-      // ── A voice's own filter lands on that voice and on no other ──
+      // A voice's own filter lands on that voice and on no other
       NYA_SoundVoice muffled   = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
       NYA_SoundVoice untouched = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
 

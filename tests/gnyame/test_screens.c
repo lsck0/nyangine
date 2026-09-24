@@ -181,7 +181,7 @@ s32 main(void) {
     NYA_ConstCString game   = "gny_layer_background gny_layer_game gny_layer_ui";
     NYA_ConstCString paused = "gny_layer_background gny_layer_game gny_layer_ui gny_layer_pause_menu";
 
-    // ── Up and down move through the title screen and wrap at both ends, on either binding, and confirm waits for the barrier.
+    // Up and down move through the title screen and wrap at both ends, on either binding, and confirm waits for the barrier.
     {
         stack_reset();
 
@@ -215,7 +215,7 @@ s32 main(void) {
         nya_check(!moved.was_handled, "hover is left for layers below");
     }
 
-    // ── The HUD pauses on the pause action, and while paused leaves it to the menu, which resumes.
+    // The HUD pauses on the pause action, and while paused leaves it to the menu, which resumes.
     {
         gny_screen_request(GNY_SCREEN_START_GAME);
         barrier();
@@ -255,7 +255,7 @@ s32 main(void) {
         barrier();
     }
 
-    // ── The pause menu's options: volumes step and clamp, the stats toggle flips, and the language row reloads the strings.
+    // The pause menu's options: volumes step and clamp, the stats toggle flips, and the language row reloads the strings.
     {
         gny_screen_request(GNY_SCREEN_RESUME);
         gny_screen_request(GNY_SCREEN_PAUSE);
@@ -302,7 +302,7 @@ s32 main(void) {
         nya_check(nya_string_equals(nya_i18n_locale(), "en"), "and English loads back, got '%s'", nya_i18n_locale());
     }
 
-    /* ── Confirm requests the row's screen at the barrier. Downward from the top of the pause panel, not upward by wrapping. Wrapping walks backwards through every panel appended after this one, so the count had to be re-derived each time a panel grew a line, and it silently pointed at the wrong row the day the widgets panel was added. Counting from the top only depends on the pause panel's own rows, which is what this test is about. */
+    /* Confirm requests the row's screen at the barrier. Downward from the top of the pause panel, not upward by wrapping. Wrapping walks backwards through every panel appended after this one, so the count had to be re-derived each time a panel grew a line, and it silently pointed at the wrong row the day the widgets panel was added. Counting from the top only depends on the pause panel's own rows, which is what this test is about. */
     {
         gny_screen_request(GNY_SCREEN_RESUME);
         gny_screen_request(GNY_SCREEN_PAUSE);
@@ -322,7 +322,7 @@ s32 main(void) {
         nya_app_get()->should_quit = false;
     }
 
-    // ── The menus and movement resolve to a gamepad as well as keys, and a menu polls it without a device.
+    // The menus and movement resolve to a gamepad as well as keys, and a menu polls it without a device.
     {
         NYA_InputBinding confirm = nya_input_action_get(NYA_INPUT_ACTION_CONFIRM, 2);
         nya_check(confirm.kind == NYA_INPUT_BINDING_GAMEPAD_BUTTON && confirm.button == NYA_GAMEPAD_BUTTON_SOUTH, "confirm is the south button");
@@ -346,7 +346,7 @@ s32 main(void) {
         nya_check(nya_string_equals(stack(), paused) && !nya_app_get()->should_quit, "and polling changes nothing, stack '%s'", stack());
     }
 
-    // ── The menus lay out through the registered fonts, and the title is a distance field.
+    // The menus lay out through the registered fonts, and the title is a distance field.
     {
         NYA_Font title_font = nya_font_named("menu_title");
         NYA_Font item_font  = nya_font_named("menu");
@@ -362,7 +362,7 @@ s32 main(void) {
         nya_check(nya_font_metrics(title_font).line_height > nya_font_metrics(item_font).line_height, "both faces load, the title the larger");
     }
 
-    // ── The pointer on the title screen: hover focuses, a left click on a row activates it, anything else does not.
+    // The pointer on the title screen: hover focuses, a left click on a row activates it, anything else does not.
     {
         stack_reset();
 
@@ -413,7 +413,7 @@ s32 main(void) {
         nya_check(nya_string_equals(stack(), "gny_layer_background gny_layer_cube3d"), "and the keys carry on from the row the pointer focused, stack '%s'", stack());
     }
 
-    // ── Screen requests rearrange the stack at the barrier, and only from the screen they belong to.
+    // Screen requests rearrange the stack at the barrier, and only from the screen they belong to.
     {
         stack_reset();
         nya_check(gny_modal_active(), "the title screen is modal");
@@ -469,7 +469,7 @@ s32 main(void) {
         nya_check(nya_string_equals(stack(), title), "main menu on the title changes nothing, stack '%s'", stack());
     }
 
-    /* ── The widgets panel dragged over the pause panel keeps every click it is given. The reported bug, in the menu it was reported in: the panel moved over the others and clicks went through it to whatever was underneath. Both halves are here, because they are two mechanisms: a press on the title bar, which is chrome and belongs to no widget at all, and a press on a widget of the panel, which belongs to that one. Each is checked against the same point with nothing over it first, so a pass cannot mean the point simply reaches nothing. */
+    /* The widgets panel dragged over the pause panel keeps every click it is given. The reported bug, in the menu it was reported in: the panel moved over the others and clicks went through it to whatever was underneath. Both halves are here, because they are two mechanisms: a press on the title bar, which is chrome and belongs to no widget at all, and a press on a widget of the panel, which belongs to that one. Each is checked against the same point with nothing over it first, so a pass cannot mean the point simply reaches nothing. */
     {
         stack_reset();
         gny_screen_request(GNY_SCREEN_START_GAME);

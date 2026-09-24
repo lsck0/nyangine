@@ -52,7 +52,7 @@ s32 main(void) {
     defer nya_system_config_deinit();
     defer nya_world_destroy(world);
 
-    // ── A field the file leaves out loads as zero, next to one it sets.
+    // A field the file leaves out loads as zero, next to one it sets.
     {
         NYA_EXPECT(nya_file_write(FIXTURE_PATH, FIXTURE));
 
@@ -66,7 +66,7 @@ s32 main(void) {
         nya_check(NYA_CONFIG.game.player_spawn_spacing == 10.0F, "the spacing is read, got %f", (f64)NYA_CONFIG.game.player_spawn_spacing);
     }
 
-    // ── Zero speed falls back to GNY_PLAYER_SPEED; a set speed is used; a negative one falls back too.
+    // Zero speed falls back to GNY_PLAYER_SPEED; a set speed is used; a negative one falls back too.
     {
         NYA_CONFIG.game.player_speed = 0.0F;
         f32x2 fallback               = moved(1, 0.5F);
@@ -89,7 +89,7 @@ s32 main(void) {
         nya_check(moved(0, 1.0F).x == 0.0F, "and no input does not move");
     }
 
-    // ── Zero spawn spacing falls back to GNY_PLAYER_SPAWN_SPACING.
+    // Zero spawn spacing falls back to GNY_PLAYER_SPAWN_SPACING.
     {
         NYA_CONFIG.game.player_spawn_spacing = 0.0F;
         NYA_Entity* fallback                 = nya_entity_get(gny_net_spawn_player((NYA_NetPeerId){ .index = 3, .generation = 1 }, "fallback"));

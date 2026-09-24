@@ -344,7 +344,7 @@ s32 main(void) {
 
     static char dump[8192];
 
-    // ── Every kind of widget draws something a person would recognise, and none of them draws nothing.
+    // Every kind of widget draws something a person would recognise, and none of them draws nothing.
     {
         for (u32 kind = 0; kind < NYA_UI_WIDGET_KIND_COUNT; kind++) {
             NYA_UIWidgetDraw draw     = { 0 };
@@ -363,7 +363,7 @@ s32 main(void) {
         }
     }
 
-    // ── And the ASCII table is the same screen with different characters: no multi-byte anywhere in it.
+    // And the ASCII table is the same screen with different characters: no multi-byte anywhere in it.
     {
         for (u32 kind = 0; kind < NYA_UI_WIDGET_KIND_COUNT; kind++) {
             NYA_UIWidgetDraw draw = { 0 };
@@ -393,7 +393,7 @@ s32 main(void) {
         nya_check(strstr(dump, "+ title -") != nullptr, "and a frame falls back to the characters every terminal has, got \"%s\"", dump);
     }
 
-    // ── Focus is two marks, and neither of them is a colour: reverse video, and the angles around the widget.
+    // Focus is two marks, and neither of them is a colour: reverse video, and the angles around the widget.
     {
         NYA_UIWidgetDraw draw = { 0 };
         (void)one(NYA_UI_WIDGET_BUTTON, &draw);
@@ -422,7 +422,7 @@ s32 main(void) {
         nya_check((nya_ui_cells_at(&cells, 0, 0).attributes & NYA_TERMINAL_ATTRIBUTE_DIM) != 0, "a disabled one is dim");
     }
 
-    // ── The same tree through the recorder and through this presenter: the same sizes, and every one of them whole.
+    // The same tree through the recorder and through this presenter: the same sizes, and every one of them whole.
     {
         static NYA_UIRecorder recorder;
 
@@ -459,7 +459,7 @@ s32 main(void) {
         nya_check(strstr(dump, "settings") != nullptr && strstr(dump, "┌") != nullptr, "and the panel is a frame with its title in the top edge:\n%s", dump);
     }
 
-    // ── Measurement is cells, not pixels: nothing it answers is a fraction of one.
+    // Measurement is cells, not pixels: nothing it answers is a fraction of one.
     {
         const NYA_UIPresenter* presenter = nya_ui_cells_presenter(&cells);
 
@@ -495,7 +495,7 @@ s32 main(void) {
         nya_check(built.radius == 0.0F && built.depth == 0.0F && built.pop == 0.0F, "and there is no corner, shadow or pop to round");
     }
 
-    // ── Focus moving through a real tree marks the widget that has it, and only that one.
+    // Focus moving through a real tree marks the widget that has it, and only that one.
     {
         nya_ui_focus_reset(&window);
         tick();
@@ -521,7 +521,7 @@ s32 main(void) {
         nya_check(row_with(&cells, NYA_TERMINAL_ATTRIBUTE_REVERSE) != focused, "and it moves down the panel with the arrow keys");
     }
 
-    // ── The grid is the whole output: nothing reaches a terminal until it is asked to, and there is none here.
+    // The grid is the whole output: nothing reaches a terminal until it is asked to, and there is none here.
     {
         nya_ui_cells_present(&cells);
 
@@ -538,7 +538,7 @@ s32 main(void) {
         nya_check(nya_ui_cells_at(&cells, 0, 0).codepoint == 0, "and a reset grid is an empty screen");
     }
 
-    // ── The window goes back to the shape presenter, so nothing after this test is drawn in cells.
+    // The window goes back to the shape presenter, so nothing after this test is drawn in cells.
     nya_ui_presenter_set(&window, nullptr);
 
     return nya_check_failures() == 0 ? 0 : 1;

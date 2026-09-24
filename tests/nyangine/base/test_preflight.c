@@ -19,7 +19,7 @@
 #define BOGUS_LIBRARY "libnyangine-nonexistent-preflight-xyzzy.so.999"
 
 s32 main(void) {
-    // ── The program core: a present program is found, a bogus one is not, and neither crashes.
+    // The program core: a present program is found, a bogus one is not, and neither crashes.
     {
         nya_check(nya_preflight_program_present("sh"), "sh should be found on PATH");
         nya_check(!nya_preflight_program_present(BOGUS_PROGRAM), "a bogus program name should not be found");
@@ -29,7 +29,7 @@ s32 main(void) {
         nya_check(!nya_preflight_program_present(nullptr), "a null name should not be found");
     }
 
-    // ── The os lookup resolves to a runnable absolute path, the way a spawn would find it.
+    // The os lookup resolves to a runnable absolute path, the way a spawn would find it.
     {
         char path[NYA_OS_PATH_MAX] = { 0 };
         nya_check(nya_os_process_which("sh", path, sizeof(path)), "sh should resolve");
@@ -40,7 +40,7 @@ s32 main(void) {
         nya_check(!nya_os_process_which("./" BOGUS_PROGRAM, nullptr, 0), "a bogus relative path should not resolve");
     }
 
-    // ── The library core: a library every Linux box has is present, a bogus soname is not.
+    // The library core: a library every Linux box has is present, a bogus soname is not.
     {
 #if OS_LINUX
         nya_check(nya_preflight_library_present("libc.so.6"), "the C library should be loadable");
@@ -50,13 +50,13 @@ s32 main(void) {
         nya_check(!nya_preflight_library_present(nullptr), "a null soname should not be loadable");
     }
 
-    // ── A present program is required without incident: no crash, execution continues past the call.
+    // A present program is required without incident: no crash, execution continues past the call.
     {
         nya_require_program("sh", "the preflight self-test");
         nya_check(true, "requiring a present program returned normally");
     }
 
-    // ── A missing program crashes, and the crash is a PANIC naming the program and the feature.
+    // A missing program crashes, and the crash is a PANIC naming the program and the feature.
     {
         nya_expect_crash(nya_require_program(BOGUS_PROGRAM, "the preflight self-test feature"));
 
@@ -71,7 +71,7 @@ s32 main(void) {
         }
     }
 
-    // ── A missing library crashes the same way, naming the soname and the feature.
+    // A missing library crashes the same way, naming the soname and the feature.
     {
         nya_expect_crash(nya_require_library(BOGUS_LIBRARY, "the preflight library self-test"));
 

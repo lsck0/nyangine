@@ -12,7 +12,7 @@ static const void* fake_handle(u64 index) {
 }
 
 s32 main(void) {
-    // ── Texture sizes follow the format, mips, layers and samples.
+    // Texture sizes follow the format, mips, layers and samples.
     {
         SDL_GPUTextureCreateInfo atlas = {
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -48,7 +48,7 @@ s32 main(void) {
         nya_check(nya_gpu_texture_bytes(&cube) == (4ULL + 1ULL) * 4ULL * 6ULL, "every face keeps its mips");
     }
 
-    // ── Counts follow tracks and untracks, by kind.
+    // Counts follow tracks and untracks, by kind.
     {
         nya_check(nya_gpu_memory_bytes(NYA_GPU_MEMORY_TEXTURE) == 0, "nothing counted yet");
 
@@ -78,7 +78,7 @@ s32 main(void) {
                   "releasing everything returns every count to zero");
     }
 
-    // ── Released in a scrambled order, every entry stays findable: the backward shift keeps probe runs intact.
+    // Released in a scrambled order, every entry stays findable: the backward shift keeps probe runs intact.
     {
         const u64 count = NYA_GPU_MEMORY_TRACKED_MAX;
 
@@ -106,7 +106,7 @@ s32 main(void) {
         for (u32 i = 0; i < NYA_GPU_MEMORY_TRACKED_MAX * 2; i++) nya_check(_nya_gpu_memory.slots[i].handle == nullptr, "no slot left behind");
     }
 
-    // ── The counts are published as gauges once anything is counted.
+    // The counts are published as gauges once anything is counted.
     {
         u32 found = 0;
         for (u32 i = 0; i < nya_gauge_count(); i++) {

@@ -51,7 +51,7 @@ typedef uint64_t u64;
  * the checks are a no-op here and the copied bodies stay verbatim. */
 #define nya_assert(...) ((void)0)
 
-/* ── constants mirrored from base_clock_format.h / base_clock_instant.h ─────────────────────────── */
+/* constants mirrored from base_clock_format.h / base_clock_instant.h */
 
 #define NYA_RFC3339_FRACTION_DIGITS_MAX 9
 
@@ -59,7 +59,7 @@ typedef uint64_t u64;
 #define NYA_NS_PER_MINUTE (60LL * NYA_NS_PER_SECOND)
 #define NYA_NS_PER_HOUR   (60LL * NYA_NS_PER_MINUTE)
 
-/* ── minimal structs the parser writes into ─────────────────────────────────────────────────────── */
+/* minimal structs the parser writes into */
 
 typedef struct {
     s32 year;
@@ -97,7 +97,7 @@ typedef enum {
     NYA_TIME_PARSE_TRAILING_BYTES,
 } NYA_TimeParse;
 
-/* ── mirrored from src/nyangine/base/base_clock_format.c ────────────────────────────────────────── */
+/* mirrored from src/nyangine/base/base_clock_format.c */
 
 typedef struct {
     const u8* text;
@@ -170,7 +170,7 @@ static NYA_TimeParse _nya_time_read_clock(_NYA_TimeCursor* cursor, OUT NYA_TimeO
     return NYA_TIME_PARSE_OK;
 }
 
-/* ── the two calendar helpers, modelled: they read the parsed integers, never the input buffer ──── */
+/* the two calendar helpers, modelled: they read the parsed integers, never the input buffer */
 
 extern b8 nondet_date_valid(void);
 extern b8 nondet_compose_ok(void);
@@ -273,7 +273,7 @@ static NYA_TimeParse _nya_rfc3339_parse(_NYA_TimeCursor* cursor, OUT NYA_Instant
     return NYA_TIME_PARSE_OK;
 }
 
-/* ── the harness ────────────────────────────────────────────────────────────────────────────────── */
+/* the harness */
 
 /* Big enough to admit a whole timestamp with a Z, a numeric offset, or a fractional part — the shortest
  * accepted form, "2000-01-01T00:00:00Z", is twenty bytes — yet small enough to keep the state space

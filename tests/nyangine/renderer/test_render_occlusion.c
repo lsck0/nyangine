@@ -22,7 +22,7 @@ static void wall(NYA_OcclusionBuffer* buffer, f32 z, f32 half) {
 static NYA_OcclusionBuffer buffer;
 
 s32 main(void) {
-    // ── A buffer that was never begun hides nothing, whatever is asked of it.
+    // A buffer that was never begun hides nothing, whatever is asked of it.
     {
         buffer = (NYA_OcclusionBuffer){ 0 };
 
@@ -32,7 +32,7 @@ s32 main(void) {
         nya_check(!nya_occlusion_test(nullptr, (f32x3){ 0, 0, -20 }, 1.0F), "a null buffer is not a crash");
     }
 
-    // ── The base case: a wall at -10, a sphere behind it, a sphere in front of it.
+    // The base case: a wall at -10, a sphere behind it, a sphere in front of it.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -10.0F, 40.0F);
@@ -47,7 +47,7 @@ s32 main(void) {
         nya_check(stats.tests == 2 && stats.occluded == 1, "and the counters say so: %u tests, %u hidden", stats.tests, stats.occluded);
     }
 
-    // ── Touching the wall from behind is still hidden; touching it from in front is not.
+    // Touching the wall from behind is still hidden; touching it from in front is not.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -10.0F, 40.0F);
@@ -56,7 +56,7 @@ s32 main(void) {
         nya_check(!nya_occlusion_test(&buffer, (f32x3){ 0, 0, -10.0F }, 1.0F), "one straddling it is not");
     }
 
-    // ── A wall that only covers part of the view leaves the rest alone.
+    // A wall that only covers part of the view leaves the rest alone.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
 
@@ -70,7 +70,7 @@ s32 main(void) {
         nya_check(!nya_occlusion_test(&buffer, (f32x3){ 0, 0, -20 }, 4.0F), "a sphere poking out from behind it is not hidden");
     }
 
-    // ── An occluder the camera is inside, or behind, writes nothing rather than garbage.
+    // An occluder the camera is inside, or behind, writes nothing rather than garbage.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
 
@@ -84,7 +84,7 @@ s32 main(void) {
         nya_check(!nya_occlusion_test(&buffer, (f32x3){ 0, 0, -20 }, 1.0F), "so nothing behind them is hidden");
     }
 
-    // ── A degenerate occluder is not a divide by zero.
+    // A degenerate occluder is not a divide by zero.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
 
@@ -97,7 +97,7 @@ s32 main(void) {
                   "and neither does one smaller than a pixel");
     }
 
-    // ── Either winding works, because a caller does not know which side of a wall it ended up on.
+    // Either winding works, because a caller does not know which side of a wall it ended up on.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         (void)nya_occlusion_quad(&buffer, (f32x3){ -40, 40, -10 }, (f32x3){ 40, 40, -10 }, (f32x3){ 40, -40, -10 }, (f32x3){ -40, -40, -10 });
@@ -105,7 +105,7 @@ s32 main(void) {
         nya_check(nya_occlusion_test(&buffer, (f32x3){ 0, 0, -20 }, 1.0F), "a reversed winding occludes just the same");
     }
 
-    // ── The nearest claim wins when two occluders overlap.
+    // The nearest claim wins when two occluders overlap.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -30.0F, 100.0F);
@@ -114,7 +114,7 @@ s32 main(void) {
         nya_check(nya_occlusion_test(&buffer, (f32x3){ 0, 0, -20 }, 1.0F), "something between the two walls is hidden by the nearer one");
     }
 
-    // ── A box submits the faces pointing at the eye, and hides what is behind it.
+    // A box submits the faces pointing at the eye, and hides what is behind it.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
 
@@ -129,7 +129,7 @@ s32 main(void) {
         nya_check(faces == 3, "an eye off all three axes sees three faces, got %u", faces);
     }
 
-    // ── A query whose rectangle leaves the buffer is answered visible, not hidden.
+    // A query whose rectangle leaves the buffer is answered visible, not hidden.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -10.0F, 1000.0F);
@@ -138,7 +138,7 @@ s32 main(void) {
         nya_check(!nya_occlusion_test(&buffer, (f32x3){ 0, 0, -12 }, 40.0F), "a query running off the buffer is not hidden");
     }
 
-    // ── A query too large to be worth scanning gives up rather than spending the time.
+    // A query too large to be worth scanning gives up rather than spending the time.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -5.0F, 1000.0F);
@@ -150,7 +150,7 @@ s32 main(void) {
                   nya_occlusion_stats(&buffer).abandoned);
     }
 
-    // ── Beginning again forgets everything, camera included.
+    // Beginning again forgets everything, camera included.
     {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -10.0F, 40.0F);

@@ -149,7 +149,7 @@ NYA_INTERNAL void test_delta_against_identical_baseline(NYA_Arena* arena) {
     nya_assert(states_equal(expected, got));
   }
 
-  // ── one entity moves; only it should be in the delta ──────────────────────
+  // one entity moves; only it should be in the delta
   {
     NYA_Entity* mover = nya_entity_get(handles[5]);
     nya_assert(mover != nullptr);
@@ -317,7 +317,7 @@ NYA_INTERNAL void test_applying_snapshot_spawns_moves_and_despawns(NYA_Arena* ar
   nya_assert(!nya_entity_is_valid(nya_net_replica_local(map, (NYA_EntityHandle){ .index = 4242, .generation = 1 })),
              "an unmapped server handle resolves to nothing");
 
-  // ── an entity the server drops is despawned locally ──────────────────────
+  // an entity the server drops is despawned locally
   {
     NYA_NetSnapshot shrunk = { .tick = 6, .entities = described, .entity_count = 1 };
 

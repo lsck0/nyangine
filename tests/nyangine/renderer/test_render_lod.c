@@ -15,7 +15,7 @@ static const char ROCK[]     = "mesh_rock";
 s32 main(void) {
     nya_render3d_lod_clear();
 
-    // ── An unregistered handle passes straight through. This is what makes resolution unconditional.
+    // An unregistered handle passes straight through. This is what makes resolution unconditional.
     {
         nya_check(nya_render3d_lod_count() == 0, "nothing registered yet");
         nya_check(!nya_render3d_lod_registered(TREE), "and the tree is not");
@@ -24,7 +24,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_select(nullptr, 5.0F) == nullptr, "and null stays null");
     }
 
-    // ── A well formed chain selects by distance, and the last level's range is the draw distance.
+    // A well formed chain selects by distance, and the last level's range is the draw distance.
     {
         b8 ok = nya_render3d_lod_register(TREE,
                                           (NYA_Render3DLodLevel[]){
@@ -55,7 +55,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_level_at(TREE, 400.0F) == NYA_RENDER3D_LOD_LEVELS, "and past the end");
     }
 
-    // ── The squared entry point agrees with the plain one, since the draw path uses it.
+    // The squared entry point agrees with the plain one, since the draw path uses it.
     {
         nya_check(nya_render3d_lod_select_squared(TREE, 10.0F * 10.0F) == nya_render3d_lod_select(TREE, 10.0F),
                   "squared and plain should agree near");
@@ -64,7 +64,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_select_squared(TREE, 400.0F * 400.0F) == nullptr, "and past the end");
     }
 
-    // ── A badly formed chain is refused rather than quietly fixed.
+    // A badly formed chain is refused rather than quietly fixed.
     {
         nya_check(!nya_render3d_lod_register(ROCK,
                                              (NYA_Render3DLodLevel[]){
@@ -99,7 +99,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_count() == 1, "the count should be untouched, got %u", nya_render3d_lod_count());
     }
 
-    // ── A single-level chain is a pure draw distance, which is a use in its own right.
+    // A single-level chain is a pure draw distance, which is a use in its own right.
     {
         nya_check(nya_render3d_lod_register(ROCK, (NYA_Render3DLodLevel[]){ { .handle = ROCK, .max_distance = 50.0F } }, 1),
                   "a one-level chain should register");
@@ -108,7 +108,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_select(ROCK, 51.0F) == nullptr, "outside it does not");
     }
 
-    // ── Re-registering replaces rather than accumulating.
+    // Re-registering replaces rather than accumulating.
     {
         u32 before = nya_render3d_lod_count();
 
@@ -119,7 +119,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_select(TREE, 10.0F) == nullptr, "including its shorter range");
     }
 
-    // ── Unregistering restores pass-through.
+    // Unregistering restores pass-through.
     {
         nya_render3d_lod_unregister(TREE);
         nya_check(!nya_render3d_lod_registered(TREE), "it should be gone");
@@ -132,7 +132,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_select(ROCK, 1.0F) == ROCK, "and everything passes through again");
     }
 
-    // ── The table refuses more chains than it holds, rather than overwriting one.
+    // The table refuses more chains than it holds, rather than overwriting one.
     {
         nya_render3d_lod_clear();
 

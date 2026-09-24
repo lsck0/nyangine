@@ -13,7 +13,7 @@
 
 static NYA_Window window = { .handle = { .index = 1, .generation = 1 }, .screen_width = 800, .screen_height = 600 };
 
-/* ── Driving the pointer and the clock, the same way the shadcn widget test does. ── */
+/* Driving the pointer and the clock, the same way the shadcn widget test does. */
 
 static void pointer_move(f32x2 point) {
     f32x2     from  = nya_input_mouse_position();
@@ -38,7 +38,7 @@ static void tick(void) {
     nya_world()->sim_system.tick++;
 }
 
-/* ── The graph under test. A source with one output and a sink with one input, and any links the case set. ── */
+/* The graph under test. A source with one output and a sink with one input, and any links the case set. */
 
 static NYA_UINodeEditor editor;
 static f32x2            pos_a;
@@ -73,7 +73,7 @@ static void draw_twice(NYA_UIRecorder* recorder) {
     graph(NYA_UI_PASS_DRAW);
 }
 
-/* ── The same transform the widget uses, so the test computes where a node must land rather than guessing. ── */
+/* The same transform the widget uses, so the test computes where a node must land rather than guessing. */
 
 static f32 combined(void) {
     return 1.0F * editor.zoom; // the pass scale is 1 headless.
@@ -154,7 +154,7 @@ s32 main(void) {
 
     nya_ui_presenter_set(&window, nya_ui_recorder_presenter(&recorder));
 
-    // ── The nodes build into the structure their positions ask for: a box each, a title label, and a port stub.
+    // The nodes build into the structure their positions ask for: a box each, a title label, and a port stub.
     {
         editor     = (NYA_UINodeEditor){ .zoom = 1.0F };
         pos_a      = (f32x2){ 20.0F, 20.0F };
@@ -185,7 +185,7 @@ s32 main(void) {
         nya_check(count_of(&recorder, NYA_UI_WIDGET_RULE) == 4, "two title strips and two port stubs, got %u", count_of(&recorder, NYA_UI_WIDGET_RULE));
     }
 
-    // ── Dragging a node by its title moves it, in graph units, however the canvas is placed.
+    // Dragging a node by its title moves it, in graph units, however the canvas is placed.
     {
         editor     = (NYA_UINodeEditor){ .zoom = 1.0F };
         pos_a      = (f32x2){ 20.0F, 20.0F };
@@ -210,7 +210,7 @@ s32 main(void) {
         nya_check(pos_a.x == 60.0F && pos_a.y == 45.0F, "a title drag moves the node by the pointer, got %f,%f", (f64)pos_a.x, (f64)pos_a.y);
     }
 
-    // ── Pulling from an output stub to an input one reports the link, both ends named by the keys the caller gave.
+    // Pulling from an output stub to an input one reports the link, both ends named by the keys the caller gave.
     {
         editor     = (NYA_UINodeEditor){ .zoom = 1.0F };
         pos_a      = (f32x2){ 20.0F, 20.0F };
@@ -246,7 +246,7 @@ s32 main(void) {
         nya_check(count_of(&recorder, NYA_UI_WIDGET_RULE) == without + 3, "a link is a three segment elbow, got %u past %u", count_of(&recorder, NYA_UI_WIDGET_RULE), without);
     }
 
-    // ── Grabbing an input stub asks the caller to detach whatever ran into it.
+    // Grabbing an input stub asks the caller to detach whatever ran into it.
     {
         editor     = (NYA_UINodeEditor){ .zoom = 1.0F };
         pos_a      = (f32x2){ 20.0F, 20.0F };
@@ -268,7 +268,7 @@ s32 main(void) {
         graph(NYA_UI_PASS_INPUT);
     }
 
-    // ── Dragging empty canvas pans it, and the nodes move with the pan.
+    // Dragging empty canvas pans it, and the nodes move with the pan.
     {
         editor     = (NYA_UINodeEditor){ .zoom = 1.0F };
         pos_a      = (f32x2){ 20.0F, 20.0F };
@@ -297,7 +297,7 @@ s32 main(void) {
         nya_check(panel_at(&recorder, a.x, a.y) != nullptr, "the node follows the pan to (%f,%f)", (f64)a.x, (f64)a.y);
     }
 
-    // ── The wheel zooms about the pointer, and hit testing follows: the node is grabbable at its zoomed position.
+    // The wheel zooms about the pointer, and hit testing follows: the node is grabbable at its zoomed position.
     {
         editor     = (NYA_UINodeEditor){ .zoom = 1.0F };
         pos_a      = (f32x2){ 20.0F, 20.0F };

@@ -63,7 +63,7 @@ s32 main(void) {
 
     gny_terrain_generate(world->terrain_seed);
 
-    // ── The task: senses are scaled and clamped, speed is capped, and a missing brain does not thrust.
+    // The task: senses are scaled and clamped, speed is capped, and a missing brain does not thrust.
     {
         f32 senses[GNY_ROBOT_SENSES];
         gny_robot_sense((GNY_RobotBody){ .velocity = { GNY_ROBOT_MAX_SPEED * 3.0F, 0.0F } }, (f32x2){ GNY_ROBOT_SENSE_RANGE * 0.5F, -1e6F }, senses);
@@ -82,7 +82,7 @@ s32 main(void) {
         }
     }
 
-    // ── Both brains get better at the trial, which is deterministic: NEAT within a few generations, the DQN within a few thousand gradient steps.
+    // Both brains get better at the trial, which is deterministic: NEAT within a few generations, the DQN within a few thousand gradient steps.
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_robots_trainers");
         defer      nya_arena_destroy(arena);
@@ -110,7 +110,7 @@ s32 main(void) {
         nya_check(trained > untrained + 0.05, "the DQN's score climbs too, from %f to %f", untrained, trained);
     }
 
-    // ── The nav grid blocks the ground and leads a drone out of it and toward the goal.
+    // The nav grid blocks the ground and leads a drone out of it and toward the goal.
     {
         NYA_Arena* arena = nya_arena_create(.name = "test_robots_nav");
         defer      nya_arena_destroy(arena);
@@ -150,7 +150,7 @@ s32 main(void) {
         nya_check(fabsf(orbit - GNY_ROBOT_ORBIT_RADIUS) < 1e-2F, "close in, it circles the goal, got %f", (f64)orbit);
     }
 
-    // ── A whole run: the config turns the drones on, a job trains, and turning them off saves and records it.
+    // A whole run: the config turns the drones on, a job trains, and turning them off saves and records it.
     {
         NYA_CONFIG.game.robots = (GNY_ConfigRobots){ .enabled = true, .population = 12, .generations_per_second = 8.0F, .dqn_steps_per_second = 64.0F };
 

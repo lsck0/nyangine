@@ -24,7 +24,7 @@ static void record(char mark) {
     ORDER[ORDER_LENGTH] = '\0';
 }
 
-/* ── the handlers under test ── */
+/* the handlers under test */
 
 static NYA_HttpStatus open_query(NYA_HttpExchange* exchange) {
     record('h');
@@ -49,7 +49,7 @@ static NYA_HttpStatus closed_put(NYA_HttpExchange* exchange, const NYA_HttpIdent
                                                                                                  : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/* ── the layers ── */
+/* the layers */
 
 static NYA_HttpStatus outer_layer(NYA_HttpExchange* exchange, NYA_HttpChain* next) {
     record('a');
@@ -75,7 +75,7 @@ static NYA_HttpStatus short_circuit_layer(NYA_HttpExchange* exchange, NYA_HttpCh
     return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "the layer said no");
 }
 
-/* ── the tables ── */
+/* the tables */
 
 static const NYA_HttpLayerFn RESOURCE_LAYERS[] = { inner_layer };
 

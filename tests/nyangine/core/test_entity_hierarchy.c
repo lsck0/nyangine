@@ -35,7 +35,7 @@ s32 main(void) {
     defer nya_world_destroy(world);
     defer nya_system_callback_deinit();
 
-    // ── Parenting keeps the child exactly where it is.
+    // Parenting keeps the child exactly where it is.
     {
         NYA_EntityHandle tank   = nya_entity_spawn(.name = "tank", .position = { 100.0F, 0.0F, 0.0F }, .scale = { 1, 1, 1 });
         NYA_EntityHandle turret = nya_entity_spawn(.name = "turret", .position = { 100.0F, -20.0F, 0.0F }, .scale = { 1, 1, 1 });
@@ -57,7 +57,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Moving a parent carries its children; moving a child does not move the parent.
+    // Moving a parent carries its children; moving a child does not move the parent.
     {
         NYA_EntityHandle tank   = nya_entity_spawn(.name = "tank", .position = { 100.0F, 0.0F, 0.0F }, .scale = { 1, 1, 1 });
         NYA_EntityHandle turret = nya_entity_spawn(.name = "turret", .position = { 100.0F, -20.0F, 0.0F }, .scale = { 1, 1, 1 });
@@ -83,7 +83,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Rotating a parent swings its children around it.
+    // Rotating a parent swings its children around it.
     {
         NYA_EntityHandle hub  = nya_entity_spawn(.name = "hub", .position = { 0, 0, 0 }, .scale = { 1, 1, 1 },
                                                 .rotation = nya_quaternion_identity);
@@ -105,7 +105,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Scale composes, and a chain three deep resolves in one pass rather than one level per tick.
+    // Scale composes, and a chain three deep resolves in one pass rather than one level per tick.
     {
         NYA_EntityHandle a = nya_entity_spawn(.name = "a", .position = { 0, 0, 0 }, .scale = { 1, 1, 1 }, .rotation = nya_quaternion_identity);
         NYA_EntityHandle b = nya_entity_spawn(.name = "b", .position = { 10.0F, 0, 0 }, .scale = { 1, 1, 1 }, .rotation = nya_quaternion_identity);
@@ -128,7 +128,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Unparenting leaves the child where it is.
+    // Unparenting leaves the child where it is.
     {
         NYA_EntityHandle parent = nya_entity_spawn(.name = "parent", .position = { 50.0F, 0, 0 }, .scale = { 1, 1, 1 });
         NYA_EntityHandle child  = nya_entity_spawn(.name = "child", .position = { 60.0F, 0, 0 }, .scale = { 1, 1, 1 });
@@ -149,7 +149,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Cycles are refused, which is what stops the propagation walk recursing forever.
+    // Cycles are refused, which is what stops the propagation walk recursing forever.
     {
         NYA_EntityHandle a = nya_entity_spawn(.name = "a", .scale = { 1, 1, 1 });
         NYA_EntityHandle b = nya_entity_spawn(.name = "b", .scale = { 1, 1, 1 });
@@ -172,7 +172,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Several children, and moving between parents.
+    // Several children, and moving between parents.
     {
         NYA_EntityHandle left  = nya_entity_spawn(.name = "left", .scale = { 1, 1, 1 });
         NYA_EntityHandle right = nya_entity_spawn(.name = "right", .scale = { 1, 1, 1 });
@@ -202,7 +202,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Despawning a parent takes its subtree with it.
+    // Despawning a parent takes its subtree with it.
     {
         NYA_EntityHandle tank   = nya_entity_spawn(.name = "tank", .scale = { 1, 1, 1 });
         NYA_EntityHandle turret = nya_entity_spawn(.name = "turret", .scale = { 1, 1, 1 });
@@ -222,7 +222,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    /* ── Despawning a child leaves its parent's list intact. The failure this guards against is silent: a sibling list still naming a despawned slot walks into whatever reuses it, and the propagation then writes a transform onto an unrelated entity. */
+    /* Despawning a child leaves its parent's list intact. The failure this guards against is silent: a sibling list still naming a despawned slot walks into whatever reuses it, and the propagation then writes a transform onto an unrelated entity. */
     {
         NYA_EntityHandle parent = nya_entity_spawn(.name = "parent", .position = { 5.0F, 0, 0 }, .scale = { 1, 1, 1 });
 
@@ -254,7 +254,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── nya_entity_transform_sync answers within the same tick.
+    // nya_entity_transform_sync answers within the same tick.
     {
         NYA_EntityHandle parent = nya_entity_spawn(.name = "parent", .position = { 0, 0, 0 }, .scale = { 1, 1, 1 });
         NYA_EntityHandle child  = nya_entity_spawn(.name = "child", .position = { 10.0F, 0, 0 }, .scale = { 1, 1, 1 });
@@ -273,7 +273,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── The world matrix places a point the way the hierarchy placed the entity.
+    // The world matrix places a point the way the hierarchy placed the entity.
     {
         NYA_EntityHandle hub = nya_entity_spawn(.name = "hub", .position = { 5.0F, 0, 0 }, .scale = { 2.0F, 2.0F, 2.0F },
                                                 .rotation = nya_quaternion_identity);
@@ -314,7 +314,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── The degenerate cases.
+    // The degenerate cases.
     {
         nya_check(!nya_entity_parent_set(NYA_ENTITY_HANDLE_NONE, NYA_ENTITY_HANDLE_NONE), "nothing cannot be parented");
         nya_check(!nya_entity_is_valid(nya_entity_parent(nullptr)), "nothing has no parent");

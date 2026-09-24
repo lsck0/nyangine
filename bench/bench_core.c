@@ -89,7 +89,7 @@ s32 main(void) {
 
     if (nya_bench_end() != 0) return 1;
 
-    // ── The lookup the memo actually sits in front of ──
+    // The lookup the memo actually sits in front of
     {
         /* These two numbers do not demonstrate the memo; they only show the call is cheap. */
         nya_bench_begin("asset lookup (empty dictionary, see the note in the source)");

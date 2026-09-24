@@ -78,7 +78,7 @@ s32 main(void) {
     NYA_EXPECT(nya_net_snapshot_capture(arena, FLAG_REPLICATED, 1, &snapshot));
     nya_assert(snapshot.entity_count == 2);
 
-    // ── over the wire and into the other world ──────────────────────────────
+    // over the wire and into the other world
     NYA_String* payload = nya_string_create(arena);
     NYA_EXPECT(nya_net_snapshot_encode(arena, &snapshot, nullptr, payload));
 
@@ -205,7 +205,7 @@ s32 main(void) {
     // A client's own entity is not the connection's to remove.
     nya_assert(replicated_count() == 1, "only the client's own replicated entity remains, found %u", replicated_count());
 
-    // ── and reconnecting starts clean ──────────────────────────────────────────
+    // and reconnecting starts clean
     (void)nya_world_set(server_world);
 
     NYA_NetSnapshot snapshot = { 0 };
@@ -353,7 +353,7 @@ s32 main(void) {
 
     nya_assert(DRAWN_AT(318.5) == 318.5F, "after the ring rolled over, got %f", (f64)DRAWN_AT(318.5));
 
-    // ── the predicted entity is left alone ────────────────────────────────────
+    // the predicted entity is left alone
     {
       (void)nya_world_set(client_world);
 

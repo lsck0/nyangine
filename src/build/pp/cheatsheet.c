@@ -137,7 +137,7 @@ void nya_cheatsheet_generate(void) {
 
     u32 module_count = (u32)(sizeof(_NYA_CHEATSHEET_MODULES) / sizeof(_NYA_CHEATSHEET_MODULES[0]));
 
-    // ── the table of contents ───────────────────────────────────────────────────────────────────
+    // the table of contents
     nya_string_extend(out, "## Modules\n\n");
     for (u32 i = 0; i < module_count; i++) {
         nya_string_extend_sprintf(out, "- [`%s`](#%s) — %s\n", _NYA_CHEATSHEET_MODULES[i].title, _NYA_CHEATSHEET_MODULES[i].title,
@@ -558,7 +558,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
 
         if (strncmp(line, "//", 2) == 0) continue;
 
-        // ── macros ──────────────────────────────────────────────────────────────────────────────
+        // macros
         if (strncmp(line, "#define ", 8) == 0) {
             const char* cursor = line + 8;
 
@@ -625,7 +625,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
 
         if (line[0] == '#') continue;
 
-        // ── functions and globals ───────────────────────────────────────────────────────────────
+        // functions and globals
         if (strncmp(line, "NYA_API ", 8) == 0) {
             _nya_cheatsheet_read_declaration(&reader, line + 8, entry, sizeof(entry));
             _nya_cheatsheet_emit(file.functions, entry, file.summary);
@@ -633,7 +633,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
             continue;
         }
 
-        // ── types ───────────────────────────────────────────────────────────────────────────────
+        // types
         b8 is_aggregate = strncmp(line, "struct NYA_", 11) == 0 || strncmp(line, "enum NYA_", 9) == 0 || strncmp(line, "union NYA_", 10) == 0;
 
         if (is_aggregate || strncmp(line, "typedef ", 8) == 0) {
@@ -654,7 +654,7 @@ void _nya_cheatsheet_scan_file(NYA_Arena* arena, NYA_String* out, NYA_ConstCStri
 
     if (file.types->length == 0 && file.macros->length == 0 && file.functions->length == 0) return;
 
-    // ── the section ─────────────────────────────────────────────────────────────────────────────
+    // the section
     NYA_ConstCString name = strrchr(path, '/');
     name                  = name != nullptr ? name + 1 : path;
 

@@ -472,7 +472,7 @@ s32 main(void) {
 
     nya_assert(reply_is_ok(call(client, buffer, "{\"op\":\"event.subscribe\",\"types\":[\"WINDOW_RESIZED\"]}")));
 
-    // ── Out: what the program raised reaches the peer with its fields read by reflection ──
+    // Out: what the program raised reaches the peer with its fields read by reflection
     nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_WINDOW_RESIZED, .as_window_resized_event = { .width = 640, .height = 480 } });
 
     NYA_Object* pushed = receive_message(client, buffer);
@@ -494,7 +494,7 @@ s32 main(void) {
 
     nya_assert(reply_is_ok(call(client, buffer, "{\"op\":\"event.unsubscribe\",\"types\":[\"WINDOW_RESIZED\"]}")));
 
-    // ── In: a peer's dispatch fills the payload, and only while it is exposed ──
+    // In: a peer's dispatch fills the payload, and only while it is exposed
     NYA_EventHook hook = {
       .event_type = NYA_EVENT_WINDOW_RESIZED,
       .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,

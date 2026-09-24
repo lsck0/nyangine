@@ -9,7 +9,7 @@
 #pragma clang diagnostic ignored "-Wpsabi"
 
 s32 main(void) {
-    // ── nya_matrix_transform: translation, rotation and scale composed into one matrix.
+    // nya_matrix_transform: translation, rotation and scale composed into one matrix.
     {
         // Identity rotation and unit scale: the translation should sit in the fourth column.
         f32_3x3 no_rotation = nya_matrix_create((f32x3){ 1, 0, 0 }, (f32x3){ 0, 1, 0 }, (f32x3){ 0, 0, 1 });
@@ -42,7 +42,7 @@ s32 main(void) {
         nya_check(fabsf(mapped.y - 1.0F) < 0.01F, "rotation then translation: y, got %f", (f64)mapped.y);
     }
 
-    // ── f32 create and times_vector at every size, as the reference the other types are checked against.
+    // f32 create and times_vector at every size, as the reference the other types are checked against.
     {
         f32_2x2 m2 = nya_matrix_create((f32x2){ 1, 2 }, (f32x2){ 3, 4 });
         f32x2   v2 = nya_matrix_times_vector(m2, (f32x2){ 1, 1 });
@@ -60,7 +60,7 @@ s32 main(void) {
                   "4x4 doubles xyz, got (%f, %f, %f)", (f64)v4.x, (f64)v4.y, (f64)v4.z);
     }
 
-    // ── f64: the same shapes, at double precision.
+    // f64: the same shapes, at double precision.
     {
         f64_2x2 m2 = nya_matrix_create((f64x2){ 1, 2 }, (f64x2){ 3, 4 });
         f64x2   v2 = nya_matrix_times_vector(m2, (f64x2){ 1, 1 });
@@ -80,7 +80,7 @@ s32 main(void) {
         nya_check(through.x != 1.0, "an f64 matrix must not round to f32 precision");
     }
 
-    // ── f16: the same shapes, at half precision. Tolerances are wide because the type is.
+    // f16: the same shapes, at half precision. Tolerances are wide because the type is.
     {
         f16_2x2 m2 = nya_matrix_create((f16x2){ 1, 2 }, (f16x2){ 3, 4 });
         f16x2   v2 = nya_matrix_times_vector(m2, (f16x2){ 1, 1 });
@@ -95,7 +95,7 @@ s32 main(void) {
         nya_check(fabs((f64)v4.z - 6.0) < 0.05, "f16 4x4, got z=%f", (f64)v4.z);
     }
 
-    // ── f128: the widest, which nothing had ever instantiated.
+    // f128: the widest, which nothing had ever instantiated.
     {
         f128_2x2 m2 = nya_matrix_create((f128x2){ 1, 2 }, (f128x2){ 3, 4 });
         f128x2   v2 = nya_matrix_times_vector(m2, (f128x2){ 1, 1 });
@@ -119,7 +119,7 @@ s32 main(void) {
         nya_check(fabsl(id3[0][0] - 1.0L) < 1e-12L && fabsl(id3[0][1]) < 1e-12L, "f128_3x3_id should be the identity");
     }
 
-    // ── The array-of-entries overloads, which take a C array rather than rows.
+    // The array-of-entries overloads, which take a C array rather than rows.
     {
         f32 entries2[2][2] = { { 1, 2 }, { 3, 4 } };
         f32_2x2 m2 = nya_matrix_create(entries2);
@@ -138,7 +138,7 @@ s32 main(void) {
         nya_check(fabs(wide[1][1] - 9.0) < 1e-9, "f64 from entries, got %f", wide[1][1]);
     }
 
-    // ── Perspective and the two orthographics, checked as behaviour rather than as element values.
+    // Perspective and the two orthographics, checked as behaviour rather than as element values.
     {
         f32_4x4 projection = nya_matrix_perspective(1.0F, 16.0F / 9.0F, 0.1F, 100.0F);
 
@@ -156,7 +156,7 @@ s32 main(void) {
         nya_check(fabsf(flat.w - 1.0F) < 0.001F, "an orthographic projection should not divide, w=%f", (f64)flat.w);
     }
 
-    // ── look_at builds a view that puts the target ahead of the eye.
+    // look_at builds a view that puts the target ahead of the eye.
     {
         f32_4x4 view = nya_matrix_look_at((f32x3){ 0, 0, 10 }, (f32x3){ 0, 0, 0 }, (f32x3){ 0, 1, 0 });
 

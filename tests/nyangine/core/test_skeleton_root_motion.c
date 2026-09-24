@@ -57,7 +57,7 @@ static void rig_build(void) {
 s32 main(void) {
     rig_build();
 
-    // ── The single-bone sampler agrees with sampling the whole pose.
+    // The single-bone sampler agrees with sampling the whole pose.
     {
         NYA_SkeletonPose pose = { 0 };
         nya_skeleton_pose_sample(&skeleton, &clip_walk, 0.375F, &pose);
@@ -73,7 +73,7 @@ s32 main(void) {
         nya_check(missing.translation.x == 0.0F, "a null clip gives the rest transform");
     }
 
-    // ── Off by default, and a misspelled bone is reported rather than silently ignored.
+    // Off by default, and a misspelled bone is reported rather than silently ignored.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -83,7 +83,7 @@ s32 main(void) {
         nya_check(nya_skeleton_player_root_motion(&player, "root", (f32x3){ 1, 0, 1 }, false), "and one that does is accepted");
     }
 
-    // ── A quarter of the clip is a quarter of the travel, the bone is pinned, and the bob survives.
+    // A quarter of the clip is a quarter of the travel, the bone is pinned, and the bob survives.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -108,7 +108,7 @@ s32 main(void) {
                   (f64)pose.local[BONE_ROOT].translation.y);
     }
 
-    // ── The whole point: a loop accumulates distance instead of undoing itself at the seam.
+    // The whole point: a loop accumulates distance instead of undoing itself at the seam.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -136,7 +136,7 @@ s32 main(void) {
                   (f64)travelled);
     }
 
-    // ── Playing backwards wraps the other way, and reports negative travel.
+    // Playing backwards wraps the other way, and reports negative travel.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -155,7 +155,7 @@ s32 main(void) {
         nya_check(fabsf(travelled + (WALK_DISTANCE * 3.0F)) < 0.05F, "three seconds backwards is minus twelve metres, got %f", (f64)travelled);
     }
 
-    // ── Rotation, when asked for. The root turns a quarter turn over the clip.
+    // Rotation, when asked for. The root turns a quarter turn over the clip.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -177,7 +177,7 @@ s32 main(void) {
                   (f64)pose.local[BONE_ROOT].rotation.y);
     }
 
-    // ── A crossfade blends the travel by the same curve as the pose.
+    // A crossfade blends the travel by the same curve as the pose.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -199,7 +199,7 @@ s32 main(void) {
         nya_check(rate > WALK_DISTANCE && rate < RUN_DISTANCE, "mid-fade the rate is between the two clips: %f", (f64)rate);
     }
 
-    // ── A player with nothing playing reports nothing, rather than the last thing it saw.
+    // A player with nothing playing reports nothing, rather than the last thing it saw.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -217,7 +217,7 @@ s32 main(void) {
         nya_check(nya_skeleton_player_root_delta(&player).translation.x == 0.0F, "and stops the moment there is no clip");
     }
 
-    // ── Turning it off puts the bone back under the clip's control.
+    // Turning it off puts the bone back under the clip's control.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);

@@ -432,7 +432,7 @@ b8 _nya_luabind_parse_declaration(NYA_ConstCString entry, OUT _NYA_LuaBind* bind
     const char* close = strrchr(entry, ')');
     if (close == nullptr || close < open) return false;
 
-    // ── the name, which is the last word before the parenthesis ─────────────────────────────────
+    // the name, which is the last word before the parenthesis
     const char* name_end   = open;
     const char* name_start = name_end;
     while (name_start > entry && (isalnum((unsigned char)name_start[-1]) || name_start[-1] == '_')) name_start--;
@@ -443,7 +443,7 @@ b8 _nya_luabind_parse_declaration(NYA_ConstCString entry, OUT _NYA_LuaBind* bind
     nya_memcpy(binding->function, name_start, name_length);
     binding->function[name_length] = '\0';
 
-    // ── the return type, which is everything before it ──────────────────────────────────────────
+    // the return type, which is everything before it
     u64 return_length = (u64)(name_start - entry);
     while (return_length > 0 && entry[return_length - 1] == ' ') return_length--;
 
@@ -457,7 +457,7 @@ b8 _nya_luabind_parse_declaration(NYA_ConstCString entry, OUT _NYA_LuaBind* bind
         return false;
     }
 
-    // ── the parameters ──────────────────────────────────────────────────────────────────────────
+    // the parameters
     char parameters[NYA_LUABIND_MAX_ENTRY];
     u64  parameters_length = (u64)(close - open - 1);
 
@@ -655,7 +655,7 @@ void _nya_luabind_scan_file(_NYA_LuaBindSet* set, NYA_Arena* arena, NYA_ConstCSt
 
         (void)snprintf(binding.permission, sizeof(binding.permission), "NYA_PLUGIN_PERMISSION_%s", pieces[0]);
 
-        // ── the declaration, joined until its semicolon ──────────────────────────────────────────
+        // the declaration, joined until its semicolon
         char entry[NYA_LUABIND_MAX_ENTRY];
         (void)snprintf(entry, sizeof(entry), "%s", line + 8);
 

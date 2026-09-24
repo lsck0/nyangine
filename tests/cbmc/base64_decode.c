@@ -39,7 +39,7 @@ typedef uint64_t u64;
 
 #define nya_assert(...) ((void)0)
 
-/* ── the output string, modelled ────────────────────────────────────────────────────────────────── */
+/* the output string, modelled */
 
 /* Only the two fields the decoder touches. `capacity` is what reserve was asked for; `items` is an
  * object of exactly that size, so the bounds checker catches a write at `items[capacity]` or beyond. */
@@ -55,7 +55,7 @@ static void nya_string_reserve(NYA_String* str, u64 capacity) {
     __CPROVER_assume(capacity == 0 || str->items != nullptr);
 }
 
-/* ── mirrored from src/nyangine/base/base_base64.c ──────────────────────────────────────────────── */
+/* mirrored from src/nyangine/base/base_base64.c */
 
 static const char BASE64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -111,7 +111,7 @@ static void nya_base64_decode(NYA_String* base64, const u8* encoded, u64 len) {
     base64->length   = j;
 }
 
-/* ── the harness ────────────────────────────────────────────────────────────────────────────────── */
+/* the harness */
 
 /* Small enough for --unwinding-assertions to prove the padding-strip and decode loops terminate, big
  * enough to reach every branch of the four-char group and its one-, two- and three-char tails. */

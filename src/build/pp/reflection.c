@@ -147,7 +147,7 @@ void nya_reflection_generate(void) {
 
     nya_log_info("nya_reflection_generate: %u annotated types, %u of them the engine's.", set.type_count, set.engine_type_count);
 
-    // ── the engine header ───────────────────────────────────────────────────────────────────────
+    // the engine header
     NYA_String* engine_header = nya_string_create(arena);
 
     nya_string_extend(engine_header, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");
@@ -172,7 +172,7 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_HEADER, engine_header), "while writing the generated engine reflection header");
 
-    // ── the engine server source ──────────────────────────────────────────────────────────────── The server-safe half: the builtins and every engine type in a module a headless build compiles. Included from nyangine.c inside the NYA_SERVER seam, so a server binary has these descriptions without ever compiling the SDL-bound half below. The builtins live here rather than in the SDL source because both a full build and a headless one need them and a definition in each would be a duplicate symbol; a full build compiles this file too (the seam is true whenever SDL is present), so it is the one place they are defined. See docs/layering-core-split.md.
+    // the engine server source — The server-safe half: the builtins and every engine type in a module a headless build compiles. Included from nyangine.c inside the NYA_SERVER seam, so a server binary has these descriptions without ever compiling the SDL-bound half below. The builtins live here rather than in the SDL source because both a full build and a headless one need them and a definition in each would be a duplicate symbol; a full build compiles this file too (the seam is true whenever SDL is present), so it is the one place they are defined. See docs/layering-core-split.md.
     NYA_String* server_source = nya_string_create(arena);
 
     nya_string_extend(server_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
@@ -203,7 +203,7 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_SERVER_SOURCE, server_source), "while writing the generated server reflection source");
 
-    // ── the engine source ─────────────────────────────────────────────────────────────────────── The SDL-bound half: the type descriptions that need the renderer, core, ui or physics graph to compile, plus the NYA_REFLECT_ENGINE_TYPES table over *every* engine type. The table names the server-safe symbols too, which is why this file needs them linked — a full build always compiles reflection_engine_server.c beside it (with the db module on), so they resolve.
+    // the engine source — The SDL-bound half: the type descriptions that need the renderer, core, ui or physics graph to compile, plus the NYA_REFLECT_ENGINE_TYPES table over *every* engine type. The table names the server-safe symbols too, which is why this file needs them linked — a full build always compiles reflection_engine_server.c beside it (with the db module on), so they resolve.
     NYA_String* engine_source = nya_string_create(arena);
 
     nya_string_extend(engine_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
@@ -230,7 +230,7 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_SOURCE, engine_source), "while writing the generated engine reflection source");
 
-    // ── the game header ─────────────────────────────────────────────────────────────────────────
+    // the game header
     NYA_String* header = nya_string_create(arena);
 
     nya_string_extend(header, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");
@@ -256,7 +256,7 @@ void nya_reflection_generate(void) {
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_HEADER, header), "while writing the generated reflection header");
 
-    // ── the game source ─────────────────────────────────────────────────────────────────────────
+    // the game source
     NYA_String* out = nya_string_create(arena);
 
     nya_string_extend(out, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
@@ -272,7 +272,7 @@ void nya_reflection_generate(void) {
         _nya_reflect_emit_type(&set, out, &set.types[i], set.type_count);
     }
 
-    // ── the table and the lookup ────────────────────────────────────────────────────────────────
+    // the table and the lookup
     nya_string_extend(out, "const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {\n");
     for (u32 i = 0; i < set.type_count; i++) {
         nya_string_extend_sprintf(out, "    &_NYA_REFLECT_%s,\n", set.types[i].name);

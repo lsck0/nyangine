@@ -56,7 +56,7 @@ static void post_once(void* data) {
 }
 
 s32 main(void) {
-    // ── A thread runs what it was given, with what it was given, and joining it waits for that.
+    // A thread runs what it was given, with what it was given, and joining it waits for that.
     {
         Shared shared = { 0 };
 
@@ -74,7 +74,7 @@ s32 main(void) {
         nya_check(seen != nya_os_thread_id_current(), "the thread's id should not be this thread's");
     }
 
-    // ── A mutex serializes what would otherwise be a lost update, under real contention.
+    // A mutex serializes what would otherwise be a lost update, under real contention.
     {
         Shared shared = { 0 };
         nya_check(nya_os_mutex_init(&shared.mutex) == NYA_OS_THREAD_OK, "a mutex should be makeable");
@@ -94,7 +94,7 @@ s32 main(void) {
         nya_os_mutex_deinit(&shared.mutex);
     }
 
-    // ── A semaphore hands out exactly the tokens it was given, and waiting for one that never comes ends.
+    // A semaphore hands out exactly the tokens it was given, and waiting for one that never comes ends.
     {
         Shared shared = { 0 };
         nya_check(nya_os_semaphore_init(&shared.semaphore, 2) == NYA_OS_THREAD_OK, "a semaphore should be makeable");
@@ -116,7 +116,7 @@ s32 main(void) {
         nya_os_semaphore_deinit(&shared.semaphore);
     }
 
-    // ── A wait with no timeout ends when another thread posts, which is what the worker pools do.
+    // A wait with no timeout ends when another thread posts, which is what the worker pools do.
     {
         Shared shared = { 0 };
         nya_check(nya_os_semaphore_init(&shared.semaphore, 0) == NYA_OS_THREAD_OK, "a semaphore should be makeable");
@@ -131,7 +131,7 @@ s32 main(void) {
         nya_os_semaphore_deinit(&shared.semaphore);
     }
 
-    /* ── A thread can be let go of instead of joined. Abandoned after its post has been taken, so this process does not end while it is still running: what is under test is that letting go of a thread is allowed and leaks nothing, not what happens to a program that walks away from live work. */
+    /* A thread can be let go of instead of joined. Abandoned after its post has been taken, so this process does not end while it is still running: what is under test is that letting go of a thread is allowed and leaks nothing, not what happens to a program that walks away from live work. */
     {
         Shared shared = { 0 };
         nya_check(nya_os_semaphore_init(&shared.semaphore, 0) == NYA_OS_THREAD_OK, "a semaphore should be makeable");

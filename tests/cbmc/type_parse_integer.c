@@ -47,7 +47,7 @@ typedef unsigned __int128   u128;
 /* The engine's U128_MAX, the largest value the accumulator can hold. */
 #define U128_MAX ((u128)-1)
 
-/* ── mirrored from src/nyangine/base/base_types.c ───────────────────────────────────────────────── */
+/* mirrored from src/nyangine/base/base_types.c */
 
 /**
  * `*accumulator = *accumulator * base + digit`, or false if that would not fit in a u128.
@@ -107,7 +107,7 @@ static b8 _nya_type_try_parse_u128(const u8* data, u64 length, OUT u128* out_val
     return true;
 }
 
-/* ── the harness ────────────────────────────────────────────────────────────────────────────────── */
+/* the harness */
 
 /* Long enough to exercise the decimal loop over several digits, short enough that the reference value
  * below cannot itself overflow a u128 and the loop stays inside the unwind bound. */

@@ -39,14 +39,14 @@ static u64 drain(NYA_OsPipe pipe, u8* out, u64 capacity) {
 }
 
 s32 main(void) {
-    // ── This process has an id, and it is the same one every time.
+    // This process has an id, and it is the same one every time.
     {
         u32 id = nya_os_process_id();
         nya_check(id > 0, "this process should have an id");
         nya_check(id == nya_os_process_id(), "the id should not change between calls");
     }
 
-    // ── A child writes to the pipes it was given, and the exit code is its own.
+    // A child writes to the pipes it was given, and the exit code is its own.
     {
         NYA_OsPipe out_read    = NYA_OS_PIPE_NONE;
         NYA_OsPipe out_write   = NYA_OS_PIPE_NONE;
@@ -87,7 +87,7 @@ s32 main(void) {
         nya_check(exit_code == 3, "the child's own exit code should come back, got %d", exit_code);
     }
 
-    // ── A wait that runs out says so, and a killed child is still waited for.
+    // A wait that runs out says so, and a killed child is still waited for.
     {
         NYA_OsProcessSpawn spawn = {
             .program         = "sh",
@@ -112,7 +112,7 @@ s32 main(void) {
         nya_check(exit_code == KILLED_EXIT_CODE, "a killed child should report %d, got %d", KILLED_EXIT_CODE, exit_code);
     }
 
-    // ── A child starts where it was told to, with the variables it was given.
+    // A child starts where it was told to, with the variables it was given.
     {
         NYA_OsPipe out_read  = NYA_OS_PIPE_NONE;
         NYA_OsPipe out_write = NYA_OS_PIPE_NONE;
@@ -145,7 +145,7 @@ s32 main(void) {
         nya_check(getenv("NYA_TEST_OS_PROCESS") == nullptr, "the parent's environment should be untouched");
     }
 
-    // ── Nothing to work with is refused rather than asserted, since this layer is below assertions.
+    // Nothing to work with is refused rather than asserted, since this layer is below assertions.
     {
         NYA_OsProcess nothing   = { 0 };
         s32           exit_code = 0;

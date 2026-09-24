@@ -51,7 +51,7 @@ void nya_i18n_generate(void) {
     NYA_Arena* arena = nya_arena_create(.name = "i18n_generate");
     defer nya_arena_destroy(arena);
 
-    // ── the base locale, which is the schema ────────────────────────────────────────────────────
+    // the base locale, which is the schema
     NYA_String* base_path = nya_string_sprintf(arena, "%s/%s.json", NYA_I18N_DIRECTORY, NYA_I18N_BASE_LOCALE);
 
     NYA_String* base_text = nya_string_create(arena);
@@ -103,7 +103,7 @@ void nya_i18n_generate(void) {
         keys[j] = current;
     }
 
-    // ── every locale, checked against it ────────────────────────────────────────────────────────
+    // every locale, checked against it
     NYA_ArrayᐸNYA_Stringᐳ* locales = nya_array_create(arena, NYA_String);
     NYA_EXPECT(nya_filesystem_walk(arena, NYA_I18N_DIRECTORY, _nya_i18n_collect, locales));
     nya_array_sort(locales, _nya_i18n_compare);
@@ -173,7 +173,7 @@ void nya_i18n_generate(void) {
         }
     }
 
-    // ── the header ──────────────────────────────────────────────────────────────────────────────
+    // the header
     NYA_String* out = nya_string_create(arena);
 
     nya_string_extend(out, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");

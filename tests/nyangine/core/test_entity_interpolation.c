@@ -38,7 +38,7 @@ s32 main(void) {
     defer nya_world_destroy(world);
     defer nya_system_callback_deinit();
 
-    // ── The alpha is the frame's place between ticks, clamped, and one without a time step.
+    // The alpha is the frame's place between ticks, clamped, and one without a time step.
     {
         nya_check(nya_app_tick_alpha() == 1.0F, "no time step draws the current tick");
 
@@ -50,7 +50,7 @@ s32 main(void) {
         nya_check(nya_app_tick_alpha() == 1.0F, "a debt past one tick clamps to the current tick");
     }
 
-    // ── A tick's motion is drawn in proportion to the alpha, from where the capture left it.
+    // A tick's motion is drawn in proportion to the alpha, from where the capture left it.
     {
         NYA_EntityHandle handle = nya_entity_spawn(.name = "mover", .position = { 4.0F, 0.0F, 0.0F }, .velocity = { 10.0F, 0.0F, -20.0F });
         NYA_Entity*      entity = nya_entity_get(handle);
@@ -75,7 +75,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Rotation takes the short way and stays a unit quaternion.
+    // Rotation takes the short way and stays a unit quaternion.
     {
         NYA_EntityHandle handle = nya_entity_spawn(.name = "spinner");
         NYA_Entity*      entity = nya_entity_get(handle);
@@ -102,7 +102,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── A spawn draws where it spawned, even into a slot whose last owner was elsewhere.
+    // A spawn draws where it spawned, even into a slot whose last owner was elsewhere.
     {
         NYA_EntityHandle first = nya_entity_spawn(.name = "first", .position = { 900.0F, 900.0F, 0.0F });
         nya_entity_despawn(first);
@@ -116,7 +116,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── A snap draws the jump at once, and carries the children with it.
+    // A snap draws the jump at once, and carries the children with it.
     {
         NYA_EntityHandle parent_handle = nya_entity_spawn(.name = "parent", .position = { 0.0F, 0.0F, 0.0F });
         NYA_EntityHandle child_handle  = nya_entity_spawn(.name = "child", .position = { 0.0F, 2.0F, 0.0F });
@@ -144,7 +144,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── A zero length move teleports, so it snaps.
+    // A zero length move teleports, so it snaps.
     {
         NYA_EntityHandle handle = nya_entity_spawn(.name = "mover");
         NYA_Entity*      entity = nya_entity_get(handle);
@@ -157,7 +157,7 @@ s32 main(void) {
         nya_entity_clear();
     }
 
-    // ── Both solvers' teleports snap, and their readback is drawn between ticks like any other motion.
+    // Both solvers' teleports snap, and their readback is drawn between ticks like any other motion.
     {
         NYA_EntityHandle crate = nya_entity_spawn(.name = "crate", .position = { 0.0F, 0.0F, 0.0F });
         nya_check(nya_physics2d_body_attach(crate, .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 16.0F, 16.0F }),

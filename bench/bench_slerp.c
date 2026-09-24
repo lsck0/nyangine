@@ -18,7 +18,7 @@ static f32 next_f32(void) {
     return ((f32)(lcg >> 8) / 16777216.0F) * 2.0F - 1.0F;
 }
 
-/* ── 2: assumes unit inputs ── */
+/* 2: assumes unit inputs */
 static NYA_Quaternion slerp_no_normalize(NYA_Quaternion x, NYA_Quaternion y, f32 t) {
     f32 cosine = nya_quaternion_dot(x, y);
     if (cosine < 0.0F) { y = nya_quaternion_scale(y, -1.0F); cosine = -cosine; }
@@ -31,7 +31,7 @@ static NYA_Quaternion slerp_no_normalize(NYA_Quaternion x, NYA_Quaternion y, f32
                               nya_quaternion_scale(y, sinf(t * theta) / sine));
 }
 
-/* ── 3: sin(acos(x)) == sqrt(1 - x^2) ── */
+/* 3: sin(acos(x)) == sqrt(1 - x^2) */
 static NYA_Quaternion slerp_sqrt_identity(NYA_Quaternion x, NYA_Quaternion y, f32 t) {
     NYA_Quaternion start = nya_quaternion_normalize(x);
     NYA_Quaternion end   = nya_quaternion_normalize(y);
@@ -47,7 +47,7 @@ static NYA_Quaternion slerp_sqrt_identity(NYA_Quaternion x, NYA_Quaternion y, f3
                               nya_quaternion_scale(end, sinf(t * theta) / sine));
 }
 
-/* ── 4: both ── */
+/* 4: both */
 static NYA_Quaternion slerp_both(NYA_Quaternion x, NYA_Quaternion y, f32 t) {
     f32 cosine = nya_quaternion_dot(x, y);
     if (cosine < 0.0F) { y = nya_quaternion_scale(y, -1.0F); cosine = -cosine; }

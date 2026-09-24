@@ -64,7 +64,7 @@ static s32 locomotion(NYA_BlendTree* tree) {
 s32 main(void) {
     rig_build();
 
-    // ── A clip is found by its name, as the skeleton's own entry, and nothing else is found.
+    // A clip is found by its name, as the skeleton's own entry, and nothing else is found.
     {
         nya_check(nya_skeleton_clip(&skeleton, "walk") == &clips[CLIP_WALK], "a clip's name finds that clip");
         nya_check(nya_skeleton_clip(&skeleton, "run") == &clips[CLIP_RUN], "and the last one too");
@@ -75,7 +75,7 @@ s32 main(void) {
         nya_check(nya_skeleton_clip(nullptr, "walk") == nullptr, "and no skeleton");
     }
 
-    // ── Evaluating weighs the tree without moving it: no phase, no pose.
+    // Evaluating weighs the tree without moving it: no phase, no pose.
     {
         NYA_BlendTree tree = { 0 };
         s32           node = locomotion(&tree);
@@ -117,7 +117,7 @@ s32 main(void) {
         nya_blend_tree_evaluate(nullptr);
     }
 
-    // ── 1D: the parameter picks a pair, and only that pair.
+    // 1D: the parameter picks a pair, and only that pair.
     {
         NYA_BlendTree tree = { 0 };
         (void)locomotion(&tree);
@@ -139,7 +139,7 @@ s32 main(void) {
                   (f64)pose.local[BONE_ROOT].translation.x);
     }
 
-    // ── 1D: outside the range clamps to an end rather than extrapolating.
+    // 1D: outside the range clamps to an end rather than extrapolating.
     {
         NYA_BlendTree tree = { 0 };
         (void)locomotion(&tree);
@@ -157,7 +157,7 @@ s32 main(void) {
                   (f64)pose.local[BONE_ROOT].translation.x);
     }
 
-    // ── The shared phase advances against the blended duration, not any one clip's.
+    // The shared phase advances against the blended duration, not any one clip's.
     {
         NYA_BlendTree tree = { 0 };
         (void)locomotion(&tree);
@@ -178,7 +178,7 @@ s32 main(void) {
         nya_check(fabsf(tree.phase - 0.125F) < 1e-4F, "the same step against a two second cycle is half as much phase, got %f", (f64)tree.phase);
     }
 
-    // ── The phase wraps rather than running away, and stops at the end when not looping.
+    // The phase wraps rather than running away, and stops at the end when not looping.
     {
         NYA_BlendTree tree = { 0 };
         (void)locomotion(&tree);
@@ -196,7 +196,7 @@ s32 main(void) {
         nya_check(tree.phase == 1.0F, "a non-looping tree stops at the end, got %f", (f64)tree.phase);
     }
 
-    // ── Gradient band: on a sample it takes everything, and the weights always sum to one.
+    // Gradient band: on a sample it takes everything, and the weights always sum to one.
     {
         f32x2 positions[3] = { { 0, 0 }, { 1, 0 }, { 0, 1 } };
         f32   weights[3]   = { 0 };
@@ -224,7 +224,7 @@ s32 main(void) {
         nya_check(fabsf(weights[0] - 1.0F) < 1e-4F, "well outside the hull the nearest sample takes everything, got %f", (f64)weights[0]);
     }
 
-    // ── 2D: three clips on a plane, mixed by two parameters.
+    // 2D: three clips on a plane, mixed by two parameters.
     {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
@@ -256,7 +256,7 @@ s32 main(void) {
                   (f64)pose.local[BONE_ROOT].translation.x);
     }
 
-    // ── Nesting: a 2D node whose children are 1D nodes, weights routed all the way down.
+    // Nesting: a 2D node whose children are 1D nodes, weights routed all the way down.
     {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
@@ -294,7 +294,7 @@ s32 main(void) {
                   (f64)pose.local[BONE_ROOT].translation.x);
     }
 
-    // ── A clip reached twice is merged rather than blended against itself.
+    // A clip reached twice is merged rather than blended against itself.
     {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
@@ -316,7 +316,7 @@ s32 main(void) {
         nya_check(fabsf(tree.duration_s - clips[CLIP_WALK].duration_s) < 1e-4F, "and its duration is not counted twice, got %f", (f64)tree.duration_s);
     }
 
-    // ── Malformed trees are refused at build time rather than at frame time.
+    // Malformed trees are refused at build time rather than at frame time.
     {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
@@ -330,7 +330,7 @@ s32 main(void) {
         nya_check(!nya_blend_tree_child(&tree, -1, walk, (f32x2){ 0, 0 }), "and so is a parent that does not");
     }
 
-    // ── An empty tree is the rest pose, not an uninitialised one.
+    // An empty tree is the rest pose, not an uninitialised one.
     {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);

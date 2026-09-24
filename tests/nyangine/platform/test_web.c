@@ -10,7 +10,7 @@
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_web");
 
-    // ── clock: real times off os/, monotonic never running backward ──
+    // clock: real times off os/, monotonic never running backward
     u64 wall_ms = nya_web_clock_wall_ms();
     nya_check(wall_ms > 1'600'000'000'000ULL, "the wall clock reads a plausible epoch millisecond, not zero");
 
@@ -18,7 +18,7 @@ s32 main(void) {
     u64 second = nya_web_clock_monotonic_ms();
     nya_check(second >= first, "the monotonic clock does not run backward across two reads");
 
-    // ── random: fills the buffer, refuses the mistakes os_random refuses ──
+    // random: fills the buffer, refuses the mistakes os_random refuses
     u8 key[32] = { 0 };
     nya_check(nya_web_random_bytes(key, sizeof(key)), "the CSPRNG fills a 32 byte key");
     b8 any_nonzero = false;
@@ -32,7 +32,7 @@ s32 main(void) {
     nya_check(!nya_web_random_bytes(nullptr, 8), "a null buffer is refused");
     nya_check(!nya_web_random_bytes(key, 0), "a zero size is refused");
 
-    // ── storage: a value round-trips, truncation reports the full length, delete removes it ──
+    // storage: a value round-trips, truncation reports the full length, delete removes it
     const u8 value[6] = { 1, 2, 3, 4, 5, 6 };
     nya_check(nya_web_storage_set("token", value, sizeof(value)), "a value stores");
 
@@ -57,7 +57,7 @@ s32 main(void) {
     nya_check(nya_web_storage_set("empty", nullptr, 0), "an empty value stores");
     nya_check(nya_web_storage_get("empty", read, sizeof(read)) == 0, "the empty value reads back as length 0");
 
-    // ── fetch: the browser-only seam refuses off wasm, and every accessor tolerates a null handle ──
+    // fetch: the browser-only seam refuses off wasm, and every accessor tolerates a null handle
     NYA_WebFetch* fetch = nya_web_fetch_create(arena, "GET", "https://example.com", nullptr, 0, nullptr);
     nya_check(fetch == nullptr, "fetch has no backend off wasm and refuses");
     nya_check(nya_web_fetch_poll(fetch) == NYA_WEB_FETCH_FAILED, "polling a null fetch reads FAILED");
@@ -66,7 +66,7 @@ s32 main(void) {
     nya_check(nya_web_fetch_body(fetch, body, sizeof(body)) == -1, "a null fetch has no body");
     nya_web_fetch_destroy(fetch); // a no-op on null, must not crash
 
-    // ── socket: the same, browser-only and null-tolerant ──
+    // socket: the same, browser-only and null-tolerant
     NYA_WebSocketLink* socket = nya_web_socket_open(arena, "wss://example.com/socket");
     nya_check(socket == nullptr, "the client WebSocket has no backend off wasm and refuses");
     nya_check(nya_web_socket_phase(socket) == NYA_WEB_SOCKET_CLOSED, "a null link reads CLOSED");
@@ -75,7 +75,7 @@ s32 main(void) {
     nya_check(nya_web_socket_receive(socket, body, sizeof(body)) == -1, "receiving on a null link reads -1");
     nya_web_socket_close(socket); // a no-op on null, must not crash
 
-    // ── input: the canvas queue has no DOM off wasm, so attach refuses and poll never yields ──
+    // input: the canvas queue has no DOM off wasm, so attach refuses and poll never yields
     nya_check(!nya_web_input_attach("#canvas"), "canvas input has no DOM off wasm and refuses to attach");
     nya_check(!nya_web_input_attach(nullptr), "a null selector is refused");
     NYA_WebInputEvent event = { 0 };

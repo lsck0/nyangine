@@ -344,7 +344,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: dispatch rejects a format it does not know ─────────────────────────────────────────────────────────────────────────────""
+  // TEST: dispatch rejects a format it does not know — ""
   printf("TEST: unknown format panics\n");
   {
     NYA_Object* obj = nya_object_create(arena);

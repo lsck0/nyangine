@@ -23,7 +23,7 @@ s32 main(void) {
 
     static NYA_TextRun run;
 
-    // ── A shaped run has one glyph per character, positioned left to right.
+    // A shaped run has one glyph per character, positioned left to right.
     {
         nya_check(nya_text_shape(font, "Hello", 0, 0, &run), "shaping should succeed");
         nya_check(run.glyph_count == 5, "five letters should shape to five glyphs, got " FMTu32, run.glyph_count);
@@ -49,7 +49,7 @@ s32 main(void) {
         nya_check(kerned.x < unkerned.x, "AV should be tighter than AH: %f against %f", (f64)kerned.x, (f64)unkerned.x);
     }
 
-    // ── Measuring and shaping report the same box, because they are the same layout.
+    // Measuring and shaping report the same box, because they are the same layout.
     {
         NYA_ConstCString sample = "The quick brown fox";
 
@@ -61,7 +61,7 @@ s32 main(void) {
         nya_check((s32)measured.y == run.height, "measured height %f against laid out %d", (f64)measured.y, run.height);
     }
 
-    // ── A newline starts a line, and the run's lines cover every glyph exactly once.
+    // A newline starts a line, and the run's lines cover every glyph exactly once.
     {
         nya_check(nya_text_shape(font, "one\ntwo\nthree", 0, 0, &run), "shaping should succeed");
         nya_check(run.line_count == 3, "three lines, got " FMTu32, run.line_count);
@@ -75,7 +75,7 @@ s32 main(void) {
         nya_check(run.lines[1].y > run.lines[0].y, "the second line should sit below the first");
     }
 
-    // ── Wrapping is the shaper's, and it makes a long string taller and no wider than asked.
+    // Wrapping is the shaper's, and it makes a long string taller and no wider than asked.
     {
         NYA_ConstCString paragraph = "the quick brown fox jumps over the lazy dog again and again";
 
@@ -90,7 +90,7 @@ s32 main(void) {
         nya_check(run.line_count > 1, "and produce more than one line, got " FMTu32, run.line_count);
     }
 
-    // ── The empty and degenerate cases, which callers reach constantly.
+    // The empty and degenerate cases, which callers reach constantly.
     {
         nya_check(nya_text_shape(font, "", 0, 0, &run), "an empty string is not a failure");
         nya_check(run.glyph_count == 0, "with no glyphs");
@@ -104,14 +104,14 @@ s32 main(void) {
         nya_check(nya_text_line_height(nullptr) == 0.0F, "and so are the metrics");
     }
 
-    // ── Vertical metrics, including the sign flip on the descent.
+    // Vertical metrics, including the sign flip on the descent.
     {
         nya_check(nya_text_line_height(font) > 0.0F, "a line height");
         nya_check(nya_text_ascent(font) > 0.0F, "a positive ascent");
         nya_check(nya_text_descent(font) > 0.0F, "and a descent reported positive, unlike SDL's own");
     }
 
-    // ── A font handle spells its size the way "%.0f" does, rounding half to even.
+    // A font handle spells its size the way "%.0f" does, rounding half to even.
     {
         const f32 sizes[] = { 17.0F, 44.0F, 22.4F, 22.5F, 23.5F, 0.3F, 1.0F, 100.0F, -3.0F, 1e10F };
 

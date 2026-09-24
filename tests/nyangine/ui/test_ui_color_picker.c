@@ -131,13 +131,13 @@ s32 main(void) {
 
     nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 20.0F, .padding = 10.0F, .spacing = 6.0F, .item_height = 40.0F });
 
-    // ── Untouched, the colour stays exactly as it was.
+    // Untouched, the colour stays exactly as it was.
     {
         (void)picker();
         nya_check(!picker() && tint.r == 1.0F && tint.g == 0.0F, "a pass with no input leaves it alone");
     }
 
-    // ── The field sets saturation across and value down; the press keeps the field while it is dragged past it.
+    // The field sets saturation across and value down; the press keeps the field while it is dragged past it.
     {
         pointer_move(at(PLANE, 0.5F, 0.25F));
         pointer_button(true);
@@ -156,7 +156,7 @@ s32 main(void) {
         (void)picker();
     }
 
-    // ── The hue bar sets the hue top to bottom, the alpha bar the alpha left to right, and the keys turn the hue.
+    // The hue bar sets the hue top to bottom, the alpha bar the alpha left to right, and the keys turn the hue.
     {
         tint = (NYA_Color){ 1.0F, 0.0F, 0.0F, 1.0F };
 
@@ -180,7 +180,7 @@ s32 main(void) {
         nya_check(near(nya_color_to_hsv(tint).h, hue + 10.0F), "right turns the hue, got %f", (f64)nya_color_to_hsv(tint).h);
     }
 
-    // ── A grey has no hue, so the one it had is kept for the next drag across the field.
+    // A grey has no hue, so the one it had is kept for the next drag across the field.
     {
         tint = nya_color_from_hsv((NYA_ColorHSV){ 200.0F, 1.0F, 1.0F, 1.0F });
         (void)picker();
@@ -197,7 +197,7 @@ s32 main(void) {
         nya_check(near(nya_color_to_hsv(tint).h, 200.0F), "through white and back, still that hue, got %f", (f64)nya_color_to_hsv(tint).h);
     }
 
-    // ── The hex field: a click starts typing, partial digits wait, whole ones set the colour with or without alpha.
+    // The hex field: a click starts typing, partial digits wait, whole ones set the colour with or without alpha.
     {
         pointer_move(at(HEX, 0.5F, 0.5F));
         pointer_button(true);
@@ -236,7 +236,7 @@ s32 main(void) {
         nya_check(!nya_ui_typing(&window), "return stops typing");
     }
 
-    // ── Appearing: a panel slides up into place over the duration, again after being gone, and not at all without one.
+    // Appearing: a panel slides up into place over the duration, again after being gone, and not at all without one.
     {
         NYA_UIStyle style = nya_ui_style_get(&window);
 

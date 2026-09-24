@@ -198,7 +198,7 @@ NYA_INTERNAL void ball_update(f32 delta_time_s) {
     ball->position.x += ball->velocity.x * delta_time_s;
     ball->position.y += ball->velocity.y * delta_time_s;
 
-    // ── the top and bottom walls ────────────────────────────────────────────────────────────────
+    // the top and bottom walls
     f32 limit_y = COURT_HALF_HEIGHT - BALL_RADIUS;
 
     if (ball->position.y < -limit_y || ball->position.y > limit_y) {
@@ -206,7 +206,7 @@ NYA_INTERNAL void ball_update(f32 delta_time_s) {
         ball->velocity.y = -ball->velocity.y;
     }
 
-    // ── the paddles ─────────────────────────────────────────────────────────────────────────────
+    // the paddles
     nya_entity_foreach_kind (PONG_ENTITY_PADDLE, paddle) {
         b8 overlaps_x = fabsf(ball->position.x - paddle->position.x) < ((PADDLE_WIDTH * 0.5F) + BALL_RADIUS);
         b8 overlaps_y = fabsf(ball->position.y - paddle->position.y) < ((PADDLE_HEIGHT * 0.5F) + BALL_RADIUS);
@@ -224,7 +224,7 @@ NYA_INTERNAL void ball_update(f32 delta_time_s) {
         ball->velocity.y = nya_clamp(offset, -1.0F, 1.0F) * BALL_SPEED;
     }
 
-    // ── the left and right walls ────────────────────────────────────────────────────────────────
+    // the left and right walls
     if (ball->position.x < -COURT_HALF_WIDTH) {
         pong()->scores[1]++;
         ball_serve(ball, 1.0F);

@@ -13,7 +13,7 @@
 
 #include "nyangine/nyangine.c"
 
-/* ── the DTOs, reflected by hand: a test's types are not scanned by the reflection pass ── */
+/* the DTOs, reflected by hand: a test's types are not scanned by the reflection pass */
 
 typedef struct {
     s64 room;
@@ -62,7 +62,7 @@ static const NYA_TypeReflection ROOM_REPLY_MODEL = {
     .field_count = nya_carray_length(ROOM_REPLY_FIELDS),
 };
 
-/* ── the handlers: exactly what a server's handler is, reading a DTO in and writing one out ── */
+/* the handlers: exactly what a server's handler is, reading a DTO in and writing one out */
 
 /** Doubles the room number and names it, so the client can check the fields it got are the ones written. */
 static NYA_HttpStatus room_query(NYA_HttpExchange* exchange) {
@@ -83,7 +83,7 @@ static NYA_HttpStatus room_missing(NYA_HttpExchange* exchange) {
     return nya_http_response_problem(exchange, NYA_HTTP_STATUS_NOT_FOUND, "no such room");
 }
 
-/* ── the table: the client calls a route through one of these entries ── */
+/* the table: the client calls a route through one of these entries */
 
 enum {
     ROUTE_QUERY   = 0,
@@ -117,7 +117,7 @@ static const NYA_HttpRouter ROUTER = {
     .route_count = nya_carray_length(ROUTES),
 };
 
-/* ── the loopback transport: a real dispatch through the table, no socket ── */
+/* the loopback transport: a real dispatch through the table, no socket */
 
 static NYA_Error loopback_perform(void* userdata, const NYA_HttpClientWire* wire, NYA_Arena* arena, NYA_HttpClientReply* out_reply) {
     nya_unused(userdata);
@@ -166,7 +166,7 @@ static NYA_Error loopback_perform(void* userdata, const NYA_HttpClientWire* wire
     return NYA_OK;
 }
 
-/* ── a canned transport: returns exactly the bytes it is handed, for the decode-half tests ── */
+/* a canned transport: returns exactly the bytes it is handed, for the decode-half tests */
 
 typedef struct {
     NYA_HttpStatus    status;

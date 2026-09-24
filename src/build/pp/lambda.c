@@ -463,7 +463,7 @@ u64 _nya_lambda_parse(_NYA_LambdaSet* set, NYA_ConstCString path, NYA_ConstCStri
 
     _NYA_Lambda lambda = { .line = line };
 
-    // ── the tag ─────────────────────────────────────────────────────────────────────────────────
+    // the tag
     u64 comma = _nya_lambda_comma(text, from, to);
     if (comma == to) {
         _nya_lambda_problem(set, path, line, "nya_lambda takes a tag, a return type, a parameter list and a body");
@@ -475,7 +475,7 @@ u64 _nya_lambda_parse(_NYA_LambdaSet* set, NYA_ConstCString path, NYA_ConstCStri
         return end;
     }
 
-    // ── the return type ─────────────────────────────────────────────────────────────────────────
+    // the return type
     from  = comma + 1;
     comma = _nya_lambda_comma(text, from, to);
 
@@ -484,7 +484,7 @@ u64 _nya_lambda_parse(_NYA_LambdaSet* set, NYA_ConstCString path, NYA_ConstCStri
         return end;
     }
 
-    // ── the parameter list, parenthesised so its commas are its own ─────────────────────────────
+    // the parameter list, parenthesised so its commas are its own
     from = _nya_lambda_skip_space(text, comma + 1, to, &ignored);
 
     if (from >= to || text[from] != '(') {
@@ -500,7 +500,7 @@ u64 _nya_lambda_parse(_NYA_LambdaSet* set, NYA_ConstCString path, NYA_ConstCStri
         return end;
     }
 
-    // ── the body, taken with its braces and not looked into ─────────────────────────────────────
+    // the body, taken with its braces and not looked into
     from = _nya_lambda_skip_space(text, parameters_end, to, &ignored);
 
     if (from >= to || text[from] != ',') {
@@ -535,7 +535,7 @@ u64 _nya_lambda_parse(_NYA_LambdaSet* set, NYA_ConstCString path, NYA_ConstCStri
 
     lambda.body_line = body_line;
 
-    // ── the tag is the name of a function, and there is one namespace of those ──────────────────
+    // the tag is the name of a function, and there is one namespace of those
     for (u32 i = 0; i < set->count; i++) {
         if (!nya_string_equals(set->lambdas[i].tag, lambda.tag)) continue;
 

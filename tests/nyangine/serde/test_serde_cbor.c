@@ -14,7 +14,7 @@
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // ── unsigned integers, in each width ──
+  // unsigned integers, in each width
   {
     u8 inline_seven[] = {0x07};
     NYA_CborReader reader = nya_cbor_reader(inline_seven, sizeof(inline_seven));
@@ -34,7 +34,7 @@ s32 main(void) {
     nya_check(nya_cbor_read_u64(&reader, &value) && value == 65536, "a four-byte unsigned reads");
   }
 
-  // ── signed integers, including the negatives COSE labels use ──
+  // signed integers, including the negatives COSE labels use
   {
     u8 minus_one[] = {0x20}; // major 1, argument 0 -> -1
     NYA_CborReader reader = nya_cbor_reader(minus_one, sizeof(minus_one));
@@ -55,7 +55,7 @@ s32 main(void) {
     nya_check(!nya_cbor_read_int(&reader, &value), "a negative past the s64 range is refused, not wrapped");
   }
 
-  // ── byte and text strings return a pointer into the buffer ──
+  // byte and text strings return a pointer into the buffer
   {
     u8 bytes[] = {0x43, 0xDE, 0xAD, 0xBE}; // bstr of 3
     NYA_CborReader reader = nya_cbor_reader(bytes, sizeof(bytes));
@@ -69,7 +69,7 @@ s32 main(void) {
     nya_check(nya_cbor_read_text(&reader, &out, &size) && size == 3 && memcmp(out, "fmt", 3) == 0, "a text string reads");
   }
 
-  // ── maps and arrays hand back their counts ──
+  // maps and arrays hand back their counts
   {
     u8 map[] = {0xA2, 0x01, 0x02, 0x03, 0x04}; // {1:2, 3:4}
     NYA_CborReader reader = nya_cbor_reader(map, sizeof(map));
@@ -84,7 +84,7 @@ s32 main(void) {
     nya_check(nya_cbor_read_u64(&reader, &value) && value == 1, "the array's first item reads");
   }
 
-  // ── skip steps over any whole value, nesting and all ──
+  // skip steps over any whole value, nesting and all
   {
     // {1: [2, 3], "x": 4} -- skip the array value, then read the "x" key
     u8 nested[] = {0xA2, 0x01, 0x82, 0x02, 0x03, 0x61, 'x', 0x04};
@@ -101,7 +101,7 @@ s32 main(void) {
     nya_check(nya_cbor_read_text(&reader, &text, &size) && size == 1 && text[0] == 'x', "and the next key is right where it should be");
   }
 
-  // ── malformed and truncated input is refused, and (under ASan) reads nothing out of bounds ──
+  // malformed and truncated input is refused, and (under ASan) reads nothing out of bounds
   {
     NYA_CborReader empty = nya_cbor_reader(nullptr, 0);
     u64 value = 0;

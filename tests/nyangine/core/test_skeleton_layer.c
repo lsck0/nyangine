@@ -58,7 +58,7 @@ static f32x3 world_of(const NYA_SkeletonPose* pose, s32 bone) {
 s32 main(void) {
     rig_build();
 
-    // ── Masks: fill, carve from a bone, and the missing-bone case being reported.
+    // Masks: fill, carve from a bone, and the missing-bone case being reported.
     {
         NYA_SkeletonMask mask = { 0 };
 
@@ -79,7 +79,7 @@ s32 main(void) {
         nya_check(mask.weights[BONE_END] == 1.0F, "without touching its children");
     }
 
-    // ── Masked blending only moves the bones the mask names.
+    // Masked blending only moves the bones the mask names.
     {
         NYA_SkeletonPose from = { .bone_count = BONE_COUNT };
         NYA_SkeletonPose to   = { .bone_count = BONE_COUNT };
@@ -105,7 +105,7 @@ s32 main(void) {
         nya_check(fabsf(out.local[BONE_ROOT].translation.x - 99.0F) < 0.001F, "a null mask blends every bone");
     }
 
-    // ── A player with no clip yields the rest pose rather than garbage.
+    // A player with no clip yields the rest pose rather than garbage.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -117,7 +117,7 @@ s32 main(void) {
         nya_check(fabsf(pose.local[BONE_MID].translation.x - UPPER) < 0.001F, "and it is the rest pose");
     }
 
-    // ── Crossfade: the pose moves from one clip to the other and the fade ends.
+    // Crossfade: the pose moves from one clip to the other and the fade ends.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -150,7 +150,7 @@ s32 main(void) {
         nya_check(!nya_skeleton_player_fading(&player), "replaying the current clip should not start a fade");
     }
 
-    // ── Events fire once when crossed, and a loop does not swallow one near the end.
+    // Events fire once when crossed, and a loop does not swallow one near the end.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -184,7 +184,7 @@ s32 main(void) {
         nya_check(second >= 2 && second <= 4, "and so should the one at 0.95s, got %u", second);
     }
 
-    // ── An event on the start point fires on the first update, and backward playback does not report a loop every frame. Quarter second steps, so every crossing is exact.
+    // An event on the start point fires on the first update, and backward playback does not report a loop every frame. Quarter second steps, so every crossing is exact.
     {
         static const NYA_SkeletonEvent events[] = {
             { .time_s = 0.0F, .id = 1 },
@@ -221,7 +221,7 @@ s32 main(void) {
         }
     }
 
-    // ── A non-looping clip reports finishing, once.
+    // A non-looping clip reports finishing, once.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -237,7 +237,7 @@ s32 main(void) {
         nya_check(finished == 1, "finishing should be reported exactly once, got %u", finished);
     }
 
-    // ── Layers stack over the base, through their mask.
+    // Layers stack over the base, through their mask.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);
@@ -273,7 +273,7 @@ s32 main(void) {
                   "a slot past the end must be refused");
     }
 
-    // ── Two-bone IK: a reachable target is reached.
+    // Two-bone IK: a reachable target is reached.
     {
         NYA_SkeletonPose pose = { .bone_count = BONE_COUNT };
         for (u32 b = 0; b < BONE_COUNT; b++) pose.local[b] = bones[b].rest;
@@ -295,7 +295,7 @@ s32 main(void) {
         nya_check(fabsf(nya_vector_length(reached - mid_pos) - LOWER) < 0.01F, "and so must the lower");
     }
 
-    // ── An unreachable target straightens the limb toward it rather than failing.
+    // An unreachable target straightens the limb toward it rather than failing.
     {
         NYA_SkeletonPose pose = { .bone_count = BONE_COUNT };
         for (u32 b = 0; b < BONE_COUNT; b++) pose.local[b] = bones[b].rest;
@@ -311,7 +311,7 @@ s32 main(void) {
         nya_check(reached.y > 3.0F, "and pointing at the target, y=%f", (f64)reached.y);
     }
 
-    // ── Malformed chains are refused.
+    // Malformed chains are refused.
     {
         NYA_SkeletonPose pose = { .bone_count = BONE_COUNT };
         for (u32 b = 0; b < BONE_COUNT; b++) pose.local[b] = bones[b].rest;

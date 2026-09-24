@@ -304,7 +304,7 @@ s32 main(void) {
     nya_lexer_destroy(&unterminated_lexer);
   }
 
-  // ───────────────────────────────────────────────────────────────────────────── TEST: a slash that opens nothing is still a symbol ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a slash that opens nothing is still a symbol
   {
     NYA_Lexer divide_lexer = nya_lexer_create("a / b");
     nya_lexer_run(&divide_lexer);

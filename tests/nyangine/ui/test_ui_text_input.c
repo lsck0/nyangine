@@ -122,7 +122,7 @@ s32 main(void) {
 
     nya_ui_style_set(&window, (NYA_UIStyle){ .padding = 10.0F, .spacing = 6.0F, .item_height = 40.0F });
 
-    // ── Focused, the field ignores typing until confirm starts it.
+    // Focused, the field ignores typing until confirm starts it.
     {
         (void)form(true);
 
@@ -137,7 +137,7 @@ s32 main(void) {
         nya_check(typed.changed && nya_string_equals(name, "ab") && nya_ui_typing(&window), "typed text goes in, got '%s'", name);
     }
 
-    // ── The caret: text goes in where it is, the arrows move it by character, backspace and delete take one, home and end jump.
+    // The caret: text goes in where it is, the arrows move it by character, backspace and delete take one, home and end jump.
     {
         tap(NYA_KEY_LEFT);
         (void)form(true);
@@ -167,7 +167,7 @@ s32 main(void) {
         nya_check(!form(true).changed, "right and delete at the end do nothing");
     }
 
-    // ── The buffer: text past its capacity is cut, and never inside a character.
+    // The buffer: text past its capacity is cut, and never inside a character.
     {
         type("ééé");
         (void)form(true);
@@ -180,7 +180,7 @@ s32 main(void) {
         nya_check(form(true).changed && nya_string_equals(name, "bcééz"), "a one byte one does, got '%s'", name);
     }
 
-    // ── While typing, the menu keys type: space and S neither confirm, stop, nor move focus.
+    // While typing, the menu keys type: space and S neither confirm, stop, nor move focus.
     {
         name[0] = '\0';
 
@@ -200,7 +200,7 @@ s32 main(void) {
         nya_check(nya_string_equals(name, " s") && nya_ui_typing(&window), "s types, and down does not leave the field, got '%s'", name);
     }
 
-    // ── Stopping: return and cancel stop typing without acting, and the pass that stopped still reports typing.
+    // Stopping: return and cancel stop typing without acting, and the pass that stopped still reports typing.
     {
         tap(NYA_KEY_RETURN);
         Form returned = form(true);
@@ -220,7 +220,7 @@ s32 main(void) {
         nya_check(form(true).cancelled, "a second cancel is the menu's");
     }
 
-    // ── The pointer: a click on the field starts typing, one elsewhere stops it, and a field that leaves the UI stops too.
+    // The pointer: a click on the field starts typing, one elsewhere stops it, and a field that leaves the UI stops too.
     {
         f32x2 field  = { FIELD.x + 200.0F, FIELD.y + 20.0F };
         f32x2 button = { BUTTON.x + 200.0F, BUTTON.y + 20.0F };
@@ -248,7 +248,7 @@ s32 main(void) {
         nya_check(!nya_ui_typing(&window), "and so does a focus reset");
     }
 
-    // ── The write-back the SSR server drives: focus with a click, select the whole line, then type the value over it — which replaces the buffer rather than appending — and an empty value deletes it.
+    // The write-back the SSR server drives: focus with a click, select the whole line, then type the value over it — which replaces the buffer rather than appending — and an empty value deletes it.
     {
         f32x2 field = { FIELD.x + 200.0F, FIELD.y + 20.0F };
 

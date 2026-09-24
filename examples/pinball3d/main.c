@@ -329,7 +329,7 @@ void pinball_layer_on_create(NYA_Window* window) {
     // Impacts below this are the ball rolling, which would play a sound every tick.
     nya_physics3d_hit_threshold_set(HIT_THRESHOLD);
 
-    // ── the playfield ───────────────────────────────────────────────────────────────────────────
+    // the playfield
     (void)solid_create("playfield", PINBALL_ENTITY_TABLE, (f32x3){ 0.0F, -0.05F, 0.0F },
                        (f32x3){ TABLE_HALF_WIDTH * 2.0F, 0.1F, TABLE_HALF_LENGTH * 2.0F }, TABLE_RESTITUTION);
 
@@ -344,7 +344,7 @@ void pinball_layer_on_create(NYA_Window* window) {
     (void)solid_create("wall_top", PINBALL_ENTITY_WALL, (f32x3){ 0.0F, wall_center_y, -TABLE_HALF_LENGTH },
                        (f32x3){ TABLE_HALF_WIDTH * 2.0F, WALL_HEIGHT, WALL_THICKNESS }, WALL_RESTITUTION);
 
-    // ── the bumpers ─────────────────────────────────────────────────────────────────────────────
+    // the bumpers
     f32x3 bumper_positions[BUMPER_COUNT] = {
         { -0.45F, BUMPER_RADIUS, -0.85F },
         { 0.45F, BUMPER_RADIUS, -0.85F },
@@ -353,11 +353,11 @@ void pinball_layer_on_create(NYA_Window* window) {
 
     for (u32 i = 0; i < BUMPER_COUNT; i++) (void)bumper_create(bumper_positions[i]);
 
-    // ── the flippers ────────────────────────────────────────────────────────────────────────────
+    // the flippers
     flipper_create(&pinball()->flippers[0], -FLIPPER_PIVOT_X, 1.0F);
     flipper_create(&pinball()->flippers[1], FLIPPER_PIVOT_X, -1.0F);
 
-    // ── the ball ────────────────────────────────────────────────────────────────────────────────
+    // the ball
     pinball()->ball = nya_entity_spawn(
         .name     = "ball",
         .type     = PINBALL_ENTITY_BALL,
@@ -402,7 +402,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
 
     Pinball* state = pinball();
 
-    // ── the flippers ────────────────────────────────────────────────────────────────────────────
+    // the flippers
     b8 held[2] = {
         nya_input_action_pressed(PINBALL_ACTION_LEFT_FLIPPER),
         nya_input_action_pressed(PINBALL_ACTION_RIGHT_FLIPPER),
@@ -455,7 +455,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
         nya_physics3d_angular_velocity_set(entity, axis * ((next - was) * flipper->swing / delta_time_s));
     }
 
-    // ── the impacts from the step at the top of this tick ───────────────────────────────────────
+    // the impacts from the step at the top of this tick
     u32                   hit_count = 0;
     const NYA_PhysicsHit* hits      = nya_physics3d_hits(&hit_count);
 
@@ -492,7 +492,7 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
         }
     }
 
-    // ── the drain ───────────────────────────────────────────────────────────────────────────────
+    // the drain
     NYA_Entity* ball = nya_entity_get(state->ball);
     if (ball == nullptr) return;
 

@@ -157,7 +157,7 @@ static void check_face(TTF_Font* font, NYA_ConstCString label, b8 distance_field
 }
 
 s32 main(void) {
-    // ── Cells tile the atlas: a slot's place is a multiply, and the last cell ends on the atlas edge.
+    // Cells tile the atlas: a slot's place is a multiply, and the last cell ends on the atlas edge.
     {
         s32 x = -1;
         s32 y = -1;
@@ -176,7 +176,7 @@ s32 main(void) {
                   x, y);
     }
 
-    // ── The lookup hash wraps on purpose. Sanitized builds abort on the first wrap without the attribute.
+    // The lookup hash wraps on purpose. Sanitized builds abort on the first wrap without the attribute.
     {
         u32 out_of_range = 0;
         u32 adjacent     = 0;
@@ -196,7 +196,7 @@ s32 main(void) {
         nya_check(adjacent == 0, "consecutive glyph indices never share a bucket, %u did", adjacent);
     }
 
-    // ── A write lands one texel in from the cell's corner, copies alpha only, and nothing else changes.
+    // A write lands one texel in from the cell's corner, copies alpha only, and nothing else changes.
     {
         NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
         defer      nya_arena_destroy(arena);
@@ -239,7 +239,7 @@ s32 main(void) {
         nya_check(empty, "and reading its neighbour gives nothing");
     }
 
-    // ── Rows are `pitch` apart, which SDL may pad past four bytes a pixel.
+    // Rows are `pitch` apart, which SDL may pad past four bytes a pixel.
     {
         NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
         defer      nya_arena_destroy(arena);
@@ -251,7 +251,7 @@ s32 main(void) {
         nya_check(cell_holds_image(atlas, GRID, 2, 3, 3), "a padded image copies as if it were packed");
     }
 
-    // ── An image larger than the cell is clipped to it, even in the last cell, where a spill leaves the buffer.
+    // An image larger than the cell is clipped to it, even in the last cell, where a spill leaves the buffer.
     {
         NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
         defer      nya_arena_destroy(arena);
@@ -273,7 +273,7 @@ s32 main(void) {
                   "the uvs stop one texel short of the atlas edge");
     }
 
-    // ── An empty image leaves the cell alone; a smaller glyph over a larger one leaves no old ink.
+    // An empty image leaves the cell alone; a smaller glyph over a larger one leaves no old ink.
     {
         NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
         defer      nya_arena_destroy(arena);
@@ -294,7 +294,7 @@ s32 main(void) {
         nya_check(cell_holds_image(atlas, GRID, slot, 2, 2), "a smaller glyph written over it replaces it whole");
     }
 
-    // ── A real face, as coverage and as a distance field, at the sizes gnyame bakes.
+    // A real face, as coverage and as a distance field, at the sizes gnyame bakes.
     {
         b8 sdl_ok = SDL_Init(0);
         nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());

@@ -25,7 +25,7 @@ s32 main(void) {
 
     NYA_Window window = { .screen_width = 320, .screen_height = 200 };
 
-    // ── Zero options fill in, so a caller names only what it cares about.
+    // Zero options fill in, so a caller names only what it cares about.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .entity_type = KIND_TERRAIN }, &terrain));
@@ -38,21 +38,21 @@ s32 main(void) {
         nya_check(terrain->options.octaves == 4, "default octaves");
     }
 
-    // ── A null arena or out pointer is refused rather than asserted on.
+    // A null arena or out pointer is refused rather than asserted on.
     {
         NYA_Terrain3D* terrain = nullptr;
         nya_check(!nya_terrain3d_create(nullptr, (NYA_Terrain3DOptions){ 0 }, &terrain).ok, "a null arena is an error");
         nya_check(!nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ 0 }, nullptr).ok, "a null out pointer is an error");
     }
 
-    // ── Before generation, sampling is defined and returns zero rather than reading a stale grid.
+    // Before generation, sampling is defined and returns zero rather than reading a stale grid.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .entity_type = KIND_TERRAIN }, &terrain));
         nya_check(nya_terrain3d_height_at(terrain, 0.0F, 0.0F) == 0.0F, "an ungenerated terrain samples as zero");
     }
 
-    // ── Generating fills the grid, records the seed, and produces a real height range.
+    // Generating fills the grid, records the seed, and produces a real height range.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .entity_type = KIND_TERRAIN }, &terrain));
@@ -71,24 +71,24 @@ s32 main(void) {
         }
         nya_check(bad == 0, "%u of %u samples were not finite", bad, samples);
 
-        // ── Sampling is clamped to the terrain, not extrapolated: far outside must still be in range.
+        // Sampling is clamped to the terrain, not extrapolated: far outside must still be in range.
         f32 half = terrain->options.extent * 0.5F;
         f32 far_out = nya_terrain3d_height_at(terrain, half * 100.0F, half * 100.0F);
         nya_check(far_out >= terrain->min_height - 0.001F && far_out <= terrain->max_height + 0.001F,
                   "a sample far outside should clamp into the height range, got %f", (f64)far_out);
 
-        // ── A sample exactly on a grid point should equal that sample.
+        // A sample exactly on a grid point should equal that sample.
         f32 corner = nya_terrain3d_height_at(terrain, -half, -half);
         nya_check(fabsf(corner - terrain->heights[0]) < 0.01F, "the corner should read its own sample: %f vs %f",
                   (f64)corner, (f64)terrain->heights[0]);
 
-        // ── The rim stands above the middle. The radial shaping exists for this.
+        // The rim stands above the middle. The radial shaping exists for this.
         f32 middle = nya_terrain3d_height_at(terrain, 0.0F, 0.0F);
         f32 edge   = nya_terrain3d_height_at(terrain, half * 0.99F, 0.0F);
         nya_check(edge > middle, "the rim should stand above the centre: edge %f, middle %f", (f64)edge, (f64)middle);
     }
 
-    // ── The same seed produces the same surface; a different one does not.
+    // The same seed produces the same surface; a different one does not.
     {
         NYA_Terrain3D* a = nullptr;
         NYA_Terrain3D* b = nullptr;
@@ -112,7 +112,7 @@ s32 main(void) {
         nya_check(same_as_c < samples, "a different seed should produce a different surface");
     }
 
-    // ── Regenerating reuses the grid rather than allocating a second one.
+    // Regenerating reuses the grid rather than allocating a second one.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .entity_type = KIND_TERRAIN }, &terrain));
@@ -125,7 +125,7 @@ s32 main(void) {
         nya_check(terrain->seed == 2, "and take the new seed");
     }
 
-    // ── A custom resolution is honoured all the way through.
+    // A custom resolution is honoured all the way through.
     {
         NYA_Terrain3D* terrain = nullptr;
         NYA_EXPECT(nya_terrain3d_create(arena,

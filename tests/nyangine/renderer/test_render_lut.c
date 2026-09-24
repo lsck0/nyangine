@@ -54,7 +54,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_render_lut");
     defer      nya_arena_destroy(arena);
 
-    // ── The shipped identity maps every colour to itself exactly.
+    // The shipped identity maps every colour to itself exactly.
     {
         NYA_String file = *nya_string_create(arena);
         NYA_EXPECT(nya_file_read("./assets/grades/identity.cube", &file));
@@ -75,7 +75,7 @@ s32 main(void) {
         }
     }
 
-    // ── A finer identity is exact within the eight bit quantisation of its entries.
+    // A finer identity is exact within the eight bit quantisation of its entries.
     {
         const u32 size = 17;
 
@@ -108,7 +108,7 @@ s32 main(void) {
         nya_check(worst <= 0.5F / 255.0F + 1e-5F, "a 17 entry identity should be within half a step, worst %f", (f64)worst * 255.0);
     }
 
-    // ── The shipped grade keeps black and white where they are.
+    // The shipped grade keeps black and white where they are.
     {
         NYA_String file = *nya_string_create(arena);
         NYA_EXPECT(nya_file_read("./assets/grades/vivid.cube", &file));
@@ -120,7 +120,7 @@ s32 main(void) {
         nya_check(nya_vector_length(sample(&lut, WHITE) - WHITE) < 1e-5F, "and white");
     }
 
-    // ── Malformed input is an operating error, never an assert.
+    // Malformed input is an operating error, never an assert.
     {
         expect_refused(arena, "", "an empty file");
         expect_refused(arena, "# only a comment\n", "a file with no size");

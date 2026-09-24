@@ -261,7 +261,7 @@ s32 main(void) {
         nya_assert(!request->keep_alive, "and it closes afterwards, as 1.0 does");
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a body on a verb that gives one no meaning is refused, not dropped. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a body on a verb that gives one no meaning is refused, not dropped.
     {
         nya_assert(
             refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST,
@@ -292,7 +292,7 @@ s32 main(void) {
         nya_assert(!nya_http_method_is_safe(NYA_HTTP_METHOD_DELETE));
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a chunked body is dechunked before a handler ever sees it. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a chunked body is dechunked before a handler ever sees it.
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -308,7 +308,7 @@ s32 main(void) {
         nya_assert(consumed == strlen(text), "a chunked body consumes its framing too");
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: two requests in one read, which is what pipelining looks like. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: two requests in one read, which is what pipelining looks like.
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -323,7 +323,7 @@ s32 main(void) {
         nya_assert(consumed == strlen(first), "the first request consumes exactly itself");
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a request that has not finished arriving is not an error. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a request that has not finished arriving is not an error.
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -342,7 +342,7 @@ s32 main(void) {
         );
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a path cannot climb out of the root, however it is spelled. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a path cannot climb out of the root, however it is spelled.
     {
         nya_assert(refusal(arena, "GET /../etc/passwd HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
         nya_assert(refusal(arena, "GET /a/../b HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
@@ -368,7 +368,7 @@ s32 main(void) {
         nya_assert(nya_string_equals(request->path, "/api/metrics"));
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: the target goes through base_url, so its rules are the server's rules. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the target goes through base_url, so its rules are the server's rules.
     {
         // an encoded '/' would move a segment boundary after the router's checks ran.
         nya_assert(refusal(arena, "GET /api/a%2Fb HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
@@ -396,7 +396,7 @@ s32 main(void) {
         nya_assert(value[0] == '\0');
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: the framing a smuggler wants is refused rather than preferred. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the framing a smuggler wants is refused rather than preferred.
     {
         nya_assert(
             refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
@@ -417,7 +417,7 @@ s32 main(void) {
         nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: x\r\n Content-Length: 5\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: every bound refuses with the status that names it. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: every bound refuses with the status that names it.
     {
         nya_assert(
             refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 99999\r\n\r\n") == NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,
@@ -472,7 +472,7 @@ s32 main(void) {
         nya_unused(request);
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a request line that is not one. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a request line that is not one.
     {
         nya_assert(refusal(arena, "BREW /coffee HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED);
         nya_assert(refusal(arena, "get /a HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED, "a method is case sensitive");
@@ -490,7 +490,7 @@ s32 main(void) {
         nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nBad Name: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: an HTTP/1.0 request, and what Connection does either way. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: an HTTP/1.0 request, and what Connection does either way.
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -506,7 +506,7 @@ s32 main(void) {
         nya_assert(!request->keep_alive);
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a body with no Content-Type is not JSON, whatever it looks like. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a body with no Content-Type is not JSON, whatever it looks like.
     {
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
@@ -538,7 +538,7 @@ s32 main(void) {
         nya_assert(request->media_type == NYA_HTTP_MEDIA_JSON);
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: writing a response. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: writing a response.
     {
         u8 body[64] = { 0 };
 
@@ -616,7 +616,7 @@ s32 main(void) {
         nya_assert(!nya_http_response_text(&response, "no", NYA_HTTP_MEDIA_TEXT).ok);
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: application/nya as a body type, in both directions ─────────────────────────────────────────────────────────────────────────────
+    // TEST: application/nya as a body type, in both directions
     {
         /* The native format is what two nyangine programs talk in: it parses substantially faster than JSON and carries the same NYA_Object. JSON stays the answer for everyone else, which is the half worth testing hardest — an integration that has never heard of this engine must not be handed a body it cannot read. */
         NYA_HttpRequest* request  = nullptr;
@@ -641,7 +641,7 @@ s32 main(void) {
         NYA_Object* refused = nullptr;
         nya_check(!nya_http_request_json(request, arena, &refused).ok, "nya_http_request_json refuses a native body");
 
-        // ── what the caller is answered in ──
+        // what the caller is answered in
         NYA_HttpRequest* asking = nullptr;
 
         nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
@@ -660,7 +660,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: application/nya-binary, a DTO out and the same DTO back in. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: application/nya-binary, a DTO out and the same DTO back in.
     {
         NYA_HttpRequest* asking   = nullptr;
         u64              consumed = 0;
@@ -711,7 +711,7 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: an address loses its host part, and anything else becomes "unknown". ─────────────────────────────────────────────────────────────────────────────
+    // TEST: an address loses its host part, and anything else becomes "unknown".
     {
         static const NYA_ConstCString CASES[][2] = {
             { "203.0.113.7",             "203.0.113.0/24" },
@@ -744,7 +744,7 @@ s32 main(void) {
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────────────── TEST: a response with a request id says so in its head, and reset keeps it. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a response with a request id says so in its head, and reset keeps it.
     {
         u8 body[16] = { 0 };
 
@@ -762,7 +762,7 @@ s32 main(void) {
     }
 
 #ifdef NYA_HTTP_COMPRESSION
-    // ───────────────────────────────────────────────────────────────────────────── TEST: response compression — negotiated, correct, and reversible. ─────────────────────────────────────────────────────────────────────────────
+    // TEST: response compression — negotiated, correct, and reversible.
     {
         // A body that is text and above the threshold and has the repetition deflate lives on, so it both qualifies and actually shrinks. Kept in one place; every case below answers with it.
         u8 payload[512] = { 0 };
@@ -774,7 +774,7 @@ s32 main(void) {
         nya_http_response_create(&response, body, sizeof(body));
         defer nya_http_response_destroy(&response);
 
-        // ── gzip: the client asks, the body is worth it, and it round-trips ──
+        // gzip: the client asks, the body is worth it, and it round-trips
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(nya_http_response_compress(&response, arena, "gzip"), "a compressible body with gzip accepted is compressed");
 
@@ -804,7 +804,7 @@ s32 main(void) {
         nya_assert(nya_string_contains(rendered, "Content-Encoding: gzip\r\n"));
         nya_assert(nya_string_contains(rendered, "Vary: Accept-Encoding\r\n"));
 
-        // ── no Accept-Encoding: nothing is done, and the body is the plain bytes ──
+        // no Accept-Encoding: nothing is done, and the body is the plain bytes
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(!nya_http_response_compress(&response, arena, nullptr), "no Accept-Encoding leaves the body alone");
@@ -812,7 +812,7 @@ s32 main(void) {
         nya_assert(response_header(&response, "Content-Encoding") == nullptr, "and adds no encoding header");
         nya_assert(response_header(&response, "Vary") == nullptr);
 
-        // ── the `deflate` coding, also reversible ──
+        // the `deflate` coding, also reversible
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(nya_http_response_compress(&response, arena, "deflate"));
@@ -820,14 +820,14 @@ s32 main(void) {
         u64 deflate_restored = zinflate(response.body, response.body_size, restored, sizeof(restored));
         nya_assert(deflate_restored == sizeof(payload) && nya_memcmp(restored, payload, sizeof(payload)) == 0, "the deflate body round-trips too");
 
-        // ── brotli wins when the client offers it: `br` in the list beats gzip on this server's order ──
+        // brotli wins when the client offers it: `br` in the list beats gzip on this server's order
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(nya_http_response_compress(&response, arena, "gzip, deflate, br"));
         nya_assert(nya_string_equals(response_header(&response, "Content-Encoding"), "br"), "br is preferred when offered at an equal weight");
         nya_assert(response.body_size < sizeof(payload), "and it shrinks the body");
 
-        // ── q-values are honoured: a coding ruled out by ;q=0 is not chosen ──
+        // q-values are honoured: a coding ruled out by ;q=0 is not chosen
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(nya_http_response_compress(&response, arena, "br;q=0, gzip;q=0, deflate"), "the one coding left is used");
@@ -838,19 +838,19 @@ s32 main(void) {
         nya_assert(!nya_http_response_compress(&response, arena, "gzip;q=0"), "the only offered coding was refused, so nothing is done");
         nya_assert(response_header(&response, "Content-Encoding") == nullptr);
 
-        // ── an already-compressed type is left alone, whatever the client asked ──
+        // an already-compressed type is left alone, whatever the client asked
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_PNG).ok);
         nya_assert(!nya_http_response_compress(&response, arena, "gzip"), "a png is bytes already packed; gzip would only grow it");
         nya_assert(response.body_size == sizeof(payload) && response_header(&response, "Content-Encoding") == nullptr);
 
-        // ── a body under the threshold is not worth the framing ──
+        // a body under the threshold is not worth the framing
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, 32, NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(!nya_http_response_compress(&response, arena, "gzip"), "a tiny body is left uncompressed");
         nya_assert(response.body_size == 32);
 
-        // ── never a second coding: a handler that already set Content-Encoding owns the body ──
+        // never a second coding: a handler that already set Content-Encoding owns the body
         nya_http_response_reset(&response);
         nya_assert(nya_http_response_bytes(&response, payload, sizeof(payload), NYA_HTTP_MEDIA_TEXT).ok);
         nya_assert(nya_http_response_header(&response, "Content-Encoding", "gzip").ok);

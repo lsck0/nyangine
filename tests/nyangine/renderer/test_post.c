@@ -24,7 +24,7 @@ s32 main(void) {
     // A window struct is all the chain reads: it wants a size and somewhere to draw.
     NYA_Window window = { .screen_width = 320, .screen_height = 200 };
 
-    // ── A zeroed chain is a valid one, and destroying it is a no-op.
+    // A zeroed chain is a valid one, and destroying it is a no-op.
     {
         NYA_PostChain chain = { 0 };
         nya_post_chain_destroy(&chain);
@@ -33,7 +33,7 @@ s32 main(void) {
         nya_post_chain_destroy(nullptr);
     }
 
-    // ── begin sizes the chain to the window.
+    // begin sizes the chain to the window.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -47,7 +47,7 @@ s32 main(void) {
         nya_check(!chain.capturing, "end should stop the capture");
     }
 
-    // ── A resize rebuilds the pair rather than keeping a stale size.
+    // A resize rebuilds the pair rather than keeping a stale size.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -67,7 +67,7 @@ s32 main(void) {
         window.screen_height = 200;
     }
 
-    // ── A zero-sized window is refused rather than asserted on. This is the branch the caller relies on to draw straight to the window while minimised or mid-resize.
+    // A zero-sized window is refused rather than asserted on. This is the branch the caller relies on to draw straight to the window while minimised or mid-resize.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -80,7 +80,7 @@ s32 main(void) {
         nya_post_end(&minimised, &chain, nullptr, 0);
     }
 
-    // ── end without begin does nothing.
+    // end without begin does nothing.
     {
         NYA_PostChain chain = { 0 };
         nya_post_end(&window, &chain, nullptr, 0);
@@ -88,7 +88,7 @@ s32 main(void) {
         nya_post_chain_destroy(&chain);
     }
 
-    // ── Passes naming a pipeline that is not loaded are skipped, and the scene is still put back. This is the case that once cost the entire 3D scene on Windows.
+    // Passes naming a pipeline that is not loaded are skipped, and the scene is still put back. This is the case that once cost the entire 3D scene on Windows.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -104,7 +104,7 @@ s32 main(void) {
         nya_check(!chain.capturing, "end should complete even when every pass is unusable");
     }
 
-    // ── The scene target follows the caller's options, and a one pass chain holds no second target.
+    // The scene target follows the caller's options, and a one pass chain holds no second target.
     {
         NYA_PostChain chain = { .scene = { .depth = NYA_RENDER_TEXTURE_DEPTH_NONE } };
         defer         nya_post_chain_destroy(&chain);
@@ -124,7 +124,7 @@ s32 main(void) {
         nya_check(chain.scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED, "destroying a chain should keep what the caller asked for");
     }
 
-    // ── A render texture knows what it was made with, and whether it still fits.
+    // A render texture knows what it was made with, and whether it still fits.
     {
         NYA_RenderTexture target = nya_render_texture_create_with(&window, 64, 32, (NYA_RenderTextureOptions){ .single_sampled = true });
         defer             nya_render_texture_destroy(&target);
@@ -134,7 +134,7 @@ s32 main(void) {
         nya_check(!nya_render_texture_is_current(&target, 64, 64), "a resized window should make it stale");
     }
 
-    // ── Render options are stored for the next frame, and a pipeline that never loaded has no build.
+    // Render options are stored for the next frame, and a pipeline that never loaded has no build.
     {
         nya_render_options_set(&window, (NYA_RenderOptions){ .msaa_samples = 2 });
         nya_check(nya_app_get()->render_system.options.msaa_samples == 2, "the request should wait for the next nya_render_begin");
@@ -142,7 +142,7 @@ s32 main(void) {
 
         nya_check(nya_asset_graphics_pipeline(nya_asset_get("no_such_pipeline"), SDL_GPU_SAMPLECOUNT_4, false, true) == nullptr, "nothing loaded, nothing to bind");
     }
-    // ── The cartoon options: zero is off, and out of range values from a config file are clamped.
+    // The cartoon options: zero is off, and out of range values from a config file are clamped.
     {
         NYA_PostInk ink = nya_post_ink(&window);
         nya_check(!ink.enabled && ink.width == 0.0F, "a fresh window has no ink");
@@ -213,7 +213,7 @@ s32 main(void) {
         nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_CASCADES, "a known view is kept");
     }
 
-    // ── Targets follow the options: the normal buffer and the half resolution occlusion exist only while needed.
+    // Targets follow the options: the normal buffer and the half resolution occlusion exist only while needed.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -304,7 +304,7 @@ s32 main(void) {
         nya_check(!nya_post_enabled(&window), "with everything off the chain can be skipped");
     }
 
-    // ── Eye adaptation clamps what a config file holds, and eases by the frame's time.
+    // Eye adaptation clamps what a config file holds, and eases by the frame's time.
     {
         nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ .enabled = true, .key = 3.0F, .exposure_max = 20.0F, .saturation = -1.0F });
         NYA_PostEyeAdaptation adaptation = nya_post_eye_adaptation(&window);
@@ -322,7 +322,7 @@ s32 main(void) {
         nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ 0 });
     }
 
-    // ── Motion blur reads distances from the normal buffer and needs no target of its own.
+    // Motion blur reads distances from the normal buffer and needs no target of its own.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);
@@ -341,7 +341,7 @@ s32 main(void) {
         nya_check(!chain.targets[0].options.normals, "turning it off gives the normal buffer back");
     }
 
-    // ── 2D haze, the parallax match for fog: zero density is off, and a config file's numbers are clamped.
+    // 2D haze, the parallax match for fog: zero density is off, and a config file's numbers are clamped.
     {
         nya_check(nya_render2d_haze(&window).density == 0.0F, "a fresh window has no haze");
         nya_render2d_haze_draw(&window, 1.0F);
@@ -353,7 +353,7 @@ s32 main(void) {
         nya_render2d_haze_set(&window, (NYA_Render2DHaze){ 0 });
     }
 
-    // ── Light shafts read the normal buffer and gather into the half target, over a 3D scene only.
+    // Light shafts read the normal buffer and gather into the half target, over a 3D scene only.
     {
         NYA_PostChain chain = { 0 };
         defer         nya_post_chain_destroy(&chain);

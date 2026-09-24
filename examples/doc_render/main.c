@@ -205,7 +205,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     NYA_ConstCString document_locale = "en";
     NYA_Object*      invoice         = invoice_create(arena, document_locale);
 
-    // ── the same data, rendered two ways ────────────────────────────────────────────────────────
+    // the same data, rendered two ways
 
     NYA_String* html = nullptr;
     NYA_EXPECT(nya_template_render(arena, HTML_TEMPLATE, invoice, NYA_TEMPLATE_ESCAPE_HTML, &html));
@@ -216,7 +216,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_log_info("HTML render (autoescaped):\n" NYA_FMT_STRING, NYA_FMT_STRING_ARG(html));
     nya_log_info("LaTeX render (LaTeX-autoescaped):\n" NYA_FMT_STRING, NYA_FMT_STRING_ARG(latex));
 
-    // ── context-aware escaping, asserted ──────────────────────────────────────────────────────── Neither template contains a literal `&lt;`, `&amp;`, `\$` or `\&`, so each of these can only be an escaped data character. Their presence is proof the value was neutralised for its language.
+    // context-aware escaping, asserted — Neither template contains a literal `&lt;`, `&amp;`, `\$` or `\&`, so each of these can only be an escaped data character. Their presence is proof the value was neutralised for its language.
 
     nya_assert(nya_string_contains(html, "&lt;"),  "HTML render did not escape a '<' in the data");
     nya_assert(nya_string_contains(html, "&amp;"), "HTML render did not escape an '&' in the data");
@@ -228,7 +228,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_log_info("Escaping checks passed: HTML neutralised '<' and '&'; LaTeX neutralised '$' and '&'.");
 
-    // ── plural selection and grouped numbers across locales ───────────────────────────────────── The same counts, worded per language. English flips at 1; German uses one form; Russian reaches three of its categories over 1 / 2 / 5.
+    // plural selection and grouped numbers across locales — The same counts, worded per language. English flips at 1; German uses one form; Russian reaches three of its categories over 1 / 2 / 5.
 
     const s64        sample_counts[] = { 1, 2, 5 };
     const NYA_ConstCString locales[] = { "en", "de", "ru" };

@@ -100,7 +100,7 @@ s32 main(void) {
     for (u32 i = 0; i < 6; i += 2) nya_entity_despawn(filler[i]);
   }
 
-  // ── a server on a socket, and a client on another ──────────────────────────
+  // a server on a socket, and a client on another
   (void)nya_world_set(SERVER_WORLD);
 
   NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){

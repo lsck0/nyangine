@@ -149,7 +149,7 @@ s32 main(void) {
 
     stop_everything();
 
-    // ── the same world, with a radius ─────────────────────────────────────────
+    // the same world, with a radius
     peer = start_listen_server((NYA_NetServerConfig){ .relevance_radius = 250.0F }, &tick);
 
     for (u32 i = 0; i < 20; i++) {
@@ -259,7 +259,7 @@ s32 main(void) {
 
     nya_assert(transitions == 0, "an entity jittering inside the hysteresis band flickered %u times", transitions);
 
-    // ── and zero means the default band, not none ────────────────────────────
+    // and zero means the default band, not none
     stop_everything();
 
     peer = start_listen_server((NYA_NetServerConfig){ .relevance_radius = 100.0F }, &tick);
@@ -428,7 +428,7 @@ s32 main(void) {
 
     nya_assert(nya_net_server_rewind_ticks() == 0, "rewind_ticks should read zero once restored");
 
-    // ── refusals ──────────────────────────────────────────────────────────────
+    // refusals
     {
       // Nesting would restore to the past rather than the present.
       nya_assert(nya_net_server_rewind_begin(shooter), "a second independent rewind should work");
@@ -486,7 +486,7 @@ s32 main(void) {
     // The player plus the two the rule accepted. The player is always included whatever the rule says, because reconciliation needs the server's answer for it every snapshot.
     nya_assert(sent == 3, "expected the player plus two accepted entities, got %u", sent);
 
-    // ── the callback is told what it is already sending ───────────────────────
+    // the callback is told what it is already sending
     {
       /* On the second snapshot the two accepted entities are already being sent, so the callback must see `currently_relevant` set for them. Without that a game has no way to be hysteretic and the engine has no way to help it. */
       RELEVANCE_SAW_CURRENT = false;
@@ -536,7 +536,7 @@ s32 main(void) {
     // The last command from a peer that has sent none is zeroed rather than garbage.
     nya_assert(nya_net_server_last_command(stale).tick == 0, "a stale peer reported a command");
 
-    // ── the kick ──────────────────────────────────────────────────────────────
+    // the kick
     nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
 
     nya_assert(nya_net_server_peer_count() == 0, "kicking left the peer in the table");

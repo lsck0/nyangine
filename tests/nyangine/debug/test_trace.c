@@ -13,7 +13,7 @@ static void spin_ns(u64 ns) {
 }
 
 s32 main(void) {
-    // ── A window's average and maximum.
+    // A window's average and maximum.
     {
         u32 samples[] = { 4, 8, 0, 12 };
         f64 average   = -1.0;
@@ -26,14 +26,14 @@ s32 main(void) {
         nya_check(average == 0.0 && maximum == 0, "an empty window is zero, not a division by zero");
     }
 
-    // ── A GPU group starts when the queue was free.
+    // A GPU group starts when the queue was free.
     {
         nya_check(nya_trace_gpu_elapsed(100, 50, 180) == 80, "submitted to an idle queue: from submission");
         nya_check(nya_trace_gpu_elapsed(100, 150, 180) == 30, "submitted behind a running group: from its completion");
         nya_check(nya_trace_gpu_elapsed(100, 200, 180) == 0, "stamped out of order: nothing rather than a wrap");
     }
 
-    // ── The table's order.
+    // The table's order.
     {
         NYA_TraceStats rows[] = {
             { .name = "bloom", .cpu_ms = 0.5, .gpu_ms = 0.2, .has_gpu = true, .vram_bytes = 100 },
@@ -57,7 +57,7 @@ s32 main(void) {
         nya_check(strcmp(rows[0].name, "antialiasing") == 0 && strcmp(rows[2].name, "shadows") == 0, "names alphabetically");
     }
 
-    // ── A scope charges its own time, not its children's, and only while tracing is on.
+    // A scope charges its own time, not its children's, and only while tracing is on.
     {
         nya_check(!nya_trace_active(), "off until something asks");
 
@@ -115,7 +115,7 @@ s32 main(void) {
         nya_check(!nya_trace_active(), "tracing stops once nothing asks");
     }
 
-    // ── GPU memory is counted against the scope that created it.
+    // GPU memory is counted against the scope that created it.
     {
         const void* handle = (const void*)(uintptr_t)0x20000ULL;
 
@@ -130,7 +130,7 @@ s32 main(void) {
         nya_check(nya_gpu_memory_feature_bytes(NYA_TRACE_SHADOWS) == 0, "released outside it, still uncounted from it");
     }
 
-    // ── A registered feature, and the Chrome trace it writes as.
+    // A registered feature, and the Chrome trace it writes as.
     {
         NYA_TraceFeature crowds = nya_trace_feature_register("crowds", "crowd");
         nya_check(crowds == NYA_TRACE_ENGINE_FEATURES, "the first game feature follows the engine's");

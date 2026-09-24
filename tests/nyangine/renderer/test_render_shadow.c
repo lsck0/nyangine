@@ -99,7 +99,7 @@ s32 main(void) {
         }
     }
 
-    /* ── The near cascade covers what is near the camera, at any distance from the subject. The other half of the same claim, stated as coverage rather than as numbers: a point a few units in front of the camera is in cascade zero. Under the old fit, a camera forty units from its target had a cascade zero that contained nothing at all. */
+    /* The near cascade covers what is near the camera, at any distance from the subject. The other half of the same claim, stated as coverage rather than as numbers: a point a few units in front of the camera is in cascade zero. Under the old fit, a camera forty units from its target had a cascade zero that contained nothing at all. */
     {
         f32 distances[] = { 4.0F, 20.0F, 40.0F };
 
@@ -175,7 +175,7 @@ s32 main(void) {
                   (f64)wide_shadow.extent, (f64)narrow_shadow.extent);
     }
 
-    // ── The light basis is orthonormal, including for a light pointing straight down.
+    // The light basis is orthonormal, including for a light pointing straight down.
     {
         f32x3 directions[] = {
             SUN,
@@ -198,7 +198,7 @@ s32 main(void) {
         }
     }
 
-    /* ── The basis follows the light exactly, and a turning sun moves the map smoothly. The basis used to round elevation and azimuth to half-degree steps. That froze the map for most frames and then jumped it, which reads as the shadows lagging the sun. Both halves are asserted: the basis is the direction given, and no frame of a turning sun moves a rim caster's shadow much further than the average one does. */
+    /* The basis follows the light exactly, and a turning sun moves the map smoothly. The basis used to round elevation and azimuth to half-degree steps. That froze the map for most frames and then jumped it, which reads as the shadows lagging the sun. Both halves are asserted: the basis is the direction given, and no frame of a turning sun moves a rim caster's shadow much further than the average one does. */
     {
         f32x3 forward, right, up;
 
@@ -255,7 +255,7 @@ s32 main(void) {
                   (f64)mean);
     }
 
-    /* ── The eye the pass shades from is back along the light, never inside the volume. A directional light has no position, so one is invented. It has to be far enough back that the whole volume is in front of it, or geometry near the light-ward face is behind the near plane and casts nothing. */
+    /* The eye the pass shades from is back along the light, never inside the volume. A directional light has no position, so one is invented. It has to be far enough back that the whole volume is in front of it, or geometry near the light-ward face is behind the near plane and casts nothing. */
     {
         f32 extent = 8.0F;
         f32 depth  = extent * 4.0F;
@@ -321,7 +321,7 @@ s32 main(void) {
                   raw_positions);
     }
 
-    /* ── Every position the volume takes lies on the texel grid. Quantisation alone would be satisfied by a volume that never moves. Walking the camera across several texels checks the other half: it moves, and every place it stops is on the grid. */
+    /* Every position the volume takes lies on the texel grid. Quantisation alone would be satisfied by a volume that never moves. Walking the camera across several texels checks the other half: it moves, and every place it stops is on the grid. */
     {
         f32 extent = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0, unsnapped).extent;
         f32 texel  = (extent * 2.0F) / (f32)NYA_RENDER3D_SHADOW_MAP_SIZE;
@@ -351,7 +351,7 @@ s32 main(void) {
         nya_check(distinct > 1, "walking the camera across texels should move the volume, got " FMTu32 " distinct positions", distinct);
     }
 
-    /* ── Options take defaults for zeroes and clamp the rest, so a config file cannot size the atlas wrongly. */
+    /* Options take defaults for zeroes and clamp the rest, so a config file cannot size the atlas wrongly. */
     {
         NYA_Window fresh = { 0 };
 
@@ -400,7 +400,7 @@ s32 main(void) {
         }
     }
 
-    // ── The degenerate cases.
+    // The degenerate cases.
     {
         // a camera aimed at itself has no direction. The volume sits on it, wrong but bounded and not NaN.
         NYA_Camera3DPerspective still = { .position = { 3.0F, 4.0F, 5.0F }, .target = { 3.0F, 4.0F, 5.0F } };
@@ -432,7 +432,7 @@ s32 main(void) {
                   (f64)tiny.extent);
     }
 
-    // ── The window keeps the fit for its next scene, and what is drawn casts until told otherwise.
+    // The window keeps the fit for its next scene, and what is drawn casts until told otherwise.
     {
         nya_render3d_shadow_set(&window, fit);
 

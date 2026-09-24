@@ -47,7 +47,7 @@ static void widget(u32 i) {
 }
 
 s32 main(void) {
-    // ── A menu of widgets that do not overlap each other is two draws, however many widgets it has.
+    // A menu of widgets that do not overlap each other is two draws, however many widgets it has.
     {
         for (u32 i = 0; i < 5; i++) widget(i);
 
@@ -57,7 +57,7 @@ s32 main(void) {
         nya_check(nya_string_equals(ranges[draws[0].first_range].pipeline, PIPELINE_SHAPES), "bodies first, as declared");
     }
 
-    // ── The index stream is written in draw order, and inside a draw in paint order.
+    // The index stream is written in draw order, and inside a draw in paint order.
     {
         u32 indices[36];
         for (u32 i = 0; i < nya_carray_length(indices); i++) indices[i] = i;
@@ -76,7 +76,7 @@ s32 main(void) {
         nya_check(ordered, "bodies then labels, each in declaration order");
     }
 
-    // ── A label that overlaps the next body keeps that body out of the earlier draw.
+    // A label that overlaps the next body keeps that body out of the earlier draw.
     {
         (void)range(PIPELINE_SHAPES, (NYA_Rectf){ 0.0F, 0.0F, 100.0F, 100.0F }, 6);
         (void)range(PIPELINE_TEXT, (NYA_Rectf){ 150.0F, 0.0F, 100.0F, 20.0F }, 6);
@@ -91,7 +91,7 @@ s32 main(void) {
         nya_check(merge() == 2, "but an edge against an edge shares no pixel");
     }
 
-    // ── Layers sort first, and a merge never lifts a range over a higher layer that covers it.
+    // Layers sort first, and a merge never lifts a range over a higher layer that covers it.
     {
         NYA_Rectf everywhere = { 0.0F, 0.0F, 800.0F, 600.0F };
 
@@ -110,7 +110,7 @@ s32 main(void) {
         nya_check(merge() == 2, "and ranges a sort brings together merge");
     }
 
-    // ── State: another texture, scissor, uniform or camera is another draw.
+    // State: another texture, scissor, uniform or camera is another draw.
     {
         NYA_Rectf a = { 0.0F, 0.0F, 10.0F, 10.0F };
         NYA_Rectf b = { 20.0F, 0.0F, 10.0F, 10.0F };
@@ -142,7 +142,7 @@ s32 main(void) {
         nya_check(merge() == 3, "a range in another space in between stops the search");
     }
 
-    // ── The search looks back a fixed number of draws.
+    // The search looks back a fixed number of draws.
     {
         NYA_Rectf spot = { 0.0F, 0.0F, 1.0F, 1.0F };
 

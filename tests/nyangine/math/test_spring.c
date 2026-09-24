@@ -8,7 +8,7 @@
 #define TICK (1.0F / 60.0F)
 
 s32 main(void) {
-    // ── A critically damped spring converges and does not overshoot.
+    // A critically damped spring converges and does not overshoot.
     {
         NYA_SpringF32 spring = { .value = 0.0F, .frequency = 4.0F, .damping = 1.0F };
 
@@ -23,7 +23,7 @@ s32 main(void) {
         nya_check(nya_spring_f32_settled(&spring, 1.0F, 0.01F), "and report itself settled");
     }
 
-    // ── Underdamped overshoots; overdamped does not and is slower.
+    // Underdamped overshoots; overdamped does not and is slower.
     {
         NYA_SpringF32 bouncy = { .frequency = 4.0F, .damping = 0.3F };
         NYA_SpringF32 sludgy = { .frequency = 4.0F, .damping = 3.0F };
@@ -39,7 +39,7 @@ s32 main(void) {
         nya_check(sludgy_peak <= 1.01F, "an overdamped one should not, peaked at %f", (f64)sludgy_peak);
     }
 
-    // ── Zeroed frequency and damping fall back to usable defaults rather than dividing by nothing.
+    // Zeroed frequency and damping fall back to usable defaults rather than dividing by nothing.
     {
         NYA_SpringF32 spring = { 0 };
         for (u32 i = 0; i < 240; i++) (void)nya_spring_f32(&spring, 5.0F, TICK);
@@ -47,7 +47,7 @@ s32 main(void) {
         nya_check(fabsf(spring.value - 5.0F) < 0.05F, "a zeroed spring should still converge, got %f", (f64)spring.value);
     }
 
-    // ── Retargeting mid-flight carries velocity instead of restarting.
+    // Retargeting mid-flight carries velocity instead of restarting.
     {
         NYA_SpringF32 spring = { .frequency = 4.0F, .damping = 1.0F };
 
@@ -62,7 +62,7 @@ s32 main(void) {
         nya_check(fabsf(spring.value - 2.0F) < 0.01F, "and it should arrive at the new target, got %f", (f64)spring.value);
     }
 
-    // ── A stalled frame is clamped rather than integrated whole. Explicit Euler would diverge here.
+    // A stalled frame is clamped rather than integrated whole. Explicit Euler would diverge here.
     {
         NYA_SpringF32 spring = { .frequency = 20.0F, .damping = 1.0F };
 
@@ -73,14 +73,14 @@ s32 main(void) {
         nya_check(fabsf(spring.value) < 100.0F, "and not fly off, got %f", (f64)spring.value);
     }
 
-    // ── A non-positive step does nothing.
+    // A non-positive step does nothing.
     {
         NYA_SpringF32 spring = { .value = 3.0F, .frequency = 4.0F };
         nya_check(nya_spring_f32(&spring, 99.0F, 0.0F) == 3.0F, "a zero step should not move it");
         nya_check(nya_spring_f32(&spring, 99.0F, -1.0F) == 3.0F, "nor a negative one");
     }
 
-    // ── Reset drops velocity, so the next step starts clean.
+    // Reset drops velocity, so the next step starts clean.
     {
         NYA_SpringF32 spring = { .frequency = 4.0F };
         for (u32 i = 0; i < 20; i++) (void)nya_spring_f32(&spring, 10.0F, TICK);
@@ -91,7 +91,7 @@ s32 main(void) {
         nya_check(!nya_spring_f32_settled(&spring, 10.0F, 0.01F), "and it is not settled at a distant target");
     }
 
-    // ── The vector springs converge componentwise.
+    // The vector springs converge componentwise.
     {
         NYA_SpringF32x2 two   = { .frequency = 5.0F };
         NYA_SpringF32x3 three = { .frequency = 5.0F };
@@ -112,7 +112,7 @@ s32 main(void) {
         nya_check(two.value.x == 0.0F && three.value.z == 0.0F, "reset should zero the vector springs");
     }
 
-    // ── Settled needs both position and velocity: passing through at speed is not arrival.
+    // Settled needs both position and velocity: passing through at speed is not arrival.
     {
         NYA_SpringF32 spring = { .value = 1.0F, .velocity = 50.0F, .frequency = 4.0F };
         nya_check(!nya_spring_f32_settled(&spring, 1.0F, 0.01F), "moving fast through the target is not settled");

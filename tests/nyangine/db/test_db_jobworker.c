@@ -35,7 +35,7 @@ static b8 wait_for(NYA_JobQueue* queue, u64 want_done, u64 want_dead, u32 timeou
   return false;
 }
 
-/* ── Handlers ── */
+/* Handlers */
 
 /** Counts every run through an atomic in its context, then completes. The fan-out and drain workhorse. */
 static NYA_JobOutcome count_and_complete(const NYA_QueuedJob* job, void* context) {

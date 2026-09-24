@@ -52,7 +52,7 @@ static NYA_SkeletonInertializer inertializer;
 s32 main(void) {
     rig_build();
 
-    // ── The curve's defining property: it reaches exactly zero, and stays there.
+    // The curve's defining property: it reaches exactly zero, and stays there.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -91,7 +91,7 @@ s32 main(void) {
         nya_check(!nya_skeleton_inertializer_active(&inertializer), "and it reports itself finished");
     }
 
-    // ── The seam: the first inertialized frame matches what was on screen, not the new clip.
+    // The seam: the first inertialized frame matches what was on screen, not the new clip.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -125,7 +125,7 @@ s32 main(void) {
         nya_check(fabsf(shown_after - raw) > cut * 0.8F, "and the pose is still nowhere near the raw destination %f", (f64)raw);
     }
 
-    // ── The offset never crosses zero and never runs away, which is what a₀ is chosen for.
+    // The offset never crosses zero and never runs away, which is what a₀ is chosen for.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -165,7 +165,7 @@ s32 main(void) {
         nya_check(largest <= initial * 1.05F, "and never grows past where it started: %f against %f", (f64)largest, (f64)initial);
     }
 
-    // ── Rotation goes the same way, and comes back to the destination exactly.
+    // Rotation goes the same way, and comes back to the destination exactly.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -197,7 +197,7 @@ s32 main(void) {
                   "and lands exactly on the destination");
     }
 
-    // ── Nothing to transition from is a cut, not a rig thrown at the origin.
+    // Nothing to transition from is a cut, not a rig thrown at the origin.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -213,7 +213,7 @@ s32 main(void) {
         nya_check(pose.local[BONE_CHILD].translation.x == target.local[BONE_CHILD].translation.x, "and the pose comes through untouched");
     }
 
-    // ── A second transition during the first composes rather than fighting it.
+    // A second transition during the first composes rather than fighting it.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -254,7 +254,7 @@ s32 main(void) {
                   "and still arrives exactly, %f", (f64)pose.local[BONE_CHILD].translation.x);
     }
 
-    // ── The player drives it, and stops evaluating the outgoing clip when it does.
+    // The player drives it, and stops evaluating the outgoing clip when it does.
     {
         nya_skeleton_inertializer_init(&inertializer, &skeleton);
 
@@ -282,7 +282,7 @@ s32 main(void) {
         nya_check(!nya_skeleton_player_fading(&player), "the transition ends");
     }
 
-    // ── With no inertializer attached the player still crossfades, exactly as before.
+    // With no inertializer attached the player still crossfades, exactly as before.
     {
         NYA_SkeletonPlayer player = { 0 };
         nya_skeleton_player_init(&player, &skeleton);

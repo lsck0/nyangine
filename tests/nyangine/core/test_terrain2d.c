@@ -23,7 +23,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_terrain2d");
     defer      nya_arena_destroy(arena);
 
-    // ── Defaults fill in.
+    // Defaults fill in.
     {
         NYA_Terrain2D* terrain = nullptr;
         NYA_EXPECT(nya_terrain2d_create(arena, (NYA_Terrain2DOptions){ .entity_type = KIND_TERRAIN }, &terrain));
@@ -35,14 +35,14 @@ s32 main(void) {
         nya_check(!nya_entity_is_valid(terrain->entity), "no body before generation");
     }
 
-    // ── Bad arguments are refused rather than asserted on.
+    // Bad arguments are refused rather than asserted on.
     {
         NYA_Terrain2D* terrain = nullptr;
         nya_check(!nya_terrain2d_create(nullptr, (NYA_Terrain2DOptions){ 0 }, &terrain).ok, "a null arena is an error");
         nya_check(!nya_terrain2d_create(arena, (NYA_Terrain2DOptions){ 0 }, nullptr).ok, "a null out pointer is an error");
     }
 
-    // ── Generation: x strictly increases, every y is finite, and a body is spawned.
+    // Generation: x strictly increases, every y is finite, and a body is spawned.
     {
         NYA_Terrain2D* terrain = nullptr;
         NYA_EXPECT(nya_terrain2d_create(arena, (NYA_Terrain2DOptions){ .entity_type = KIND_TERRAIN }, &terrain));
@@ -63,7 +63,7 @@ s32 main(void) {
 
         nya_check(terrain->max_height > terrain->min_height, "a generated profile should not be flat");
 
-        // ── Sampling on a sample point returns it, and past the ends clamps rather than extrapolating.
+        // Sampling on a sample point returns it, and past the ends clamps rather than extrapolating.
         f32 first = nya_terrain2d_height_at(terrain, terrain->points[0].x);
         nya_check(fabsf(first - terrain->points[0].y) < 0.01F, "the first sample should read itself");
 
@@ -73,7 +73,7 @@ s32 main(void) {
         nya_check(fabsf(far_right - terrain->points[terrain->point_count - 1].y) < 0.01F,
                   "far right should clamp to the last sample");
 
-        // ── A midpoint lies between its neighbours.
+        // A midpoint lies between its neighbours.
         f32 mid_x = (terrain->points[3].x + terrain->points[4].x) * 0.5F;
         f32 mid   = nya_terrain2d_height_at(terrain, mid_x);
         f32 lo    = nya_min(terrain->points[3].y, terrain->points[4].y);
@@ -84,7 +84,7 @@ s32 main(void) {
         nya_check(!nya_entity_is_valid(terrain->entity), "release should despawn the body");
     }
 
-    // ── Determinism, and regeneration in place.
+    // Determinism, and regeneration in place.
     {
         NYA_Terrain2D* a = nullptr;
         NYA_Terrain2D* b = nullptr;
@@ -108,7 +108,7 @@ s32 main(void) {
         nya_terrain2d_release(b);
     }
 
-    // ── A null terrain is tolerated everywhere a caller might have one before creation.
+    // A null terrain is tolerated everywhere a caller might have one before creation.
     {
         nya_check(nya_terrain2d_height_at(nullptr, 0.0F) == 0.0F, "sampling a null terrain is zero");
         nya_terrain2d_release(nullptr);

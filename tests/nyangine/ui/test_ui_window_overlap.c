@@ -202,10 +202,10 @@ s32 main(void) {
     Scene first = scene(NYA_UI_PASS_DRAW);
     nya_check(first.under_bounds.width > 0.0F && first.over_bounds.width > 0.0F, "both windows were laid out");
 
-    // ── the one declared last is in front, and draws over the other ──────────────
+    // the one declared last is in front, and draws over the other
     nya_check(first.over_layer > first.under_layer, "the window declared last draws in front, got %d over %d", first.over_layer, first.under_layer);
 
-    // ── a widget under another window refuses the pointer, and the one above takes it ──
+    // a widget under another window refuses the pointer, and the one above takes it
     {
         Scene now = scene(NYA_UI_PASS_DRAW);
 
@@ -220,7 +220,7 @@ s32 main(void) {
         nya_check(!hit.under_hit, "and the one under it did not");
     }
 
-    // ── a bar under another window is not a handle ───────────────────────────────
+    // a bar under another window is not a handle
     {
         Scene before = scene(NYA_UI_PASS_DRAW);
 
@@ -237,7 +237,7 @@ s32 main(void) {
                   "and the one behind it stayed put, at %.1f,%.1f", (f64)dragged.under_bounds.x, (f64)dragged.under_bounds.y);
     }
 
-    // ── a close button under another window is not a button ──────────────────────
+    // a close button under another window is not a button
     {
         Scene now = scene(NYA_UI_PASS_DRAW);
 
@@ -251,7 +251,7 @@ s32 main(void) {
         }
     }
 
-    // ── clicking what is visible of the lower window brings it forward, for good ──
+    // clicking what is visible of the lower window brings it forward, for good
     {
         Scene now = scene(NYA_UI_PASS_DRAW);
 
@@ -274,7 +274,7 @@ s32 main(void) {
         nya_check(!hit.over_hit, "and the window now behind refused it");
     }
 
-    // ── the click that brings a window forward is spent on that and nothing else ──
+    // the click that brings a window forward is spent on that and nothing else
     {
         // the upper window is in front again after the drag above; put the lower one behind it first.
         Scene now = scene(NYA_UI_PASS_DRAW);
@@ -302,7 +302,7 @@ s32 main(void) {
         nya_check(second.under_hit, "the next click activates it");
     }
 
-    // ── grabbing a window's bar brings it forward as it is grabbed ───────────────
+    // grabbing a window's bar brings it forward as it is grabbed
     {
         Scene now = scene(NYA_UI_PASS_DRAW);
         nya_check(now.under_layer > now.over_layer, "the lower window is still the raised one");
@@ -323,7 +323,7 @@ s32 main(void) {
         (void)release();
     }
 
-    // ── the strip a window is dragged by is the bar that is drawn ────────────────
+    // the strip a window is dragged by is the bar that is drawn
     {
         /* What gnyame does: a big title, a hamburger, and a panel declared before the windows. The bar a person sees is the strip to grab, so the two have to be the same rectangle — a grip that starts at the window's top edge and stops short of the bar's bottom is a window that does not move when it is grabbed by the part of the bar below the mismatch. */
         nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 22.0F, .title_size = 44.0F, .padding = 14.0F, .spacing = 6.0F, .item_height = 40.0F });

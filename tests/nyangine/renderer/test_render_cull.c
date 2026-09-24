@@ -61,7 +61,7 @@ static u32 planes_rejecting(f32x3 center, f32 radius) {
 }
 
 s32 main(void) {
-    // ── Every plane of a perspective frustum is unit length and finite, so distances are in world units.
+    // Every plane of a perspective frustum is unit length and finite, so distances are in world units.
     {
         frustum_from(perspective_matrix());
 
@@ -78,7 +78,7 @@ s32 main(void) {
         nya_check(fabsf(plane_distance(PLANE_FAR, (f32x3){ 0, 0, -FAR_PLANE })) < 1e-2F, "the far plane is at z = -far");
     }
 
-    // ── Inside, and outside each plane alone.
+    // Inside, and outside each plane alone.
     {
         frustum_from(perspective_matrix());
 
@@ -108,7 +108,7 @@ s32 main(void) {
         }
     }
 
-    // ── A sphere whose centre is outside but whose edge reaches in is kept; the test is `distance < -radius`.
+    // A sphere whose centre is outside but whose edge reaches in is kept; the test is `distance < -radius`.
     {
         frustum_from(perspective_matrix());
 
@@ -126,7 +126,7 @@ s32 main(void) {
         nya_check(_nya_render3d_visible(&frustum, (f32x3){ 0, 0, 50 }, 200.0F), "a huge sphere behind the camera still overlaps the view");
     }
 
-    // ── Conservative at a corner: outside the view, but not wholly outside any one plane, so kept.
+    // Conservative at a corner: outside the view, but not wholly outside any one plane, so kept.
     {
         frustum_from(perspective_matrix());
 
@@ -157,7 +157,7 @@ s32 main(void) {
         nya_check(_nya_render3d_visible(&frustum, corner, 1.0F), "and kept, which is the safe direction to be wrong in");
     }
 
-    // ── Orthographic: the near plane is row 2 alone, and the sides do not converge.
+    // Orthographic: the near plane is row 2 alone, and the sides do not converge.
     {
         f32_4x4 projection = nya_matrix_orthographic_3d(10.0F, 1.0F, 1.0F, 50.0F);
         f32_4x4 view       = nya_matrix_look_at((f32x3){ 0, 0, 0 }, (f32x3){ 0, 0, -1 }, (f32x3){ 0, 1, 0 });
@@ -170,7 +170,7 @@ s32 main(void) {
         nya_check(fabsf(plane_distance(PLANE_NEAR, (f32x3){ 0, 0, -1 })) < 1e-4F, "the near plane is at z = -1");
     }
 
-    // ── A degenerate matrix leaves its planes alone rather than dividing by zero, and culls nothing.
+    // A degenerate matrix leaves its planes alone rather than dividing by zero, and culls nothing.
     {
         frustum_from(f32_4x4_zero);
 
@@ -182,7 +182,7 @@ s32 main(void) {
         nya_check(_nya_render3d_visible(&frustum, (f32x3){ 1e6F, -1e6F, 1e6F }, 0.0F), "anything is visible");
     }
 
-    // ── A draw keeps one bit per pass that sees it: the camera's first, a cascade's after it.
+    // A draw keeps one bit per pass that sees it: the camera's first, a cascade's after it.
     {
         nya_memset(batch, 0, sizeof(*batch));
 
@@ -199,7 +199,7 @@ s32 main(void) {
         nya_check(batch->frame_culled == 1, "and that is counted, got %u", batch->frame_culled);
     }
 
-    // ── The occlusion buffer is the camera's alone, and asked only about what survived its frustum.
+    // The occlusion buffer is the camera's alone, and asked only about what survived its frustum.
     {
         nya_memset(batch, 0, sizeof(*batch));
 
@@ -231,7 +231,7 @@ s32 main(void) {
         nya_check(batch->frame_occluded == 2, "which counts as occluded, got %u", batch->frame_occluded);
     }
 
-    /* ── Both culls are switchable, and switching the frustum off takes the occlusion buffer with it: the buffer only ever removes what the frustum kept, so there is nothing for it to answer about. */
+    /* Both culls are switchable, and switching the frustum off takes the occlusion buffer with it: the buffer only ever removes what the frustum kept, so there is nothing for it to answer about. */
     {
         nya_memset(batch, 0, sizeof(*batch));
 
@@ -261,7 +261,7 @@ s32 main(void) {
         nya_check(_nya_render3d_passes_seeing(&window, outside, 1.0F) == 0, "and switching it back on culls again");
     }
 
-    // ── Each pass's list holds the indices of exactly the objects it sees, in recorded order.
+    // Each pass's list holds the indices of exactly the objects it sees, in recorded order.
     {
         u16                indices[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
         NYA_Render3DObject objects[3]  = {
@@ -285,7 +285,7 @@ s32 main(void) {
         nya_check(_nya_render3d_pass_indices(&stream, 3, 3, 0, out) == 0, "and an empty segment nothing");
     }
 
-    // ── Instances draw in runs of neighbours the pass sees.
+    // Instances draw in runs of neighbours the pass sees.
     {
         const u8 passes[] = { 0x1, 0x3, 0x3, 0x2, 0x1, 0x3 };
 
@@ -298,7 +298,7 @@ s32 main(void) {
         nya_check(_nya_render3d_pass_run(passes, 0, 6, 2, &first) == 0 && first == 6, "no run leaves the start at the end");
     }
 
-    /* ── Which stream a draw is recorded into. Alpha decides it, except under addition. A flame particle is born at exactly alpha one. Recorded as opaque it drew through the opaque pipeline and wrote depth, so every new particle punched a hole in the plume behind it for a tick: the fire flickered. */
+    /* Which stream a draw is recorded into. Alpha decides it, except under addition. A flame particle is born at exactly alpha one. Recorded as opaque it drew through the opaque pipeline and wrote depth, so every new particle punched a hole in the plume behind it for a tick: the fire flickered. */
     {
         NYA_Color solid     = { 1.0F, 1.0F, 1.0F, 1.0F };
         NYA_Color faded     = { 1.0F, 1.0F, 1.0F, 0.5F };

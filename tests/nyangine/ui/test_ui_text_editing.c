@@ -163,7 +163,7 @@ s32 main(void) {
 
     nya_ui_style_set(&window, (NYA_UIStyle){ .padding = 10.0F, .spacing = 6.0F, .item_height = 40.0F });
 
-    // ── Shift with the arrows selects, and what goes in next replaces the selection rather than joining it.
+    // Shift with the arrows selects, and what goes in next replaces the selection rather than joining it.
     {
         editing_start("hello world");
 
@@ -182,7 +182,7 @@ s32 main(void) {
         nya_check(nya_string_equals(text, "hello therXe"), "an unshifted arrow drops the selection and keeps the text, got '%s'", text);
     }
 
-    // ── Control moves and deletes by word, and backspace over a selection takes the selection.
+    // Control moves and deletes by word, and backspace over a selection takes the selection.
     {
         editing_start("one two three");
 
@@ -198,7 +198,7 @@ s32 main(void) {
         nya_check(nya_string_equals(text, "one | "), "control delete takes the word after it, got '%s'", text);
     }
 
-    // ── Control with A selects everything, so one backspace empties the field.
+    // Control with A selects everything, so one backspace empties the field.
     {
         editing_start("wipe me");
 
@@ -212,7 +212,7 @@ s32 main(void) {
         nya_check(!press_with(NYA_KEY_A, NYA_KEYMOD_LCTRL), "select all on an empty field changes nothing");
     }
 
-    // ── The clipboard: copy keeps the text, cut removes it, and paste puts it back at the caret.
+    // The clipboard: copy keeps the text, cut removes it, and paste puts it back at the caret.
     {
         // headless SDL may have no clipboard at all, and then there is nothing here to test.
         b8 clipboard = nya_clipboard_text_set("probe").ok;
@@ -236,7 +236,7 @@ s32 main(void) {
         }
     }
 
-    // ── A click past the end of the text puts the caret after it, not where the box ends.
+    // A click past the end of the text puts the caret after it, not where the box ends.
     {
         nya_ui_focus_reset(&window);
         (void)snprintf(text, sizeof(text), "%s", "ab");
@@ -251,7 +251,7 @@ s32 main(void) {
         nya_check(nya_string_equals(text, "abc"), "and the caret sits after the last character, got '%s'", text);
     }
 
-    // ── A click on a field above the one being typed in takes the keyboard. The upper field reads the click before the lower one can see it and let go, which the agent found by crashing into it in the pause menu.
+    // A click on a field above the one being typed in takes the keyboard. The upper field reads the click before the lower one can see it and let go, which the agent found by crashing into it in the pause menu.
     {
         nya_ui_focus_reset(&window);
         text[0]  = '\0';

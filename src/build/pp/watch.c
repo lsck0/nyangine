@@ -668,7 +668,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
         return marker;
     }
 
-    // ── the call site, which is where the registration goes and therefore what it can reach ─────
+    // the call site, which is where the registration goes and therefore what it can reach
     u32 call = 0;
     for (u32 at = body + 1; at < body_end && call == 0; at++) {
         if (_nya_watch_token_is(lexer, at, NYA_WATCH_CALL)) call = at;
@@ -692,7 +692,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
 
     *out_call = call;
 
-    // ── the parameters, which are locals that are always in scope and always initialised ────────
+    // the parameters, which are locals that are always in scope and always initialised
     for (u32 at = open + 1; at < parameters_end - 1;) {
         u32 end   = at;
         u32 depth = 0;
@@ -717,7 +717,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
         at = end + 1;
     }
 
-    // ── the body's own top level declarations, above the call site ──────────────────────────────
+    // the body's own top level declarations, above the call site
     u32 depth           = 1;
     u32 parenthesis     = 0;
     u32 statement_start = body + 1;
@@ -772,7 +772,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
         return body_end - 1;
     }
 
-    // ── the name is the name of a macro, and there is one namespace of those ────────────────────
+    // the name is the name of a macro, and there is one namespace of those
     for (u32 i = 0; i < set->count; i++) {
         if (!nya_string_equals(set->functions[i].name, function.name)) continue;
 

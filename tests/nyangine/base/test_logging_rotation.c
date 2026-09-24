@@ -40,7 +40,7 @@ static b8 exists_for_day(s64 day) {
 s32 main(void) {
     if (nya_filesystem_exists(TEST_DIRECTORY)) NYA_EXPECT(nya_filesystem_delete_recursive(TEST_DIRECTORY));
 
-    // ── The date round trip is what names every file, so it is checked first and over a wide range.
+    // The date round trip is what names every file, so it is checked first and over a wide range.
     for (s64 day = -20'000; day < 40'000; day += 7) {
         s32 year  = 0;
         u32 month = 0;
@@ -64,7 +64,7 @@ s32 main(void) {
         nya_check(year == 1970 && month == 1 && date == 1, "day 0 should be 1970-01-01, got %04d-%02u-%02u", year, month, date);
     }
 
-    // ── Names the sweep must refuse. Each of these would be a deleted user file.
+    // Names the sweep must refuse. Each of these would be a deleted user file.
     {
         s64 ignored = 0;
         nya_check(!_nya_log_day_from_name("notes.txt", &ignored), "a non-log name must not parse");
@@ -75,13 +75,13 @@ s32 main(void) {
         nya_check(_nya_log_day_from_name("2026-08-26.log", &ignored), "a well formed name must parse");
     }
 
-    // ── Opening creates the directory and today's file.
+    // Opening creates the directory and today's file.
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 14));
     nya_check(nya_filesystem_is_directory(TEST_DIRECTORY), "the log directory should have been created");
     nya_check(exists_for_day(today()), "today's log file should exist after opening");
     nya_log_file_close();
 
-    // ── Retention keeps today and the window behind it, and drops everything older.
+    // Retention keeps today and the window behind it, and drops everything older.
     const s64 now = today();
     seed_log_for_day(now - 1);
     seed_log_for_day(now - 13);
@@ -100,12 +100,12 @@ s32 main(void) {
     nya_check(nya_filesystem_exists(TEST_DIRECTORY "/notes.txt"), "an unrelated file must survive the sweep");
     nya_check(nya_filesystem_exists(TEST_DIRECTORY "/2026-08-26.log.bak"), "a suffixed file must survive the sweep");
 
-    // ── Retention of zero keeps everything.
+    // Retention of zero keeps everything.
     seed_log_for_day(now - 900);
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 0));
     nya_check(exists_for_day(now - 900), "retention 0 must keep everything");
 
-    // ── Reopening the same day appends rather than truncating: a crash restart must not erase the run that crashed.
+    // Reopening the same day appends rather than truncating: a crash restart must not erase the run that crashed.
     nya_log_file_close();
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 14));
     nya_log_info("first line");
@@ -133,7 +133,7 @@ s32 main(void) {
         nya_check(strstr(text, "second line") != nullptr, "the line after the reopen must be there too");
     }
 
-    // ── A roll on the same day is a no-op, and passing nullptr turns daily logging off.
+    // A roll on the same day is a no-op, and passing nullptr turns daily logging off.
     nya_log_directory_roll();
     NYA_EXPECT(nya_log_directory_open(nullptr, 14));
 

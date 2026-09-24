@@ -315,7 +315,7 @@ s32 main(void) {
       nya_assert(loaded->connections->items[i].enabled == source->enabled, "gene %u changed enabled", innovation);
     }
 
-    // ── The check that matters: it computes the same thing ──
+    // The check that matters: it computes the same thing
     for (u32 i = 0; i < 4; i++) {
       f64 input = (f64)i * 0.3;
 
@@ -334,7 +334,7 @@ s32 main(void) {
     }
     }
 
-    // ── Corrupt input is an error, not a crash ──
+    // Corrupt input is an error, not a crash
     {
       NYA_NeatNetwork* rejected = nullptr;
 

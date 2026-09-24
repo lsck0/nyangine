@@ -63,7 +63,7 @@ static b8 wait_until_taken(const Shared* shared, u32 count) {
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_thread");
 
-    // ── A thread runs, says so, and says it has finished before it is joined.
+    // A thread runs, says so, and says it has finished before it is joined.
     {
         Shared shared = { 0 };
 
@@ -76,7 +76,7 @@ s32 main(void) {
         nya_thread_join(thread);
     }
 
-    // ── A semaphore hands work to whichever worker is free, and a wait that ran out is not work.
+    // A semaphore hands work to whichever worker is free, and a wait that ran out is not work.
     {
         Shared shared = { 0 };
         nya_check(nya_semaphore_create(arena, 0, &shared.work).ok, "a semaphore should be makeable");
@@ -102,7 +102,7 @@ s32 main(void) {
         nya_semaphore_destroy(shared.work);
     }
 
-    // ── A blocking wait ends on a post, and a lock is a lock.
+    // A blocking wait ends on a post, and a lock is a lock.
     {
         NYA_Semaphore* semaphore = nullptr;
         nya_check(nya_semaphore_create(arena, 1, &semaphore).ok, "a semaphore should be makeable");
@@ -122,7 +122,7 @@ s32 main(void) {
         nya_mutex_destroy(mutex);
     }
 
-    /* ── A null lock is no lock at all. What the unthreaded HTTP server runs on: the same call sites, with nothing behind them. It has to be a no-op rather than a crash or nothing in that mode would answer a request at all. */
+    /* A null lock is no lock at all. What the unthreaded HTTP server runs on: the same call sites, with nothing behind them. It has to be a no-op rather than a crash or nothing in that mode would answer a request at all. */
     {
         nya_mutex_lock(nullptr);
         nya_mutex_unlock(nullptr);
@@ -130,7 +130,7 @@ s32 main(void) {
         nya_semaphore_destroy(nullptr);
     }
 
-    /* ── A thread can be let go of instead of joined. After it has finished, so nothing is still writing into the record when the arena goes: that is the deal nya_thread_abandon documents, and the case it exists for keeps its arena forever. */
+    /* A thread can be let go of instead of joined. After it has finished, so nothing is still writing into the record when the arena goes: that is the deal nya_thread_abandon documents, and the case it exists for keeps its arena forever. */
     {
         Shared shared = { 0 };
 
@@ -142,7 +142,7 @@ s32 main(void) {
         nya_thread_abandon(thread);
     }
 
-    // ── The main thread claim answers for the thread that made it and for no other.
+    // The main thread claim answers for the thread that made it and for no other.
     {
         nya_check(nya_thread_main_is_current(), "before any claim every thread is the main one");
 

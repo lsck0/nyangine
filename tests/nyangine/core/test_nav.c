@@ -14,7 +14,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_nav");
     defer      nya_arena_destroy(arena);
 
-    // ── A fresh grid is open, and bad sizes are refused.
+    // A fresh grid is open, and bad sizes are refused.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 10, 8, &grid));
@@ -32,7 +32,7 @@ s32 main(void) {
         nya_check(!nya_nav_grid_create(nullptr, 4, 4, &grid).ok, "a null arena is refused");
     }
 
-    // ── A straight run on an open grid is the shortest possible.
+    // A straight run on an open grid is the shortest possible.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 20, 20, &grid));
@@ -52,7 +52,7 @@ s32 main(void) {
         nya_check(diag == 6, "with diagonals it is six, got %u", diag);
     }
 
-    // ── Every step of a returned path is adjacent to the last, and none is blocked.
+    // Every step of a returned path is adjacent to the last, and none is blocked.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 30, 20, &grid));
@@ -77,7 +77,7 @@ s32 main(void) {
         nya_check(bad_step == 0, "%u steps were not to an adjacent cell", bad_step);
     }
 
-    // ── A sealed goal has no path, and neither does a blocked start or end.
+    // A sealed goal has no path, and neither does a blocked start or end.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 12, 12, &grid));
@@ -99,7 +99,7 @@ s32 main(void) {
                   "a goal off the grid has no path");
     }
 
-    // ── Corner cutting is off by default. This is the rule that keeps a wide unit off the wall.
+    // Corner cutting is off by default. This is the rule that keeps a wide unit off the wall.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 5, 5, &grid));
@@ -118,7 +118,7 @@ s32 main(void) {
         nya_check(allowed == 2, "and allowed when asked for, got %u", allowed);
     }
 
-    // ── Cost is honoured: an expensive direct route loses to a cheap detour.
+    // Cost is honoured: an expensive direct route loses to a cheap detour.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 9, 5, &grid));
@@ -138,7 +138,7 @@ s32 main(void) {
         nya_check(muddy < 3, "and touch the mud as little as possible, touched %u", muddy);
     }
 
-    // ── A path longer than the buffer is refused, not truncated.
+    // A path longer than the buffer is refused, not truncated.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 40, 40, &grid));
@@ -148,7 +148,7 @@ s32 main(void) {
                   "a path that does not fit is refused rather than half-delivered");
     }
 
-    // ── The search budget stops an expensive failure.
+    // The search budget stops an expensive failure.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 60, 60, &grid));
@@ -160,7 +160,7 @@ s32 main(void) {
                   "a tiny budget should give up rather than expand the grid");
     }
 
-    // ── Repeated queries do not leak state into each other.
+    // Repeated queries do not leak state into each other.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 25, 25, &grid));
@@ -179,7 +179,7 @@ s32 main(void) {
         nya_check(first > 0, "the repeated query should have found something");
     }
 
-    // ── The flow field agrees with A*: same reachability, and following it arrives.
+    // The flow field agrees with A*: same reachability, and following it arrives.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 24, 18, &grid));
@@ -218,7 +218,7 @@ s32 main(void) {
         nya_check(at_goal.x == 0.0F && at_goal.y == 0.0F, "there is nowhere to go from the goal");
     }
 
-    // ── A goal inside a wall builds nothing rather than a misleading field.
+    // A goal inside a wall builds nothing rather than a misleading field.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 10, 10, &grid));
@@ -234,7 +234,7 @@ s32 main(void) {
         nya_check(stuck.x == 0 && stuck.y == 0, "and stepping goes nowhere rather than off the grid");
     }
 
-    // ── nya_nav_fill flips the whole grid.
+    // nya_nav_fill flips the whole grid.
     {
         NYA_NavGrid* grid = nullptr;
         NYA_EXPECT(nya_nav_grid_create(arena, 6, 6, &grid));
@@ -246,7 +246,7 @@ s32 main(void) {
         nya_check(nya_nav_walkable(grid, 3, 3), "and open it again");
     }
 
-    // ── A tilemap's solid layer becomes the walls, and nothing else on the map does.
+    // A tilemap's solid layer becomes the walls, and nothing else on the map does.
     {
         enum { MAP_WIDTH = 6, MAP_HEIGHT = 4 };
 

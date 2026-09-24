@@ -32,7 +32,7 @@ s32 main(void) {
     nya_assert(buffer != nullptr);
     for (u64 i = 0; i < HASH_BYTES; i++) buffer[i] = next_byte();
 
-    // ── Argon2id: the login cost, reported per call ──
+    // Argon2id: the login cost, reported per call
     {
         /* A scratch arena the KDF allocates its 64 MiB work area from and frees back to; reused across rounds, since the free returns the block for the next call rather than growing the arena. */
         NYA_Arena* kdf = nya_arena_create(.name = "bench_crypto_kdf");
@@ -65,7 +65,7 @@ s32 main(void) {
         if (nya_bench_end() != 0) return 1;
     }
 
-    // ── Hashing and MAC: throughput, reported per byte (1000 / ns-per-item = MB/s) ──
+    // Hashing and MAC: throughput, reported per byte (1000 / ns-per-item = MB/s)
     {
         nya_bench_begin("hashing, 1 MiB (ns/item is ns/byte; 1000 / it = MB/s)");
 
@@ -98,7 +98,7 @@ s32 main(void) {
         if (nya_bench_end() != 0) return 1;
     }
 
-    // ── AEAD: the per-message path a session encrypts and opens, per byte over a packet ──
+    // AEAD: the per-message path a session encrypts and opens, per byte over a packet
     {
         NYA_CryptoKey32 key = { 0 };
         for (u32 i = 0; i < sizeof(key.bytes); i++) key.bytes[i] = next_byte();
@@ -139,7 +139,7 @@ s32 main(void) {
         if (nya_bench_end() != 0) return 1;
     }
 
-    // ── The keyring seal and unseal: what a stateless cookie costs to mint and to open, per call ──
+    // The keyring seal and unseal: what a stateless cookie costs to mint and to open, per call
     {
         NYA_HttpKeyring ring = { 0 };
         (void)nya_http_keyring_rotate(&ring);

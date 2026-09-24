@@ -29,7 +29,7 @@ s32 main(void) {
     defer nya_world_destroy(world);
     defer nya_system_callback_deinit();
 
-    // ── Gravity is settable and readable, and survives a step.
+    // Gravity is settable and readable, and survives a step.
     {
         f32x2 original = nya_physics2d_gravity();
 
@@ -49,7 +49,7 @@ s32 main(void) {
         nya_physics2d_gravity_set(original);
     }
 
-    // ── The world can be paused, and a paused world does not integrate.
+    // The world can be paused, and a paused world does not integrate.
     {
         NYA_EntityHandle crate = nya_entity_spawn(.name = "paused", .position = { 0.0F, 0.0F, 0.0F });
         nya_physics2d_body_attach(crate, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 8.0F, 8.0F });
@@ -68,7 +68,7 @@ s32 main(void) {
         nya_entity_despawn(crate);
     }
 
-    // ── Impulse and force both accelerate, and an impulse is instantaneous.
+    // Impulse and force both accelerate, and an impulse is instantaneous.
     {
         nya_physics2d_gravity_set((f32x2){ 0.0F, 0.0F });
 
@@ -92,7 +92,7 @@ s32 main(void) {
         nya_entity_despawn(pushed);
     }
 
-    // ── Velocity and angular velocity round trip.
+    // Velocity and angular velocity round trip.
     {
         NYA_EntityHandle spinner = nya_entity_spawn(.name = "spinner", .position = { 0.0F, 0.0F, 0.0F });
         nya_physics2d_body_attach(spinner, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 8.0F, 8.0F });
@@ -114,7 +114,7 @@ s32 main(void) {
         nya_entity_despawn(spinner);
     }
 
-    // ── Teleport moves the body, not just the entity, and clears no velocity of its own.
+    // Teleport moves the body, not just the entity, and clears no velocity of its own.
     {
         NYA_EntityHandle ghost = nya_entity_spawn(.name = "ghost", .position = { 0.0F, 0.0F, 0.0F });
         nya_physics2d_body_attach(ghost, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 8.0F, 8.0F });
@@ -129,7 +129,7 @@ s32 main(void) {
         nya_entity_despawn(ghost);
     }
 
-    // ── Sleep: a body left alone settles, and waking it reports awake again.
+    // Sleep: a body left alone settles, and waking it reports awake again.
     {
         nya_physics2d_gravity_set((f32x2){ 0.0F, 0.0F });
 
@@ -145,7 +145,7 @@ s32 main(void) {
         nya_entity_despawn(sleeper);
     }
 
-    // ── The hit threshold round trips. It is what stops a settled stack spamming events.
+    // The hit threshold round trips. It is what stops a settled stack spamming events.
     {
         f32 original = nya_physics2d_hit_threshold();
         nya_physics2d_hit_threshold_set(42.0F);
@@ -153,7 +153,7 @@ s32 main(void) {
         nya_physics2d_hit_threshold_set(original);
     }
 
-    // ── The point query finds a body under a point, and nothing under empty space.
+    // The point query finds a body under a point, and nothing under empty space.
     {
         NYA_EntityHandle target = nya_entity_spawn(.name = "target", .position = { 500.0F, 500.0F, 0.0F });
         nya_physics2d_body_attach(target, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS2D_SHAPE_BOX,
@@ -167,7 +167,7 @@ s32 main(void) {
         nya_entity_despawn(target);
     }
 
-    // ── Detaching leaves the entity alive and the body gone, and the world's count agrees.
+    // Detaching leaves the entity alive and the body gone, and the world's count agrees.
     {
         u32              before = nya_physics2d_body_count();
         NYA_EntityHandle temp   = nya_entity_spawn(.name = "temp", .position = { 0.0F, 0.0F, 0.0F });
@@ -184,7 +184,7 @@ s32 main(void) {
         nya_entity_despawn(temp);
     }
 
-    // ── Pixels per metre is the one conversion seam, and it round trips.
+    // Pixels per metre is the one conversion seam, and it round trips.
     {
         f32 original = nya_physics2d_pixels_per_meter();
         nya_physics2d_pixels_per_meter_set(50.0F);
@@ -192,7 +192,7 @@ s32 main(void) {
         nya_physics2d_pixels_per_meter_set(original);
     }
 
-    // ── The world reports how long its last step took, and it is not negative.
+    // The world reports how long its last step took, and it is not negative.
     {
         step(1);
         nya_check(nya_physics2d_last_step_time_s() >= 0.0F, "a step time should never be negative");

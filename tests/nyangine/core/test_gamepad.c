@@ -25,7 +25,7 @@ s32 main(void) {
     nya_system_gamepad_init();
     defer nya_system_gamepad_deinit();
 
-    // ── With nothing connected, every query answers rather than crashing.
+    // With nothing connected, every query answers rather than crashing.
     {
         nya_check(nya_gamepad_count() == 0, "no pads on a test machine, got %u", nya_gamepad_count());
         nya_check(nya_gamepad_at(0) == NYA_GAMEPAD_NONE, "there is no first pad");
@@ -51,19 +51,19 @@ s32 main(void) {
         nya_gamepad_rumble_stop(NYA_GAMEPAD_NONE);
     }
 
-    // ── An out-of-range button or axis is refused rather than read past the array.
+    // An out-of-range button or axis is refused rather than read past the array.
     {
         nya_check(!nya_gamepad_button_pressed(NYA_GAMEPAD_NONE, NYA_GAMEPAD_BUTTON_COUNT), "a past-the-end button is not pressed");
         nya_check(nya_gamepad_axis(NYA_GAMEPAD_NONE, NYA_GAMEPAD_AXIS_COUNT) == 0.0F, "a past-the-end axis is zero");
     }
 
-    // ── Frame begin and a stray event are safe with nothing connected.
+    // Frame begin and a stray event are safe with nothing connected.
     {
         nya_system_gamepad_frame_begin();
         nya_check(!nya_system_gamepad_handle_sdl_event(nullptr), "a null event is not a gamepad event");
     }
 
-    // ── SDL's gamepad subsystem waits for the first frame, then starts exactly once.
+    // SDL's gamepad subsystem waits for the first frame, then starts exactly once.
     {
         nya_check(SDL_WasInit(SDL_INIT_GAMEPAD) == 0, "not started during the first frame");
 
@@ -74,7 +74,7 @@ s32 main(void) {
         nya_check(SDL_WasInit(SDL_INIT_GAMEPAD) != 0, "and stays up");
     }
 
-    // ── Edges roll at the end of an update tick, not at a frame, as key edges do.
+    // Edges roll at the end of an update tick, not at a frame, as key edges do.
     {
         SDL_VirtualJoystickDesc description;
         SDL_INIT_INTERFACE(&description);
@@ -113,7 +113,7 @@ s32 main(void) {
         pump();
     }
 
-    // ── The deadzone rescales rather than clamping, so a control eases in instead of snapping.
+    // The deadzone rescales rather than clamping, so a control eases in instead of snapping.
     {
         // _nya_gamepad_normalize is internal, but it is the thing worth pinning: just past the dead zone must be near zero, not a jump to the dead zone's own value.
         f32 just_past = _nya_gamepad_normalize((s16)(0.19F * 32767.0F), NYA_GAMEPAD_STICK_DEADZONE);
@@ -133,7 +133,7 @@ s32 main(void) {
         nya_check(fabsf(negative + well_past) < 0.001F, "and be symmetric");
     }
 
-    // ── An axis threshold's sign is its direction, not a magnitude.
+    // An axis threshold's sign is its direction, not a magnitude.
     {
         s16 pushed_left  = (s16)(-0.80F * 32767.0F);
         s16 pushed_right = (s16)(0.80F * 32767.0F);
@@ -147,7 +147,7 @@ s32 main(void) {
         nya_check(_nya_gamepad_axis_past((s16)(0.9F * 32767.0F), 0.0F), "a zero threshold uses the trigger default");
     }
 
-    // ── A gamepad binding is a first-class binding: bound, queryable, and cleared like any other.
+    // A gamepad binding is a first-class binding: bound, queryable, and cleared like any other.
     {
         // The input system registers event hooks, so the event system has to be up first.
         nya_system_callback_init();

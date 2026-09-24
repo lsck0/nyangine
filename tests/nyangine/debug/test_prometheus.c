@@ -22,7 +22,7 @@
 
 #define NOW_S 1700000000ULL
 
-/* ── a just-enough Prometheus text validator ── Not a general parser: it knows the shapes this renderer produces. Every line is blank, a `# HELP`/ `# TYPE` comment, or a sample. A sample is a metric name, an optional `{label="value",…}` block, a space, and a value that strtod accepts. Names are held to the charset; label values are read with the format's escapes, so an unescaped quote or a bare newline inside a value is a parse failure — which is exactly the injection a hostile registered name would attempt. */
+/* a just-enough Prometheus text validator — Not a general parser: it knows the shapes this renderer produces. Every line is blank, a `# HELP`/ `# TYPE` comment, or a sample. A sample is a metric name, an optional `{label="value",…}` block, a space, and a value that strtod accepts. Names are held to the charset; label values are read with the format's escapes, so an unescaped quote or a bare newline inside a value is a parse failure — which is exactly the injection a hostile registered name would attempt. */
 
 /** Whether `c` may begin a metric or label name. */
 static b8 is_name_head(char c) {

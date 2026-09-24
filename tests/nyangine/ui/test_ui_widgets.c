@@ -58,7 +58,7 @@ static f32x2 center_of(NYA_Rectf rect) {
     return (f32x2){ rect.x + (rect.width * 0.5F), rect.y + (rect.height * 0.5F) };
 }
 
-/* ── What each pass reports back, so the checks read the layout rather than guessing at it. ── */
+/* What each pass reports back, so the checks read the layout rather than guessing at it. */
 
 static u32 choice  = 0;
 static u32 tab     = 0;
@@ -211,7 +211,7 @@ s32 main(void) {
     // the body size matches the face loaded above, so the look has a line height to measure a chart against.
     nya_ui_style_set(&window, (NYA_UIStyle){ .body_size = 20.0F, .padding = FRAME, .spacing = GAP, .item_height = ITEM });
 
-    // ── A radio owns its variable: it writes `value` and reports only the pass that changed it.
+    // A radio owns its variable: it writes `value` and reports only the pass that changed it.
     {
         // twice, so the second pass lays out from the first one's measurements.
         (void)menu(NYA_UI_PASS_DRAW);
@@ -228,7 +228,7 @@ s32 main(void) {
         nya_check(!again.changed && choice == 1, "and clicking it again reports no change");
     }
 
-    // ── Tabs pick one of a row, and a dropdown only offers its options while it is open.
+    // Tabs pick one of a row, and a dropdown only offers its options while it is open.
     {
         (void)menu(NYA_UI_PASS_DRAW);
         Taken laid = menu(NYA_UI_PASS_DRAW);
@@ -254,7 +254,7 @@ s32 main(void) {
         (void)menu(NYA_UI_PASS_DRAW);
         Taken opened = menu(NYA_UI_PASS_DRAW);
 
-        // ── The list floats: it takes no room, so nothing under it moved, and it hangs over the button instead.
+        // The list floats: it takes no room, so nothing under it moved, and it hangs over the button instead.
         nya_check(opened.under.y == shut.y, "an open list does not push the button down, got %f against %f", (f64)opened.under.y, (f64)shut.y);
 
         // the list hangs from the bottom of the row, which is one gap above the marker, and is a framed column: its own padding, then one option per item height. The button starts one gap under the marker.
@@ -263,7 +263,7 @@ s32 main(void) {
         f32x2 second_option = { closed.x + (width * 0.5F), first_option + ITEM + GAP };
         f32x2 over_button   = { closed.x + (width * 0.5F), shut.y + GAP + (ITEM * 0.5F) };
 
-        // ── A click where the list covers the button goes to the list, and the button never sees it. The same point activates the button once the list is gone, which is what makes this a covering test and not a miss.
+        // A click where the list covers the button goes to the list, and the button never sees it. The same point activates the button once the list is gone, which is what makes this a covering test and not a miss.
         click_at(over_button);
         Taken covered = menu(NYA_UI_PASS_INPUT);
         nya_check(!covered.under_hit, "a click on the list does not fall through to the button under it");
@@ -278,7 +278,7 @@ s32 main(void) {
         nya_check(option == 1, "a click where the list was does not reach it once closed, got %u", option);
         nya_check(freed.under_hit, "and reaches the button instead");
 
-        // ── Cancel backs out one step: it closes the list, and the layer around it never sees that press.
+        // Cancel backs out one step: it closes the list, and the layer around it never sees that press.
         click_at(center_of(closed));
         (void)menu(NYA_UI_PASS_INPUT);
         for (u32 pass = 0; pass < 2; pass++) (void)menu(NYA_UI_PASS_DRAW);
@@ -298,7 +298,7 @@ s32 main(void) {
         nya_check(plain.cancelled, "with nothing open it reaches the layer as it did");
     }
 
-    // ── A table sizes its cells by its columns, so one row lines up with the next, and never sizes anything else.
+    // A table sizes its cells by its columns, so one row lines up with the next, and never sizes anything else.
     {
         for (u32 pass = 0; pass < 2; pass++) (void)table(120.0F);
         Taken laid = table(120.0F);
@@ -321,7 +321,7 @@ s32 main(void) {
         nya_check(above < 120.0F, "and the rule under them is a rule, not a column width, got %f", (f64)above);
     }
 
-    // ── A chart takes the height it asks for, and the default when it asks for none.
+    // A chart takes the height it asks for, and the default when it asks for none.
     {
         (void)chart_below(60.0F);
         NYA_Rectf below = chart_below(60.0F);
@@ -332,7 +332,7 @@ s32 main(void) {
         nya_check(fallback.y > MARGIN + FRAME + GAP, "and a default one takes some, got %f", (f64)fallback.y);
     }
 
-    // ── Opacity groups nest and balance, and leave the layout alone.
+    // Opacity groups nest and balance, and leave the layout alone.
     {
         NYA_UI*   ui    = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
         NYA_Rectf plain = { 0 };
@@ -355,7 +355,7 @@ s32 main(void) {
         nya_check(faded.y == plain.y + 10.0F + GAP && faded.height == plain.height, "a faded child takes the same room as a plain one");
     }
 
-    // ── A draggable panel follows the pointer by its title, and stays inside the safe area.
+    // A draggable panel follows the pointer by its title, and stays inside the safe area.
     {
         (void)dragged(NYA_UI_PASS_DRAW);
         NYA_Rectf resting = dragged(NYA_UI_PASS_DRAW);

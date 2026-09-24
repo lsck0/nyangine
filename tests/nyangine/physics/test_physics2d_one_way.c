@@ -78,7 +78,7 @@ s32 main(void) {
     defer nya_world_destroy(world);
     defer nya_system_callback_deinit();
 
-    // ── A solid ledge stops a body from below. The control the rest is measured against.
+    // A solid ledge stops a body from below. The control the rest is measured against.
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_NONE);
         NYA_EntityHandle mover = spawn_mover(UNDERSIDE_Y + 60.0F, -APPROACH_SPEED);
@@ -93,7 +93,7 @@ s32 main(void) {
         nya_entity_despawn(ledge);
     }
 
-    // ── The same ledge, passable from below: the body goes through and comes to rest on top.
+    // The same ledge, passable from below: the body goes through and comes to rest on top.
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_UP);
         NYA_EntityHandle mover = spawn_mover(UNDERSIDE_Y + 60.0F, -APPROACH_SPEED);
@@ -113,7 +113,7 @@ s32 main(void) {
         nya_entity_despawn(ledge);
     }
 
-    // ── Falling onto a passable ledge still lands: exactly one direction is let through.
+    // Falling onto a passable ledge still lands: exactly one direction is let through.
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_UP);
         NYA_EntityHandle mover = spawn_mover(RESTING_Y - 60.0F, 0.0F);
@@ -128,7 +128,7 @@ s32 main(void) {
         nya_entity_despawn(ledge);
     }
 
-    /* ── nya_physics2d_drop_through lets a resting body fall off. This is the case that needed the contact-recycling suspension: a body sitting still is exactly what Box2D skips re-examining, so before that fix the request was stored and never read. */
+    /* nya_physics2d_drop_through lets a resting body fall off. This is the case that needed the contact-recycling suspension: a body sitting still is exactly what Box2D skips re-examining, so before that fix the request was stored and never read. */
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_UP);
         NYA_EntityHandle mover = spawn_mover(RESTING_Y - 60.0F, 0.0F);
@@ -152,7 +152,7 @@ s32 main(void) {
         nya_entity_despawn(ledge);
     }
 
-    // ── A drop window that has run out no longer lets anything through.
+    // A drop window that has run out no longer lets anything through.
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_UP);
         NYA_EntityHandle mover = spawn_mover(RESTING_Y - 60.0F, 0.0F);
@@ -169,7 +169,7 @@ s32 main(void) {
         nya_entity_despawn(ledge);
     }
 
-    // ── The accessors, including the cases with no body behind them.
+    // The accessors, including the cases with no body behind them.
     {
         NYA_EntityHandle ledge = spawn_ledge(NYA_PHYSICS2D_ONE_WAY_DOWN);
 

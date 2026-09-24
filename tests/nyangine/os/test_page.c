@@ -9,7 +9,7 @@ s32 main(void) {
     u64 page = nya_os_page_size();
     nya_check(page >= 4096 && (page & (page - 1)) == 0, "a page should be a power of two of at least 4 KiB, got " FMTu64, page);
 
-    // ── A reservation takes no physical memory until committed pages are written.
+    // A reservation takes no physical memory until committed pages are written.
     {
         u64 size    = 64 * page;
         u8* address = nya_os_page_reserve(size);
@@ -37,7 +37,7 @@ s32 main(void) {
         nya_check(address[0] == 0xAB && address[5 * page - 1] == 7, "committing more should keep earlier contents");
     }
 
-    // ── The process total is at least what this test has resident on its own.
+    // The process total is at least what this test has resident on its own.
     {
         u64 size    = 32 * page;
         u8* address = nya_os_page_reserve(size);
@@ -50,7 +50,7 @@ s32 main(void) {
         nya_check(process >= size, "the process should hold at least the " FMTu64 " bytes just written, got " FMTu64, size, process);
     }
 
-    // ── Nothing and null measure as nothing.
+    // Nothing and null measure as nothing.
     nya_check(nya_os_page_resident_bytes(nullptr, page) == 0, "null should measure as nothing");
     nya_check(nya_os_page_resident_bytes(&page, 0) == 0, "an empty range should measure as nothing");
     nya_check(nya_os_page_release(nullptr, page), "releasing nothing is not a failure");

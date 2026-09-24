@@ -30,7 +30,7 @@ s32 main(void) {
 
     nya_font_clear();
 
-    // ── Construction and validity.
+    // Construction and validity.
     {
         NYA_Font font = nya_font(FACE, 16.0F);
 
@@ -44,7 +44,7 @@ s32 main(void) {
         nya_check(!nya_font_valid(nya_font(FACE, -3.0F)), "nor a negative one");
     }
 
-    // ── Equality is by face and size, and compares the path's text rather than its pointer.
+    // Equality is by face and size, and compares the path's text rather than its pointer.
     {
         char copy[64];
         (void)snprintf(copy, sizeof(copy), "%s", FACE);
@@ -58,7 +58,7 @@ s32 main(void) {
         nya_check(!nya_font_equals(NYA_FONT_NONE, nya_font(FACE, 16.0F)), "nothing is not something");
     }
 
-    // ── The default, and NYA_FONT_NONE resolving to it.
+    // The default, and NYA_FONT_NONE resolving to it.
     {
         nya_check(!nya_font_valid(nya_font_default()), "there is no default to begin with");
         nya_check(!nya_font_valid(nya_font_resolve(NYA_FONT_NONE)), "so nothing resolves to nothing");
@@ -74,7 +74,7 @@ s32 main(void) {
         nya_check(nya_font_equals(nya_font_resolve(title), title), "an explicit font must not be replaced by the default");
     }
 
-    // ── The registry.
+    // The registry.
     {
         nya_font_clear();
         nya_check(nya_font_count() == 0, "clear should empty it");
@@ -97,7 +97,7 @@ s32 main(void) {
         nya_check(!nya_font_valid(nya_font_named(nullptr)), "a null name gives back nothing");
     }
 
-    // ── An invalid registration is refused rather than stored.
+    // An invalid registration is refused rather than stored.
     {
         u32 before = nya_font_count();
 
@@ -110,7 +110,7 @@ s32 main(void) {
         nya_check(!nya_font_registered("bad"), "and the name must not exist");
     }
 
-    // ── Re-registering replaces rather than accumulating.
+    // Re-registering replaces rather than accumulating.
     {
         u32 before = nya_font_count();
 
@@ -119,7 +119,7 @@ s32 main(void) {
         nya_check(nya_font_equals(nya_font_named("ui"), nya_font(FACE2, 22.0F)), "the new font should be in force");
     }
 
-    // ── Unregistering.
+    // Unregistering.
     {
         u32 before = nya_font_count();
 
@@ -132,7 +132,7 @@ s32 main(void) {
         nya_check(nya_font_count() == before - 1, "removing what is not there changes nothing");
     }
 
-    // ── The table refuses overflow rather than overwriting an entry.
+    // The table refuses overflow rather than overwriting an entry.
     {
         nya_font_clear();
 
@@ -151,7 +151,7 @@ s32 main(void) {
         nya_check(nya_font_equals(nya_font_named("font_0"), nya_font(FACE, 8.0F)), "the first entry must survive overflow");
     }
 
-    // ── The degenerate cases, which a UI reaches constantly.
+    // The degenerate cases, which a UI reaches constantly.
     {
         nya_font_clear();
 

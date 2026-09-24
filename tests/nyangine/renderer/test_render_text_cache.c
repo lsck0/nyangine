@@ -70,7 +70,7 @@ s32 main(void) {
     defer nya_system_events_deinit();
     defer nya_system_asset_deinit();
 
-    // ── Nothing to shape while the face loads.
+    // Nothing to shape while the face loads.
     {
         nya_check(!nya_text_shape_with_font(FACE, POINT_SIZE, "Hello", 0, &cached), "a face still queued shapes nothing");
         nya_check(cached.glyph_count == 0, "and leaves the run empty");
@@ -81,7 +81,7 @@ s32 main(void) {
     nya_check(face != nullptr, "the face should load within a few frames");
     if (face == nullptr) return 1;
 
-    // ── A cached run is the run nya_text_shape produces, the first time and every time after.
+    // A cached run is the run nya_text_shape produces, the first time and every time after.
     {
         u32 before = text_runs_live();
 
@@ -99,7 +99,7 @@ s32 main(void) {
         nya_check(text_runs_live() == before + 1, "and adds nothing");
     }
 
-    // ── The wrap width is part of the key.
+    // The wrap width is part of the key.
     {
         static const char paragraph[] = "The quick brown fox jumps over the lazy dog, twice.";
 
@@ -115,7 +115,7 @@ s32 main(void) {
         nya_check(text_runs_live() == before + 2, "one entry per wrap width");
     }
 
-    // ── An empty string and a string too long for a key both still shape.
+    // An empty string and a string too long for a key both still shape.
     {
         nya_check(nya_text_shape_with_font(FACE, POINT_SIZE, "", 0, &cached), "an empty string is not a failure");
         nya_check(cached.line_count == 1 && cached.glyph_count == 0, "and is one empty line");
@@ -132,7 +132,7 @@ s32 main(void) {
         nya_check(text_runs_live() == before, "without an entry");
     }
 
-    // ── Changing the face relays out a cached text: a distance field grows every glyph.
+    // Changing the face relays out a cached text: a distance field grows every glyph.
     {
         nya_check(nya_text_shape_with_font(FACE, POINT_SIZE, "Hello", 0, &direct), "coverage shaping should succeed");
 
@@ -146,7 +146,7 @@ s32 main(void) {
         nya_check(runs_equal(&direct, &cached), "and match the coverage run again");
     }
 
-    // ── A reloaded face has a new generation, so the entry is replaced rather than read with a closed face.
+    // A reloaded face has a new generation, so the entry is replaced rather than read with a closed face.
     {
         nya_check(nya_text_shape_with_font(FACE, POINT_SIZE, "Hello", 0, &direct), "shaping before the reload should succeed");
 
@@ -172,7 +172,7 @@ s32 main(void) {
         nya_check(text_runs_live() == before, "replacing the stale entry instead of adding one");
     }
 
-    // ── Full, the least recently used entry goes and the count holds at the capacity.
+    // Full, the least recently used entry goes and the count holds at the capacity.
     {
         char text[32];
 

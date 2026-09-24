@@ -44,7 +44,7 @@ typedef uint64_t u64;
 
 #define OUT
 
-/* ── the functions under proof, verbatim from src/nyangine/base/base_url.c ───────────────────────── */
+/* the functions under proof, verbatim from src/nyangine/base/base_url.c */
 
 static b8 _nya_url_hex_value(char character, OUT u8* out_value) {
     if (character >= '0' && character <= '9') {
@@ -116,7 +116,7 @@ static b8 _nya_url_decode_run(const char* text, u64 size, b8 plus_is_space, OUT 
     return true;
 }
 
-/* ── the harness ─────────────────────────────────────────────────────────────────────────────────── */
+/* the harness */
 
 #define MAX_SIZE     6
 #define MAX_CAPACITY 6
