@@ -12,3 +12,6 @@
 // After db_sql.c, whose connection and bound values it stores objects through, and above nothing: a
 // content-addressed store keyed by the SHA-256 of an object's bytes.
 #include "nyangine/db/db_blob.c"
+// After db_sql.c, whose connection, bound values and transactions it claims and reschedules jobs
+// through: a persistent job queue, one SQLite table with retries, backoff, deadlines and unique keys.
+#include "nyangine/db/db_jobs.c"
