@@ -677,6 +677,15 @@ struct NYA_Render3DSegment {
     const struct NYA_ShaderWaterFragUniform*   water_frag_uniform;
 
     /**
+     * Whether this water surface asked for a planar reflection (NYA_Render3DWater.reflection), and the world
+     * height of its still surface (the plane the sky is mirrored about). Read at draw time: the reflection pass
+     * runs once for a reflecting surface when the scene is a render texture, and the flat tint stands in
+     * otherwise. See _nya_render3d_reflection_capture.
+     * */
+    b8  water_reflect;
+    f32 water_plane_y;
+
+    /**
      * Which passes see the posed mesh, one bit each, as a mesh group carries for the geometry above.
      *
      * Only a skinned segment uses it. The immediate and instanced paths decide per object and per group,
@@ -876,6 +885,24 @@ struct NYA_Render3DBatch {
     SDL_GPUTexture* refraction_capture;
     u32             refraction_width;
     u32             refraction_height;
+
+    /**
+     * A planar reflection of the sky, mirrored across the water plane. The other half of the capture pattern
+     * refraction_capture is: a bounded, single-sampled render texture the water shader samples at the
+     * fragment's screen position. Created the first time a water surface asks to reflect
+     * (NYA_Render3DWater.reflection) and the scene is a render texture; null otherwise, and the surface then
+     * falls back to its flat Fresnel tint. Bounded to NYA_RENDER3D_REFLECTION_MAX on each side.
+     * */
+    SDL_GPUTexture* reflection_capture;
+    u32             reflection_width;
+    u32             reflection_height;
+
+    /**
+     * The sky uniform the scene drew this frame, copied into the frame arena by nya_render3d_sky_draw, so the
+     * reflection pass can redraw the sky from a camera mirrored about the water plane. Null when no sky was
+     * drawn, and a reflecting surface then clears the reflection to its own tint rather than a mirrored sky.
+     * */
+    const struct NYA_ShaderSkyUniform* reflection_sky;
 
     /* Per frame counters, reset by nya_render_begin and read through nya_render3d_frame_stats. */
 

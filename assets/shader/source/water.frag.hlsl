@@ -13,8 +13,11 @@
 //    glass material reads (NYA_Render3DMaterial.refraction). Drawn straight to the window there is no mid-frame
 //    capture, so the body falls back to the depth-blended colour, exactly as glass falls back to plain blending.
 //
-//  - A Fresnel blend toward a flat reflection tint at grazing angles. A cheap stand-in for a real reflection;
-//    planar reflection / SSR is roadmap line 1104. TODO: replace the constant tint with a sampled reflection.
+//  - A Fresnel blend toward a reflection at grazing angles. Where the surface asked for it (ripple.w > 0) the
+//    reflection is a real planar mirror: the sky rendered from a camera mirrored about the water plane into a
+//    bounded capture (t1), sampled at the fragment's screen position and sloshed by the ripples, so the sky and
+//    sun glint mirror in the water. Off, it falls back to the flat reflection tint the caller set — the cheap
+//    stand-in that shipped first. Reflecting scene geometry (terrain, meshes) is the remaining roadmap-1104 step.
 //
 //  - Foam: a soft band where the surface meets the banks (the shore weight approaches one — a stand-in for a
 //    true depth-difference shoreline, which needs a depth capture the colour capture does not carry) plus a
@@ -33,6 +36,15 @@
 /* The captured opaque scene at t0. Water declares no shadow sampler, since it does not read the shadow map. */
 Texture2D scene : register(t0, space2);
 SamplerState scene_sampler : register(s0, space2);
+
+/*
+ * The planar reflection at t1: the sky rendered from a camera mirrored about the still water plane, into a
+ * bounded low-resolution target (see _nya_render3d_reflection_capture). Sampled at this fragment's own screen
+ * position, distorted by the surface ripples — the standard planar-reflection lookup. Read only when the
+ * reflection blend (ripple.w) is positive; otherwise it holds a placeholder the shader never touches.
+ * */
+Texture2D reflection_tex : register(t1, space2);
+SamplerState reflection_sampler : register(s1, space2);
 
 // a second fragment block at b1, so the lit pipelines without water state do not carry its size. Matches
 // NYA_ShaderWaterFragUniform in uniforms.h.
@@ -55,7 +67,8 @@ cbuffer WaterUniform : register(b1, space3) {
   // flow_dir.x, flow_dir.z, flow cycle seconds (the ripple wrap), time.
   float4 flow_time;
 
-  // ripple spatial scale, ripple normal strength, ripple travel speed, pad.
+  // ripple spatial scale, ripple normal strength, ripple travel speed, and the planar-reflection blend (w):
+  // zero keeps the flat Fresnel tint below, positive samples the mirrored-sky reflection at t1 and blends it in.
   float4 ripple;
 };
 
@@ -69,6 +82,10 @@ struct FragInput {
 
 /** How far the refraction lookup is displaced at full refraction, in uv. Small, or the image tears. */
 static const float WATER_MAX_OFFSET = 0.05;
+
+/** How far the ripples slosh the reflection lookup, in uv. A little more than the refraction, so the mirrored
+ *  sky shimmers, but bounded so the reflection never smears across the whole surface. */
+static const float WATER_REFLECT_OFFSET = 0.08;
 
 /** White foam, lifted a little past one so a bloom threshold catches sunlit surf. */
 static const float3 WATER_FOAM_COLOUR = float3(1.05, 1.08, 1.10);
@@ -107,6 +124,19 @@ float3 refracted_scene(float2 screen_uv, float3 normal) {
   float2 at = clamp(screen_uv + offset, scene_params.xy, 1.0 - scene_params.xy);
 
   return scene.Sample(scene_sampler, at).rgb;
+}
+
+/**
+ * The mirrored sky at this fragment's screen position, sloshed along the surface ripples. The reflection was
+ * rendered from a camera mirrored about the water plane, so sampling it at the fragment's own screen uv gives
+ * the sky that would be seen reflected there; the ripple slope (the horizontal part of the surface normal)
+ * displaces the lookup so the reflection breaks up over the waves. Clamped to the target so it cannot wrap.
+ * */
+float3 reflected_sky(float2 screen_uv, float3 normal) {
+  float2 offset = normal.xz * WATER_REFLECT_OFFSET;
+  float2 at = clamp(screen_uv + offset, 0.0, 1.0);
+
+  return reflection_tex.Sample(reflection_sampler, at).rgb;
 }
 
 Mesh3DOutput main(FragInput input) {
@@ -154,10 +184,14 @@ Mesh3DOutput main(FragInput input) {
   float3 behind = scene_params.w > 0.5 ? refracted_scene(screen_uv, normal) : water_colour;
   float3 body   = lerp(behind, water_colour, scene_params.w > 0.5 ? murk : 1.0);
 
-  // Fresnel toward the reflection tint at grazing angles: little reflection looking straight down, most at
-  // the horizon. A cheap stand-in until planar reflection / SSR lands (roadmap line 1104).
+  // Fresnel toward the reflection at grazing angles: little reflection looking straight down, most at the
+  // horizon. The reflected colour is the mirrored sky where the surface asked for a planar reflection
+  // (ripple.w > 0), or the flat tint otherwise — the cheap stand-in that stays when reflection is off. The
+  // blend amount fades the sampled sky back toward the tint so a hazier surface can dial the mirror down.
   float fresnel = pow(1.0 - saturate(dot(normal, view)), max(look.x, 0.5));
-  float3 colour = lerp(body, look.yzw, fresnel);
+  float3 reflected = look.yzw;
+  if (ripple.w > 0.0) reflected = lerp(look.yzw, reflected_sky(screen_uv, normal), ripple.w);
+  float3 colour = lerp(body, reflected, fresnel);
 
   // the surface's own shading, added the way glass adds it: the highlight and rim on top of the composed
   // colour without the diffuse washing over the view. shadow = 1: water receives no cast shadow here.

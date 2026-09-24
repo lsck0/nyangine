@@ -569,8 +569,12 @@ struct NYA_ShaderWaterFragUniform {
     /** The current's heading (x, z), the ripple flow-map cycle in seconds, and the field's time. */
     f32 flow_x, flow_z, flow_cycle, flow_time;
 
-    /** The ripple field's spatial scale, its normal strength, its travel speed, and one float of padding. */
-    f32 ripple_scale, ripple_strength, ripple_speed, ripple_pad;
+    /**
+     * The ripple field's spatial scale, its normal strength, its travel speed, and the planar-reflection blend:
+     * zero samples no reflection texture and the surface keeps its flat Fresnel tint, a positive value samples
+     * the mirrored-sky reflection capture at the fragment's screen position and Fresnel-blends it in.
+     * */
+    f32 ripple_scale, ripple_strength, ripple_speed, reflection;
 };
 
 static_assert(sizeof(struct NYA_ShaderWaterFragUniform) == 112,

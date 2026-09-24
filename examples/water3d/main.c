@@ -345,6 +345,10 @@ NYA_INTERNAL void draw_scene(NYA_Window* window) {
         .opacity        = 0.85F,
         .refraction     = 0.55F,
         .foam           = 0.18F,
+
+        // a real planar reflection: the sky and sun glint mirror in the river, rendered from a camera mirrored
+        // about the surface into a bounded capture and Fresnel-blended in. Zero would keep the old flat tint.
+        .reflection     = 0.9F,
     };
 
     // share the one wind field with the chop: its push at the surface centre, when the wind is switched on.

@@ -300,6 +300,15 @@ static_assert(NYA_RENDER3D_MAX_VERTICES <= 65536, "the 3D batch's indices are si
 #define NYA_RENDER3D_SHADOW_FORMAT SDL_GPU_TEXTUREFORMAT_R16_UNORM
 
 /**
+ * The largest a planar water reflection texture (see NYA_Render3DWater.reflection) gets on a side. The
+ * reflection is a low-frequency mirrored sky sampled at the fragment's screen position, so half the target's
+ * resolution capped here is ample and keeps the extra pass cheap.
+ * */
+#ifndef NYA_RENDER3D_REFLECTION_MAX
+#define NYA_RENDER3D_REFLECTION_MAX 1024
+#endif
+
+/**
  * The scene normal buffer's format: the world normal in rgb and the distance from the camera in alpha, zero where
  * no opaque surface was drawn. What the screen-space passes read; see NYA_PostInk.
  *
@@ -759,6 +768,16 @@ struct NYA_Render3DWater {
 
     /** How wide the foam band along the banks is, as a fraction of the shore weight, in [0, 1]. Zero is a thin default. */
     f32 foam;
+
+    /**
+     * Whether the surface mirrors a real planar reflection of the sky instead of the flat Fresnel tint, in
+     * [0, 1]: zero (the default) keeps the cheap constant reflection tint, any positive value renders the sky
+     * mirrored about the still surface into a bounded reflection texture (NYA_RENDER3D_REFLECTION_MAX) and
+     * Fresnel-blends it in, distorted by the surface ripples. Only visible when the scene is a render texture,
+     * the same limit refraction has; drawn straight to the window the surface falls back to the tint. The
+     * value scales how far the reflection wins over the body colour, so a hazier surface can dial it down.
+     * */
+    f32 reflection;
 };
 
 /*

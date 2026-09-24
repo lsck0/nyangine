@@ -1053,9 +1053,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
       .handle    = NYA_ASSET_SHADER_WATER_FRAG,
-      // one sampler: the captured scene at t0 (water reads no shadow map). two uniform blocks: the shared
-      // lighting at b0 and the water look at b1.
-      .as_shader = { .num_samplers = 1, .num_uniform_buffers = 2 },
+      // two samplers: the captured scene at t0 and the mirrored-sky planar reflection at t1 (water reads no
+      // shadow map). two uniform blocks: the shared lighting at b0 and the water look at b1.
+      .as_shader = { .num_samplers = 2, .num_uniform_buffers = 2 },
   }), "while queueing the water fragment shader");
 
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
@@ -1244,6 +1244,11 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     if (mesh_batch->refraction_capture != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->refraction_capture);
 
     mesh_batch->refraction_capture = nullptr;
+
+    // the planar reflection capture, created by the first reflecting water surface.
+    if (mesh_batch->reflection_capture != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->reflection_capture);
+
+    mesh_batch->reflection_capture = nullptr;
 
     // the shadow map, created by the first scene that cast shadows, and its placeholder.
     _nya_render3d_shadow_release(window);

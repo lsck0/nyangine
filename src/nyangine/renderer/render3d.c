@@ -71,6 +71,14 @@ NYA_INTERNAL void _nya_render3d_pass_draw(NYA_Window* window, u32 pass);
  * */
 NYA_INTERNAL b8 _nya_render3d_refraction_capture(NYA_Window* window);
 
+/**
+ * Renders the recorded sky from a camera mirrored about the water plane at `plane_y` into the reflection
+ * capture, creating or resizing it (bounded to NYA_RENDER3D_REFLECTION_MAX). False when there is nothing to
+ * reflect into (no render texture target) or no sky was recorded, in which case the surface falls back to its
+ * flat Fresnel tint. The other half of _nya_render3d_refraction_capture's pattern, mirrored across the surface.
+ * */
+NYA_INTERNAL b8 _nya_render3d_reflection_capture(NYA_Window* window, f32 plane_y);
+
 /** The registered mesh for `handle`, or null. */
 NYA_INTERNAL NYA_Render3DRegisteredMesh* _nya_render3d_registered(NYA_Render3DBatch* batch, NYA_ConstCString handle) __attr_no_discard;
 
@@ -320,6 +328,12 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
 
     // drawn now and writing no depth, behind whatever the scene records, which draws at nya_render3d_end.
     nya_render2d_procedural(window, NYA_RENDER3D_PIPELINE_SKY, 3, &uniform, sizeof(uniform));
+
+    // kept for a water surface's planar reflection: a copy in the frame arena the reflection pass redraws from a
+    // mirrored camera. The frame allocator outlives the frame's draws, exactly as the water uniforms do.
+    struct NYA_ShaderSkyUniform* recorded = nya_arena_alloc(nya_app_get()->frame_allocator, sizeof(*recorded));
+    *recorded             = uniform;
+    batch->reflection_sky = recorded;
 }
 
 void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend) {
@@ -1549,7 +1563,11 @@ void nya_render3d_water(NYA_Window* window, NYA_ConstCString handle, f32x3 posit
     frag->ripple_scale    = 0.6F;
     frag->ripple_strength = 0.35F;
     frag->ripple_speed    = flow_speed;
-    frag->ripple_pad      = 0.0F;
+
+    // the planar reflection blend, gated by the same feature as refraction since both mirror the scene. Only the
+    // requested amount here; the draw zeroes it when the reflection pass could not run (no capture, no sky), and
+    // the surface then keeps its flat Fresnel tint. See _nya_render3d_reflection_capture.
+    frag->reflection = reflections ? nya_clamp(water.reflection, 0.0F, 1.0F) : 0.0F;
 
     _nya_render3d_passes_prepare(window);
 
@@ -1579,6 +1597,11 @@ void nya_render3d_water(NYA_Window* window, NYA_ConstCString handle, f32x3 posit
     segment->water                = handle;
     segment->water_vertex_uniform = vertex;
     segment->water_frag_uniform   = frag;
+
+    // the reflection intent and the still surface's world height (model y = 0, placed by the translation), so the
+    // draw can mirror the sky about it. Off unless the caller asked and the feature is on.
+    segment->water_reflect = frag->reflection > 0.0F;
+    segment->water_plane_y = position.y;
 
     _nya_render3d_segment_close(window);
 }
@@ -2913,15 +2936,40 @@ void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* seg
      */
     b8 refract = frag.refraction > 0.0F && _nya_render3d_refraction_capture(window);
 
+    /*
+     * The planar reflection: the sky drawn from a mirrored camera into its own bounded target, so the surface
+     * mirrors the real sky and sun glint instead of a flat tint. Like the refraction it ends and restarts the
+     * render pass, needs a render-texture target, and falls back (frag.reflection zeroed below) when it cannot
+     * run — drawn to the window, or with no sky recorded. See _nya_render3d_reflection_capture.
+     */
+    b8 reflect = frag.reflection > 0.0F && segment->water_reflect && _nya_render3d_reflection_capture(window, segment->water_plane_y);
+
     SDL_GPUSampler* linear = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
 
     // the capture, or the always-valid shadow placeholder as a stand-in the shader ignores when has_refraction is zero.
     SDL_GPUTexture* scene = refract ? batch->refraction_capture : _nya_render3d_shadow_map(batch);
 
+    // likewise the reflection, or the same placeholder the shader ignores when the reflection blend is zero.
+    SDL_GPUTexture* reflection = reflect ? batch->reflection_capture : _nya_render3d_shadow_map(batch);
+
     if (refract) {
         frag.texel_x        = batch->refraction_width > 0 ? 1.0F / (f32)batch->refraction_width : 0.0F;
         frag.texel_y        = batch->refraction_height > 0 ? 1.0F / (f32)batch->refraction_height : 0.0F;
         frag.has_refraction = 1.0F;
+    }
+
+    // the reflection could not run: zero the blend so the shader keeps its flat Fresnel tint and never reads the
+    // placeholder as a reflection.
+    if (!reflect) frag.reflection = 0.0F;
+
+    // the shader turns SV_POSITION into a screen uv with scene_params.xy (one target texel). The refraction sets
+    // it from its full-size capture; when only the reflection runs there is no such capture, so fill it from the
+    // target itself, or the mirrored sky would be sampled at uv zero.
+    if (reflect && !refract) {
+        NYA_Render2DBatch* draw_target = &render->draw_batch;
+
+        frag.texel_x = draw_target->target_width > 0 ? 1.0F / (f32)draw_target->target_width : 0.0F;
+        frag.texel_y = draw_target->target_height > 0 ? 1.0F / (f32)draw_target->target_height : 0.0F;
     }
 
     // the camera's matrix: pass zero, the only one water draws in.
@@ -2940,8 +2988,17 @@ void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* seg
     SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
     SDL_PushGPUFragmentUniformData(render->render_commands, 1, &frag, sizeof(frag));
 
-    // the captured scene at t0, the single sampler water declares (it reads no shadow map).
-    SDL_BindGPUFragmentSamplers(render->render_pass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = scene, .sampler = linear }, 1);
+    // the captured scene at t0 and the mirrored sky at t1 — the two samplers water declares (it reads no shadow
+    // map). Both are always bound; the shader ignores whichever of has_refraction / reflection is zero.
+    SDL_BindGPUFragmentSamplers(
+        render->render_pass,
+        0,
+        (SDL_GPUTextureSamplerBinding[]){
+            { .texture = scene, .sampler = linear },
+            { .texture = reflection, .sampler = linear },
+        },
+        2
+    );
 
     SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
 
@@ -3055,6 +3112,120 @@ b8 _nya_render3d_refraction_capture(NYA_Window* window) {
 
     // a blit is a render pass of its own.
     render->frame_stats.passes++;
+
+    _nya_render2d_pass_resume(window);
+
+    return true;
+}
+
+b8 _nya_render3d_reflection_capture(NYA_Window* window, f32 plane_y) {
+    nya_trace_scope(NYA_TRACE_TRANSPARENT);
+
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+    NYA_Render2DBatch*      target = &render->draw_batch;
+
+    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
+    if (gpu_device == nullptr) return false;
+
+    // nothing to mirror without a recorded sky, and no place to render into but a render texture — the same
+    // mid-frame-resolvable target the refraction capture needs. Drawn to the window, the surface falls back.
+    if (batch->reflection_sky == nullptr) return false;
+    if (!target->target_is_texture || target->target_texture == nullptr) return false;
+
+    // half the target resolution, capped: the mirrored sky is low frequency and sampled at the fragment's own
+    // screen position, so a coarse capture keeps the extra pass cheap and reads no differently.
+    u32 width  = target->target_width / 2;
+    u32 height = target->target_height / 2;
+
+    if (width == 0 || height == 0) return false;
+
+    if (width > NYA_RENDER3D_REFLECTION_MAX) width = NYA_RENDER3D_REFLECTION_MAX;
+    if (height > NYA_RENDER3D_REFLECTION_MAX) height = NYA_RENDER3D_REFLECTION_MAX;
+
+    // the sky pipeline, built single sampled and with no normal target, so it matches this lone-colour pass
+    // rather than the multisampled scene target. Still loading on the first frames, like any pipeline.
+    NYA_Asset* sky_asset = nya_asset_get((NYA_AssetHandle)NYA_RENDER3D_PIPELINE_SKY);
+    if (sky_asset == nullptr || sky_asset->status != NYA_ASSET_STATUS_LOADED) return false;
+
+    SDL_GPUGraphicsPipeline* sky_pipeline = nya_asset_graphics_pipeline(sky_asset, SDL_GPU_SAMPLECOUNT_1, false, true);
+    if (sky_pipeline == nullptr) return false;
+
+    // recreated on a resize, because a GPU texture cannot be resized. see the refraction capture.
+    if (batch->reflection_capture != nullptr && (batch->reflection_width != width || batch->reflection_height != height)) {
+        nya_gpu_texture_release(gpu_device, batch->reflection_capture);
+        batch->reflection_capture = nullptr;
+    }
+
+    if (batch->reflection_capture == nullptr) {
+        batch->reflection_capture = nya_gpu_texture_create(
+            gpu_device,
+            &(SDL_GPUTextureCreateInfo){
+                .type                 = SDL_GPU_TEXTURETYPE_2D,
+                .format               = render->color_format,
+                .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+                .width                = width,
+                .height               = height,
+                .layer_count_or_depth = 1,
+                .num_levels           = 1,
+                .sample_count         = SDL_GPU_SAMPLECOUNT_1,
+            }
+        );
+
+        if (batch->reflection_capture == nullptr) {
+            nya_log_error("SDL_CreateGPUTexture() failed for the reflection capture: %s", SDL_GetError());
+            return false;
+        }
+
+        batch->reflection_width  = width;
+        batch->reflection_height = height;
+
+        nya_log_debug("Reflection capture created at %ux%u.", width, height);
+    }
+
+    // the sky from a camera mirrored about the water plane: reflecting a direction across a horizontal plane
+    // negates its y, so the reflected basis is the recorded one with each vector's y flipped, and the sky
+    // reconstructs the reflected view ray. The plane's height does not enter an infinite sky's reflection, but
+    // it is what a later geometry reflection would mirror positions about; taken here so the surface owns it.
+    nya_unused(plane_y);
+
+    struct NYA_ShaderSkyUniform mirrored = *batch->reflection_sky;
+
+    mirrored.camera_right_y   = -mirrored.camera_right_y;
+    mirrored.camera_up_y      = -mirrored.camera_up_y;
+    mirrored.camera_forward_y = -mirrored.camera_forward_y;
+
+    // the pass is suspended around the reflection, so it renders into its own target and the scene pass resumes
+    // untouched — the same bracket the refraction blit uses.
+    _nya_render2d_pass_suspend(window);
+
+    SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(
+        render->render_commands,
+        &(SDL_GPUColorTargetInfo){
+            .texture     = batch->reflection_capture,
+            .clear_color = (SDL_FColor){ 0.0F, 0.0F, 0.0F, 1.0F },
+            .load_op     = SDL_GPU_LOADOP_CLEAR,
+            .store_op    = SDL_GPU_STOREOP_STORE,
+        },
+        1,
+        nullptr
+    );
+
+    if (pass == nullptr) {
+        nya_log_error("SDL_BeginGPURenderPass() failed for the reflection capture: %s", SDL_GetError());
+        _nya_render2d_pass_resume(window);
+        return false;
+    }
+
+    render->frame_stats.passes++;
+
+    SDL_SetGPUViewport(pass, &(SDL_GPUViewport){ .w = (f32)width, .h = (f32)height, .max_depth = 1.0F });
+
+    SDL_BindGPUGraphicsPipeline(pass, sky_pipeline);
+    SDL_PushGPUFragmentUniformData(render->render_commands, 0, &mirrored, sizeof(mirrored));
+    SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+
+    SDL_EndGPURenderPass(pass);
 
     _nya_render2d_pass_resume(window);
 
@@ -3332,6 +3503,10 @@ void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection) {
 
     batch->blend        = NYA_RENDER3D_BLEND_ALPHA;
     batch->casts_shadow = true;
+
+    // no sky recorded yet: a frame that draws none leaves a reflecting surface with nothing to mirror, and it
+    // falls back to its tint. Filled by nya_render3d_sky_draw. See _nya_render3d_reflection_capture.
+    batch->reflection_sky = nullptr;
 
     // foliage disturbers are per frame: fed after begin, gone at the next one, so a body that stops
     // moving simply stops parting the grass.
