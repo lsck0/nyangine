@@ -424,6 +424,11 @@ void nya_settings_graphics_apply(NYA_Window* window) {
     ssr.enabled     = ssr.enabled && graphics->reflections;
     nya_post_ssr_set(window, ssr);
 
+    // the raymarched volumetric answers to its own fog switch, the same way, through its window parameter block.
+    NYA_VolumetricParams volumetric = nya_volumetric_params(window);
+    volumetric.enabled              = volumetric.enabled && graphics->volumetric_fog;
+    nya_volumetric_params_set(window, volumetric);
+
     NYA_PostBloom bloom = nya_post_bloom(window);
     bloom.enabled       = bloom.enabled && graphics->bloom;
     nya_post_bloom_set(window, bloom);

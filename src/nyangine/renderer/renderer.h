@@ -266,6 +266,8 @@ struct NYA_RenderTexture {
 
 // after NYA_RenderTexture, which the post chain is built from, and before the window state, which holds its options.
 #include "nyangine/renderer/render_post.h"
+// the window holds the volumetric's parameter block by value; its compute pass, below the header's guard, reads it.
+#include "nyangine/renderer/render_compute_volumetric.h"
 // the window holds the decal and output options and what they allocate.
 #include "nyangine/renderer/render3d_decal.h"
 #include "nyangine/renderer/render_output.h"
@@ -1005,6 +1007,9 @@ struct NYA_RenderSystemWindow {
     NYA_PostLightShafts      post_light_shafts;
     NYA_PostMotionBlur       post_motion_blur;
     NYA_PostDebugView        post_debug_view;
+
+    /** The raymarched volumetric's tunables, read by the compute pass each frame. See render_compute_volumetric.h. */
+    NYA_VolumetricParams volumetric;
 
     /** This frame so far, and the last finished one. The draw calls are filled in when a frame finishes. */
     NYA_RenderFrameStats frame_stats;

@@ -47,6 +47,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_RENDER_FEATURE_NAMES[NYA_RENDER_FEATURE_COUNT
     [NYA_RENDER_FEATURE_MOTION_BLUR]       = "motion blur",
     [NYA_RENDER_FEATURE_EYE_ADAPTATION]    = "eye adaptation",
     [NYA_RENDER_FEATURE_GRADE]             = "grade",
+    [NYA_RENDER_FEATURE_VOLUMETRICS]       = "volumetrics",
 };
 
 /*

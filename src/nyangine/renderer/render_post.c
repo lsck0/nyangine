@@ -1102,6 +1102,44 @@ NYA_PostSsr nya_post_ssr(NYA_Window* window) {
     return window->render_system.post_ssr;
 }
 
+/*
+ * The raymarched volumetric's parameters. Plain render-option get/set on the window, beside SSR's and compiled on
+ * every build, so nya_settings_graphics_apply gates the effect through them; the compute pass that reads them lives
+ * in render_compute_volumetric.c and is desktop only. See render_compute_volumetric.h.
+ */
+
+void nya_volumetric_params_set(NYA_Window* window, NYA_VolumetricParams params) {
+    nya_assert(window != nullptr);
+
+    if (params.density > 0.0F) params.density = nya_clamp(params.density, 0.0F, 8.0F);
+    if (params.absorption > 0.0F) params.absorption = nya_clamp(params.absorption, 0.0F, 8.0F);
+    // the march's loop is bounded by VOLUMETRIC_STEPS_MAX; anything past it reads the same.
+    if (params.steps > 0) params.steps = nya_clamp(params.steps, 1U, (u32)NYA_VOLUMETRIC_STEPS_MAX);
+
+    // normalise the light direction so the shader need not, and fall back to a down-and-forward sun when zeroed.
+    f32 x      = params.light_direction[0];
+    f32 y      = params.light_direction[1];
+    f32 z      = params.light_direction[2];
+    f32 length = sqrtf((x * x) + (y * y) + (z * z));
+    if (length > 1e-6F) {
+        params.light_direction[0] = x / length;
+        params.light_direction[1] = y / length;
+        params.light_direction[2] = z / length;
+    } else {
+        params.light_direction[0] = -0.4F;
+        params.light_direction[1] = -0.7F;
+        params.light_direction[2] = -0.4F;
+    }
+
+    window->render_system.volumetric = params;
+}
+
+NYA_VolumetricParams nya_volumetric_params(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.volumetric;
+}
+
 void nya_post_antialias_set(NYA_Window* window, NYA_PostAntialias antialias) {
     nya_assert(window != nullptr);
 

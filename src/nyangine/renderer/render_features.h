@@ -131,6 +131,9 @@ enum NYA_RenderFeature {
     /** Colour grading through a LUT, applied by the caller's own pass. See render_lut.h. */
     NYA_RENDER_FEATURE_GRADE,
 
+    /** The raymarched volumetric fog compute pass. See render_compute_volumetric.h; desktop only. */
+    NYA_RENDER_FEATURE_VOLUMETRICS,
+
     NYA_RENDER_FEATURE_COUNT,
 };
 
@@ -175,6 +178,7 @@ struct NYA_RenderFeatures {
     NYA_RenderToggle motion_blur;
     NYA_RenderToggle eye_adaptation;
     NYA_RenderToggle grade;
+    NYA_RenderToggle volumetrics;
 };
 
 /*

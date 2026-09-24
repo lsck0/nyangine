@@ -138,6 +138,7 @@
 // compute stage, so both are compiled out on the web build by the !OS_WASM guard in their own files.
 #include "nyangine/renderer/render_compute.c"
 #include "nyangine/renderer/render_compute_particles.c"
+#include "nyangine/renderer/render_compute_volumetric.c"
 #endif
 // ui.c first: it defines the module's one static state, which every other ui_*.c file reads. The rest are
 // independent of each other and only ordered to read alphabetically.

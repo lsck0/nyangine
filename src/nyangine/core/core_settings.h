@@ -99,6 +99,9 @@ struct NYA_SettingsGraphics {
     /** Off unless the player wants it. */
     b8 motion_blur;
 
+    /** The raymarched volumetric fog pass. Off unless the player wants it: the march is not cheap. */
+    b8 volumetric_fog;
+
     /** Off, one cascade at half the size, the game's own, or a cascade more at twice the size. */
     NYA_GraphicsQuality shadows;
 

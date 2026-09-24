@@ -76,6 +76,9 @@
 #define COMPUTE_OVERLAY   192.0F
 #define COMPUTE_MARGIN    16.0F
 
+/** The raymarched volumetric's image resolution: the fog is composited full-frame, so it is upscaled to the window. */
+#define VOLUMETRIC_RESOLUTION 256u
+
 #define HUD_FONT      NYA_ASSET_FONTS_ALDRICH_TTF
 #define HUD_FONT_SIZE 16.0F
 
@@ -108,6 +111,12 @@ struct GpuScene {
      * backends). Null is the graceful case: step and draw ignore it and the rest of the frame is unchanged.
      * */
     NYA_GPUParticleField* compute_field;
+
+    /**
+     * The raymarched volumetric fog, composited full-frame over the scene, or null with no compute stage. Its
+     * begin marches the field on its own command buffer in on_update; its end composites it in on_render.
+     * */
+    NYA_GPUVolumetric* volume;
 #endif
 
     /** Total seconds, driving the slow camera orbit. */
@@ -221,6 +230,19 @@ void gpu_scene_layer_on_create(NYA_Window* window) {
     nya_log_info("gpu_scene: GPU compute particle field %s.",
                  state->compute_field != nullptr ? "created (device has a compute stage)"
                                                   : "unavailable (no compute on this device) — drawing without it");
+
+    // the raymarched volumetric, its parameters set through the window the way SSR's are, and on so the demo shows
+    // it; nya_settings_graphics_apply would gate it against the player's fog switch. Create degrades to null the
+    // same way the field does when the device has no compute.
+    nya_volumetric_params_set(window, (NYA_VolumetricParams){
+                                          .enabled         = true,
+                                          .density         = 1.6F,
+                                          .absorption      = 1.2F,
+                                          .steps           = 56,
+                                          .light_direction = { -0.45F, -0.62F, -0.30F },
+                                      });
+
+    state->volume = nya_gpu_volumetric_create(window, VOLUMETRIC_RESOLUTION);
 #endif
 
     // a small shadow atlas, so the pillars cast onto the floor and the contact reads even before SSAO deepens it.
@@ -244,6 +266,11 @@ void gpu_scene_layer_on_destroy(NYA_Window* window) {
     // the compute field's buffer, texture and pipelines. Null when the device had no compute, which destroy ignores.
     nya_gpu_particle_field_destroy(window, state->compute_field);
     state->compute_field = nullptr;
+
+    // the volumetric's pipeline and image, and its parameters off again so a hot reload starts clean.
+    nya_gpu_volumetric_destroy(window, state->volume);
+    state->volume = nullptr;
+    nya_volumetric_params_set(window, (NYA_VolumetricParams){ 0 });
 #endif
 
     // leave the frame count in the log so a headless run reports it verified something. The column lives on the
@@ -281,6 +308,10 @@ void gpu_scene_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     // the GPU-compute field, once a tick, on its own command buffer (it opens no render pass). Ignored when null.
     // The frame draws the texture it leaves behind; see gpu_scene_layer_on_render.
     nya_gpu_particle_field_step(window, state->compute_field, delta_time_s);
+
+    // the volumetric's march, likewise on its own command buffer; on_render composites the volume it leaves behind.
+    // Ignored when null or switched off.
+    nya_gpu_volumetric_begin(window, state->volume, delta_time_s);
 #endif
 
     // release motes near the base of the monolith on a timer, so the column's rate does not ride the frame rate.
@@ -441,6 +472,16 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
         nya_log_info("gpu_scene: paths — SSR on, SSAO on, force-driven column %u motes, GPU compute %s.",
                      nya_particles_count(state->column), compute);
     }
+
+#if !OS_WASM
+    // the volumetric fog, composited full-frame over the flushed scene before the HUD, so the text stays readable
+    // above it. The march that filled this image ran in on_update; here it is only sampled. Ignored when null or off.
+    {
+        u32 fog_width = 0, fog_height = 0;
+        nya_render2d_target_size(window, &fog_width, &fog_height);
+        nya_gpu_volumetric_end(window, state->volume, 0.0F, 0.0F, (f32)fog_width, (f32)fog_height);
+    }
+#endif
 
     // the HUD, in screen pixels over the flushed scene.
     f32 y    = 12.0F;

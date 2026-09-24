@@ -637,6 +637,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsGraphics_FIELDS[] = {
     { .name = "light_shafts", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, light_shafts), .hint = NYA_HINT_NONE },
     { .name = "reflections", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, reflections), .hint = NYA_HINT_NONE },
     { .name = "motion_blur", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, motion_blur), .hint = NYA_HINT_NONE },
+    { .name = "volumetric_fog", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, volumetric_fog), .hint = NYA_HINT_NONE },
     { .name = "shadows", .type = &_NYA_REFLECT_NYA_GraphicsQuality, .offset = nya_offsetof(NYA_SettingsGraphics, shadows), .hint = NYA_HINT_NONE },
     { .name = "fov", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, fov), .hint = NYA_HINT_NONE },
     { .name = "render_scale", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, render_scale), .hint = NYA_HINT_NONE },
@@ -648,7 +649,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
     .size = sizeof(NYA_SettingsGraphics),
     .alignment = alignof(NYA_SettingsGraphics),
     .fields = _NYA_REFLECT_NYA_SettingsGraphics_FIELDS,
-    .field_count = 12,
+    .field_count = 13,
 };
 
 /* NYA_HttpMetricsDto, src/nyangine/debug/debug_metrics.h */
@@ -970,6 +971,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_RenderFeatures_FIELDS[] = {
     { .name = "motion_blur", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, motion_blur), .hint = NYA_HINT_NONE },
     { .name = "eye_adaptation", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, eye_adaptation), .hint = NYA_HINT_NONE },
     { .name = "grade", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, grade), .hint = NYA_HINT_NONE },
+    { .name = "volumetrics", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, volumetrics), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_RenderFeatures = {
@@ -978,7 +980,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_RenderFeatures = {
     .size = sizeof(NYA_RenderFeatures),
     .alignment = alignof(NYA_RenderFeatures),
     .fields = _NYA_REFLECT_NYA_RenderFeatures_FIELDS,
-    .field_count = 30,
+    .field_count = 31,
 };
 
 /* NYA_RenderOutput, src/nyangine/renderer/render_output.h */
