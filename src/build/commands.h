@@ -13,6 +13,7 @@
  *   sbom.c       `./build sbom`
  *   check.c      `./build check`
  *   typos.c      `./build typos`
+ *   format.c     `./build format` and `./build format --check`
  *   lint.c       the rules `./build check` runs before clang-tidy
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
@@ -116,6 +117,13 @@ void typos_runner(NYA_ArgCommand* command);
  * hooks/commit-msg-lint.sh the commit-msg hook does. See commit.c.
  * */
 void commit_check_runner(NYA_ArgCommand* command);
+
+/**
+ * Runs clang-format over the hand-written C under src/, tests/, examples/ and bench/, rewriting each file
+ * in place; with --check it reports what is not formatted and fails instead. Advisory, and kept out of
+ * `./build check`: the tuned .clang-format cannot reproduce every hand-formatted construct. See format.c.
+ * */
+void format_runner(NYA_ArgCommand* command);
 
 /**
  * The project's own rules, run by `./build check` before clang-tidy: banned calls, the module order, verb pairs,

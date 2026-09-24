@@ -25,6 +25,9 @@
 // Another sibling gate, over the commit messages rather than the code: a thin bridge onto the shared
 // shell linter the commit-msg hook also runs.
 #include "build/commit.c"
+// Another sibling gate beside check.c and typos.c: clang-format over the hand-written C. Advisory, and
+// not on the critical path, so it sits with the other read-only quality gates.
+#include "build/format.c"
 // Before dist.c: it defines build_capture, and writes the CHANGELOG.md every distribution ships.
 #include "build/changelog.c"
 // After changelog.c: it calls build_capture, which changelog.c defines.

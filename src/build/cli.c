@@ -366,6 +366,13 @@ NYA_INTERNAL NYA_ArgParameter commit_check_target = {
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, },
 };
 
+NYA_INTERNAL NYA_ArgParameter format_check_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "check",
+    .description = "Report what is not formatted and exit non-zero, rather than rewriting. What CI wants.",
+};
+
 NYA_INTERNAL NYA_ArgParameter skip_self_rebuild_flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
     .value.type  = NYA_TYPE_B8,
@@ -701,6 +708,13 @@ NYA_INTERNAL NYA_ArgCommand commit_check = {
     .parameters  = { &commit_check_target, },
 };
 
+NYA_INTERNAL NYA_ArgCommand format = {
+    .name        = "format",
+    .description = "clang-format the C under src/, tests/, examples/ and bench/. --check reports and fails instead of rewriting. Advisory; needs clang-format.",
+    .handler     = &format_runner,
+    .parameters  = { &format_check_flag, },
+};
+
 NYA_INTERNAL NYA_ArgCommand coverage = {
     .name        = "coverage",
     .description = "Build and run the tests instrumented, report line coverage of src/nyangine, and gate on --fail-under.",
@@ -828,6 +842,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &typos,
             &verify,
             &commit_check,
+            &format,
             &coverage,
             &changelog,
             &sbom,

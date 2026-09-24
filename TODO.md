@@ -1284,7 +1284,14 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   the machine, the metrics resource binds loopback unless told otherwise, and nothing phones home. Landed
   2026-09-24 (`7e0a794d` scrub in `nya_crash_report_compose`, `80f4e0c6` loopback bind default). Follow-up: a
   confirm-what-will-be-sent view before the report leaves.
-- `[ ]` The clang-format gate, as one reformat commit in a quiet window.
+- `[x]` The clang-format gate, as an advisory command rather than a reformat commit. `./build format`
+  rewrites the C under src/, tests/, examples/ and bench/ in place; `./build format --check` reports what
+  drifted and exits non-zero for CI. It is kept out of `./build check`. `.clang-format` was tuned to sit as
+  close to the hand-formatting as clang-format reaches and, above all, no longer regroups the unity build's
+  dependency-ordered includes (SortIncludes: Never). The tree-wide reformat is deliberately not applied: the
+  residual against the hand style is still ~13.5k lines over ~330 of 583 files in src/nyangine alone, because
+  the manual argument wrapping, the selective alignment and the long lines kept unwrapped are human judgement
+  a mechanical pass cannot reproduce. Run it on the lines you change, not as a blanket rewrite.
 - `[ ]` The open items under "Distribution".
 
 ## Enterprise level: what it adds
@@ -2463,8 +2470,11 @@ build jobs restore it.
 - `nya_build_parallel` is a pool that starts the next rule as soon as any finishes. `./build run test` on
   the 8 thread dev machine: 111 s with batches, 106 s with the pool. The gain is small because test
   compiles all take 3.5 to 5 s; it grows with uneven rules.
-- `[ ]` No clang-format gate: the tree does not satisfy `.clang-format`, and fixing that is a 73k line
-  reformat with include regrouping to review.
+- `[x]` The clang-format gate is `./build format` / `--check`, advisory and outside `./build check`. The
+  tree still does not satisfy `.clang-format` and is not meant to: a blanket reformat fights the hand style,
+  so the gate exists for the lines you touch rather than a tree-wide rewrite. The one correctness fix was to
+  stop regrouping the unity build's includes (SortIncludes: Never); the earlier 73k-line reformat estimate
+  was dominated by that include regrouping, which is now off.
 
 ## `[~]` The verification rule
 
