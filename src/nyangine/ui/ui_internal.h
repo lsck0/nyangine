@@ -580,6 +580,36 @@ NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* sta
  * */
 NYA_INTERNAL b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NYA_Rectf box, char* buffer, u32 capacity, NYA_UIFieldDraw* out);
 
+/*
+ * The byte level editing a field is built from, shared so the code editor edits the same way rather than growing a
+ * second copy of it. Every one works on the flat buffer and knows nothing of lines, so a newline is a byte like any
+ * other: this is exactly why backspace at the start of a line joins it to the one above without a special case. See
+ * ui_text.c for the definitions.
+ * */
+
+/** The codepoint boundary before `offset`, and the one after it. Both stay inside [0, `length`]. */
+NYA_INTERNAL u32 _nya_ui_field_previous(NYA_ConstCString text, u32 offset) __attr_no_discard;
+NYA_INTERNAL u32 _nya_ui_field_next(NYA_ConstCString text, u32 length, u32 offset) __attr_no_discard;
+
+/** The start of the word at or before `offset`, and the end of the word at or after it. */
+NYA_INTERNAL u32 _nya_ui_field_word_start(NYA_ConstCString text, u32 offset) __attr_no_discard;
+NYA_INTERNAL u32 _nya_ui_field_word_end(NYA_ConstCString text, u32 length, u32 offset) __attr_no_discard;
+
+/** Removes [`from`, `to`) from `buffer`, terminator included. The new length. */
+NYA_INTERNAL u32 _nya_ui_field_erase(char* buffer, u32 length, u32 from, u32 to);
+
+/**
+ * Inserts as much of `text` at `at` as `capacity` leaves room for, cut on a codepoint boundary. The new length, and
+ * `*at` moved past what went in.
+ * */
+NYA_INTERNAL u32 _nya_ui_field_insert(char* buffer, u32 length, u32 capacity, u32* at, NYA_ConstCString text);
+
+/** Drops the selection, if any, and leaves the caret at its start. The new length. */
+NYA_INTERNAL u32 _nya_ui_field_selection_erase(NYA_UI* ui, char* buffer, u32 length);
+
+/** Moves the caret to `offset`, dragging the selection anchor with it unless `keep_selection`. */
+NYA_INTERNAL void _nya_ui_field_caret_set(NYA_UI* ui, u32 offset, b8 keep_selection);
+
 /** Moves `widget`'s focus and press toward its state over the style's transition, and eases them. */
 NYA_INTERNAL void _nya_ui_animate(_NYA_UIWidget* widget);
 

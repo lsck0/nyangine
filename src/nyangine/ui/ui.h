@@ -27,6 +27,7 @@
  *   nya_ui_toggle                               flips a b8
  *   nya_ui_slider                               moves an f32 between two bounds in steps
  *   nya_ui_text_input                           one line of typed text, with selection and the clipboard
+ *   nya_ui_code_editor                          many lines of typed text, with a gutter, scrolling and the clipboard
  *   nya_ui_color_picker                         a colour by saturation and value, hue, alpha and hex
  *   nya_ui_chart                                a line or bar plot of a caller's values
  *   nya_ui_node_editor_begin, nya_ui_node_editor_end  a pannable, zoomable canvas for a node graph
@@ -292,6 +293,19 @@ typedef struct NYA_Window NYA_Window;
 #define NYA_UI_NODE_ZOOM_MIN  0.25F
 #define NYA_UI_NODE_ZOOM_MAX  4.0F
 #define NYA_UI_NODE_ZOOM_STEP 0.1F
+
+/**
+ * The largest buffer a code editor edits, terminator included. A field is one short line; a code editor is a whole
+ * document, so it is bounded far higher — but bounded all the same, since every table in this module is. A caller
+ * whose text may run longer keeps its own store and hands the editor a window into it.
+ * */
+#ifndef NYA_UI_CODE_EDITOR_MAX
+#define NYA_UI_CODE_EDITOR_MAX 65536
+#endif
+
+/** How many spaces a tab inserts when the editor is not told otherwise, and the least digits its gutter is sized for. */
+#define NYA_UI_CODE_EDITOR_TAB    4
+#define NYA_UI_CODE_EDITOR_DIGITS 2
 
 /**
  * The display scale is snapped to steps this size and the result never drops under the smallest. A style's own
@@ -851,6 +865,54 @@ struct NYA_UINode {
     const NYA_ConstCString* output_labels;
 };
 
+/**
+ * A code editor's state: where the view is scrolled to, the two settings a caller may pick, and what the last pass
+ * reported. The caller owns it and it outlives the pass, the way a window's NYA_UIWindowState and a node canvas's
+ * NYA_UINodeEditor do; a zeroed one is a view at the top left with the defaults.
+ *
+ * The caret and the selection are not here: an editor edits through the same one-at-a-time keyboard the fields use,
+ * so they live where a field's do and only the widget with the keyboard has them. What is here a caller reads to
+ * follow the cursor or the view — a status line's row and column, say — or writes to `scroll` to frame the text.
+ * The leading-underscore field is the widget's own scratch between passes and is not the caller's to write.
+ * */
+typedef struct NYA_UICodeEditor NYA_UICodeEditor;
+
+struct NYA_UICodeEditor {
+    /** The view offset in window pixels: `x` across, `y` down. A zeroed one shows the top left; the widget scrolls it to keep the caret in view. */
+    f32x2 scroll;
+
+    /** How many spaces the tab key inserts. Zero takes NYA_UI_CODE_EDITOR_TAB. Tabs go in as spaces, so the grid never depends on a tab stop. */
+    u32 tab_width;
+
+    /** Draw a faint band behind the line the caret is on. Off by default. */
+    b8 highlight_line;
+
+    /* Read-backs from the last pass. A caller reads these; writing them changes nothing. */
+
+    /** Whether the editor has the keyboard, so a layer around it can skip its own keys while it is typed into. */
+    b8 focused;
+
+    /** Whether the text changed this pass, the same value the call returned, kept for a caller that did not keep it. */
+    b8 changed;
+
+    /** How many lines the buffer holds, one more than the newlines in it. */
+    u32 lines;
+
+    /** The caret's line and column, both zero based; the column counts codepoints from the line's start. Meaningful only while focused. */
+    u32 cursor_line;
+    u32 cursor_column;
+
+    /** The window the view shows: the first line drawn and how many lines fit in the box. */
+    u32 first_line;
+    u32 visible_lines;
+
+    /* The widget's scratch across passes. Private; a caller writes none of it. */
+
+    /** The x a vertical move aims for, in pixels from a line's start, so a run of up or down keeps its column across short lines. */
+    f32 _goal_x;
+    b8  _goal_set;
+};
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS
@@ -1057,6 +1119,45 @@ NYA_API b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min
  * the caret, a drag selects, and a second click selects the word under it.
  * */
 NYA_API b8 nya_ui_text_input(NYA_UI* ui, NYA_ConstCString label, char* buffer, u32 capacity);
+
+/**
+ * A multi-line text editor: a line-number gutter beside a monospace grid of the UTF-8 in `buffer`, which holds at
+ * most `capacity` bytes with its terminator and no more than NYA_UI_CODE_EDITOR_MAX. `id` names the widget and
+ * scopes nothing else. It fills its container, so give that container a definite size the way a node canvas is
+ * given one; everything is cut to the box and the text scrolls under the gutter. True when the text changed, which
+ * is also written to `editor->changed`.
+ *
+ * It is composed from the primitives already here — the gutter and the text are labels, the selection, the caret
+ * and the current line are the flat fills a rule is drawn from — so it draws on a GPU, in a terminal and through
+ * the recorder that tests it, and it follows a restyle like the rest of the UI. Nothing is a colour of the
+ * backend's. The caller owns the buffer and the widget only reports edits, the way a node canvas reports gestures;
+ * the caret and the selection live in the same one-at-a-time keyboard state a field's do, so one editor or one
+ * field is typed into at a time.
+ *
+ * Editing reuses a field's byte machinery, lifted to lines. A click sets the caret, a drag selects, and a second
+ * click takes the word under it. Text goes in at the caret, replacing the selection. Left and right move a
+ * character and with control a word; up and down move a line, keeping the column; home and end go to the line's
+ * ends; holding shift selects instead of moving. Backspace and delete remove the selection or one character, and
+ * with control a whole word — backspace at the start of a line joins it to the one above, since a newline is just
+ * the byte before it. Enter splits the line at the caret and tab inserts spaces (`editor->tab_width`, or
+ * NYA_UI_CODE_EDITOR_TAB). Control with A, C, X and V select all, copy, cut and paste through the system
+ * clipboard, newlines and all — unlike a one-line field, the editor keeps them. Cancel or a press outside stop
+ * typing; enter does not, since it is a character here.
+ *
+ * Syntax highlighting is a follow-up: the text draws in one colour today, and colouring runs would slot in where
+ * each line's label is emitted without changing the layout or the editing.
+ *
+ * ```c
+ * static char           source[4096] = "fn main() {\n    print(\"hi\")\n}\n";
+ * static NYA_UICodeEditor editor     = { .highlight_line = true };
+ *
+ * if (nya_ui_panel_begin(ui, "pane", (NYA_UIPanel){ .width = nya_ui_grow(1), .height = nya_ui_grow(1) })) {
+ *     if (nya_ui_code_editor(ui, "source", source, sizeof(source), &editor)) recompile(source);
+ *     nya_ui_panel_end(ui);
+ * }
+ * ```
+ * */
+NYA_API b8 nya_ui_code_editor(NYA_UI* ui, NYA_ConstCString id, char* buffer, u32 capacity, NYA_UICodeEditor* editor);
 
 /**
  * One of `count` choices in a row of their own, marked and focused like a button. `*selected` is the index of the

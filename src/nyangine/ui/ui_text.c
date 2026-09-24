@@ -18,16 +18,15 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * The byte level helpers below the field are shared with the code editor and so are declared in ui_internal.h:
+ * _nya_ui_field_previous and _next, _word_start and _word_end, _erase, _insert, _selection_erase and _caret_set.
+ * What stays here is only the field's own, since a one-line field is the only thing that measures and clicks this
+ * way.
+ * */
+
 /** Whether `byte` belongs to a word, for the word moves. Every byte of a multi-byte codepoint does. */
 NYA_INTERNAL b8 _nya_ui_field_word_byte(char byte) __attr_no_discard;
-
-/** The codepoint boundary before `offset`, and the one after it. Both stay inside [0, `length`]. */
-NYA_INTERNAL u32 _nya_ui_field_previous(NYA_ConstCString text, u32 offset) __attr_no_discard;
-NYA_INTERNAL u32 _nya_ui_field_next(NYA_ConstCString text, u32 length, u32 offset) __attr_no_discard;
-
-/** The start of the word at or before `offset`, and the end of the word at or after it. */
-NYA_INTERNAL u32 _nya_ui_field_word_start(NYA_ConstCString text, u32 offset) __attr_no_discard;
-NYA_INTERNAL u32 _nya_ui_field_word_end(NYA_ConstCString text, u32 length, u32 offset) __attr_no_discard;
 
 /**
  * The codepoint boundary in `text` nearest `x` pixels from its start, at `role`. Quadratic in the buffer, which is
@@ -35,23 +34,8 @@ NYA_INTERNAL u32 _nya_ui_field_word_end(NYA_ConstCString text, u32 length, u32 o
  * */
 NYA_INTERNAL u32 _nya_ui_field_offset_at(NYA_UIText role, NYA_ConstCString text, f32 x) __attr_no_discard;
 
-/** Removes [`from`, `to`) from `buffer`, terminator included. The new length. */
-NYA_INTERNAL u32 _nya_ui_field_erase(char* buffer, u32 length, u32 from, u32 to);
-
-/**
- * Inserts as much of `text` at `at` as `capacity` leaves room for, cut on a codepoint boundary. The new length, and
- * `*at` moved past what went in.
- * */
-NYA_INTERNAL u32 _nya_ui_field_insert(char* buffer, u32 length, u32 capacity, u32* at, NYA_ConstCString text);
-
-/** Drops the selection, if any, and leaves the caret where it was. The new length. */
-NYA_INTERNAL u32 _nya_ui_field_selection_erase(NYA_UI* ui, char* buffer, u32 length);
-
 /** Puts the selection on the system clipboard. False when there is none, or the clipboard refused it. */
 NYA_INTERNAL b8 _nya_ui_field_selection_copy(const NYA_UI* ui, NYA_ConstCString buffer);
-
-/** Moves the caret to `offset`, dragging the selection anchor with it unless `keep_selection`. */
-NYA_INTERNAL void _nya_ui_field_caret_set(NYA_UI* ui, u32 offset, b8 keep_selection);
 
 /** The pointer, the double click and the drag: where the caret lands and what it selects. True when it moved. */
 NYA_INTERNAL b8 _nya_ui_field_pointer(NYA_UI* ui, _NYA_UIWidget widget, NYA_Rectf box, NYA_UIText role, NYA_ConstCString buffer, f32 shift);
