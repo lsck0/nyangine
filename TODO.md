@@ -33,11 +33,15 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 ---
 
-## In flight (batch 3): water wave-heightfield + depth-foam, WebSocket net transport + key allowlist + version rejection, stereo panner, SBOM + licence allowlist + CVE check, privacy pass (crash PII scrub + metrics loopback).
+## In flight: privacy pass (crash PII scrub + metrics loopback); headless server deploy profile (minimal vendor subset, no shadercross/SDL for a webapp; small multi-stage Dockerfile; homelab docker-swarm stack).
 
 ## Recently landed (2026-09-24, agent batch)
 
-Shipping hardening (`2c758ee8`, RELRO+BIND_NOW+NX+fortify ELF-verified), UI theme `.nya` files (`14e26f05`), planar water sky-reflection (`03999130`), the `web_frontend` example (`73368828`, seventh example), signed plugins (`f4c21979`, Ed25519 + pinned keys, refuse-unsigned). Earlier same day: particles/fluid wind, weather rain/snow, instanced grass, textureGather web variant + depth/MSAA FBOs, reload-safe handlers, supervised restart, docs site, SSR write-back/styles, and the showcase-dark fix.
+Batch 3: water depth-difference shoreline foam + richer wave heightfield (`d5c7c078`), WebSocket net transport + player-key allowlist + version rejection (`20360276`), our own opt-in stereo panner (`bd26b494`), `./build sbom` CycloneDX + licence-allowlist gate + CVE hook (`f6f70433`). Runtime-dependency preflight — crash at startup when a required program/library is missing, `gpg` wired (`681c8066`). `.wasm` served from the static bundle as `application/wasm`, so the CSR bundle hosts its own module through the engine (`31556ffa`). Fixed a deinit crash: a shader that failed to load (missing/corrupt `.spv`) was freed as if loaded (`ba28b0c9`).
+
+Verified the HTTP server (`web_server`) with server-fucker.sh (all 7 phases): no confirmed injection/XXE/deser/SQLi/smuggling/CORS/secret leak, rate-limiting trips 429, no framework/version banner; only note is missing HSTS (TLS-only). SSR (`ui_ssr`) source-verified: all user text HTML-escaped (`_nya_ui_html_escape`, field buffer included), strict `w<n>` id validation, length-capped field input. CSR static host is content-addressed (no filesystem path lookup → traversal structurally impossible).
+
+Earlier: shipping hardening (`2c758ee8`, RELRO+BIND_NOW+NX+fortify ELF-verified), UI theme `.nya` files (`14e26f05`), planar water sky-reflection (`03999130`), the `web_frontend` example (`73368828`, seventh example), signed plugins (`f4c21979`, Ed25519 + pinned keys, refuse-unsigned), particles/fluid wind, weather rain/snow, instanced grass, textureGather web variant + depth/MSAA FBOs, reload-safe handlers, supervised restart, docs site, SSR write-back/styles, and the showcase-dark fix.
 
 ## Standing decisions
 
