@@ -374,6 +374,25 @@ enum NYA_HttpMediaType {
     NYA_HTTP_MEDIA_WASM,
 
     /**
+     * `application/xml`. A generated document — a sitemap, or anything whose shape is XML but is not a
+     * feed. The discoverability surface (http_sitemap.h) answers in it; see nya_http_doc.h for the
+     * bounded builder and the escaper that keep a `<` or a `&` in the data out of the markup.
+     * */
+    NYA_HTTP_MEDIA_XML,
+
+    /** `application/rss+xml`. RSS 2.0, the primary feed format; see http_feed.h. */
+    NYA_HTTP_MEDIA_RSS,
+
+    /** `application/atom+xml`. Atom 1.0, the second feed format; see http_feed.h. */
+    NYA_HTTP_MEDIA_ATOM,
+
+    /**
+     * `text/markdown`. What `/llms.txt` is served as: a Markdown document guiding an LLM to the site's
+     * key content. text/plain would serve it too; the registered type says what it is. See http_llms.h.
+     * */
+    NYA_HTTP_MEDIA_MARKDOWN,
+
+    /**
      * `application/x-www-form-urlencoded`: an HTML form's POST body.
      *
      * A read, not a document: nya_http_request_document does not parse it, because it is `a=b&c=d` and

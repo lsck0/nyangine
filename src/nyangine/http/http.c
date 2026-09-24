@@ -33,6 +33,15 @@
 // bundle is a resource a program merges, not something the listener knows about.
 #include "nyangine/http/http_static.c"
 /**/
+// the discoverability surface: a bounded document builder and a serve registry, then the four documents
+// built on them. After the message layer, whose response they write, and the router, whose table the
+// registry checks. A program merges nya_http_doc_router() the way it merges the bundle above.
+#include "nyangine/http/http_doc.c"
+#include "nyangine/http/http_sitemap.c"
+#include "nyangine/http/http_feed.c"
+#include "nyangine/http/http_robots.c"
+#include "nyangine/http/http_llms.c"
+/**/
 // the wire format, which depends on nothing here, and then the upgrade, which reads the router's
 // cross-site check and is what http_server.c hands a socket to.
 #include "nyangine/http/http_webhook.c"

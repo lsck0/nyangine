@@ -20,6 +20,11 @@
  * http_server.h    the listener, the connections and the drain
  * http_cookie.h    cookies in and out, with the __Host- and __Secure- rules enforced here too
  * http_static.h    the web bundle out of the asset system: hashed names, ETags, one route per file
+ * http_doc.h       a bounded XML/text builder, an escaper and a serve registry: what the four below share
+ * http_sitemap.h   a sitemap.xml built from the URLs a site wants crawled
+ * http_feed.h      a web feed, RSS 2.0 and Atom 1.0, from one set of items
+ * http_robots.h    a robots.txt from user-agent groups, with a deny-all strict preset
+ * http_llms.h      an llms.txt guiding a model to the site's content, with a restricted-use strict preset
  * http_webhook.h   proving a webhook came from who it says it did, before anything acts on it
  * http_websocket.h the RFC 6455 wire format, shared with the curl client in plugins/curl
  * http_websocket_server.h  the upgrade, and a connection that outlives the exchange that made it
@@ -64,7 +69,12 @@
 
 #include "nyangine/http/http_auth.h"
 #include "nyangine/http/http_cookie.h"
+#include "nyangine/http/http_doc.h"
+#include "nyangine/http/http_feed.h"
 #include "nyangine/http/http_health.h"
+#include "nyangine/http/http_llms.h"
+#include "nyangine/http/http_robots.h"
+#include "nyangine/http/http_sitemap.h"
 #include "nyangine/http/http_idempotency.h"
 #include "nyangine/http/http_seal.h"
 #include "nyangine/http/http_keyring.h"

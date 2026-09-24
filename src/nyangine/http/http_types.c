@@ -89,6 +89,12 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_TEXT[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
     [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
+    // The generated discoverability documents. XML for a sitemap, and the two feed dialects each with
+    // the media type that names them exactly, so a reader that asked for a feed is never handed a page.
+    [NYA_HTTP_MEDIA_XML]        = "application/xml; charset=utf-8",
+    [NYA_HTTP_MEDIA_RSS]        = "application/rss+xml; charset=utf-8",
+    [NYA_HTTP_MEDIA_ATOM]       = "application/atom+xml; charset=utf-8",
+    [NYA_HTTP_MEDIA_MARKDOWN]   = "text/markdown; charset=utf-8",
     // A form body is only ever read, never written, so it has no charset to render here.
     [NYA_HTTP_MEDIA_FORM]       = "application/x-www-form-urlencoded",
     [NYA_HTTP_MEDIA_OTHER]      = "",
@@ -109,6 +115,10 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_ESSENCE[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
     [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
+    [NYA_HTTP_MEDIA_XML]        = "application/xml",
+    [NYA_HTTP_MEDIA_RSS]        = "application/rss+xml",
+    [NYA_HTTP_MEDIA_ATOM]       = "application/atom+xml",
+    [NYA_HTTP_MEDIA_MARKDOWN]   = "text/markdown",
     [NYA_HTTP_MEDIA_FORM]       = "application/x-www-form-urlencoded",
     [NYA_HTTP_MEDIA_OTHER]      = "",
 };
