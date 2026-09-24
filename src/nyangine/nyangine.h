@@ -24,6 +24,9 @@
 // Beside serde: both turn a NYA_Object into text, and neither includes the other. It only needs base,
 // so it sits low and everything above it — http bodies, emails, LaTeX reports — can render through it.
 #include "nyangine/template/template.h"
+// Beside template: a command registry a dev console and a command palette dispatch through. Needs only
+// base, so it sits low and is available to a headless server and a windowed game alike.
+#include "nyangine/console/console.h"
 
 // Above os and base and below http, which is the only thing here that wants a socket with a library
 // on it. Its own header answers when the build has no TLS library at all.

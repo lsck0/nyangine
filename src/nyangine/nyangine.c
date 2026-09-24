@@ -8,6 +8,8 @@
 #include "nyangine/serde/serde.c"
 // Beside serde and above nothing but base: renders a NYA_Object to text. See nyangine.h.
 #include "nyangine/template/template.c"
+// Beside template and above nothing but base: the command registry. See nyangine.h.
+#include "nyangine/console/console.c"
 // Guarded: monocypher is on the project's include line and not the build tool's, which hashes nothing.
 // Before the plugins, whose websocket handshake is SHA-1, and before net and http, which it serves.
 // The seam is the header's, not plain NYA_NO_SDL: a headless server (NYA_SERVER) hashes sessions and

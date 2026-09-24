@@ -84,6 +84,8 @@ NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     { "permission", 3 },
     // template renders a NYA_Object to text and includes only base, so it sits beside serde: a sibling that turns an object into a document rather than a wire format, and neither includes the other.
     { "template", 3 },
+    // console is a command registry over base alone, dispatched through by a dev console and a command palette; it sits low beside template.
+    { "console",  3 },
     // db is above crypto and base and below everything that stores anything, which is why it shares net's rank rather than sitting under it: neither includes the other and neither ever should.
     { "db",       4 },
     { "net",      4 },
