@@ -656,6 +656,16 @@ struct NYA_Render3DSegment {
     const struct NYA_ShaderFoliageUniform* foliage_uniform;
 
     /**
+     * A field of wind-swayed blades drawn instead of the geometry above: the registered blade mesh and a
+     * run of the grass instance stream (its own buffer, not the retained one). The shared wind and sway
+     * ride in `foliage_uniform`, the same block the scalar foliage path fills; the per-blade placement is
+     * in the instance run. Like foliage, grass is only ever seen by the camera pass. See nya_render3d_grass.
+     * */
+    NYA_ConstCString grass;
+    u32              grass_first_instance;
+    u32              grass_count;
+
+    /**
      * A flowing water surface drawn instead of the geometry above: its registered handle, the vertex stage's
      * wave/flow/wind uniform, and the fragment stage's colour/foam/refraction uniform, all in the frame arena.
      * Like foliage — one draw of one mesh with its own per-object uniforms — but lifted into waves and refracting
@@ -830,6 +840,21 @@ struct NYA_Render3DBatch {
 
     SDL_GPUBuffer*         instance_buffer;
     SDL_GPUTransferBuffer* instance_transfer_buffer;
+
+    /*
+     * Instanced grass path: its own instance stream, separate from the retained one above, so a dense field
+     * does not spend the retained mesh budget and gets its own, larger ceiling. Blades are NYA_Render3DInstance
+     * too (a model matrix and a tint), uploaded once per playback and drawn with the foliage sway shader. See
+     * nya_render3d_grass.
+     */
+    NYA_Render3DInstance* grass_instances;
+    u32                   grass_instance_count;
+
+    /** The most grass blades held in one playback, for the ceiling. */
+    u32 grass_instance_worst;
+
+    SDL_GPUBuffer*         grass_instance_buffer;
+    SDL_GPUTransferBuffer* grass_instance_transfer_buffer;
 
     /** One entry per distinct mesh queued. */
     NYA_Render3DMeshGroup mesh_groups[NYA_RENDER3D_MAX_MESH_GROUPS];

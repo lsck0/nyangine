@@ -661,6 +661,32 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the foliage pipeline");
 
+    /* Instanced foliage: the foliage bend on a per-instance model matrix, so a whole field draws at once. */
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
+      .handle    = NYA_ASSET_SHADER_FOLIAGE_INSTANCED_VERT,
+      .as_shader = {
+          // two, as the scalar foliage vertex shader: the view-projection at b0 and the shared wind/sway at b1.
+          .num_uniform_buffers = 2,
+      },
+  }), "while queueing the instanced foliage vertex shader");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+      .handle               = NYA_RENDER3D_PIPELINE_FOLIAGE_INSTANCED,
+      .as_graphics_pipeline = {
+          .window                 = window,
+          .vertex_shader_handle   = NYA_ASSET_SHADER_FOLIAGE_INSTANCED_VERT,
+          .fragment_shader_handle = NYA_ASSET_SHADER_MESH3D_FRAG,
+          .blend                  = true,
+          // the per-instance model matrix arrives in buffer 1, the same layout the retained mesh path reads.
+          .vertex_layout          = NYA_VERTEX_LAYOUT_3D_INSTANCED,
+          .depth_test             = true,
+          .depth_write            = true,
+          // no culling: grass blades are single sheets seen from both sides, as the scalar foliage pipeline.
+      },
+  }), "while queueing the instanced foliage pipeline");
+
     /* The shadow pass: depth only, culling front faces. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -1107,6 +1133,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     if (!segments_registered) {
         nya_ceiling_register("render3d_segments", NYA_RENDER3D_MAX_SEGMENTS, &mesh_batch->segment_count_worst);
         nya_ceiling_register("foliage_disturbers", NYA_RENDER3D_FOLIAGE_DISTURBERS_MAX, &mesh_batch->foliage_disturber_worst);
+        nya_ceiling_register("grass_instances", NYA_RENDER3D_MAX_GRASS_INSTANCES, &mesh_batch->grass_instance_worst);
     }
     segments_registered = true;
 
@@ -1126,6 +1153,22 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     mesh_batch->instances       = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
     mesh_batch->instance_passes = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(u8));
+
+    /* The grass instance stream: its own, larger buffer, since a dense field is the whole point. */
+    u32 grass_instance_buffer_size = (u32)(NYA_RENDER3D_MAX_GRASS_INSTANCES * sizeof(NYA_Render3DInstance));
+
+    mesh_batch->grass_instance_buffer =
+        nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = grass_instance_buffer_size });
+    nya_assert(mesh_batch->grass_instance_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the grass instance stream: %s", SDL_GetError());
+
+    mesh_batch->grass_instance_transfer_buffer = nya_gpu_transfer_buffer_create(
+        gpu_device,
+        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = grass_instance_buffer_size }
+    );
+    nya_assert(mesh_batch->grass_instance_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the grass instance stream: %s",
+               SDL_GetError());
+
+    mesh_batch->grass_instances = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_GRASS_INSTANCES * sizeof(NYA_Render3DInstance));
 
     // never sampled, as a scene without cascades has zero shadow strength.
     mesh_batch->shadow_none = nya_gpu_texture_create(
@@ -1189,6 +1232,10 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     // the instance stream is a vertex buffer to SDL; only the pipeline's input rate makes it per instance.
     if (mesh_batch->instance_buffer != nullptr) nya_gpu_buffer_release(gpu_device, mesh_batch->instance_buffer);
     if (mesh_batch->instance_transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->instance_transfer_buffer);
+
+    // the grass instance stream, the same kind of vertex buffer, on its own larger allocation.
+    if (mesh_batch->grass_instance_buffer != nullptr) nya_gpu_buffer_release(gpu_device, mesh_batch->grass_instance_buffer);
+    if (mesh_batch->grass_instance_transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->grass_instance_transfer_buffer);
 
     // geometry the game registered belongs to the window; nothing else would release it.
     if (mesh_batch->registered_meshes != nullptr) nya_cache_destroy(mesh_batch->registered_meshes);

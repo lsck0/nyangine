@@ -7,9 +7,11 @@
  *
  * ```
  * ./build run example foliage3d
+ * NYA_FOLIAGE_FRAMES=6 ./build run example foliage3d   # draw six frames and quit, for a headless run
  * ```
  *
- * Left/right arrows turn the wind, up/down change its strength, `g` toggles the gust, `escape` quits.
+ * Left/right arrows turn the wind, up/down change its strength, `g` toggles the gust, `tab` switches
+ * scenes, `escape` quits.
  *
  * ## The shape of it
  *
@@ -18,6 +20,13 @@
  * advanced once and sampled at each plant's position; the sampled vector plus the plant's style is handed
  * to nya_render3d_foliage, whose vertex stage bends the model-space geometry about its base before
  * view-projecting it. No compute pass and no per-frame vertex work on the CPU.
+ *
+ * ## Two scenes
+ *
+ * The default scene is a checker of the three looks, one draw call per plant. Press `tab` for the second:
+ * a dense carpet of thousands of blades drawn in ONE instanced call through nya_render3d_grass, every blade
+ * bent by the same wind and each swaying on its own phase (derived in the shader from its world position).
+ * That is what makes a field dense — the cost is one draw, not one draw per blade.
  * */
 #include "genyarated/assets.h"
 #include "nyangine/nyangine.h"
@@ -40,10 +49,20 @@
 #define MESH_GRASS  "foliage/grass_tuft"
 #define MESH_LEAVES "foliage/leaf_bush"
 #define MESH_BRANCH "foliage/branch"
+#define MESH_BLADE  "foliage/blade"
 
 /** The field: a square of plants, this many on a side, this far apart. */
 #define FIELD_SIDE    9
 #define FIELD_SPACING 1.6F
+
+/**
+ * The instanced-grass scene: a dense carpet of single blades, this many on a side, drawn in ONE instanced
+ * call through nya_render3d_grass rather than one draw per plant. 120 * 120 is 14,400 blades, a lawn no
+ * per-plant loop would keep up with, all swaying on the same wind. Press TAB to switch to it.
+ * */
+#define GRASS_SIDE    120
+#define GRASS_COUNT   (GRASS_SIDE * GRASS_SIDE)
+#define GRASS_SPACING 0.16F
 
 /** How far a key press turns the wind, and steps its strength. */
 #define WIND_TURN_STEP     0.2618F /* fifteen degrees */
@@ -91,6 +110,20 @@ struct Foliage {
     f32 elapsed_s;
 
     b8 meshes_ready;
+
+    /** TAB switches between the per-plant checker field and the dense instanced-grass carpet. */
+    b8 instanced_scene;
+
+    /**
+     * The instanced grass carpet, placed once and drawn every frame from one instanced call: a per-blade
+     * model matrix and a tint. The wind and sway are shared and set per frame, not stored here.
+     * */
+    NYA_Render3DInstance* blades;
+    u32                   blade_count;
+
+    /** When non-zero (from NYA_FOLIAGE_FRAMES), the scene quits after this many frames, for a headless run. */
+    u32 frame_count;
+    u32 max_frames;
 };
 
 NYA_INTERNAL Foliage* foliage(void) {
@@ -219,6 +252,66 @@ NYA_INTERNAL u32 build_branch(NYA_Vertex3D* vertices, NYA_RNG* rng) {
     return count;
 }
 
+/**
+ * One grass blade: a single tapered card from its base (y = 0) to a near-point at the top, flex ramping 0 to
+ * 1 up its height. Registered once and instanced across the whole carpet, so the mesh is deliberately tiny —
+ * the density comes from the instance count, not the geometry.
+ * */
+NYA_INTERNAL u32 build_blade(NYA_Vertex3D* vertices) {
+    u32 count = 0;
+
+    f32   width  = 0.05F;
+    f32   height = 1.0F;
+    f32x3 rgb    = { 0.24F, 0.55F, 0.22F };
+
+    f32x3 base_left  = { -width, 0.0F, 0.0F };
+    f32x3 base_right = { width, 0.0F, 0.0F };
+    f32x3 tip_right  = { width * 0.15F, height, 0.0F };
+    f32x3 tip_left   = { -width * 0.15F, height, 0.0F };
+
+    // a single card. the foliage pipeline does not cull, so the one quad shades from both sides.
+    plant_quad(vertices, &count, base_left, base_right, tip_right, tip_left, rgb, 0.0F, 1.0F);
+
+    return count;
+}
+
+/**
+ * Places the instanced carpet once: a jittered grid of blades, each turned to a random heading and scaled a
+ * little, with a touch of colour variation, so a field of one mesh does not read as a stamped pattern. The
+ * per-instance sway phase is not stored — the shader derives it from each blade's world position.
+ * */
+NYA_INTERNAL void build_grass_field(Foliage* state, NYA_RNG* rng) {
+    f32 half = (f32)(GRASS_SIDE - 1) * 0.5F;
+
+    u32 index = 0;
+
+    for (u32 z = 0; z < GRASS_SIDE; z++) {
+        for (u32 x = 0; x < GRASS_SIDE; x++) {
+            f32 jitter_x = nya_rng_sample_f32(rng, (NYA_RNGDistribution){ .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { -0.45, 0.45 } });
+            f32 jitter_z = nya_rng_sample_f32(rng, (NYA_RNGDistribution){ .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { -0.45, 0.45 } });
+            f32 angle    = nya_rng_sample_f32(rng, (NYA_RNGDistribution){ .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { 0.0, 6.2831853 } });
+            f32 scale    = nya_rng_sample_f32(rng, (NYA_RNGDistribution){ .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { 0.7, 1.3 } });
+            f32 shade    = nya_rng_sample_f32(rng, (NYA_RNGDistribution){ .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { 0.8, 1.15 } });
+
+            f32x3 position = {
+                ((f32)x - half + jitter_x) * GRASS_SPACING,
+                0.0F,
+                ((f32)z - half + jitter_z) * GRASS_SPACING,
+            };
+
+            NYA_Quaternion heading = nya_quaternion_from_axis_angle(f32x3_unit_y, angle);
+
+            state->blades[index++] = (NYA_Render3DInstance){
+                .model = nya_matrix_transform(position, nya_quaternion_to_matrix3(heading), (f32x3){ scale, scale, scale }),
+                // a green multiplied onto the blade's own colour, lighter or darker per blade.
+                .tint  = (NYA_Color){ shade, shade, shade, 1.0F },
+            };
+        }
+    }
+
+    state->blade_count = index;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LAYER
@@ -246,6 +339,13 @@ void foliage_layer_on_create(NYA_Window* window) {
     u32 branch_count = build_branch(vertices, rng);
     state->meshes_ready = nya_render3d_mesh_register(window, MESH_BRANCH, vertices, branch_count) && state->meshes_ready;
 
+    u32 blade_count = build_blade(vertices);
+    state->meshes_ready = nya_render3d_mesh_register(window, MESH_BLADE, vertices, blade_count) && state->meshes_ready;
+
+    // the instanced carpet's placements, built once into world-lifetime storage and drawn every frame.
+    state->blades = nya_arena_alloc(nya_world()->allocator, GRASS_COUNT * sizeof(NYA_Render3DInstance));
+    build_grass_field(state, rng);
+
     // a static floor so the creature rolls rather than falls, and the creature itself: a dynamic sphere
     // given a sideways shove, which the physics system steps every tick.
     NYA_EntityHandle ground = nya_entity_spawn(.name = "ground", .type = ENTITY_GROUND, .position = { 0.0F, -0.5F, 0.0F });
@@ -265,6 +365,7 @@ void foliage_layer_on_destroy(NYA_Window* window) {
     nya_render3d_mesh_release(window, MESH_GRASS);
     nya_render3d_mesh_release(window, MESH_LEAVES);
     nya_render3d_mesh_release(window, MESH_BRANCH);
+    nya_render3d_mesh_release(window, MESH_BLADE);
 }
 
 void foliage_layer_on_event(NYA_Window* window, NYA_Event* event) {
@@ -277,6 +378,13 @@ void foliage_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     Foliage* state = foliage();
 
     if (nya_input_key_pressed(NYA_KEY_ESCAPE)) nya_app_get()->should_quit = true;
+
+    // TAB switches between the per-plant checker field and the dense instanced-grass carpet.
+    if (nya_input_key_pressed(NYA_KEY_TAB)) state->instanced_scene = !state->instanced_scene;
+
+    // a timed run quits itself once it has drawn its frames, so a headless CI run terminates.
+    state->frame_count++;
+    if (state->max_frames > 0 && state->frame_count >= state->max_frames) nya_app_get()->should_quit = true;
 
     // turn and strengthen the wind on a key press, then re-point the field. nya_wind_set leaves the
     // field's clock alone, so the sway does not jump when the wind changes.
@@ -356,7 +464,18 @@ void foliage_layer_on_render(NYA_Window* window) {
         nya_render3d_sphere(window, at, CREATURE_RADIUS, (NYA_Color){ 0.85F, 0.35F, 0.30F, 1.0F });
     }
 
-    if (state->meshes_ready) {
+    if (state->meshes_ready && state->instanced_scene) {
+        // the whole carpet in one instanced draw: one wind sample at its centre, shared by every blade, each
+        // swaying on its own phase (the shader takes it from the blade's world position). This is the density
+        // the per-plant path cannot reach — thousands of blades, one draw call.
+        NYA_Render3DFoliage look = nya_render3d_foliage_style(NYA_FOLIAGE_GRASS);
+
+        look.wind = nya_wind_sample(&state->wind, f32x3_zero);
+        look.time = state->wind.time;
+        look.tint = (NYA_Color){ 0.6F, 1.0F, 0.6F, 1.0F };
+
+        nya_render3d_grass(window, MESH_BLADE, state->blades, state->blade_count, look);
+    } else if (state->meshes_ready) {
         f32 half = (f32)(FIELD_SIDE - 1) * 0.5F;
 
         for (u32 z = 0; z < FIELD_SIDE; z++) {
@@ -376,8 +495,9 @@ void foliage_layer_on_render(NYA_Window* window) {
     nya_render3d_end(window);
 
     nya_render2d_textf_with_font(window, NYA_ASSET_FONTS_ALDRICH_TTF, 20.0F, 16.0F, 16.0F, NYA_COLOR_WHITE,
-                                 "wind %.1f  gust %s  ·  arrows steer/strengthen  ·  g gust  ·  the ball parts the grass",
-                                 (double)state->wind_strength, state->wind_gustiness > 0.0F ? "on" : "off");
+                                 "wind %.1f  gust %s  ·  arrows steer/strengthen  ·  g gust  ·  tab %s  ·  the ball parts the grass",
+                                 (double)state->wind_strength, state->wind_gustiness > 0.0F ? "on" : "off",
+                                 state->instanced_scene ? "per-plant field" : "instanced carpet");
 }
 
 /*
@@ -402,6 +522,14 @@ s32 main(s32 argc, NYA_CString* argv) {
     };
 
     state->wind = nya_wind_field((NYA_WindOptions){ .direction = { 1, 0, 0 }, .strength = state->wind_strength, .gustiness = state->wind_gustiness });
+
+    // a frame budget for a headless run: NYA_FOLIAGE_FRAMES=N draws N frames and quits, so CI can exercise
+    // both scenes under the sanitizers without a display. Zero (unset) runs until the window is closed.
+    NYA_ConstCString frames = getenv("NYA_FOLIAGE_FRAMES");
+    if (frames != nullptr) state->max_frames = (u32)strtoul(frames, nullptr, 10);
+
+    // start on the instanced carpet when a frame budget is set, so a headless run exercises the new path.
+    state->instanced_scene = state->max_frames > 0;
 
     nya_world_user_data_set(state);
 

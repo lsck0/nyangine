@@ -133,6 +133,10 @@ NYA_INTERNAL void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Rende
 NYA_INTERNAL void _nya_render3d_foliage_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
                                              const struct NYA_ShaderMesh3DUniform* uniform);
 
+/** Draws a segment's field of wind-swayed blades in one instanced call. Only the camera pass, as foliage. */
+NYA_INTERNAL void _nya_render3d_grass_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                           const struct NYA_ShaderMesh3DUniform* uniform);
+
 /** Bakes the nearest disturbers to a plant into its uniform, out of the frame's fed set. */
 NYA_INTERNAL void _nya_render3d_foliage_disturbers_pick(const NYA_Render3DBatch* batch, f32x3 center, f32 plant_radius,
                                                         struct NYA_ShaderFoliageUniform* uniform);
@@ -1214,6 +1218,146 @@ void nya_render3d_foliage(NYA_Window* window, NYA_ConstCString handle, f32x3 pos
     _nya_render3d_segment_close(window);
 }
 
+void nya_render3d_grass(NYA_Window* window, NYA_ConstCString blade_mesh, const NYA_Render3DInstance* instances, u32 count,
+                        NYA_Render3DFoliage look) {
+    nya_assert(window != nullptr);
+
+    if (blade_mesh == nullptr || instances == nullptr || count == 0) return;
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    if (!batch->active) return;
+
+    /*
+     * The blade mesh is registered, exactly as the scalar foliage path requires: the sway reads the packed
+     * model-space vertices and the flexibility weight in their colour alpha. One upload, drawn at every
+     * placement in `instances` from a single instanced draw — the difference from nya_render3d_foliage.
+     */
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, blade_mesh);
+
+    if (registered == nullptr) return;
+
+    _nya_render3d_registered_flush_upload(window, registered);
+
+    // its copy has not run yet, so the buffer holds nothing to draw.
+    if (registered->pending_upload != nullptr || registered->vertex_count == 0) return;
+
+    f32x3 bounds_min = f32x3_zero;
+    f32x3 bounds_max = f32x3_zero;
+    (void)_nya_render3d_resolved_bounds(registered, nullptr, &bounds_min, &bounds_max);
+
+    // the blade's height, shared by every instance since they share one mesh. never zero, or the shader
+    // divides by it. the sway reads it as one over the height, so amplitude is a fraction of the blade.
+    f32 height = nya_max(bounds_max.y, 0.0001F);
+
+    // the blade's own reach from its base, half the diagonal of its rest bounds, for the cull radius below.
+    f32 blade_radius = nya_vector_length((bounds_max - bounds_min) * 0.5F);
+
+    // defaults match the scalar path, so one blade drawn through nya_render3d_foliage and the same blade in
+    // a patch sway identically.
+    f32 amplitude        = look.amplitude > 0.0F ? look.amplitude : 0.2F;
+    f32 frequency        = look.frequency > 0.0F ? look.frequency : 1.0F;
+    f32 detail_frequency = look.detail_frequency > 0.0F ? look.detail_frequency : 6.0F;
+
+    NYA_Color tint = look.tint;
+    if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = NYA_COLOR_WHITE;
+
+    _nya_render3d_passes_prepare(window);
+
+    // the patch's world bounding sphere, so the field culls as one and its disturbers are picked around one
+    // centre rather than per blade. The tip throw pads it by amplitude of the blade's height, as the scalar path.
+    f32x3 patch_center = f32x3_zero;
+    f32   patch_radius = 0.0F;
+
+    _nya_render3d_grass_bounds(instances, count, blade_radius, amplitude * height, &patch_center, &patch_radius);
+
+    u8 passes = _nya_render3d_passes_seeing(window, patch_center, patch_radius);
+
+    // only the camera pass draws grass: it casts no shadow, exactly like foliage. nothing to record if the
+    // camera cannot see the field at all.
+    if ((passes & 1U) == 0) return;
+
+    // a field larger than the whole grass buffer draws what fits; the rest is counted, not drawn wrong.
+    if (count > NYA_RENDER3D_MAX_GRASS_INSTANCES) {
+        batch->frame_dropped_draws++;
+        count = NYA_RENDER3D_MAX_GRASS_INSTANCES;
+    }
+
+    // full: what is recorded draws now, and this copy starts the next playback with an empty grass stream.
+    if (batch->grass_instance_count + count > NYA_RENDER3D_MAX_GRASS_INSTANCES) {
+        nya_render3d_flush(window);
+        _nya_render3d_playback(window);
+    }
+
+    // in the frame arena, read only by this scene's playback — the lifetime the foliage uniform has. This is
+    // the shared block: the whole patch's wind, sway and tint. Its `model` and `phase` go unread by the
+    // instanced shader, which takes the placement per instance and derives the phase from each blade's base.
+    struct NYA_ShaderFoliageUniform* uniform =
+        nya_arena_alloc(nya_app_get()->frame_allocator, sizeof(struct NYA_ShaderFoliageUniform));
+
+    if (uniform == nullptr) return;
+
+    // unused by the instanced shader, but zeroed rather than left as arena garbage.
+    for (u32 row = 0; row < 4; row++) {
+        for (u32 column = 0; column < 4; column++) uniform->model[row][column] = 0.0F;
+    }
+
+    uniform->wind_x = look.wind.x;
+    uniform->wind_y = look.wind.y;
+    uniform->wind_z = look.wind.z;
+    uniform->time   = look.time;
+
+    uniform->amplitude = amplitude;
+    uniform->frequency = frequency;
+    uniform->stiffness = nya_clamp(look.stiffness, 0.0F, 1.0F);
+    uniform->flutter   = look.flutter > 0.0F ? look.flutter : 0.0F;
+
+    uniform->detail_frequency = detail_frequency;
+    uniform->phase            = 0.0F;  // per instance in the shader, from the blade's world base.
+    uniform->height_scale     = 1.0F / height;
+    uniform->pad              = 0.0F;
+
+    uniform->tint_r = tint.r;
+    uniform->tint_g = tint.g;
+    uniform->tint_b = tint.b;
+    uniform->tint_a = tint.a;
+
+    // the arena does not zero, so clear the disturber rows; the nearest few are filled in below.
+    uniform->disturber_count  = 0.0F;
+    uniform->disturber_pad[0] = uniform->disturber_pad[1] = uniform->disturber_pad[2] = 0.0F;
+
+    for (u32 d = 0; d < NYA_RENDER3D_FOLIAGE_DISTURBERS; d++) {
+        uniform->disturber_position_radius[d][0] = 0.0F;
+        uniform->disturber_position_radius[d][1] = 0.0F;
+        uniform->disturber_position_radius[d][2] = 0.0F;
+        uniform->disturber_position_radius[d][3] = 0.0F;
+        uniform->disturber_strength[d]           = 0.0F;
+    }
+
+    // the disturbers near the patch, baked once for the whole field rather than per blade.
+    _nya_render3d_foliage_disturbers_pick(batch, patch_center, patch_radius, uniform);
+
+    // append the placements to the grass instance stream, uploaded with the rest at playback.
+    u32 first = batch->grass_instance_count;
+
+    nya_memcpy(&batch->grass_instances[first], instances, (u64)count * sizeof(NYA_Render3DInstance));
+
+    batch->grass_instance_count += count;
+    batch->grass_instance_worst  = nya_max(batch->grass_instance_worst, batch->grass_instance_count);
+
+    // what came before draws first, as its own segment.
+    nya_render3d_flush(window);
+
+    NYA_Render3DSegment* segment = &batch->segments[batch->segment_count];
+
+    segment->grass                = blade_mesh;
+    segment->grass_first_instance = first;
+    segment->grass_count          = count;
+    segment->foliage_uniform      = uniform;
+
+    _nya_render3d_segment_close(window);
+}
+
 void nya_render3d_foliage_disturb(NYA_Window* window, f32x3 position, f32 radius, f32 strength) {
     nya_assert(window != nullptr);
 
@@ -2043,9 +2187,10 @@ void _nya_render3d_playback(NYA_Window* window) {
 
         // both streams share one buffer, opaque first. transparent indices are relative to their own first vertex,
         // so a draw's vertex offset rebases them.
-        u32 vertex_size   = (opaque->vertex_count + transparent->vertex_count) * (u32)sizeof(NYA_Vertex3D);
-        u32 index_size    = index_count * (u32)sizeof(u16);
-        u32 instance_size = batch->instance_count * (u32)sizeof(NYA_Render3DInstance);
+        u32 vertex_size         = (opaque->vertex_count + transparent->vertex_count) * (u32)sizeof(NYA_Vertex3D);
+        u32 index_size          = index_count * (u32)sizeof(u16);
+        u32 instance_size       = batch->instance_count * (u32)sizeof(NYA_Render3DInstance);
+        u32 grass_instance_size = batch->grass_instance_count * (u32)sizeof(NYA_Render3DInstance);
 
         if (vertex_size > 0) {
             NYA_Vertex3D* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->transfer_buffer, true);
@@ -2062,6 +2207,13 @@ void _nya_render3d_playback(NYA_Window* window) {
             SDL_UnmapGPUTransferBuffer(gpu_device, batch->instance_transfer_buffer);
         }
 
+        if (grass_instance_size > 0) {
+            void* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->grass_instance_transfer_buffer, true);
+            nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the grass instance stream: %s", SDL_GetError());
+            nya_memcpy(mapped, batch->grass_instances, grass_instance_size);
+            SDL_UnmapGPUTransferBuffer(gpu_device, batch->grass_instance_transfer_buffer);
+        }
+
         // one copy pass for the whole scene, since a copy pass cannot run inside a render pass.
         _nya_render2d_pass_suspend(window);
 
@@ -2075,6 +2227,7 @@ void _nya_render3d_playback(NYA_Window* window) {
             { batch->transfer_buffer, batch->vertex_buffer, vertex_size },
             { batch->index_transfer_buffer, batch->index_buffer, index_size },
             { batch->instance_transfer_buffer, batch->instance_buffer, instance_size },
+            { batch->grass_instance_transfer_buffer, batch->grass_instance_buffer, grass_instance_size },
         };
 
         for (u32 i = 0; i < nya_carray_length(uploads); i++) {
@@ -2128,10 +2281,11 @@ void _nya_render3d_playback(NYA_Window* window) {
     batch->transparent.index_count  = 0;
     batch->transparent.object_count = 0;
 
-    batch->instance_count    = 0;
-    batch->mesh_group_count  = 0;
-    batch->segment_count     = 0;
-    render->decals_gpu.count = 0;
+    batch->instance_count       = 0;
+    batch->grass_instance_count = 0;
+    batch->mesh_group_count     = 0;
+    batch->segment_count        = 0;
+    render->decals_gpu.count    = 0;
 
     _nya_render3d_segment_open(window);
 }
@@ -2197,6 +2351,12 @@ void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
         if (segment->foliage != nullptr) {
             // only the camera pass: foliage casts no shadow, so the cascades never draw it. see nya_render3d_foliage.
             if (pass == 0) _nya_render3d_foliage_draw(window, segment, uniform);
+            continue;
+        }
+
+        if (segment->grass != nullptr) {
+            // only the camera pass, exactly like foliage: a field of blades casts no shadow. see nya_render3d_grass.
+            if (pass == 0) _nya_render3d_grass_draw(window, segment, uniform);
             continue;
         }
 
@@ -2668,6 +2828,60 @@ void _nya_render3d_foliage_draw(NYA_Window* window, const NYA_Render3DSegment* s
     batch->frame_draw_calls++;
     nya_trace_draws(1);
     batch->frame_vertices += registered->vertex_count;
+}
+
+void _nya_render3d_grass_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    if (segment->grass_count == 0) return;
+
+    // released since it was recorded, or its copy has not run.
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, segment->grass);
+
+    if (registered == nullptr || registered->pending_upload != nullptr || registered->vertex_count == 0) return;
+
+    // still loading on the first frames, like a textured mesh.
+    NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)NYA_RENDER3D_PIPELINE_FOLIAGE_INSTANCED);
+
+    if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
+
+    SDL_GPUGraphicsPipeline* build = _nya_render_pipeline(window, pipeline);
+    if (build == nullptr) return;
+
+    // the camera's matrix: pass zero, the only one grass draws in.
+    f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, 0);
+
+    SDL_BindGPUGraphicsPipeline(render->render_pass, build);
+
+    // buffer 0: the shared blade geometry. buffer 1: this field's run of the grass instance stream. the run's
+    // first copy is bound as the offset so the draw's first instance stays zero, as the retained path does.
+    SDL_BindGPUVertexBuffers(
+        render->render_pass,
+        0,
+        (SDL_GPUBufferBinding[]){
+            { .buffer = registered->vertices },
+            { .buffer = batch->grass_instance_buffer, .offset = segment->grass_first_instance * (u32)sizeof(NYA_Render3DInstance) },
+        },
+        2
+    );
+
+    // view-projection at b0, the shared wind/sway/tint at b1 — the same split the scalar foliage path uses.
+    SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
+    SDL_PushGPUVertexUniformData(render->render_commands, 1, segment->foliage_uniform, sizeof(*segment->foliage_uniform));
+
+    // grass reuses mesh3d.frag, so it is lit and receives shadows like any mesh.
+    SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+
+    // untextured: no base colour, but mesh3d.frag always declares the shadow map's sampler.
+    _nya_render3d_bind_samplers(window, nullptr, nullptr);
+
+    SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, segment->grass_count, 0, 0);
+
+    batch->frame_draw_calls++;
+    nya_trace_draws(1);
+    batch->frame_vertices  += registered->vertex_count * segment->grass_count;
+    batch->frame_instances += segment->grass_count;
 }
 
 void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {

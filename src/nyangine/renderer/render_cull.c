@@ -44,6 +44,15 @@ NYA_INTERNAL __attr_allow_unused u32 _nya_render3d_pass_indices(const NYA_Render
 /** The first run of entries in [at, end) whose mask has `pass`, as its start and length. Zero when there is none. */
 NYA_INTERNAL __attr_allow_unused u32 _nya_render3d_pass_run(const u8* passes, u32 at, u32 end, u32 pass, OUT u32* out_first) __attr_no_discard;
 
+/**
+ * The world bounding sphere of an instanced grass patch, from its instance placements. The centre is the midpoint of
+ * the instance translations' box; the radius is half its diagonal plus the reach of the tallest blade and how far the
+ * sway throws its tip (`sway_reach`), both grown by the largest instance scale. Culls the field as one and picks its
+ * disturbers. `count` must be at least one. See nya_render3d_grass.
+ * */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_grass_bounds(const NYA_Render3DInstance* instances, u32 count, f32 blade_radius,
+                                                                 f32 sway_reach, OUT f32x3* out_center, OUT f32* out_radius);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION
@@ -211,4 +220,40 @@ b8 nya_render3d_skinned_bounds(const f32_4x4* palette, u32 bone_count, f32_4x4 m
     *out_radius = nya_vector_length((maximum - minimum) * 0.5F) + (nya_vector_length(extent) * scale);
 
     return true;
+}
+
+void _nya_render3d_grass_bounds(const NYA_Render3DInstance* instances, u32 count, f32 blade_radius, f32 sway_reach, OUT f32x3* out_center,
+                                OUT f32* out_radius) {
+    nya_assert(instances != nullptr);
+    nya_assert(count > 0);
+    nya_assert(out_center != nullptr);
+    nya_assert(out_radius != nullptr);
+
+    // the translation is the model matrix's fourth column, the convention the skinned bounds and the sort read.
+    f32x3 minimum   = { instances[0].model[0][3], instances[0].model[1][3], instances[0].model[2][3] };
+    f32x3 maximum   = minimum;
+    f32   max_scale = 1.0F;
+
+    for (u32 i = 0; i < count; i++) {
+        const f32x3 origin = { instances[i].model[0][3], instances[i].model[1][3], instances[i].model[2][3] };
+
+        minimum = nya_min(minimum, origin);
+        maximum = nya_max(maximum, origin);
+
+        /*
+         * A column's length is that axis's scale, and the largest grows the margin: a scaled-up blade reaches
+         * further than the rest bounds, and one scale has to cover the whole field's sphere. The largest of the
+         * three, since a non-uniform scale still has to cover its longest direction. Rotation leaves it alone.
+         */
+        const f32 scale = nya_max(
+            nya_vector_length((f32x3){ instances[i].model[0][0], instances[i].model[1][0], instances[i].model[2][0] }),
+            nya_max(nya_vector_length((f32x3){ instances[i].model[0][1], instances[i].model[1][1], instances[i].model[2][1] }),
+                    nya_vector_length((f32x3){ instances[i].model[0][2], instances[i].model[1][2], instances[i].model[2][2] }))
+        );
+
+        max_scale = nya_max(max_scale, scale);
+    }
+
+    *out_center = (maximum + minimum) * 0.5F;
+    *out_radius = nya_vector_length((maximum - minimum) * 0.5F) + ((blade_radius + sway_reach) * max_scale);
 }

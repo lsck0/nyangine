@@ -29,6 +29,9 @@ typedef struct NYA_Window NYA_Window;
 // this file includes nothing that includes it, and nya_render3d_occlusion only takes a pointer.
 typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 
+// defined in renderer.h, which includes this file first; nya_render3d_grass only takes a pointer to it.
+typedef struct NYA_Render3DInstance NYA_Render3DInstance;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONSTANTS
@@ -115,6 +118,13 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
  * per-object pivot and the sampled wind that the fully-baked batch cannot. See nya_render3d_foliage.
  * */
 #define NYA_RENDER3D_PIPELINE_FOLIAGE "nya_foliage_pipeline"
+
+/**
+ * Instanced wind-swayed foliage: the foliage bend on a per-instance model matrix, so a whole field of
+ * blades sways from one instanced draw. The instanced counterpart to the foliage pipeline, exactly as the
+ * instanced mesh pipeline is to the immediate one. See nya_render3d_grass.
+ * */
+#define NYA_RENDER3D_PIPELINE_FOLIAGE_INSTANCED "nya_foliage_instanced_pipeline"
 
 #define NYA_RENDER3D_PIPELINE_OVERLAY "nya_mesh3d_overlay_pipeline"
 
@@ -231,6 +241,16 @@ static_assert(NYA_RENDER3D_MAX_VERTICES <= 65536, "the 3D batch's indices are si
  * */
 #ifndef NYA_RENDER3D_MAX_INSTANCES
 #define NYA_RENDER3D_MAX_INSTANCES 1024
+#endif
+
+/**
+ * Grass blades one frame can hold across every nya_render3d_grass patch. Higher than the retained ceiling
+ * because density is the whole point: a field is many blades in one instanced draw, on their own buffer so
+ * they do not spend the retained mesh budget. Blades past this are counted and dropped, never drawn wrong.
+ * Ceiling-registered. See nya_render3d_grass.
+ * */
+#ifndef NYA_RENDER3D_MAX_GRASS_INSTANCES
+#define NYA_RENDER3D_MAX_GRASS_INSTANCES 16384
 #endif
 
 /**
@@ -1058,6 +1078,31 @@ NYA_API void nya_render3d_foliage(NYA_Window* window, NYA_ConstCString handle, f
  * still sets `wind`, `time` and `tint`; this only chooses amplitude, frequency, stiffness and flutter.
  * */
 NYA_API NYA_Render3DFoliage nya_render3d_foliage_style(NYA_FoliageStyle style) __attr_no_discard;
+
+/**
+ * Draws a whole field of wind-swayed blades in ONE instanced draw: a registered blade mesh placed once per
+ * NYA_Render3DInstance, every copy bent about its base by the shared wind in `look`. This is
+ * nya_render3d_foliage's instanced sibling — density is the point, so a dense field costs one draw call
+ * rather than one per blade. Reuses NYA_Render3DInstance (a per-blade model matrix and tint); the shared
+ * wind, sway and tint come from `look`, and each blade's `look.model`/`look.phase` are ignored.
+ *
+ * Each blade's sway phase is derived from its own world position — the same hash nya_render3d_foliage runs
+ * when a caller leaves NYA_Render3DFoliage.phase unset — so a field of identical blades neither sways in
+ * lockstep nor is billed a per-instance phase attribute. Feed `look.wind`/`look.time` from one NYA_WindField
+ * so grass, leaves and water can all share it. Like foliage, grass is lit and receives shadows but casts
+ * none, and disturbers fed this frame (nya_render3d_foliage_disturb) part the nearest blades of the patch.
+ *
+ * Blades past NYA_RENDER3D_MAX_GRASS_INSTANCES in a frame are counted and dropped, never drawn wrong.
+ *
+ * ```c
+ * NYA_Render3DFoliage look = nya_render3d_foliage_style(NYA_FOLIAGE_GRASS);
+ * look.wind = nya_wind_sample(&wind, patch_center);
+ * look.time = wind.time;
+ * nya_render3d_grass(window, "grass_tuft", blades, blade_count, look);
+ * ```
+ * */
+NYA_API void nya_render3d_grass(NYA_Window* window, NYA_ConstCString blade_mesh, const NYA_Render3DInstance* instances, u32 count,
+                                NYA_Render3DFoliage look);
 
 /**
  * Adds a disturber for this frame: a sphere in world space that foliage bends away from, on top of the
