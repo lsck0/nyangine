@@ -15,11 +15,7 @@
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_ArenaActionType       NYA_ArenaActionType;
 typedef struct NYA_Arena               NYA_Arena;
@@ -31,11 +27,7 @@ typedef struct NYA_ArenaRegion         NYA_ArenaRegion;
 typedef struct NYA_ArenaStats          NYA_ArenaStats;
 typedef struct NYA_ArenaAction         NYA_ArenaAction;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ARENA STRUCTS
- * ─────────────────────────────────────────────────────────
- */
+// ARENA STRUCTS
 
 /**
  * A region is allocated, not reserved: _nya_arena_nodebug_alloc calls nya_malloc for
@@ -108,11 +100,7 @@ struct NYA_ArenaFreeListNode {
     NYA_ArenaFreeListNode *prev, *next;
 };
 
-/*
- * ─────────────────────────────────────────────────────────
- * MEMORY DEBUGGING STRUCTS
- * ─────────────────────────────────────────────────────────
- */
+// MEMORY DEBUGGING STRUCTS
 
 typedef void (*NYA_ArenaActionCallback)(NYA_ArenaAction action);
 
@@ -165,11 +153,7 @@ struct NYA_ArenaAction {
     };
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /**
  * Both arenas are initialized and deinitialized automatically for the main thread.
@@ -219,11 +203,7 @@ NYA_API void nya_arena_actions_set_callback(NYA_ArenaActionCallback callback);
 
 NYA_API u64 nya_arena_memory_usage_bytes(NYA_Arena* arena);
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTROSPECTION
- * ─────────────────────────────────────────────────────────
- */
+// INTROSPECTION
 
 /**
  * What an arena looks like right now, in one struct.
@@ -263,11 +243,7 @@ NYA_API NYA_ArenaStats nya_arena_stats(NYA_Arena* arena) __attr_no_discard;
  * */
 NYA_API u64 nya_arena_resident_bytes(NYA_Arena* arena) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * REGISTRY
- * ─────────────────────────────────────────────────────────
- */
+// REGISTRY
 
 /**
  * Every arena alive right now.
@@ -283,11 +259,7 @@ NYA_API NYA_Arena* nya_arena_registry_at(u32 index) __attr_no_discard;
  * */
 NYA_API void nya_arena_stats_report(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * CALLSITES
- * ─────────────────────────────────────────────────────────
- */
+// CALLSITES
 
 /**
  * Allocation totals per source location, which is the drill down the per arena view cannot give.
@@ -324,11 +296,7 @@ NYA_API void nya_arena_callsites_reset(void);
 /** Logs the `limit` callsites holding the most live bytes. The report you actually want when memory is climbing. */
 NYA_API void nya_arena_callsites_report(u32 limit);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 // clang-format off
 NYA_API NYA_Arena* _nya_arena_debug_create_with_options(NYA_ArenaOptions options, const char* function, const char* file, u32 line) __attr_no_discard;

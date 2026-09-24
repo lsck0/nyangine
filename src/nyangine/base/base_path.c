@@ -1,11 +1,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL b8 _nya_path_is_separator(char c);
 
@@ -17,11 +13,7 @@ NYA_INTERNAL u64 _nya_path_basename_start(NYA_ConstCString path, u64 length);
  * */
 NYA_INTERNAL u64 _nya_path_extension_start(NYA_ConstCString path, u64 length);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_String* nya_path_join(NYA_Arena* arena, NYA_ConstCString head, NYA_ConstCString tail) {
     nya_assert(arena != nullptr);
@@ -117,8 +109,7 @@ b8 nya_path_is_absolute(NYA_ConstCString path) {
     if (path[0] == '\0') return false;
     if (_nya_path_is_separator(path[0])) return true;
 
-    // "C:\..." and "C:/...". A bare "C:" is relative to that drive's working directory, so it does
-    // not count as absolute.
+    // "C:\..." and "C:/...". A bare "C:" is relative to that drive's working directory, so it does not count as absolute.
     if (isalpha((unsigned char)path[0]) && path[1] == ':' && _nya_path_is_separator(path[2])) return true;
 
     return false;
@@ -130,9 +121,7 @@ NYA_String* nya_path_normalize(NYA_Arena* arena, NYA_ConstCString path) {
 
     u64 length = strlen(path);
 
-    /*
-     * Sized to the segment table below rather than left at the default, which is a gibibyte.
-     * */
+    // Sized to the segment table below rather than left at the default, which is a gibibyte.
     u64 table_size   = (length + 1) * (sizeof(NYA_ConstCString) + sizeof(u64));
     u64 scratch_size = nya_max((u64)nya_kibyte_to_byte(4), (u64)(table_size + nya_kibyte_to_byte(1)));
 
@@ -197,15 +186,10 @@ NYA_String* nya_path_normalize(NYA_Arena* arena, NYA_ConstCString path) {
     return result;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_INTERNAL b8 _nya_path_is_separator(char c) {
-    // Backslash counts everywhere, not just on Windows: paths handed back by Windows APIs get
-    // parsed on whatever host is reading them.
+    // Backslash counts everywhere, not just on Windows: paths handed back by Windows APIs get parsed on whatever host is reading them.
     return c == '/' || c == '\\';
 }
 

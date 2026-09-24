@@ -14,9 +14,7 @@
 #include <fcntl.h>
 #include <fenv.h>
 #if !defined(__wasm__) && !defined(__EMSCRIPTEN__)
-// x86 SIMD intrinsics: the header exists only for x86 targets. The wasm target has no <immintrin.h>,
-// and the engine's SIMD paths (which -mavx/-mf16c enable) are not built there. Guarded off on wasm so
-// the native x86 build keeps this include exactly.
+// x86 SIMD intrinsics, x86-only: wasm has no <immintrin.h> and does not build the SIMD paths, so it is guarded off there while the native x86 build keeps this include exactly.
 #include <immintrin.h>
 #endif
 #include <inttypes.h>
@@ -32,12 +30,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-/*
- * Before <tgmath.h>, and only on Windows.
- */
+// Before <tgmath.h>, and only on Windows.
 #if defined(_WIN32) || defined(__CYGWIN__)
-// mingw-w64 before 12 (Ubuntu 24.04 ships 11) pulls in clang's deprecated <mm3dnow.h>, whose #warning
-// fails the build under -Werror.
+// mingw-w64 before 12 (Ubuntu 24.04 ships 11) pulls in clang's deprecated <mm3dnow.h>, whose #warning fails the build under -Werror.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-W#warnings"
 #include <intrin.h>
@@ -51,15 +46,10 @@
 #include <wchar.h>
 #include <wctype.h>
 
-// The only engine header here, and it has no includes of its own: the name maps below are file scope
-// tables that every translation unit gets a copy of, so they need __attr_allow_unused.
+// The only engine header here, and it has no includes of its own: the name maps below are file-scope tables every translation unit copies, so they need __attr_allow_unused.
 #include "nyangine/base/base_attributes.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DEBUG AND VERSION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// DEBUG AND VERSION
 
 #ifdef VERSION
 #define NYA_VERSION VERSION
@@ -80,9 +70,7 @@
 #define NYA_EXECUTION_MODE 0
 #endif
 
-/*
- * The five execution modes, and what each is for.
- */
+// The five execution modes, and what each is for.
 #define NYA_DEBUG     (NYA_EXECUTION_MODE == 0)
 #define NYA_DEVELOPER (NYA_EXECUTION_MODE == 1)
 #define NYA_RELEASE   (NYA_EXECUTION_MODE == 2)
@@ -99,28 +87,19 @@
 #error "NYA_NO_ASSERT is not supported: assertions stay enabled in every execution mode, shipping included."
 #endif
 
-/*
- * Whether the game is loaded from a shared library that can be swapped while it runs. Overridable so a
- * test can compile the reload machinery in a mode that would otherwise leave it out.
- */
+/* Whether the game is loaded from a hot-swappable shared library; overridable so a test can compile the reload machinery in a mode that would otherwise leave it out. */
 #ifndef NYA_CODE_HOT_RELOAD
 #define NYA_CODE_HOT_RELOAD NYA_DEVELOPMENT_BUILD
 #endif
 
-/*
- * Terminal: the engine runs and draws into a grid of character cells instead of into a swapchain.
- * Implies headless, because that is exactly what it is: no GPU device, no swapchain, no 3D. The
- * terminal backend then replaces the 2D drawing the headless build stubs out. See terminal.h.
- */
+/* Terminal: the engine draws into a grid of character cells instead of a swapchain; implies headless (no GPU, swapchain or 3D), the terminal backend replacing 2D drawing. See terminal.h. */
 #ifdef NYA_TERMINAL
 #define NYA_TERMINAL_ENABLED 1
 #else
 #define NYA_TERMINAL_ENABLED 0
 #endif
 
-/*
- * Headless: the engine runs, but nothing is drawn.
- */
+// Headless: the engine runs, but nothing is drawn.
 #if defined(NYA_HEADLESS) || NYA_TERMINAL_ENABLED
 #define NYA_HEADLESS_ENABLED 1
 #else
@@ -152,11 +131,7 @@ __attr_allow_unused static const char* const NYA_EXECUTION_MODE_NAME_MAP[NYA_EXE
     [NYA_EXECUTION_MODE_TEST]      = "test",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * COMPILER DETECTION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// COMPILER DETECTION
 
 #ifdef _MSC_VER
 #define COMPILER_MSVC 1
@@ -185,11 +160,7 @@ typedef enum {
 #endif
 } NYA_Compiler;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PLATFORM DETECTION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PLATFORM DETECTION
 
 #ifdef __wasm__
 #define OS_WASM 1
@@ -223,11 +194,7 @@ typedef enum {
 #endif
 } NYA_OperatingSystem;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ARCHITECTURE DETECTION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ARCHITECTURE DETECTION
 
 #ifdef __wasm32__
 #define ARCH_WASM32 1
@@ -271,17 +238,9 @@ typedef enum {
 #endif
 } NYA_Architecture;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ADDRESS SANITIZATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ADDRESS SANITIZATION
 
-// The header is checked for separately from the feature. A toolchain can be perfectly capable of
-// -fsanitize=address while shipping the runtime headers in a package nobody installed, which is the
-// normal state of a CI container. Without the header the manual poisoning below is compiled out and
-// ASan still catches everything it finds on its own, which is a far better outcome than refusing to
-// build.
+// The header is checked separately from the feature: a toolchain may do -fsanitize=address yet ship its runtime headers uninstalled, so without the header the manual poisoning compiles out and ASan still works.
 #if defined(__has_feature) && __has_feature(address_sanitizer) && __has_include(<sanitizer/asan_interface.h>)
 #include <sanitizer/asan_interface.h>
 #define ASAN_ENABLED                            true
@@ -297,11 +256,7 @@ static_assert(ASAN_PADDING >= 0);
 static_assert(ASAN_PADDING >= 0);
 #endif // defined(__has_feature) && __has_feature(address_sanitizer)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VISIBILITY AND LINKAGE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// VISIBILITY AND LINKAGE
 
 #if COMPILER_CLANG || COMPILER_GCC
 #define NYA_INTERNAL __attribute__((visibility("hidden"))) static
@@ -329,8 +284,7 @@ static_assert(ASAN_PADDING >= 0);
 #define NYA_EXTERN extern
 #endif
 
-// exported only where a hot reloaded game DLL links against the executable. An export is a GC root, so a release
-// exe exporting the whole API would keep every function the game never calls, and all they reach.
+// Exported only where a hot-reloaded game DLL links against the executable: an export is a GC root, so a release exe exporting the whole API would keep every function the game never calls.
 #if OS_WINDOWS && NYA_DEVELOPMENT_BUILD
 #define NYA_API __declspec(dllexport) NYA_EXTERN
 #elif OS_WINDOWS
@@ -339,11 +293,7 @@ static_assert(ASAN_PADDING >= 0);
 #define NYA_API __attribute__((visibility("default"))) NYA_EXTERN
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * OTHER CODEBASE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// OTHER CODEBASE MACROS
 
 #define atomic       _Atomic
 #define thread_local _Thread_local
@@ -352,7 +302,6 @@ static_assert(ASAN_PADDING >= 0);
 
 #define OUT
 
-// the impl non-sense is such that not the symbol is concatenated
-// but the value after the preprocessor replaces the symbol
+// The impl nonsense is such that it concatenates not the symbol but the value after the preprocessor replaces the symbol.
 #define CONCAT(a, b)       _CONCAT_IMPL(a, b)
 #define _CONCAT_IMPL(a, b) a##b

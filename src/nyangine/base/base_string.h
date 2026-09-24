@@ -11,22 +11,14 @@
 #define NYA_FMT_STRING          "%.*s"
 #define NYA_FMT_STRING_ARG(str) (s32)((str)->length), ((str)->items)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef NYA_Arrayᐸu8ᐳ NYA_String;
 nya_derive_array(NYA_String);
 nya_derive_array(NYA_CString);
 nya_derive_array(NYA_ConstCString);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 NYA_API b8                     nya_string_contains(const NYA_String* str, NYA_ConstCString substr) __attr_overloaded;
 NYA_API b8                     nya_string_contains(const NYA_String* str, const NYA_String* substr) __attr_overloaded;
@@ -85,19 +77,7 @@ NYA_API void                   nya_string_to_lower(NYA_String* str);
 NYA_API void                   nya_string_to_upper(NYA_String* str);
 NYA_API void                   nya_string_trim_whitespace(NYA_String* str);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * UTF-8
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * NYA_String is bytes: `length`, indexing and every function above work on bytes.
- *
- * These walk a string as characters, for the two places that need it: the text renderer picking
- * glyphs and i18n counting what a translator wrote.
- *
- * Not a Unicode library: no normalisation, no case mapping outside ASCII, no grapheme clustering, no
- * bidirectional text. Each needs real data tables, and a half implementation is worse than none.
- */
+/* UTF-8: NYA_String is bytes; these walk it as characters for the text renderer and i18n. Not a Unicode library: no normalisation, case mapping outside ASCII, grapheme clustering or bidi. */
 
 /** How many bytes the sequence starting at `cursor` occupies, from its lead byte. Never zero. */
 NYA_API u32 nya_utf8_length(NYA_ConstCString cursor) __attr_no_discard;

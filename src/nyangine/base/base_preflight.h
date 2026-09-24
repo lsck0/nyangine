@@ -46,11 +46,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRESENT / ABSENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRESENT / ABSENT
 
 /**
  * Whether `name` is a program that could be run, resolved the way a spawn would resolve it.
@@ -69,11 +65,7 @@ NYA_API b8 nya_preflight_program_present(NYA_ConstCString name) __attr_no_discar
  * */
 NYA_API b8 nya_preflight_library_present(NYA_ConstCString soname) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * REQUIRE (CRASH WHEN ABSENT)
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// REQUIRE (CRASH WHEN ABSENT)
 
 /**
  * Crashes now, naming the dependency, unless `name` is a program on PATH.

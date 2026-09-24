@@ -1,11 +1,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 typedef struct {
     NYA_LogSink callback;
@@ -123,11 +119,7 @@ NYA_INTERNAL void _nya_log_dispatch(
 );
 NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) __attr_noreturn;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_LogLevel nya_log_level_get(void) {
     return _nya_log_level_current;
@@ -152,8 +144,7 @@ NYA_ConstCString nya_log_tag_get(void) {
 }
 
 void nya_log_sink_add(NYA_LogSink sink, void* user_data) {
-    // registered on first use, since logging has no init and comes up before everything. Guarded so
-    // tests adding and clearing sinks in a loop register once.
+    // Registered on first use, since logging has no init and comes up before everything; guarded so tests adding and clearing sinks in a loop register once.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("log_sinks", NYA_LOG_SINK_MAX, &_nya_log_sink_count);
@@ -172,9 +163,7 @@ b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data) {
     for (u32 i = 0; i < _nya_log_sink_count; i++) {
         if (_nya_log_sinks[i].callback != sink || _nya_log_sinks[i].user_data != user_data) continue;
 
-        // Shifted down rather than swapped with the last, because sinks are notified in registration
-        // order and a swap would silently reorder the ones that stay. The list is NYA_LOG_SINK_MAX long,
-        // so the move is a handful of entries.
+        // Shifted down rather than swapped with the last, since sinks are notified in registration order and a swap would silently reorder those that stay; the list is short, so the move is a handful.
         for (u32 j = i + 1; j < _nya_log_sink_count; j++) _nya_log_sinks[j - 1] = _nya_log_sinks[j];
 
         _nya_log_sink_count--;
@@ -191,8 +180,7 @@ void nya_log_sink_clear(void) {
 }
 
 void nya_log_record_sink_add(NYA_LogRecordSink sink, void* user_data) {
-    // See nya_log_sink_add's identical comment; guarded against the registry being full because a program
-    // that registers no record sink should never have paid for the ceiling.
+    // See nya_log_sink_add's comment; guarded against the registry being full because a program registering no record sink should never pay for the ceiling.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         ceiling_registered = true;
@@ -225,23 +213,11 @@ b8 nya_log_record_sink_remove(NYA_LogRecordSink sink, void* user_data) {
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * RING
- * ─────────────────────────────────────────────────────────
- */
+// RING
 
 /** Copies one rendered line into the ring, evicting the oldest once it is full. */
 NYA_INTERNAL void _nya_log_ring_push(NYA_LogLevel level, NYA_ConstCString message, u32 length) {
-    /*
-     * See nya_log_sink_add's identical comment.
-     *
-     * Two differences from every other ceiling, both because this is the only one registered from the
-     * log path itself. The flag is set before the call, not after, or a registration that logs arrives
-     * back here with the flag still false and recurses until the stack runs out. And room is asked for
-     * first, because a refusal warns, and a warning is a log line: best effort rather than a warning
-     * that would report itself.
-     */
+    /* See nya_log_sink_add's comment; the flag is set before the call, not after, or a registration that logs recurses forever, and room is asked for first since a refusal is itself a log line. */
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         ceiling_registered = true;
@@ -301,8 +277,7 @@ NYA_Error nya_log_file_open(NYA_ConstCString path) {
     if (path == nullptr) return NYA_OK;
 
 #if OS_WINDOWS
-    // shared for writing as well, as O_APPEND is on Linux: a second process logging to the same day's file,
-    // a second copy of the game or a crashing child, was refused its log. FILE_APPEND_DATA keeps each write whole.
+    // Shared for writing too, as O_APPEND is on Linux: a second process logging to the same day's file was refused; FILE_APPEND_DATA keeps each write whole.
     _nya_log_file = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (_nya_log_file == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "could not open the log file '%s'", path);
 #else
@@ -524,11 +499,7 @@ void _nya_crash_prevent_pop(jmp_buf* previous) {
 }
 #endif // NYA_TESTING
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_log_line_append(OUT char* buffer, u32 capacity, u32* length, NYA_ConstCString format, ...) {
     if (*length + 1 >= capacity) return;
@@ -582,14 +553,12 @@ void _nya_log_dispatch(
 
     for (u32 i = 0; i < count; i++) _nya_log_field_append_human(buffer, sizeof(buffer), &length, &fields[i]);
 
-    // Visible on the human line rather than only in the record: a reader of the ring sees the fields were
-    // refused rather than reading a line that quietly carries none.
+    // Visible on the human line, not only in the record, so a reader of the ring sees the fields were refused rather than reading a line that quietly carries none.
     if (fields_overflowed) _nya_log_line_append(buffer, sizeof(buffer), &length, "%s", " (fields dropped: over NYA_LOG_FIELD_MAX)");
 
     _nya_log_emit(level, buffer, length);
 
-    // The structured seam. The human line above is already in the ring and the file, so a record sink is a
-    // second rendering of the same event and never the only copy of it.
+    // The structured seam: the human line above is already in the ring and file, so a record sink is a second rendering of the same event, never the only copy.
     if (_nya_log_record_sink_count > 0) {
         NYA_LogRecord record = {
             .level             = level,
@@ -610,8 +579,7 @@ void _nya_log_dispatch(
 void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCString file, u32 line, NYA_ConstCString format, ...) {
     if (level < _nya_log_level_current) return;
 
-    // Formatted first, then dispatched as a fieldless record, so a plain nya_log_* line reaches a record
-    // sink too, as one JSON object with a message and no fields.
+    // Formatted first, then dispatched as a fieldless record, so a plain nya_log_* line reaches a record sink too, as one JSON object with a message and no fields.
     char    body[NYA_LOG_MESSAGE_MAX_LENGTH];
     va_list args;
     va_start(args, format);
@@ -643,17 +611,7 @@ void _nya_log_fields(
     _nya_log_dispatch(level, function, file, line, message, fields, count, overflowed);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * JSON RENDERING
- * ─────────────────────────────────────────────────────────
- *
- * Hand rolled rather than through serde, because base sits below it: a base module cannot reach up to
- * nya_serialize, and a JSON line must render with no allocation anyway. Every append reserves two trailing
- * bytes for the closing brace and the terminator, so a member that does not fit fails cleanly and the object
- * is still closed and still parses. This is the same fail-whole-or-not-at-all discipline http_log's record
- * builder uses, applied a member at a time.
- */
+/* JSON RENDERING: hand-rolled since base sits below serde and a log line must not allocate; each append reserves room for the closing brace, so a member that does not fit fails cleanly and the object still parses. */
 
 /** Copies `n` bytes when they fit alongside the two reserved bytes. False, having written nothing, otherwise. */
 NYA_INTERNAL b8 _nya_log_json_raw(OUT char* out, u64 capacity, u32* length, NYA_ConstCString bytes, u64 n) {
@@ -732,8 +690,7 @@ NYA_INTERNAL b8 _nya_log_json_member_literal(OUT char* out, u64 capacity, u32* l
 u32 nya_log_record_render_json(const NYA_LogRecord* record, OUT char* out, u64 capacity) {
     if (out == nullptr || capacity == 0) return 0;
 
-    // Smaller than "{}" and a terminator cannot hold valid JSON, so return the empty string rather than a
-    // brace with nowhere to close it.
+    // Smaller than "{}" and a terminator cannot hold valid JSON, so return the empty string rather than a brace with nowhere to close it.
     if (record == nullptr || capacity < 3) {
         out[0] = '\0';
         return 0;
@@ -784,8 +741,7 @@ u32 nya_log_record_render_json(const NYA_LogRecord* record, OUT char* out, u64 c
             default: break;
         }
 
-        // A member that would overflow stops the fields here rather than writing half of one; the object is
-        // still closed below, so a reader always gets a whole record or a shorter whole record, never a torn one.
+        // A member that would overflow stops the fields here rather than writing half of one; the object is still closed below, so a reader always gets a whole record, never a torn one.
         if (!ok) break;
     }
 
@@ -895,8 +851,7 @@ NYA_INTERNAL void _nya_log_file_write(NYA_LogLevel level, NYA_ConstCString messa
     _nya_log_file_buffer_length                         += length;
     _nya_log_file_buffer[_nya_log_file_buffer_length++]  = '\n';
 
-    // Anything at WARN or worse is what someone will be reading the file for, and the process may
-    // not survive to fill the buffer, so do not let it sit there.
+    // Anything at WARN or worse is what someone will read the file for, and the process may not survive to fill the buffer, so do not let it sit there.
     if (level >= NYA_LOG_LEVEL_WARN) _nya_log_file_flush_locked();
 
     atomic_flag_clear(&_nya_log_file_lock);
@@ -929,9 +884,7 @@ void nya_log_write_stderr(NYA_ConstCString text, u32 length) {
  * ordering rules stay readable: prevention is checked before we ever get here.
  * */
 NYA_INTERNAL void _nya_crash_report(const NYA_CrashInfo* info) {
-    // Static rather than a local: this is around 11 KiB, and on the fault path we are running on
-    // the alternate signal stack where that much is not free. Safe because the reentrancy guard
-    // and the crash latch together mean only one thread ever reaches this, exactly once.
+    // Static, not local: this is ~11 KiB and the fault path runs on the alternate signal stack where that is not free; safe since the reentrancy guard and crash latch let only one thread reach it, once.
     static u8 buffer[NYA_CRASH_MESSAGE_MAX_LENGTH + (NYA_BACKTRACE_DEPTH_MAX * 160)];
 
     s32 written = snprintf(
@@ -948,8 +901,7 @@ NYA_INTERNAL void _nya_crash_report(const NYA_CrashInfo* info) {
 
     u32 length = (u32)written < sizeof(buffer) ? (u32)written : (u32)sizeof(buffer) - 1;
 
-    // Composed into one buffer and emitted once, so the report reaches every sink as a single
-    // record rather than as a header and a trace that a log file could interleave.
+    // Composed into one buffer and emitted once, so the report reaches every sink as a single record rather than a header and trace a log file could interleave.
     length += nya_backtrace_format(&info->backtrace, &buffer[length], (u32)sizeof(buffer) - length);
 
     // The sinks take a line, not a block: trim the trailing newline so nothing adds a second one.
@@ -982,8 +934,7 @@ NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) {
     _nya_crash_depth++;
 
 #ifdef NYA_TESTING
-    // Checked before reporting on purpose: a test that provokes a panic must not fire telemetry or
-    // pop a crash window. Faults are never preventable.
+    // Checked before reporting on purpose: a test that provokes a panic must not fire telemetry or pop a crash window; faults are never preventable.
     if (_nya_crash_prevent_jmp != nullptr && info->source != NYA_CRASH_SOURCE_FAULT) {
         _nya_crash_prevent_info   = *info;
         _nya_crash_prevent_caught = true;
@@ -1006,28 +957,21 @@ NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) {
     }
 #endif // NYA_TESTING
 
-    // Only the first thread to crash gets to report. The rest would race the observers and, on the
-    // fault path, race the report writer for the same file.
+    // Only the first thread to crash gets to report; the rest would race the observers and, on the fault path, race the report writer for the same file.
     b8 expected = false;
     if (!atomic_compare_exchange_strong(&_nya_crash_latched, &expected, true)) _exit(EXIT_FAILURE);
 
     _nya_crash_report(info);
 
-    // The crash latch means this thread is the only one reporting, and a thread killed mid-append
-    // could still be holding the lock, so flush without taking it.
+    // The crash latch means this thread is the only one reporting, and a thread killed mid-append could still hold the lock, so flush without taking it.
     _nya_log_file_flush_locked();
 
     if (NYA_EXECUTION_MODE_CURRENT == NYA_EXECUTION_MODE_DEBUG) __builtin_debugtrap();
 
-    // Opt-in supervised restart, after the report is written and the log flushed: a supervisor armed
-    // through NYA_SUPERVISE re-execs this process here rather than letting it die. It returns only when
-    // it decides not to — off by default, out of restart budget, or the exec itself failed — and then
-    // the crash surfaces through the exit below, exactly as it did before this existed. Safe on the
-    // fault path: the re-exec uses only async-signal-safe calls. See base_supervisor.h.
+    // Opt-in supervised restart after the report and flush: a supervisor armed through NYA_SUPERVISE re-execs here and returns only when it decides not to; async-signal-safe. See base_supervisor.h.
     _nya_supervisor_on_fatal(info->fault_path);
 
-    // _exit on the fault path: atexit handlers and stdio flushing are not async signal safe, and
-    // everything we had to say has already gone out through write(2).
+    // _exit on the fault path: atexit handlers and stdio flushing are not async-signal-safe, and everything we had to say already went out through write(2).
     if (info->fault_path) _exit(EXIT_FAILURE);
 
     exit(EXIT_FAILURE);

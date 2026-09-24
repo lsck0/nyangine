@@ -37,11 +37,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_compare.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** Name of the heap type derived for `type`, e.g. NYA_Heapᐸs32ᐳ. */
 #define _nya_derive_heap_name(type) nya_template(NYA_Heap, type)
@@ -57,11 +53,7 @@
     } _nya_derive_heap_name(type)
 // NOLINTEND(bugprone-macro-parentheses)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CREATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CREATION MACROS
 
 #define _NYA_HEAP_DEFAULT_CAPACITY 16
 
@@ -101,8 +93,7 @@
     ({                                                                                                                                               \
         nya_assert_type_match(arena_ptr, (NYA_Arena*)0);                                                                                             \
         nya_assert_type_match(carray_length, (u64)0);                                                                                                \
-        /* Assigned rather than nya_assert_type_match'd: that is __builtin_types_compatible_p, which \
-         * does not apply array-to-pointer decay and so rejected the `item_type[N]` this is for.  */ \
+        /* Assigned rather than nya_assert_type_match'd: that is __builtin_types_compatible_p, which does not decay arrays and so rejected the `item_type[N]` this is for. */ \
         item_type*                        _heap_from_items = (carray);                                                                               \
         u64                               _heap_from_count = (carray_length);                                                                        \
         _nya_derive_heap_name(item_type)* _heap_from_ptr = nya_heap_create_with_capacity(arena_ptr, item_type, compare_fn, _heap_from_count);        \
@@ -113,8 +104,7 @@
 
 #define nya_heap_resize(heap_ptr, new_capacity)                                                                                                      \
     ({                                                                                                                                               \
-        /* Same fix, and same reason, as nya_array_resize: nya_arena_realloc returns null for a null \
-         * pointer by design, so a heap that started at capacity zero could never grow.  */          \
+        /* Same fix and reason as nya_array_resize: nya_arena_realloc returns null for a null pointer, so a heap starting at capacity zero could never grow. */ \
         (heap_ptr)->items = (heap_ptr)->items == nullptr                                                                                             \
                               ? nya_arena_alloc((heap_ptr)->arena, (new_capacity) * sizeof(*(heap_ptr)->items))                                     \
                               : nya_arena_realloc(                                                                                                  \
@@ -142,9 +132,7 @@
         (heap_ptr) = nullptr;                                                                                                                        \
     })
 
-/*
- * Note this takes the heap by value, where nya_heap_destroy takes a pointer.
- */
+// Note this takes the heap by value, where nya_heap_destroy takes a pointer.
 #define nya_heap_destroy_on_stack(heap_ptr)                                                                                                          \
     ({                                                                                                                                               \
         nya_arena_free((heap_ptr).arena, (heap_ptr).items, sizeof(*(heap_ptr).items) * (heap_ptr).capacity);                                         \
@@ -153,11 +141,7 @@
         (heap_ptr).capacity = 0;                                                                                                                     \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCESS MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCESS MACROS
 
 #define nya_heap_peek(heap_ptr)                                                                                                                      \
     ({                                                                                                                                               \
@@ -165,11 +149,7 @@
         (heap_ptr)->items[0];                                                                                                                        \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ADD / INSERT / REMOVE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ADD / INSERT / REMOVE MACROS
 
 #define nya_heap_push(heap_ptr, item)                                                                                                                \
     ({                                                                                                                                               \
@@ -220,10 +200,6 @@
         item;                                                                                                                                        \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MISC MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MISC MACROS
 
 #define nya_heap_length(heap_ptr) ((heap_ptr)->length)

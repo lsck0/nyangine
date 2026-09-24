@@ -1,16 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 u64 nya_hash_fnv1a(const void* data, u64 size) __attr_overloaded {
     nya_assert(data != nullptr);
@@ -55,9 +47,7 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(NYA_String st
     return hash;
 }
 
-/*
- * wyhash's default secret. The first word doubles as the seed mix, as in the reference.
- */
+// wyhash's default secret. The first word doubles as the seed mix, as in the reference.
 NYA_INTERNAL const u64 _NYA_WYHASH_SEED = 0xca813bf4c7abf0a9ULL;
 NYA_INTERNAL const u64 _NYA_WYHASH_P0   = 0x2d358dccaa6c78a5ULL;
 NYA_INTERNAL const u64 _NYA_WYHASH_P1   = 0x8bb84b93962eacc9ULL;
@@ -151,10 +141,7 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 _nya_hash_wyhash(const void*
     return _nya_wyhash_mix(a ^ _NYA_WYHASH_P0 ^ size, b ^ _NYA_WYHASH_P1);
 }
 
-/*
- * SipHash-2-4, the reference construction. Two compression rounds per 8 byte block and four
- * finalization rounds, which is where the name comes from.
- */
+/* SipHash-2-4, the reference construction: two compression rounds per 8-byte block and four finalization rounds, where the name comes from. */
 
 #define _NYA_SIPROUND(a, b, c, d)                                                                                                                    \
     do {                                                                                                                                             \
@@ -191,8 +178,7 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_siphash(const void* data
     u64 whole_blocks = size - (size % 8);
 
     for (u64 offset = 0; offset < whole_blocks; offset += 8) {
-        // Read byte by byte rather than casting to a u64*: the input may be unaligned, and this
-        // keeps the result identical on a big endian machine.
+        // Read byte by byte rather than casting to a u64*: the input may be unaligned, and this keeps the result identical on a big-endian machine.
         u64 block = 0;
         for (u32 i = 0; i < 8; i++) block |= (u64)bytes[offset + i] << (i * 8);
 
@@ -202,8 +188,7 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_siphash(const void* data
         v0 ^= block;
     }
 
-    // The tail block carries the length in its top byte, which is what stops two inputs differing
-    // only in trailing zero bytes from hashing alike.
+    // The tail block carries the length in its top byte, which stops two inputs differing only in trailing zero bytes from hashing alike.
     u64 tail = (size & 0xFF) << 56;
     for (u64 i = whole_blocks; i < size; i++) tail |= (u64)bytes[i] << ((i - whole_blocks) * 8);
 

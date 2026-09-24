@@ -2,11 +2,7 @@
 #include "nyangine/base/base_clock_format.h"
 #include "nyangine/base/base_clock_instant.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Where a parse has got to in its input. Every read goes through it, so none can pass `length`. */
 typedef struct {
@@ -59,17 +55,9 @@ NYA_INTERNAL NYA_TimeParse _nya_rfc9110_parse(_NYA_TimeCursor* cursor, OUT NYA_I
 /** `value` as exactly `count` digits, zero padded. */
 NYA_INTERNAL void _nya_time_write_digits(OUT u8* out, u32 value, u32 count);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * RFC 3339
- * ─────────────────────────────────────────────────────────
- */
+// RFC 3339
 
 u32 nya_instant_to_rfc3339(NYA_Instant instant, OUT u8* buffer, u32 capacity) {
     nya_assert(buffer != nullptr);
@@ -130,11 +118,7 @@ NYA_TimeParse nya_instant_from_rfc3339(const u8* text, u64 length, OUT NYA_Insta
     return result;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * RFC 9110
- * ─────────────────────────────────────────────────────────
- */
+// RFC 9110
 
 u32 nya_instant_to_rfc9110(NYA_Instant instant, OUT u8* buffer, u32 capacity) {
     nya_assert(buffer != nullptr);
@@ -214,11 +198,7 @@ NYA_ConstCString nya_time_parse_text(NYA_TimeParse result) {
     static_assert(NYA_TIME_PARSE_COUNT == 20, "Unhandled NYA_TimeParse enum value.");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_TimeParse _nya_rfc3339_parse(_NYA_TimeCursor* cursor, OUT NYA_Instant* out_instant) {
     u32 year  = 0;
@@ -307,8 +287,7 @@ NYA_TimeParse _nya_rfc9110_parse(_NYA_TimeCursor* cursor, OUT NYA_Instant* out_i
 
     if (cursor->position == cursor->length) return NYA_TIME_PARSE_TRUNCATED;
 
-    // "Sunday, 06-Nov-94" carries on with the day's name; "Sun Nov  6" has a space. Named for what they
-    // are, so a refusal of either says which rule and not only that a comma was missing.
+    // "Sunday, 06-Nov-94" carries on with the day's name; "Sun Nov  6" has a space. Named for what they are, so a refusal says which rule, not just that a comma was missing.
     u8 after_name = cursor->text[cursor->position];
     if ((after_name >= 'a' && after_name <= 'z') || after_name == ' ') return NYA_TIME_PARSE_OBSOLETE_FORMAT;
 
@@ -346,8 +325,7 @@ NYA_TimeParse _nya_rfc9110_parse(_NYA_TimeCursor* cursor, OUT NYA_Instant* out_i
 
     if (cursor->position != cursor->length) return NYA_TIME_PARSE_TRAILING_BYTES;
 
-    // a mismatched day name means the sender computed the date wrong or edited half of it; either way
-    // this is not the moment it meant, and trusting the numbers over the name would be a guess.
+    // A mismatched day name means the sender computed the date wrong or edited half of it; either way this is not the moment it meant, and trusting the numbers over the name would be a guess.
     if ((u32)nya_date_weekday(date) != weekday) _NYA_TIME_FAIL_AT(cursor, 0, NYA_TIME_PARSE_WEEKDAY_MISMATCH);
 
     if (!_nya_time_compose(date, time, 0, out_instant)) _NYA_TIME_FAIL_AT(cursor, 0, NYA_TIME_PARSE_OUT_OF_RANGE);

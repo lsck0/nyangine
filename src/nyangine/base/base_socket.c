@@ -5,11 +5,7 @@
 #include "nyangine/base/base_socket.h"
 #include "nyangine/base/base_thread.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** Bytes a name may take, terminator included. A hostname is at most 253 by the standard. */
 #define _NYA_RESOLVER_MAX_HOST 256
@@ -40,11 +36,7 @@ struct NYA_Resolver {
     b8 abandoned;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The whole of the thread: one blocking lookup, then the flag that says so. */
 NYA_INTERNAL void _nya_resolver_run(void* data);
@@ -58,11 +50,7 @@ NYA_INTERNAL void _nya_resolver_run(void* data);
  * */
 NYA_INTERNAL b8 _nya_resolver_is_literal(NYA_ConstCString host) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_resolver_create(NYA_Arena* arena, NYA_ConstCString host, u16 port, NYA_OsAddressKind prefer, NYA_Resolver** out_resolver) {
     nya_assert(arena != nullptr && out_resolver != nullptr);
@@ -81,14 +69,7 @@ NYA_Error nya_resolver_create(NYA_Arena* arena, NYA_ConstCString host, u16 port,
 
     (void)snprintf(resolver->host, sizeof(resolver->host), "%s", host);
 
-    /*
-     * A literal is answered here, on this thread, because turning "127.0.0.1" into four bytes asks
-     * nobody anything: a thread for that would cost more than the work and would make the answer
-     * arrive a frame later than it has to.
-     *
-     * The shape is checked before the call rather than after it, because the call is the thing that
-     * may block: a name goes to the host's resolver whatever this function then does with the answer.
-     */
+    /* A literal is answered here on this thread, since turning "127.0.0.1" into four bytes asks nobody anything; the shape is checked before the call because a name goes to the host's resolver, which may block. */
     if (_nya_resolver_is_literal(resolver->host)) {
         resolver->status = nya_os_address_resolve(resolver->host, port, prefer, &resolver->address);
         resolver->done   = true;
@@ -133,11 +114,7 @@ void nya_resolver_destroy(NYA_Resolver* resolver) {
         return;
     }
 
-    /*
-     * Still inside the host's resolver, which is a call nothing can cancel. Waiting for it here would
-     * be the frame stall this whole file exists to avoid, so the thread is let go and the struct it
-     * writes into is left alive until the arena takes it.
-     */
+    /* Still inside the host's resolver, a call nothing can cancel: waiting here would be the frame stall this file exists to avoid, so the thread is let go and its struct left alive until the arena takes it. */
     nya_thread_abandon(resolver->thread);
 
     resolver->thread    = nullptr;
@@ -154,11 +131,7 @@ NYA_ConstCString nya_resolver_error(const NYA_Resolver* resolver) {
     return "the host's resolver refused to answer";
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_resolver_is_literal(NYA_ConstCString host) {
     b8 digits_and_dots = true;
@@ -181,7 +154,6 @@ void _nya_resolver_run(void* data) {
     resolver->address = address;
     resolver->status  = status;
 
-    // Last, and on purpose: a poll reads this first, so a reader either sees a lookup that has not
-    // finished or one whose answer was already written.
+    // Last, and on purpose: a poll reads this first, so a reader either sees a lookup that has not finished or one whose answer was already written.
     resolver->done = true;
 }

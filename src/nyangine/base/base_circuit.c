@@ -5,11 +5,7 @@
 #include "nyangine/base/base_circuit.h"
 #include "nyangine/base/base_clock.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE TYPES
 
 /** One dependency's breaker: its state and the counters that move it between states. */
 typedef struct {
@@ -43,11 +39,7 @@ struct NYA_CircuitBreaker {
     u32               entry_count;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The entry for `key` if it already exists, mutable. Asking never makes one. */
 NYA_INTERNAL _NYA_CircuitEntry* _nya_circuit_find(NYA_CircuitBreaker* breaker, NYA_ConstCString key) __attr_no_discard;
@@ -67,11 +59,7 @@ NYA_INTERNAL void _nya_circuit_record_at(NYA_CircuitBreaker* breaker, NYA_ConstC
 /** nya_circuit_state at an explicit time, so a test reads the state on the same clock it drives the breaker with. */
 NYA_INTERNAL NYA_CircuitState _nya_circuit_state_at(NYA_CircuitBreaker* breaker, NYA_ConstCString key, u64 now_ns) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error _nya_circuit_breaker_create(NYA_Arena* arena, NYA_CircuitBreaker** out_breaker, NYA_CircuitBreakerOptions options) {
     nya_assert(arena != nullptr && out_breaker != nullptr);
@@ -124,11 +112,7 @@ u32 nya_circuit_key_count(const NYA_CircuitBreaker* breaker) {
     return breaker->entry_count;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 _NYA_CircuitEntry* _nya_circuit_find(NYA_CircuitBreaker* breaker, NYA_ConstCString key) {
     for (u32 index = 0; index < breaker->entry_count; index++) {
@@ -147,13 +131,7 @@ _NYA_CircuitEntry* _nya_circuit_entry(NYA_CircuitBreaker* breaker, NYA_ConstCStr
     if (breaker->entry_count < NYA_CIRCUIT_MAX_KEYS) {
         entry = &breaker->entries[breaker->entry_count++];
     } else {
-        /*
-         * Only a CLOSED entry may be reused, and among those the stalest. A tripped entry (OPEN or its
-         * HALF_OPEN probe window) is the whole point of the breaker; handing its slot to a newcomer
-         * would let calls back through to a dependency this program already found to be down — the same
-         * reason the rate limiter never gives up a spent bucket. A resolve first so an OPEN whose
-         * cooldown has passed counts as the HALF_OPEN it now is, not as reusable.
-         */
+        /* Only a CLOSED entry may be reused, the stalest among them: a tripped entry is the whole point of the breaker, and handing its slot away would let calls back through to a downed dependency; resolve first so a cooled-down OPEN counts as HALF_OPEN. */
         for (u32 index = 0; index < NYA_CIRCUIT_MAX_KEYS; index++) {
             _NYA_CircuitEntry* candidate = &breaker->entries[index];
 
@@ -161,9 +139,7 @@ _NYA_CircuitEntry* _nya_circuit_entry(NYA_CircuitBreaker* breaker, NYA_ConstCStr
             if (entry == nullptr || candidate->updated_at_ns < entry->updated_at_ns) entry = candidate;
         }
 
-        // Every slot is tripped: there is nothing safe to evict, so this key goes untracked and its
-        // calls are allowed. Refusing a brand-new dependency because 32 others are down would be the
-        // breaker causing the outage it exists to contain.
+        // Every slot is tripped, nothing safe to evict, so this key goes untracked and its calls are allowed; refusing a new dependency because 32 others are down would cause the outage the breaker contains.
         if (entry == nullptr) return nullptr;
     }
 
@@ -203,8 +179,7 @@ b8 _nya_circuit_allow_at(NYA_CircuitBreaker* breaker, NYA_ConstCString key, u64 
         case NYA_CIRCUIT_CLOSED: return true;
         case NYA_CIRCUIT_OPEN:   return false;
         case NYA_CIRCUIT_HALF_OPEN:
-            // One probe at a time up to the cap, so a broken dependency is asked a bounded number of
-            // questions rather than the full flood that CLOSED would let through.
+            // One probe at a time up to the cap, so a broken dependency is asked a bounded number of questions rather than the full flood CLOSED would allow.
             if (entry->probes >= breaker->half_open_max) return false;
             entry->probes++;
             entry->updated_at_ns = now_ns;
@@ -216,8 +191,7 @@ b8 _nya_circuit_allow_at(NYA_CircuitBreaker* breaker, NYA_ConstCString key, u64 
 void _nya_circuit_record_at(NYA_CircuitBreaker* breaker, NYA_ConstCString key, b8 success, u64 now_ns) {
     _NYA_CircuitEntry* entry = _nya_circuit_find(breaker, key);
 
-    // Nothing was allowed for this key, so nothing to record. A record without a preceding allow is a
-    // caller bug, but it costs nothing to ignore rather than fabricate an entry.
+    // Nothing was allowed for this key, so nothing to record; a record without a preceding allow is a caller bug, but ignoring it costs nothing.
     if (entry == nullptr) return;
 
     entry->updated_at_ns = now_ns;
@@ -254,8 +228,7 @@ void _nya_circuit_record_at(NYA_CircuitBreaker* breaker, NYA_ConstCString key, b
             }
             break;
         case NYA_CIRCUIT_HALF_OPEN:
-            // The probe failed: the dependency is still down. Straight back to OPEN for another full
-            // cooldown rather than letting more probes keep hitting it.
+            // The probe failed: the dependency is still down, so straight back to OPEN for another full cooldown rather than letting more probes hit it.
             entry->state        = NYA_CIRCUIT_OPEN;
             entry->opened_at_ns = now_ns;
             entry->successes    = 0;
@@ -263,8 +236,7 @@ void _nya_circuit_record_at(NYA_CircuitBreaker* breaker, NYA_ConstCString key, b
             break;
         case NYA_CIRCUIT_OPEN:
         default:
-            // A failure reported while already OPEN (a call in flight when it tripped) pushes the
-            // cooldown out from now, so the dependency gets the full quiet window from the last failure.
+            // A failure reported while already OPEN (a call in flight when it tripped) pushes the cooldown out from now, so the dependency gets the full quiet window from the last failure.
             entry->opened_at_ns = now_ns;
             break;
     }

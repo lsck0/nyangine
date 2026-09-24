@@ -1,18 +1,10 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL NYA_CString _nya_strstrn(NYA_ConstCString haystack, NYA_ConstCString needle, u64 haystack_len, u64 needle_len);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_string_contains(const NYA_String* str, NYA_ConstCString substr) __attr_overloaded {
     nya_assert(str != nullptr);
@@ -214,8 +206,7 @@ NYA_String* nya_string_sprintf(NYA_Arena* arena, NYA_ConstCString fmt, ...) __at
     va_list args;
     va_start(args, fmt);
 
-    // signed, then checked: vsnprintf returns a negative int on an encoding error, which as a u64 would be
-    // a capacity near 2^64. An unformattable string becomes empty.
+    // Signed, then checked: vsnprintf returns a negative int on an encoding error, which as a u64 would be a capacity near 2^64; an unformattable string becomes empty.
     s32 measured = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
 
@@ -435,18 +426,13 @@ void nya_string_extend_front_sprintf(NYA_String* str, NYA_ConstCString fmt, ...)
 
     u64 length = (u64)measured;
 
-    // The +1 is for the terminator vsnprintf insists on writing. Without it a prepend onto a string
-    // whose capacity exactly equalled its length wrote one byte past the end.
+    // The +1 is for the terminator vsnprintf insists on writing; without it a prepend onto a string whose capacity exactly equalled its length wrote one byte past the end.
     nya_array_reserve(str, str->length + length + 1);
 
     // shift existing content to make room for new formatted string at the front
     nya_memmove(str->items + length, str->items, str->length);
 
-    /*
-     * That terminator lands on str->items[length], which is precisely where the first byte of the
-     * shifted content now lives, so it has to be put back afterwards. Prepending "hello " to
-     * "world" otherwise produced "hello \0orld": the right length, with the 'w' eaten.
-     */
+    /* That terminator lands on str->items[length], where the first shifted byte now lives, so it is put back afterwards; prepending "hello " to "world" otherwise gave "hello \0orld". */
     u8 overwritten = str->length > 0 ? str->items[length] : 0;
 
     va_start(args, fmt);
@@ -612,9 +598,7 @@ s32 nya_string_sscanf(NYA_String* str, NYA_ConstCString fmt, ...) __attr_fmt_sca
     nya_assert(str != nullptr);
     nya_assert(fmt != nullptr);
 
-    /*
-     * Scanned from a terminated copy, not from the string's own bytes.
-     */
+    // Scanned from a terminated copy, not from the string's own bytes.
     NYA_CString terminated = nya_string_to_cstring(nya_arena_temp, str);
     defer       nya_arena_free(nya_arena_temp, terminated, str->length + 1);
 
@@ -633,8 +617,7 @@ void nya_string_strip_prefix(NYA_String* str, NYA_ConstCString prefix) {
 
     u64 prefix_length = strlen(prefix);
 
-    // A prefix longer than the string cannot match, and comparing it reads past what the string
-    // owns. nya_string_strip_suffix has always checked; this did not.
+    // A prefix longer than the string cannot match, and comparing it reads past what the string owns; nya_string_strip_suffix has always checked, this did not.
     if (prefix_length > str->length) return;
 
     if (nya_memcmp(str->items, prefix, prefix_length) == 0) {
@@ -688,11 +671,7 @@ void nya_string_trim_whitespace(NYA_String* str) {
     str->length = end - start;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 static NYA_CString _nya_strstrn(NYA_ConstCString haystack, NYA_ConstCString needle, u64 haystack_len, u64 needle_len) {
     if (needle_len == 0 || needle_len > haystack_len) return nullptr;
@@ -704,11 +683,7 @@ static NYA_CString _nya_strstrn(NYA_ConstCString haystack, NYA_ConstCString need
     return nullptr;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * UTF-8
- * ─────────────────────────────────────────────────────────
- */
+// UTF-8
 
 u32 nya_utf8_length(NYA_ConstCString cursor) {
     u8 lead = (u8)cursor[0];
@@ -732,9 +707,7 @@ u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
         return 1;
     }
 
-    /*
-     * Length from the lead byte, then the continuation bytes checked rather than assumed.
-     */
+    // Length from the lead byte, then the continuation bytes checked rather than assumed.
     u32 length    = 0;
     u32 codepoint = 0;
 
@@ -762,9 +735,7 @@ u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
         codepoint = (codepoint << 6) | (bytes[i] & 0x3FU);
     }
 
-    /*
-     * Overlong encodings and surrogates rejected.
-     */
+    // Overlong encodings and surrogates rejected.
     if (codepoint >= 0xD800 && codepoint <= 0xDFFF) codepoint = 0xFFFD;
     if (length == 2 && codepoint < 0x80) codepoint = 0xFFFD;
     if (length == 3 && codepoint < 0x800) codepoint = 0xFFFD;

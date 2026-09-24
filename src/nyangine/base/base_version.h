@@ -29,11 +29,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Longest one line summary, including the terminator.
@@ -48,11 +44,7 @@
 /** Longest formatted build time, including the terminator. */
 #define NYA_BUILD_TIME_MAX 32
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct {
     /** From `VERSION` in the build system, or "unknown" outside it. */
@@ -71,11 +63,7 @@ typedef struct {
     NYA_ConstCString built;
 } NYA_BuildInfo;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * What this binary is. Cheap after the first call: the build time is stat'ed once and kept.

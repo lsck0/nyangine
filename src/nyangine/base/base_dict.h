@@ -29,11 +29,7 @@
 #include "nyangine/base/base_hmap.h"
 #include "nyangine/base/base_template.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** Name of the dict type derived for `value_type`, e.g. NYA_Dictᐸu64ᐳ. A dict is a string keyed hmap. */
 #define _nya_derive_dict_name(value_type) nya_template(NYA_Dict, value_type)
@@ -52,18 +48,9 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
     nya_derive_hmap(NYA_CString, value_type);                                                                                                        \
     typedef _nya_derive_hmap_name(NYA_CString, value_type) _nya_derive_dict_name(value_type);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CREATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CREATION MACROS
 
-/*
- * A dict is exactly an NYA_CString keyed hmap, created with string semantics rather than the
- * default byte-wise ones. That distinction is why the specialisation exists: the byte-wise
- * default would hash and compare the char* itself, so two equal strings at different addresses
- * would never find each other.
- */
+/* A dict is an NYA_CString-keyed hmap with string semantics; the byte-wise default would hash the char* itself, so two equal strings at different addresses would never match. */
 
 #define nya_dict_create(arena_ptr, value_type)                                                                                                       \
     nya_hmap_create_with_fns(arena_ptr, NYA_CString, value_type, &nya_dict_hash_cstring, &nya_dict_equals_cstring)
@@ -88,11 +75,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
         &nya_dict_equals_cstring                                                                                                                     \
     )
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FORWARDS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FORWARDS
 
 #define nya_dict_clear(dict_ptr)                     nya_hmap_clear(dict_ptr)
 #define nya_dict_destroy(dict_ptr)                   nya_hmap_destroy(dict_ptr)
@@ -102,11 +85,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
 #define nya_dict_foreach_key(dict_ptr, key_name)     nya_hmap_foreach_key (dict_ptr, key_name)
 #define nya_dict_foreach_value(dict_ptr, value_name) nya_hmap_foreach_value (dict_ptr, value_name)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RESIZE AND REHASH MACRO
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// RESIZE AND REHASH MACRO
 
 #define _nya_dict_add_unchecked(dict_ptr, key, value)                                                                                                \
     ({                                                                                                                                               \
@@ -132,8 +111,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
             index = (index + 1) % (dict_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
-        /* See _nya_hmap_add_unchecked: reaching the bound means the load factor invariant is                                                        \
-         * already broken, and dropping the entry silently surfaces as a missing key much later.  */                                                 \
+        /* See _nya_hmap_add_unchecked: reaching the bound means the load-factor invariant is already broken, and dropping the entry surfaces as a missing key much later. */ \
         nya_assert(iterations < (dict_ptr)->capacity, "Dict is full; the entry was dropped rather than stored.");                                    \
         (void)updated;                                                                                                                               \
     })
@@ -162,11 +140,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
         nya_arena_free((dict_ptr)->arena, old_occupied, sizeof(*old_occupied) * old_capacity);                                                       \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCESS MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCESS MACROS
 
 #define nya_dict_contains(dict_ptr, key)                                                                                                             \
     ({                                                                                                                                               \
@@ -204,11 +178,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
         contains ? &(dict_ptr)->values[index] : nullptr;                                                                                             \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ADD / REMOVE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ADD / REMOVE MACROS
 
 #define nya_dict_add(dict_ptr, key, value)                                                                                                           \
     ({                                                                                                                                               \

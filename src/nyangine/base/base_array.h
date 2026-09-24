@@ -27,11 +27,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_compare.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** Name of the array type derived for `type`, e.g. NYA_Arrayᐸu32ᐳ. */
 #define _nya_derive_array_name(type) nya_template(NYA_Array, type)
@@ -88,11 +84,7 @@ nya_derive_array(f32ptr);
 nya_derive_array(f64ptr);
 nya_derive_array(f128ptr);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CREATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CREATION MACROS
 
 #define _NYA_ARRAY_DEFAULT_CAPACITY 16
 
@@ -118,9 +110,7 @@ nya_derive_array(f128ptr);
         arr;                                                                                                                                         \
     })
 
-/*
- * Never compiled until someone tried to call it, and then it did not.
- */
+// Never compiled until someone tried to call it, and then it did not.
 #define nya_array_from_argv(arena_ptr, argc, argv)                                                                                                   \
     ({                                                                                                                                               \
         nya_assert_type_match(arena_ptr, (NYA_Arena*)0);                                                                                             \
@@ -132,10 +122,7 @@ nya_derive_array(f128ptr);
 
 #define nya_array_resize(arr_ptr, new_capacity)                                                                                                     \
     ({                                                                                                                                              \
-        /*                                                                                                                                          \
-         * A first allocation cannot use nya_arena_realloc, which returns null for a null pointer                                                   \
-         * (test_arena.c pins that). Zero capacity arrays hold a null items pointer.                                                                \
-         */                                                                                                                                         \
+        /* A first allocation cannot use nya_arena_realloc, which returns null for a null pointer (test_arena.c pins that); zero-capacity arrays hold a null items pointer. */ \
         (arr_ptr)->items = (arr_ptr)->items == nullptr                                                                                              \
                              ? nya_arena_alloc((arr_ptr)->arena, (new_capacity) * sizeof(*(arr_ptr)->items))                                        \
                              : nya_arena_realloc(                                                                                                   \
@@ -171,23 +158,13 @@ nya_derive_array(f128ptr);
 #define nya_array_destroy_on_stack(arr_ptr)                                                                                                          \
     ({                                                                                                                                               \
         nya_arena_free((arr_ptr)->arena, (arr_ptr)->items, sizeof(*(arr_ptr)->items) * (arr_ptr)->capacity);                                         \
-        /*                                                                                                                                          \
-         * `items` is nulled too, not only the length and the capacity. nya_array_resize branches on \
-         * `items == nullptr` to choose between a first allocation and a realloc, so leaving the      \
-         * freed pointer here sent the next push down the realloc path with a block the arena had     \
-         * already taken back. It survived only because the free list tends to hand the same block    \
-         * straight back again.                                                                       \
-         */                                                                                          \
+        /* `items` is nulled too, not just length and capacity: nya_array_resize branches on `items == nullptr`, so leaving the freed pointer sent the next push down the realloc path with a reclaimed block. */ \
         (arr_ptr)->items    = nullptr;                                                                                                               \
         (arr_ptr)->length   = 0;                                                                                                                     \
         (arr_ptr)->capacity = 0;                                                                                                                     \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCESS MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCESS MACROS
 
 #define _nya_array_access_guard(index, length)                                                                                                       \
     nya_assert(0 <= (index) && (index) < (length), "Array index " FMTs64 " (length " FMTu64 ") out of bounds.", (s64)(index), length);
@@ -208,15 +185,9 @@ nya_derive_array(f128ptr);
 #define nya_array_first(arr_ptr) nya_array_get(arr_ptr, 0)
 #define nya_array_last(arr_ptr)  nya_array_get(arr_ptr, (arr_ptr)->length - 1)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ADD / INSERT / REMOVE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ADD / INSERT / REMOVE MACROS
 
-/*
- * Doubling, with a floor.
- */
+// Doubling, with a floor.
 #define _NYA_ARRAY_GROWN_CAPACITY(arr_ptr) nya_cast_to_u64(nya_max((u64)1, (u64)2 * (arr_ptr)->capacity))
 
 /** Bytes between `index` and the end of the array. The unit is elements, so the multiply is last. */
@@ -248,9 +219,7 @@ nya_derive_array(f128ptr);
         (arr_ptr)->length += (other_arr_ptr)->length;                                                                                                \
     })
 
-/*
- * The shift is sized in elements and converted to bytes once, at the end.
- */
+// The shift is sized in elements and converted to bytes once, at the end.
 #define nya_array_insert(arr_ptr, item, index)                                                                                                       \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (arr_ptr)->items[0]);                                                                                            \
@@ -325,11 +294,7 @@ nya_derive_array(f128ptr);
 #define nya_array_pop_front(arr_ptr)             nya_array_remove(arr_ptr, 0)
 #define nya_array_pop_front_many(arr_ptr, count) nya_array_remove_many(arr_ptr, 0, count)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FIND / SORT MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FIND / SORT MACROS
 
 #define nya_array_contains(arr_ptr, item)                                                                                                            \
     ({                                                                                                                                               \
@@ -382,11 +347,7 @@ nya_derive_array(f128ptr);
         equal;                                                                                                                                       \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MISC MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MISC MACROS
 
 #define nya_carray_length(carray) (sizeof(carray) / sizeof((carray)[0]))
 #define nya_array_length(arr_ptr) ((arr_ptr)->length)
@@ -405,11 +366,7 @@ nya_derive_array(f128ptr);
         for (u64 i = 0; i < (arr_ptr)->length / 2; i++) nya_array_swap(arr_ptr, i, (arr_ptr)->length - i - 1);                                       \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MEMORY MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MEMORY MACROS
 
 #define nya_array_copy(arr_ptr)                                                                                                                      \
     ({                                                                                                                                               \
@@ -436,11 +393,7 @@ nya_derive_array(f128ptr);
         (arr_ptr) = _arr_move_new_ptr;                                                                                                               \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SLICE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SLICE MACROS
 
 #define nya_array_slice_excld(arr_ptr, start, end)                                                                                                   \
     ({                                                                                                                                               \
@@ -466,11 +419,7 @@ nya_derive_array(f128ptr);
         slice;                                                                                                                                       \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ITERATOR MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ITERATOR MACROS
 
 #define nya_array_for(arr_ptr, index_name) for (u64 index_name = 0; (index_name) < (arr_ptr)->length; (index_name)++)
 

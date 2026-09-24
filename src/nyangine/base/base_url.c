@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL const NYA_ConstCString _NYA_URL_RULE_TEXT[NYA_URL_RULE_COUNT] = {
     [NYA_URL_RULE_NONE]               = "none",
@@ -135,11 +131,7 @@ NYA_INTERNAL b8 _nya_url_append(char* buffer, u64 capacity, u64* written, const 
 /** A span lies inside the stored text. For the calls that take a URL a caller may have written to by hand. */
 NYA_INTERNAL void _nya_url_assert_span(const NYA_Url* url, NYA_UrlSpan span);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_url_parse(const char* text, u64 size, NYA_Url* out_url, NYA_UrlFailure* out_failure) {
     nya_assert(text != nullptr || size == 0);
@@ -264,8 +256,7 @@ NYA_Error nya_url_path_decode(const NYA_Url* url, char* buffer, u64 capacity, u6
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a path does not fit %llu bytes decoded", (unsigned long long)capacity);
     }
 
-    // parse refused a decoded NUL, so one here means the struct was written by hand; it would cut the path
-    // short for every C string reader after this.
+    // parse refused a decoded NUL, so one here means the struct was written by hand; it would cut the path short for every C-string reader after this.
     if (memchr(buffer, '\0', length) != nullptr) {
         buffer[0] = '\0';
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a path decodes to a NUL");
@@ -408,11 +399,7 @@ NYA_Error nya_percent_decode(const char* text, u64 size, u8* buffer, u64 capacit
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_url_parse_absolute(const char* text, u64 size, NYA_Url* url, NYA_UrlFailure* failure) {
     if (size == 0) return _nya_url_refuse(failure, NYA_URL_RULE_EMPTY, 0);
@@ -461,8 +448,7 @@ b8 _nya_url_parse_origin(const char* text, u64 size, NYA_Url* url, NYA_UrlFailur
     if (size > NYA_URL_MAX_BYTES) return _nya_url_refuse(failure, NYA_URL_RULE_TOO_LONG, NYA_URL_MAX_BYTES);
     if (!_nya_url_check_alphabet(text, size, failure)) return false;
 
-    // "*", the absolute form and the authority form are for OPTIONS to a whole server, proxies and
-    // CONNECT, and a server that is none of those takes only the origin form.
+    // "*", the absolute form and the authority form are for OPTIONS to a whole server, proxies and CONNECT; a server that is none of those takes only the origin form.
     if (text[0] != '/') return _nya_url_refuse(failure, NYA_URL_RULE_PATH_NOT_ABSOLUTE, 0);
 
     return _nya_url_parse_rest(text, 0, size, false, url, failure);
@@ -614,8 +600,7 @@ b8 _nya_url_check_alphabet(const char* text, u64 size, NYA_UrlFailure* failure) 
         if (byte < 0x20 || byte == 0x7F) return _nya_url_refuse(failure, NYA_URL_RULE_CONTROL_CHARACTER, index);
         if (byte == ' ') return _nya_url_refuse(failure, NYA_URL_RULE_SPACE, index);
 
-        // unreserved, sub-delims, gen-delims and '%': RFC 3986's whole alphabet. Where each may appear is
-        // the component checks' business.
+        // unreserved, sub-delims, gen-delims and '%': RFC 3986's whole alphabet; where each may appear is the component checks' business.
         b8 known = _nya_url_is_unreserved(character) || _nya_url_is_sub_delim(character) || character == '%' || character == ':' ||
                    character == '/' || character == '?' || character == '#' || character == '[' || character == ']' || character == '@';
 
@@ -691,8 +676,7 @@ b8 _nya_url_check_path(const char* text, u64 start, u64 end, NYA_UrlFailure* fai
             decoded++;
         }
 
-        // after decoding, so "%2e%2e" is caught by the same rule as "..". Refused rather than collapsed: a
-        // path that meant to climb names no resource, and normalising it would invent one.
+        // After decoding, so "%2e%2e" is caught by the same rule as ".."; refused rather than collapsed, since a path that meant to climb names no resource and normalising it would invent one.
         if (only_dots && (decoded == 1 || decoded == 2)) return _nya_url_refuse(failure, NYA_URL_RULE_PATH_DOT_SEGMENT, segment);
     }
 
@@ -813,11 +797,7 @@ b8 _nya_url_check_host(const char* text, u64 start, u64 end, NYA_UrlHostKind* ou
         label      = label_end + 1;
     }
 
-    /*
-     * A last label that is a number makes the whole host an address to a resolver, which reads "1.2.3",
-     * "2130706433" and "0x7f.1" as addresses by rules of its own. Only the dotted quad is accepted, so the
-     * host a filter compares is the address the socket connects to.
-     */
+    /* A last label that is a number makes the whole host an address to a resolver ("1.2.3", "2130706433", "0x7f.1"); only the dotted quad is accepted, so a filter compares the address the socket connects to. */
     b8 numeric = true;
     for (u64 index = last_label; index < end && numeric; index++) numeric = _nya_url_is_digit(text[index]);
 

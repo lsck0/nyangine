@@ -29,11 +29,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_template.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 #define _NYA_HASHMAP_DEFAULT_CAPACITY 64
 #define _NYA_HASHMAP_LOAD_FACTOR      0.75F
@@ -65,17 +61,9 @@
     }
 // NOLINTEND(bugprone-macro-parentheses)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CREATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CREATION MACROS
 
-/*
- * The byte-wise defaults hash and compare the key's raw bytes, which is right for scalars and
- * wrong for anything holding a pointer: two equal strings at different addresses would not match.
- * Such keys must pass their own functions, which is what nya_dict does for NYA_CString.
- */
+/* The byte-wise defaults hash and compare the key's raw bytes, right for scalars but wrong for anything holding a pointer; such keys pass their own functions, as nya_dict does for NYA_CString. */
 #define nya_hmap_create(arena_ptr, key_type, value_type)                                                                                             \
     nya_hmap_create_with_fns(                                                                                                                        \
         arena_ptr,                                                                                                                                   \
@@ -151,9 +139,7 @@
         (hmap_ptr) = nullptr;                                                                                                                        \
     })
 
-/*
- * The length and the capacity are reset alongside the three pointers.
- */
+// The length and the capacity are reset alongside the three pointers.
 #define nya_hmap_destroy_on_stack(hmap_ptr)                                                                                                          \
     ({                                                                                                                                               \
         nya_arena_free((hmap_ptr).arena, (hmap_ptr).keys, sizeof(*(hmap_ptr).keys) * (hmap_ptr).capacity);                                           \
@@ -166,11 +152,7 @@
         (hmap_ptr).capacity = 0;                                                                                                                     \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RESIZE AND REHASH MACRO
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// RESIZE AND REHASH MACRO
 
 #define _nya_hmap_add_unchecked(hmap_ptr, key, value)                                                                                                \
     ({                                                                                                                                               \
@@ -197,10 +179,7 @@
             index = (index + 1) % (hmap_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
-        /*                                                                                                                                           \
-         * Storing and updating break out early, so running to the bound means no slot was found. The load                                           \
-         * factor keeps a quarter free, so this is a broken invariant, not a full table to ignore.                                                   \
-         */                                                                                                                                          \
+        /* Storing and updating break out early, so running to the bound means no slot was found; the load factor keeps a quarter free, so this is a broken invariant, not a full table. */ \
         nya_assert(iterations < (hmap_ptr)->capacity, "Hash map is full; the entry was dropped rather than stored.");                                \
         (void)updated;                                                                                                                               \
     })
@@ -229,11 +208,7 @@
         nya_arena_free((hmap_ptr)->arena, old_occupied, sizeof(*old_occupied) * old_capacity);                                                       \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCESS MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCESS MACROS
 
 #define nya_hmap_contains(hmap_ptr, key)                                                                                                             \
     ({                                                                                                                                               \
@@ -273,23 +248,13 @@
         contains ? &(hmap_ptr)->values[index] : nullptr;                                                                                             \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ADD / REMOVE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ADD / REMOVE MACROS
 
 #define nya_hmap_add(hmap_ptr, key, value)                                                                                                           \
     ({                                                                                                                                               \
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         nya_assert_type_match(value, (hmap_ptr)->values[0]);                                                                                         \
-        /*                                                                                                                                           \
-         * Zero capacity handled before the load factor is computed, the way nya_array_reserve and                                                   \
-         * nya_heap_push already do it. A map created with capacity 0 could not grow and could not be                                                \
-         * written to: the load factor divided by zero, doubling zero left it at zero, and                                                           \
-         * _nya_hmap_add_unchecked then took a hash modulo zero. Under the test build's                                                              \
-         * -fno-sanitize-recover=all that is two sanitizer aborts in a row rather than a diagnosis.                                                  \
-         */                                                                                                                                          \
+        /* Zero capacity handled before the load factor, like nya_array_reserve and nya_heap_push: a map at capacity 0 could not grow (divide by zero, doubling stays zero, hash modulo zero), two sanitizer aborts under the test build. */ \
         if ((hmap_ptr)->capacity == 0) {                                                                                                             \
             nya_hmap_resize_and_rehash(hmap_ptr, _NYA_HASHMAP_DEFAULT_CAPACITY);                                                                     \
         } else if (((f32)((hmap_ptr)->length + 1) / (f32)(hmap_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                         \
@@ -338,11 +303,7 @@
         }                                                                                                                                            \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MEMORY MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MEMORY MACROS
 
 #define nya_hmap_copy(hmap_ptr)                                                                                                                      \
     ({                                                                                                                                               \
@@ -385,11 +346,7 @@
         (hmap_ptr) = _hmap_move_new_ptr;                                                                                                             \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ITERATOR MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ITERATOR MACROS
 
 // NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_hmap_foreach_key(hmap_ptr, key_name)                                                                                                     \

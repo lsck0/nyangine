@@ -7,11 +7,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_BACKTRACE_DEPTH_MAX 64
 
@@ -27,11 +23,7 @@
 #define NYA_BACKTRACE_SUPPORTED 0
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_BacktraceFrame NYA_BacktraceFrame;
 typedef struct NYA_Backtrace      NYA_Backtrace;
@@ -55,11 +47,7 @@ struct NYA_Backtrace {
     NYA_BacktraceFrame frames[NYA_BACKTRACE_DEPTH_MAX];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /**
  * Prepares symbolization and installs the fault handlers. Call this first, before any other engine

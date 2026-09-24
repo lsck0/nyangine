@@ -63,11 +63,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Restarts allowed inside one window when the policy leaves `max_restarts` at zero. */
 #define NYA_SUPERVISOR_MAX_RESTARTS 5
@@ -81,11 +77,7 @@
 /** The longest a restart ever waits when the policy leaves `cap_ms` at zero. */
 #define NYA_SUPERVISOR_CAP_MS 30000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_SupervisorPolicy NYA_SupervisorPolicy;
 typedef struct NYA_Supervisor       NYA_Supervisor;
@@ -128,11 +120,7 @@ struct NYA_Supervisor {
     u64 window_start_s;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DECISION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// DECISION
 
 /** Sets `supervisor` to a fresh state under `policy`: no restarts spent, no window open. */
 NYA_API void nya_supervisor_init(OUT NYA_Supervisor* supervisor, NYA_SupervisorPolicy policy);
@@ -172,11 +160,7 @@ NYA_API u64 nya_supervisor_backoff_ms(const NYA_Supervisor* supervisor) __attr_n
 /** Restarts counted in the current window. Zero when freshly initialised or after a quiet window. */
 NYA_API u32 nya_supervisor_restart_count(const NYA_Supervisor* supervisor) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RUNTIME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// RUNTIME
 
 /**
  * Arms the one supervisor from the environment, saving `argv` and snapshotting the environment for a

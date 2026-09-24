@@ -4,21 +4,13 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** FNV-1a's 64 bit offset basis and prime, as the reference (draft-eastlake-fnv) gives them. */
 #define NYA_HASH_FNV1A_OFFSET_BASIS 14695981039346656037ULL
 #define NYA_HASH_FNV1A_PRIME        1099511628211ULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 NYA_API u64 nya_hash_fnv1a(const void* data, u64 size) __attr_overloaded;
 

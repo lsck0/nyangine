@@ -60,11 +60,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of a bucket's name, terminator included. A route or a server's own bucket id fits. */
 #define NYA_RATE_MAX_KEY 64
@@ -87,11 +83,7 @@
  * */
 #define NYA_RATE_MAX_WAIT_MS 60000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_RateLimiter NYA_RateLimiter;
 
@@ -115,11 +107,7 @@ typedef struct {
     f64 burst;
 } NYA_RateLimiterOptions;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Builds a limiter into `arena`. Refuses a `per_second` that is zero, negative, or not a number. */
 NYA_API NYA_Error _nya_rate_limiter_create(NYA_Arena* arena, OUT NYA_RateLimiter** out_limiter, NYA_RateLimiterOptions options) __attr_no_discard;
@@ -172,11 +160,7 @@ NYA_API u64 nya_rate_wait_for(const NYA_RateLimiter* limiter, NYA_ConstCString k
 /** How many buckets are in use, for the ceiling audit. */
 NYA_API u32 nya_rate_bucket_count(const NYA_RateLimiter* limiter) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * BACKOFF
- * ─────────────────────────────────────────────────────────
- */
+// BACKOFF
 
 /** What a backoff is shaped like. Zero for either bound means the NYA_RATE_BACKOFF_ one. */
 typedef struct {

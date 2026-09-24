@@ -10,11 +10,7 @@
 
 #ifdef NYA_TESTING
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /**
  * Runs `code` with crash prevention armed and asserts that it did crash.
@@ -31,8 +27,7 @@
 #define nya_expect_crash(code)                                                                                                                       \
     do {                                                                                                                                             \
         jmp_buf  _nya_crash_jmp;                                                                                                                     \
-        /* the longjmp out of a crash runs no defer, and unregistering a watched frame is one: without    \
-         * this the ring would keep pointers into frames the jump has already thrown away. */             \
+        /* The longjmp out of a crash runs no defer, and unregistering a watched frame is one, so without this the ring would keep pointers into frames the jump threw away. */ \
         const u32 _nya_crash_watch_mark = nya_watch_frame_begin();                                                                                   \
         jmp_buf*  _nya_crash_previous   = _nya_crash_prevent_push(&_nya_crash_jmp);                                                                  \
         if (setjmp(_nya_crash_jmp) == 0) { code; }                                                                                                   \
@@ -47,11 +42,7 @@
  * */
 NYA_API const NYA_CrashInfo* nya_crash_caught(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * SOFT ASSERTIONS
- * ─────────────────────────────────────────────────────────
- */
+// SOFT ASSERTIONS
 
 /**
  * Records a failure and carries on, where `nya_assert` would stop the process.
@@ -65,8 +56,7 @@ NYA_API const NYA_CrashInfo* nya_crash_caught(void);
 #define nya_check(condition, ...)                                                                                                                    \
     do {                                                                                                                                             \
         if (!(condition)) {                                                                                                                          \
-            /* Capped, so a systematically broken invariant reports its shape rather than scrolling  \
-             * thousands of identical lines past whatever came before it. The count stays exact.  */ \
+            /* Capped, so a systematically broken invariant reports its shape rather than scrolling thousands of identical lines; the count stays exact. */ \
             if (_nya_check_failure_count < NYA_CHECK_REPORT_MAX) {                                                                                   \
                 printf("  FAIL: ");                                                                                                                  \
                 printf(__VA_ARGS__);                                                                                                                 \

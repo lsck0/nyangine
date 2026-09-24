@@ -6,11 +6,7 @@
 #include <pthread.h>
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 #define _NYA_INTEGRITY_SENTINEL_SIZE 8
 #define _NYA_INTEGRITY_HASH_SIZE     8
@@ -22,9 +18,7 @@ typedef struct {
     u8 sentinel_end[_NYA_INTEGRITY_SENTINEL_SIZE];
 } NYA_IntegrityBlock;
 
-/*
- * Must survive -O3 -flto.
- */
+// Must survive -O3 -flto.
 NYA_INTERNAL volatile NYA_IntegrityBlock _NYA_INTEGRITY_BLOCK __attr_used __attr_retain = {
     .sentinel_begin = { 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE },
     .hash           = { 0 },
@@ -41,9 +35,7 @@ NYA_INTERNAL b8 _nya_integrity_file_mac(NYA_ConstCString path, OUT u64* out_stor
 /** What the startup thread runs: the file check, then the code baseline. */
 NYA_INTERNAL void _nya_integrity_startup(void);
 
-/*
- * The MAC key.
- * */
+// The MAC key.
 #define _NYA_INTEGRITY_KEY_LOW  (0x9E3779B97F4A7C15ULL ^ 0x517CC1B727220A95ULL)
 #define _NYA_INTEGRITY_KEY_HIGH (0xBF58476D1CE4E5B9ULL ^ 0x94D049BB133111EBULL)
 
@@ -55,11 +47,7 @@ NYA_INTERNAL u64 _nya_integrity_fold(u64 digest, u64 hash) {
     return ((digest << 1) | (digest >> 63)) ^ hash;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 u64 nya_integrity_hash(const void* data, u64 size) {
     // keyed, so a value cannot simply be recomputed after an edit the way a CRC can.
@@ -84,11 +72,7 @@ u64 _nya_integrity_stamped_mac(void) {
     return mac;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ON DISK
- * ─────────────────────────────────────────────────────────
- */
+// ON DISK
 
 b8 nya_integrity_verify_file(NYA_ConstCString path) {
     nya_assert(path != nullptr);
@@ -106,8 +90,7 @@ NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
     defer       nya_arena_destroy(arena);
     NYA_String* binary = nya_string_create(arena);
 
-    // each failure reports which step failed; a missing sentinel and an unwritable file need different
-    // fixes.
+    // Each failure reports which step failed; a missing sentinel and an unwritable file need different fixes.
     NYA_TRY(nya_file_read(binary_path, binary));
 
     u64 hash_offset = 0;
@@ -125,11 +108,7 @@ NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * AT RUNTIME
- * ─────────────────────────────────────────────────────────
- */
+// AT RUNTIME
 
 #if OS_WINDOWS
 NYA_INTERNAL DWORD WINAPI _nya_integrity_thread(LPVOID user_data) {
@@ -247,11 +226,7 @@ NYA_IntegrityStatus nya_integrity_sweep_step(NYA_IntegrityState* state) {
     return hash == state->chunk_hashes[index] ? NYA_INTEGRITY_OK : NYA_INTEGRITY_CODE_MODIFIED;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_integrity_startup(void) {
     NYA_Arena* arena = nya_arena_create(.name = "integrity");
@@ -330,9 +305,7 @@ NYA_INTERNAL b8 _nya_integrity_code_region(OUT const u8** out_start, OUT u64* ou
 
     return false;
 #elif OS_LINUX
-    // the executable segment from the program headers mapped at __executable_start: cheaper and more predictable
-    // than dl_iterate_phdr, and exactly the code this executable was built with. not up to etext, which can span the
-    // unmapped page between the read-only and code segments. hooks inside shared libraries are out of scope.
+    // The executable segment from the program headers at __executable_start: cheaper and more predictable than dl_iterate_phdr and exactly this executable's code; hooks in shared libraries are out of scope.
     extern char __executable_start[];
 
     const Elf64_Ehdr* header = (const Elf64_Ehdr*)__executable_start;
@@ -397,8 +370,7 @@ NYA_INTERNAL b8 _nya_integrity_find_sentinel(const u8* data, u64 len, OUT u64* o
 NYA_INTERNAL b8 _nya_integrity_pe_regions(const u8* data, u64 len, OUT u64* out_len, OUT u64* out_checksum_offset, OUT u64* out_security_offset) {
     if (len < 0x40 || data[0] != 'M' || data[1] != 'Z') return false;
 
-    // Widened before anything is done with it: e_lfanew is whatever the file says it is, and every
-    // bound below would otherwise be computed in u32 and wrap on a corrupt or hostile value.
+    // Widened before anything is done with it: e_lfanew is whatever the file says, and every bound below would otherwise be computed in u32 and wrap on a corrupt or hostile value.
     u32 pe_offset_field = 0;
     nya_memcpy(&pe_offset_field, &data[0x3C], sizeof(u32));
 
@@ -417,8 +389,7 @@ NYA_INTERNAL b8 _nya_integrity_pe_regions(const u8* data, u64 len, OUT u64* out_
     u16 magic = 0;
     nya_memcpy(&magic, &data[optional_offset], sizeof(u16));
 
-    // The data directory sits after a header whose size differs between PE32 and PE32+, which is
-    // the only thing the two formats disagree on here.
+    // The data directory sits after a header whose size differs between PE32 and PE32+, the only thing the two formats disagree on here.
     u64 directory_offset = 0;
     if (magic == 0x10B) {
         directory_offset = optional_offset + 96;
@@ -462,8 +433,7 @@ NYA_INTERNAL u64 _nya_integrity_compute_mac(u8* data, u64 len, u64 hash_offset) 
     nya_memcpy(saved, &data[hash_offset], _NYA_INTEGRITY_HASH_SIZE);
     nya_memset(&data[hash_offset], 0, _NYA_INTEGRITY_HASH_SIZE);
 
-    // Zeroed rather than skipped, so the hashed bytes stay one contiguous run and a signed and an
-    // unsigned copy of the same executable produce the same value.
+    // Zeroed rather than skipped, so the hashed bytes stay one contiguous run and a signed and an unsigned copy of the same executable produce the same value.
     u8  saved_checksum[4] = { 0 };
     u8  saved_security[8] = { 0 };
     u64 hashed_len        = len;

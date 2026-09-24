@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 #define _NYA_BUILD_MAX_BUILD_DEPTH 64
 
@@ -37,17 +33,12 @@ NYA_INTERNAL void      _nya_build_finish_parallel(NYA_BuildRule* build_rule, NYA
  * */
 #define _NYA_BUILD_POLL_INTERVAL_MS 10
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_build(NYA_BuildRule* build_rule) {
     nya_assert(build_rule != nullptr);
 
-    // a new top level build starts a new epoch and nested calls share it, so the memo below lasts one
-    // invocation. NYA_BUILD_ALWAYS still runs once per graph walk.
+    // A new top-level build starts a new epoch and nested calls share it, so the memo below lasts one invocation; NYA_BUILD_ALWAYS still runs once per graph walk.
     if (_nya_build_depth == 0) {
         _nya_build_epoch++;
         _nya_build_failed_rule = nullptr;
@@ -59,8 +50,7 @@ NYA_Error nya_build(NYA_BuildRule* build_rule) {
     NYA_Error result = _nya_build_dispatch(build_rule);
     _nya_build_depth--;
 
-    // Only successes are remembered. A failure aborts the whole build anyway, and memoizing one
-    // would mean a retry silently skipped the rule that failed.
+    // Only successes are remembered: a failure aborts the whole build anyway, and memoizing one would let a retry silently skip the rule that failed.
     if (result.ok) build_rule->last_built_epoch = _nya_build_epoch;
 
     return result;
@@ -75,16 +65,13 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
     if (max_jobs > count) max_jobs = count;
     if (max_jobs > NYA_BUILD_MAX_PARALLEL_JOBS) max_jobs = NYA_BUILD_MAX_PARALLEL_JOBS;
 
-    // A new epoch, exactly as nya_build starts one, so the shared dependencies below are built once
-    // for this whole call rather than once per rule.
+    // A new epoch, as nya_build starts one, so the shared dependencies below are built once for this whole call rather than once per rule.
     if (_nya_build_depth == 0) {
         _nya_build_epoch++;
         _nya_build_failed_rule = nullptr;
     }
 
-    /*
-     * Preparation is sequential; only the commands overlap.
-     */
+    // Preparation is sequential; only the commands overlap.
     for (u32 i = 0; i < count; i++) {
         NYA_BuildRule* rule = build_rules[i];
         nya_assert(rule != nullptr);
@@ -102,19 +89,14 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
 
         rule->parallel_arguments_before_vendors = _nya_build_apply_vendors(rule);
 
-        // Captured rather than streamed. A dozen compilers writing to one terminal interleaves at
-        // arbitrary byte boundaries, which turns a single diagnostic into confetti; held per rule, a
-        // failure prints as one block.
+        // Captured rather than streamed: a dozen compilers writing to one terminal interleaves into confetti, so output is held per rule and a failure prints as one block.
         rule->command.flags |= NYA_COMMAND_FLAG_OUTPUT_CAPTURE;
         if (rule->command.arena == nullptr) rule->command.arena = nya_arena_global;
     }
 
     NYA_Error result = NYA_OK;
 
-    /*
-     * A pool: a finished rule's slot goes straight to the next rule, so one slow rule holds one slot
-     * rather than the whole batch around it. Starting stops at the first failure, reaping does not.
-     */
+    /* A pool: a finished rule's slot goes straight to the next, so one slow rule holds one slot rather than the whole batch; starting stops at the first failure, reaping does not. */
     NYA_BuildRule* running[NYA_BUILD_MAX_PARALLEL_JOBS];
     NYA_Command*   running_commands[NYA_BUILD_MAX_PARALLEL_JOBS];
     u32            running_count = 0;
@@ -144,8 +126,7 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
         // every rule started has been reaped, and either none is left or a failure stopped the starting.
         if (running_count == 0) break;
 
-        // Every running rule is reaped, including after one has already failed: a child left unwaited
-        // is a zombie holding a half written output file that a later build would take for finished work.
+        // Every running rule is reaped, even after one has failed: a child left unwaited is a zombie holding a half-written output a later build would take for finished work.
         u32 finished_count = 0;
         for (u32 slot = 0; slot < running_count;) {
             NYA_BuildRule* rule     = running[slot];
@@ -173,8 +154,7 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
     nya_assert(running_count == 0, "nya_build_parallel returned with commands still running.");
     nya_assert(!result.ok || next == count, "nya_build_parallel succeeded without starting every rule.");
 
-    // Undo the vendor splice on every rule, exactly as _nya_build_always does, or a second call
-    // would append the same flags again.
+    // Undo the vendor splice on every rule, as _nya_build_always does, or a second call would append the same flags again.
     for (u32 i = 0; i < count; i++) build_rules[i]->command.arguments[build_rules[i]->parallel_arguments_before_vendors] = nullptr;
 
     return result;
@@ -244,12 +224,7 @@ NYA_Error nya_vendor_build(NYA_VendorRule* vendor) {
         NYA_BuildRule* part = vendor->parts[i];
         if (!part) break;
 
-        /*
-         * Forced past the part's own policy rather than through it: a part is ONCE or IF_OUTDATED
-         * against an artifact, and neither question has anything to do with whether somebody edited
-         * the recipe. Put back afterwards, because a rule is shared between vendor lists and a second
-         * list would otherwise inherit a policy this one chose.
-         */
+        /* Forced past the part's own policy rather than through it: a part's ONCE/IF_OUTDATED has nothing to do with whether the recipe was edited; put back afterwards since a rule is shared between vendor lists. */
         const NYA_BuildRulePolicy original = part->policy;
         if (options_changed) part->policy = NYA_BUILD_ALWAYS;
 
@@ -309,9 +284,7 @@ NYA_INTERNAL u64 _nya_build_newest_under(NYA_ConstCString path) {
 void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
     NYA_CString marker = "--no-rebuild"; // appended to argv
 
-    /*
-     * The whole argument list is scanned, not only the last slot.
-     */
+    // The whole argument list is scanned, not only the last slot.
     for (s32 i = 1; i < *argc; i++) {
         if (!nya_string_equals(argv[i], marker)) continue;
 
@@ -319,15 +292,7 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
         return;
     }
 
-    /*
-     * Nothing to do when no source is newer than the tool.
-     *
-     * An unconditional rebuild costs 1.18 s before `./build --help` prints, against 0.012 s without it.
-     *
-     * Walks the trees FLAGS_BUILD_TOOL compiles: build.c, the build system and the engine base.
-     * Deliberately wider than the include set, since extra stats are cheap and a missed dependency is a
-     * stale tool.
-     */
+    /* Nothing to do when no source is newer than the tool: an unconditional rebuild costs 1.18 s before `./build --help` prints; walks the trees FLAGS_BUILD_TOOL compiles, wider than the include set since extra stats are cheap. */
     u64 tool_modified = 0;
 
     if (nya_filesystem_last_modified(argv[0], &tool_modified).ok && tool_modified > 0) {
@@ -346,33 +311,22 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
         .command = cmd,
     };
 
-    // The backup path carries the pid. A fixed name is shared state between every concurrently
-    // running copy of this tool, and two invocations, a CI job beside a local one or simply two
-    // terminals, would then delete each other's backup and abort on the way out.
+    // The backup path carries the pid: a fixed name is shared state between concurrent copies of this tool, and two invocations would delete each other's backup and abort.
     char backup_path[64];
     (void)snprintf(backup_path, sizeof(backup_path), ".backup_build_executable.%d", (int)getpid());
 
     // backup, build, restore
-    /*
-     * move rather than copy: vacates the path argv[0] so the compiler can write to it even on
-     * Windows, where a running executable is locked against being opened for writing but is
-     * allowed to be renamed.
-     */
+    /* move rather than copy: vacates argv[0] so the compiler can write to it even on Windows, where a running executable is locked against writing but may be renamed. */
     NYA_EXPECT(nya_filesystem_move(argv[0], backup_path), "while backing up the build executable");
 
     NYA_Error build_result = nya_build(&rule);
     if (!build_result.ok) {
-        /*
-         * Restoring overwrites whatever the failed build left behind. nya_filesystem_move on
-         * Windows was updated to support this; on POSIX rename() already does.
-         */
+        /* Restoring overwrites whatever the failed build left behind; nya_filesystem_move on Windows supports this, and on POSIX rename() already does. */
         NYA_EXPECT(nya_filesystem_move(backup_path, argv[0]), "while restoring the build executable after a failed rebuild");
         exit(1);
     }
 
-    // Best effort: this is cleanup of our own temporary, and the desired end state is "the file is
-    // not there". Aborting the whole tool because it already is not there would turn a successful
-    // rebuild into a failure.
+    // Best effort: cleanup of our own temporary whose desired end state is "gone", so aborting because it already is not there would turn a good rebuild into a failure.
     (void)nya_filesystem_delete(backup_path);
 
     // build new argv with marker
@@ -388,22 +342,14 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
     exit(EXIT_FAILURE);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_build_always(NYA_BuildRule* build_rule) {
     nya_assert(build_rule != nullptr);
 
-    // Vendors are not built here. They are all built up front by nya_vendor_build_all, so by the
-    // time any rule runs every dependency already exists. Listing a vendor on a rule only asks for
-    // its flags.
+    // Vendors are not built here: nya_vendor_build_all builds them all up front, so every dependency exists by the time a rule runs; listing a vendor only asks for its flags.
 
-    // build dependencies first
-    // nya_build maintains the depth now, so the guard reads the same counter the memo does rather
-    // than a second one that only this function knew about.
+    // Build dependencies first; nya_build maintains the depth now, so the guard reads the same counter the memo does rather than a second one only this function knew.
     nya_assert(_nya_build_depth <= _NYA_BUILD_MAX_BUILD_DEPTH, "Maximum build depth exceeded (possible circular dependency).");
 
     for (u64 i = 0; i < NYA_BUILD_MAX_DEPENDENCIES; i++) {
@@ -420,23 +366,16 @@ NYA_Error _nya_build_always(NYA_BuildRule* build_rule) {
         hook(build_rule);
     }
 
-    // Splice in the vendor flags. Done after the pre-build hooks so that a hook appending its own
-    // arguments cannot land after the linker flags, and recorded so it can be undone below.
+    // Splice in the vendor flags after the pre-build hooks, so a hook appending arguments cannot land after the linker flags; recorded so it can be undone below.
     u32 arguments_before_vendors = _nya_build_apply_vendors(build_rule);
 
-    // One call, so there is no path around the cleanup that follows. The command logic lives in its
-    // own function precisely so it can return early as often as it likes without anyone having to
-    // remember that this function has unwinding left to do.
+    // One call, so there is no path around the cleanup that follows; the command logic lives in its own function so it can return early as often as it likes.
     NYA_Error result = _nya_build_run(build_rule);
 
-    // Undo the splice so a rule built more than once, NYA_BUILD_ALWAYS inside a loop for instance,
-    // does not accumulate the same vendor flags over and over.
+    // Undo the splice so a rule built more than once (NYA_BUILD_ALWAYS in a loop) does not accumulate the same vendor flags over and over.
     build_rule->command.arguments[arguments_before_vendors] = nullptr;
 
-    // post-build hooks only when there is an artifact. After a failed command they would bury the real
-    // error under a second one, such as an integrity hook reporting "no such file".
-    //
-    // After the un-splice above, which is cleanup and runs either way.
+    // Post-build hooks only when there is an artifact, or a failed command's real error would be buried under a second (an integrity hook reporting "no such file"); after the un-splice, which runs either way.
     if (!result.ok) return result;
 
     for (u64 i = 0; i < NYA_BUILD_MAX_DEPENDENCIES; i++) {
@@ -466,8 +405,7 @@ NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule) {
     }
     printf("\n");
 
-    // A streamed command writes to an unbuffered stderr while these lines sit in stdout's buffer, so
-    // without this the compiler's diagnostic lands *above* the [BUILDING] line that introduces it.
+    // A streamed command writes to unbuffered stderr while these lines sit in stdout's buffer, so without this the compiler's diagnostic lands above the [BUILDING] line that introduces it.
     (void)fflush(stdout);
 
     NYA_TRY(nya_command_run(&build_rule->command));
@@ -489,15 +427,11 @@ void nya_build_print_last_failure(void) {
 
     (void)fflush(stdout);
 
-    // The rule's name and what its tool said, and deliberately not its command line: the splice of
-    // vendor flags is undone by the time a build has given up, so echoing the arguments here would
-    // print a shorter command than the one that actually ran. The [CMD] line printed before the run
-    // is the complete one.
+    // The rule's name and what its tool said, not its command line: the vendor-flag splice is undone by now, so the arguments here would print a shorter command than ran; the earlier [CMD] line is complete.
     (void)fprintf(stderr, "\n------- FAILED RULE -------\n");
     (void)fprintf(stderr, "%s, exit code %d\n", rule->name, rule->command.exit_code);
 
-    // Only a captured command has anything left to show. A streamed one already wrote its diagnostic
-    // to this terminal, and printing an empty block under a heading would read as "it said nothing".
+    // Only a captured command has anything left to show: a streamed one already wrote its diagnostic, and an empty block under a heading would read as "it said nothing".
     if (rule->command.stderr_content != nullptr && rule->command.stderr_content->length > 0) {
         (void)fprintf(stderr, NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(rule->command.stderr_content));
     }
@@ -545,8 +479,7 @@ NYA_INTERNAL void _nya_build_report(NYA_BuildRule* build_rule) {
     if (command->exit_code == 0) {
         printf("[OK] %s took " FMTu64 " ms.\n", build_rule->name, command->execution_time_ms);
 
-        // a rule that passed with diagnostics still shows them. compilers and clang-tidy both exit zero
-        // on warnings, and swallowing the output made every warning invisible.
+        // A rule that passed with diagnostics still shows them: compilers and clang-tidy both exit zero on warnings, and swallowing the output made every warning invisible.
         b8 warned = (command->stdout_content != nullptr && nya_string_contains(command->stdout_content, ": warning:")) ||
                     (command->stderr_content != nullptr && nya_string_contains(command->stderr_content, ": warning:"));
         if (!warned) return;
@@ -558,9 +491,7 @@ NYA_INTERNAL void _nya_build_report(NYA_BuildRule* build_rule) {
         (void)fprintf(stderr, "[FAILED] %s exit code: %d\n", build_rule->name, command->exit_code);
     }
 
-    // Only what there is. A serial rule streams straight to this terminal and captures nothing, so
-    // the two headings used to appear over two blank lines on every single failure, which reads as
-    // the compiler having said nothing at all about why it stopped.
+    // Only what there is: a serial rule streams to the terminal and captures nothing, so the two headings used to appear over two blank lines on every failure, reading as the compiler saying nothing.
     if (command->stdout_content != nullptr && command->stdout_content->length > 0) {
         (void)fprintf(stderr, "------- STDOUT -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(command->stdout_content));
     }

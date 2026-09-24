@@ -26,11 +26,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_template.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 #define _NYA_HASHSET_DEFAULT_CAPACITY 64
 #define _NYA_HASHSET_LOAD_FACTOR      0.75F
@@ -49,11 +45,7 @@
     } _nya_derive_hset_name(item_type);
 // NOLINTEND(bugprone-macro-parentheses)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CREATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CREATION MACROS
 
 #define nya_hset_create(arena_ptr, item_type) nya_hset_create_with_capacity(arena_ptr, item_type, _NYA_HASHSET_DEFAULT_CAPACITY)
 #define nya_hset_create_with_capacity(arena_ptr, item_type, initial_capacity)                                                                        \
@@ -99,11 +91,7 @@
         nya_memset(hset_ptr, 0, sizeof(*(hset_ptr)));                                                                                                \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RESIZE AND REHASH MACRO
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// RESIZE AND REHASH MACRO
 
 #define _nya_hset_add_unchecked(hset_ptr, item)                                                                                                   \
     ({                                                                                                                                               \
@@ -126,9 +114,7 @@
             index = (index + 1) % (hset_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
-        /* Storing and matching both break out early, so a loop that ran all the way to the bound is                                                 \
-         * exactly the one that found nowhere to put the item. The load factor is supposed to make                                                   \
-         * that unreachable; dropping the item silently surfaced as a failed lookup much later.  */                                                  \
+        /* Storing and matching both break out early, so a loop that ran to the bound found nowhere to put the item; the load factor should make that unreachable, and dropping it surfaced as a failed lookup later. */ \
         nya_assert(iterations < (hset_ptr)->capacity, "Hash set is full; the item was dropped rather than stored.");                                 \
         (void)found;                                                                                                                                 \
     })
@@ -153,11 +139,7 @@
         nya_arena_free((hset_ptr)->arena, old_hset.occupied, sizeof(*old_hset.occupied) * old_hset.capacity);                                        \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCESS MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCESS MACROS
 
 #define nya_hset_contains(hset_ptr, item)                                                                                                            \
     ({                                                                                                                                               \
@@ -178,11 +160,7 @@
         contains;                                                                                                                                    \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ADD / REMOVE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ADD / REMOVE MACROS
 
 #define nya_hset_add(hset_ptr, item)                                                                                                              \
     ({                                                                                                                                               \
@@ -224,16 +202,9 @@
         }                                                                                                                                            \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SET OPERATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SET OPERATION MACROS
 
-/*
- * All four set operations walk one set and mutate another, and must tolerate the same set on both
- * sides: `nya_hset_union(a, a)`, `a \ a`, `a △ a` and `a ∩ a`. test_hset.c covers them.
- */
+/* All four set operations walk one set and mutate another and must tolerate the same set on both sides: union(a,a), a minus a, a xor a and a intersect a; test_hset.c covers them. */
 // NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define _nya_hset_snapshot(src_hset_ptr, items_name, count_name, bytes_name)                                                                         \
     u64                               bytes_name = ((src_hset_ptr)->length + 1) * sizeof(*(src_hset_ptr)->items);                                    \
@@ -300,11 +271,7 @@
         nya_arena_free(_sym_arena, _sym_items, _sym_bytes);                                                                                          \
     } while (0)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MEMORY MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MEMORY MACROS
 
 #define nya_hset_copy(hset_ptr)                                                                                                                      \
     ({                                                                                                                                               \
@@ -336,11 +303,7 @@
         (hset_ptr) = _hset_move_new_ptr;                                                                                                             \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ITERATOR MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ITERATOR MACROS
 
 // NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_hset_foreach(hset_ptr, item_name)                                                                                                        \

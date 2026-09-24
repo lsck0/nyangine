@@ -11,11 +11,7 @@
 #include <unistd.h>
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION — DECISION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION — DECISION
 
 void nya_supervisor_init(OUT NYA_Supervisor* supervisor, NYA_SupervisorPolicy policy) {
     nya_assert(supervisor != nullptr);
@@ -34,16 +30,13 @@ b8 nya_supervisor_should_restart(NYA_Supervisor* supervisor, u64 now_s, b8 clean
 
     if (!supervisor->policy.enabled) return false;
 
-    // A clean exit and a user quit are never relaunched. Neither reaches the crash sink, so the sink
-    // always passes false; the argument is here for the reader and for the test.
+    // A clean exit and a user quit are never relaunched; neither reaches the crash sink, so the sink always passes false, and the argument is here for the reader and the test.
     if (clean_exit) return false;
 
     u32 max_restarts = supervisor->policy.max_restarts != 0 ? supervisor->policy.max_restarts : (u32)NYA_SUPERVISOR_MAX_RESTARTS;
     u64 window_s     = supervisor->policy.window_s != 0 ? supervisor->policy.window_s : (u64)NYA_SUPERVISOR_WINDOW_S;
 
-    // Open a fresh window when there is none yet, when a whole one has passed since the last opened —
-    // the crashes were not a tight loop — or when the clock ran backwards, which must not be read as a
-    // still-open window. This is the "reset after a quiet window" that keeps a rare crash recoverable.
+    // Open a fresh window when there is none, when a whole one has passed since the last (not a tight loop), or when the clock ran backwards; the "reset after a quiet window" that keeps a rare crash recoverable.
     if (supervisor->restarts == 0 || now_s < supervisor->window_start_s || now_s - supervisor->window_start_s >= window_s) {
         supervisor->restarts       = 0;
         supervisor->window_start_s = now_s;
@@ -65,8 +58,7 @@ u64 nya_supervisor_window_ms(const NYA_Supervisor* supervisor) {
 
     if (cap_ms < base_ms) cap_ms = base_ms;
 
-    // restarts is 1-based once a restart is granted, and attempt 0 is base_ms; before the first grant
-    // the schedule still reads as base_ms rather than as something undefined.
+    // restarts is 1-based once a restart is granted, and attempt 0 is base_ms; before the first grant the schedule still reads as base_ms rather than something undefined.
     u32 attempt = supervisor->restarts > 0 ? supervisor->restarts - 1 : 0;
 
     // Saturated rather than shifted past the width of the type, the same guard nya_backoff_ms uses.
@@ -94,15 +86,7 @@ u32 nya_supervisor_restart_count(const NYA_Supervisor* supervisor) {
     return supervisor->restarts;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RUNTIME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * The decision above is pure and portable; everything below is the syscall half — the environment, the
- * clock, the wait and the re-exec — kept apart from it, the way base_reconnect keeps the socket apart
- * from its state machine. Only Linux has the re-exec today; elsewhere arming is a no-op.
- */
+/* RUNTIME: the syscall half (environment, clock, wait, re-exec), kept apart from the pure decision above as base_reconnect separates socket from state machine; only Linux has the re-exec, elsewhere arming is a no-op. */
 
 /** The environment variable name that carries the count and window across a re-exec. */
 #define _NYA_SUPERVISE_STATE_PREFIX     "NYA_SUPERVISE_STATE="
@@ -189,8 +173,7 @@ NYA_INTERNAL void _nya_supervisor_build_envp(void) {
         // Drop any inherited state slot; our own reserved one replaces it below.
         if (strncmp(*entry, _NYA_SUPERVISE_STATE_PREFIX, _NYA_SUPERVISE_STATE_PREFIX_LEN) == 0) continue;
 
-        // No room to snapshot this environment and still re-exec without touching it in a signal
-        // handler: disarm rather than fall back to an unsafe copy.
+        // No room to snapshot this environment and still re-exec without touching it in a signal handler: disarm rather than fall back to an unsafe copy.
         if (count >= _NYA_SUPERVISOR_ENVP_MAX - 2) {
             _nya_supervisor.policy.enabled = false;
             nya_log_warn("Supervisor disarmed: the environment is larger than %d entries.", _NYA_SUPERVISOR_ENVP_MAX);
@@ -254,8 +237,7 @@ void nya_supervisor_arm(s32 argc, NYA_CString* argv) {
         .cap_ms       = cap_ms,
     });
 
-    // Seed the count and window from the life before this one, so restarts accumulate across the
-    // re-exec and a crash loop is bounded even though nothing outside the process keeps score.
+    // Seed the count and window from the life before this one, so restarts accumulate across the re-exec and a crash loop is bounded even though nothing outside the process keeps score.
     const char* state = getenv("NYA_SUPERVISE_STATE");
     if (state != nullptr) {
         char*              end          = nullptr;
@@ -288,8 +270,7 @@ void _nya_supervisor_on_fatal(b8 fault_path) {
 
     u64 delay_ms = nya_supervisor_backoff_ms(&_nya_supervisor);
 
-    // Announced through write(2), the only output safe on the fault path, before the wait — so the tail
-    // of the log shows the restart even if the re-exec below fails.
+    // Announced through write(2), the only fault-path-safe output, before the wait, so the log's tail shows the restart even if the re-exec below fails.
     {
         char line[96];
         u32  at = 0;
@@ -308,8 +289,7 @@ void _nya_supervisor_on_fatal(b8 fault_path) {
 
     _nya_supervisor_sleep_ms(delay_ms);
 
-    // Carry the incremented state to the child, then relaunch. /proc/self/exe is this binary however it
-    // was invoked, and execve is async-signal-safe, so this is safe from the fault handler too.
+    // Carry the incremented state to the child, then relaunch: /proc/self/exe is this binary however it was invoked, and execve is async-signal-safe, so this is safe from the fault handler.
     _nya_supervisor_write_state(_nya_supervisor.restarts, _nya_supervisor.window_start_s);
     (void)execve("/proc/self/exe", _nya_supervisor_argv, _nya_supervisor_envp);
 

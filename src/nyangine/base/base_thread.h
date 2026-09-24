@@ -55,11 +55,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_Thread    NYA_Thread;
 typedef struct NYA_Mutex     NYA_Mutex;
@@ -68,17 +64,9 @@ typedef struct NYA_Semaphore NYA_Semaphore;
 /** What a thread runs. Whatever it means by finishing is its own; nothing here reads a return value. */
 typedef void (*NYA_ThreadFn)(void* data);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * THREADS
- * ─────────────────────────────────────────────────────────
- */
+// THREADS
 
 /**
  * Starts `function` on a thread of its own with `data`, out of `arena`.
@@ -116,11 +104,7 @@ NYA_API void nya_thread_join(NYA_Thread* thread);
  * */
 NYA_API void nya_thread_abandon(NYA_Thread* thread);
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTEXES
- * ─────────────────────────────────────────────────────────
- */
+// MUTEXES
 
 /** A lock out of `arena`, unlocked. */
 NYA_API NYA_Error nya_mutex_create(NYA_Arena* arena, OUT NYA_Mutex** out_mutex) __attr_no_discard;
@@ -134,11 +118,7 @@ NYA_API void nya_mutex_lock(NYA_Mutex* mutex);
 /** Gives `mutex` back. The thread that took it is the one that may, and null is no lock here too. */
 NYA_API void nya_mutex_unlock(NYA_Mutex* mutex);
 
-/*
- * ─────────────────────────────────────────────────────────
- * SEMAPHORES
- * ─────────────────────────────────────────────────────────
- */
+// SEMAPHORES
 
 /** A counting semaphore out of `arena`, holding `initial` tokens. */
 NYA_API NYA_Error nya_semaphore_create(NYA_Arena* arena, u32 initial, OUT NYA_Semaphore** out_semaphore) __attr_no_discard;
@@ -158,11 +138,7 @@ NYA_API void nya_semaphore_wait(NYA_Semaphore* semaphore);
  * */
 NYA_API b8 nya_semaphore_wait_timeout(NYA_Semaphore* semaphore, u32 timeout_ms) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE MAIN THREAD
- * ─────────────────────────────────────────────────────────
- */
+// THE MAIN THREAD
 
 /**
  * Names the calling thread as the program's main one.

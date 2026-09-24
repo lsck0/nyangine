@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 __attr_allow_unused NYA_INTERNAL NYA_Arena*                      _nya_perf_arena         = nullptr;
 __attr_allow_unused NYA_INTERNAL NYA_ArrayᐸNYA_PerfMeasurementᐳ* _nya_perf_measurements  = nullptr;
@@ -24,11 +20,7 @@ __attr_allow_unused NYA_INTERNAL void _nya_perf_shutdown(void);
 __attr_allow_unused NYA_INTERNAL u64  _nya_perf_time_since_start_ns(void);
 __attr_allow_unused NYA_INTERNAL u64  _nya_perf_cycles_since_start(void);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_PerfMeasurement* _nya_perf_timer_get(NYA_ConstCString name) {
     nya_assert(name);
@@ -51,8 +43,7 @@ NYA_PerfMeasurement* _nya_perf_timer_get(NYA_ConstCString name) {
 void _nya_perf_timer_start(NYA_ConstCString name) {
     nya_assert(name);
 
-    // Read before the depth is bumped: a top level scope sits at depth 0, and the timer it opens
-    // inside itself at depth 1.
+    // Read before the depth is bumped: a top-level scope sits at depth 0 and the timer it opens inside itself at depth 1.
     u32 depth = _nya_perf_depth++;
 
     NYA_PerfMeasurement* measurement = _nya_perf_timer_get(name);
@@ -111,8 +102,7 @@ void _nya_perf_timer_stop(NYA_ConstCString name) {
     measurement->elapsed_cycles[index] = measurement->ended_cycles[index] - measurement->started_cycles[index];
     measurement->last_elapsed_cycles   = measurement->elapsed_cycles[index];
 
-    // Counted on stop rather than start, so both only ever describe finished work. A timer that is
-    // still running is not a sample anything should average over.
+    // Counted on stop rather than start, so both only ever describe finished work; a running timer is not a sample anything should average over.
     if (measurement->sample_count < NYA_PERF_MEASUREMENT_SAMPLES) measurement->sample_count++;
     measurement->total_runs++;
 }
@@ -123,9 +113,7 @@ void _nya_perf_timer_reset(NYA_ConstCString name) {
     NYA_PerfMeasurement* measurement = _nya_perf_timer_get(name);
     if (measurement == nullptr) return;
 
-    // The name is kept and the samples are dropped, so a caller measuring one level load after
-    // another compares like with like rather than averaging across both. Was declared here and
-    // never defined, which meant there was no way to do that at all.
+    // The name is kept and the samples dropped, so a caller measuring one level load after another compares like with like; was declared here and never defined, so there was no way to do it at all.
     NYA_ConstCString name_copy = measurement->name;
     *measurement               = (NYA_PerfMeasurement){ .name = name_copy };
 }
@@ -137,9 +125,7 @@ NYA_ArrayᐸNYA_PerfMeasurementᐳ* _nya_perf_timer_get_all(void) {
 void _nya_perf_frame_begin(void) {
     _nya_perf_frame++;
 
-    // Anything still running across a frame boundary would otherwise leave the depth counter
-    // permanently raised, and every later span would be recorded one level too deep. A frame is the
-    // natural place to notice, since nothing is expected to be open at the top of one.
+    // Anything still running across a frame boundary would leave the depth counter permanently raised and every later span recorded one level too deep; a frame is the natural place to notice.
     if (_nya_perf_depth != 0) {
         nya_log_warn("Perf: " FMTu32 " timer(s) still running at the start of frame " FMTu64 ", nesting depth reset.", _nya_perf_depth, _nya_perf_frame);
         _nya_perf_depth = 0;
@@ -157,9 +143,7 @@ NYA_PerfStats _nya_perf_stats(const NYA_PerfMeasurement* measurement) {
     stats.min_ns     = UINT64_MAX;
     stats.min_cycles = UINT64_MAX;
 
-    /*
-     * Walked backwards from the newest sample, `sample_count` of them.
-     */
+    // Walked backwards from the newest sample, `sample_count` of them.
     for (u64 i = 0; i < measurement->sample_count; i++) {
         u64 index = (measurement->current + NYA_PERF_MEASUREMENT_SAMPLES - i) % NYA_PERF_MEASUREMENT_SAMPLES;
 
@@ -213,9 +197,7 @@ u32 _nya_perf_frame_spans(u64 frame, NYA_ArrayᐸNYA_PerfSpanᐳ* out_spans) {
         }
     }
 
-    /*
-     * Sorted by start, which is what makes the result a timeline rather than a bag.
-     */
+    // Sorted by start, which is what makes the result a timeline rather than a bag.
     for (u64 i = 1; i < out_spans->length; i++) {
         NYA_PerfSpan key = out_spans->items[i];
         u64          j   = i;
@@ -273,8 +255,7 @@ void _nya_perf_frame_report(u64 frame) {
     nya_log_info("Perf: frame " FMTu64 ", " FMTu32 " spans", frame, count);
 
     nya_array_foreach (spans, span) {
-        // Indented by nesting depth, which is what makes the output the shape of the frame rather
-        // than a list of names that happen to be in time order.
+        // Indented by nesting depth, which makes the output the shape of the frame rather than a list of names that happen to be in time order.
         char indent[32];
         u64  requested = (u64)span->depth * 2;
         u64  width     = requested < sizeof(indent) - 1 ? requested : sizeof(indent) - 1;
@@ -287,11 +268,7 @@ void _nya_perf_frame_report(u64 frame) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 #if NYA_PERF_ENABLED
 __attr_constructor NYA_INTERNAL void _nya_perf_init(void) {

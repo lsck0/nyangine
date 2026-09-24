@@ -3,11 +3,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 #define nya_time_s_to_ms(seconds)       ((u64)(seconds) * 1'000ULL)
 #define nya_time_s_to_µs(seconds)       ((u64)(seconds) * 1'000'000ULL)
@@ -22,11 +18,7 @@
 #define nya_time_ns_to_ms(nanoseconds)  ((f64)(nanoseconds) / 1'000'000.0F)
 #define nya_time_ns_to_µs(nanoseconds)  ((f64)(nanoseconds) / 1'000.0F)
 
-/*
- * ─────────────────────────────────────────────────────────
- * WALL CLOCK
- * ─────────────────────────────────────────────────────────
- */
+// WALL CLOCK
 
 /**
  * Time since the Unix epoch. Follows the system clock, so it can jump in either direction.
@@ -36,11 +28,7 @@ NYA_API u64 nya_clock_get_timestamp_ms(void);
 NYA_API u64 nya_clock_get_timestamp_µs(void);
 NYA_API u64 nya_clock_get_timestamp_ns(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * MONOTONIC
- * ─────────────────────────────────────────────────────────
- */
+// MONOTONIC
 
 /**
  * Time since an unspecified fixed point, guaranteed never to go backwards.
@@ -49,11 +37,7 @@ NYA_API u64 nya_clock_get_monotonic_ms(void);
 NYA_API u64 nya_clock_get_monotonic_µs(void);
 NYA_API u64 nya_clock_get_monotonic_ns(void);
 
-/*
- * ─────────────────────────────────────────────────────────
- * CIVIL TIME
- * ─────────────────────────────────────────────────────────
- */
+// CIVIL TIME
 
 #define NYA_CLOCK_SECONDS_PER_DAY 86'400ULL
 

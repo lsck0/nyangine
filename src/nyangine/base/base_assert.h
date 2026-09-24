@@ -25,27 +25,17 @@
  * */
 #define nya_assert_always(...)      _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
-/*
- * The comparison assertions, nya_assert_eq and its five siblings, are in base_watch.h: they print what
- * each side held, with the same formatter the watched locals of a crash report are printed by. They
- * cannot live here, because base_array.h includes this header and they need NYA_String.
- */
+/* The comparison assertions (nya_assert_eq and its siblings) live in base_watch.h: they print each side with the crash-report formatter and need NYA_String, which cannot be included here. */
 
 #define nya_assert_type_match(a, b) static_assert(__builtin_types_compatible_p(typeof(a), typeof(b)), "Incompatible types.")
 #define nya_unused(...)             ((void)(0, __VA_ARGS__))
 
-// do/while keeps these safe inside an unbraced if/else. __builtin_unreachable() is redundant while
-// asserts are on (_nya_crash_raise is noreturn), but without it -Wreturn-type warns on every
-// function ending in nya_unreachable().
+// do/while keeps these safe inside an unbraced if/else; __builtin_unreachable() is redundant while asserts are on but silences -Wreturn-type on functions ending in nya_unreachable().
 #define nya_todo()                  do { nya_assert(0, "Todo"); __builtin_unreachable(); } while (0)
 #define nya_unimplemented()         do { nya_assert(0, "Unimplemented"); __builtin_unreachable(); } while (0)
 #define nya_unreachable()           do { nya_assert(0, "Unreachable"); __builtin_unreachable(); } while (0)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 #define _NYA_ASSERT_ENABLED(...)  _NYA_PICK_ASSERT(__VA_ARGS__, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT3, _NYA_ASSERT2, _NYA_ASSERT1)(__VA_ARGS__)
 #define _NYA_PICK_ASSERT(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, NAME, ...) NAME

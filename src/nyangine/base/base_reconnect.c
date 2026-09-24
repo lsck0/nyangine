@@ -2,11 +2,7 @@
 #include "nyangine/base/base_rate.h"
 #include "nyangine/base/base_reconnect.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_reconnect_init(OUT NYA_Reconnect* reconnect, NYA_ReconnectPolicy policy) {
     nya_assert(reconnect != nullptr);
@@ -28,8 +24,7 @@ u64 nya_reconnect_window_ms(const NYA_Reconnect* reconnect) {
 
     if (cap_ms < base_ms) cap_ms = base_ms;
 
-    // Saturated rather than shifted past the width of the type, the same guard nya_backoff_ms uses: an
-    // attempt in the dozens should mean the cap, not undefined behaviour.
+    // Saturated rather than shifted past the width of the type, the guard nya_backoff_ms uses: an attempt in the dozens should mean the cap, not undefined behaviour.
     if (reconnect->attempt >= 32) return cap_ms;
 
     u64 doubled = base_ms << reconnect->attempt;
@@ -42,8 +37,7 @@ b8 nya_reconnect_dropped_after(NYA_Reconnect* reconnect, u64 now_ms, u64 delay_m
 
     if (!reconnect->policy.enabled) return false;
 
-    // Zero max_attempts is unlimited; otherwise attempts 0..max_attempts-1 are allowed and the one past
-    // that is where the socket is given up on.
+    // Zero max_attempts is unlimited; otherwise attempts 0..max_attempts-1 are allowed and the one past that is where the socket is given up on.
     if (reconnect->policy.max_attempts != 0 && reconnect->attempt >= reconnect->policy.max_attempts) return false;
 
     reconnect->waiting     = true;
@@ -58,8 +52,7 @@ b8 nya_reconnect_dropped(NYA_Reconnect* reconnect, u64 now_ms) {
 
     if (!reconnect->policy.enabled) return false;
 
-    // Drawn before the attempt is counted, so the window matches nya_reconnect_window_ms's reading of
-    // the current attempt. Full jitter unless the policy asked for less.
+    // Drawn before the attempt is counted, so the window matches nya_reconnect_window_ms's reading of the current attempt; full jitter unless the policy asked for less.
     u64 base_ms = reconnect->policy.base_ms != 0 ? reconnect->policy.base_ms : (u64)NYA_RECONNECT_BASE_MS;
     u64 cap_ms  = reconnect->policy.cap_ms != 0 ? reconnect->policy.cap_ms : (u64)NYA_RECONNECT_CAP_MS;
 

@@ -58,11 +58,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_clock_instant.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Fraction digits RFC 3339 may carry here. Nine is a nanosecond, which is all an instant holds; a tenth
@@ -79,11 +75,7 @@
 /** IMF-fixdate is fixed width: `Sun, 06 Nov 1994 08:49:37 GMT`. */
 #define NYA_RFC9110_LENGTH 29
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_TimeParse NYA_TimeParse;
 
@@ -144,11 +136,7 @@ enum NYA_TimeParse {
     NYA_TIME_PARSE_COUNT,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Writes `instant` as canonical RFC 3339 into `buffer`, null terminated, and returns the bytes written

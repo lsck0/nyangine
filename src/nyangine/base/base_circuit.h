@@ -55,11 +55,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of a key's name, terminator included — the same budget a rate bucket's name gets. */
 #define NYA_CIRCUIT_MAX_KEY 64
@@ -78,11 +74,7 @@
 /** How long a key stays OPEN before a probe is let through, in milliseconds, when unset. */
 #define NYA_CIRCUIT_OPEN_MS 30000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_CircuitBreaker NYA_CircuitBreaker;
 
@@ -114,11 +106,7 @@ typedef struct {
     u64 open_ms;
 } NYA_CircuitBreakerOptions;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Builds a breaker into `arena`. Refuses a `failure_threshold`, `success_threshold` or `half_open_max` of zero only when set to a value that is not representable; the zero defaults above are applied first. */
 NYA_API NYA_Error _nya_circuit_breaker_create(NYA_Arena* arena, OUT NYA_CircuitBreaker** out_breaker, NYA_CircuitBreakerOptions options) __attr_no_discard;

@@ -1,21 +1,13 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL b8 _nya_type_try_parse_bool(const u8* data, u64 length, OUT u128* out_value);
 NYA_INTERNAL b8 _nya_type_try_parse_u128(const u8* data, u64 length, OUT u128* out_value);
 NYA_INTERNAL b8 _nya_type_try_parse_s128(const u8* data, u64 length, OUT s128* out_value);
 NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* out_value);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_value) {
     nya_assert(data != nullptr);
@@ -163,11 +155,7 @@ b8 nya_type_name_parse(const u8* data, u64 length, OUT NYA_Type* out_type, OUT N
     return false;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL b8 _nya_type_try_parse_bool(const u8* data, u64 length, OUT u128* out_value) {
     nya_assert(data != nullptr);
@@ -285,9 +273,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_s128(const u8* data, u64 length, OUT s128* o
     u128 magnitude = 0;
     if (!_nya_type_try_parse_u128(data, length, &magnitude)) return false;
 
-    /*
-     * Bounded before the conversion, not after.
-     */
+    // Bounded before the conversion, not after.
     u128 limit = is_negative ? (u128)S128_MAX + 1 : (u128)S128_MAX;
     if (magnitude > limit) return false;
 
@@ -296,15 +282,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_s128(const u8* data, u64 length, OUT s128* o
         return true;
     }
 
-    /*
-     * S128_MIN is built rather than negated into: there is no positive s128 to negate, so any route
-     * through one is wrong. Everything else is inside S128_MAX by the check above and negates safely.
-     *
-     * The two's complement trick this used to be, `~magnitude + 1`, is an unsigned overflow for a
-     * magnitude of zero: "-0" wrapped U128_MAX back to zero, which is the right answer arrived at by
-     * undefined means, and the sanitizer said so. Found by fuzzing the HTTP body parser, which reaches
-     * this through serde's JSON numbers.
-     */
+    /* S128_MIN is built rather than negated into, since there is no positive s128 to negate; the old `~magnitude + 1` was an unsigned overflow for magnitude zero, found by fuzzing the HTTP body parser through serde. */
     if (magnitude == (u128)S128_MAX + 1) {
         *out_value = S128_MIN;
         return true;
@@ -333,9 +311,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
         if (length == 0) return false;
     }
 
-    /*
-     * A hexadecimal float, which is what the nya format writes: 0x1.91eb86p+1.
-     * */
+    // A hexadecimal float, which is what the nya format writes: 0x1.91eb86p+1.
     if (length > 2 && data[0] == '0' && (data[1] == 'x' || data[1] == 'X')) {
         u128 mantissa            = 0;
         s32  binary_exponent     = 0;
@@ -372,8 +348,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
         if (!seen_digit) return false;
 
-        // The p exponent. Required by C for a hexadecimal float, and required here too rather than
-        // guessed at, so a plain 0x1F stays the integer it looks like.
+        // The p exponent, required by C for a hexadecimal float and required here too rather than guessed at, so a plain 0x1F stays the integer it looks like.
         if (i >= length || (data[i] != 'p' && data[i] != 'P')) return false;
         i++;
 
@@ -399,17 +374,13 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
         return true;
     }
 
-    /*
-     * One mantissa and a decimal exponent, rather than an integer part over a fractional divisor.
-     * */
+    // One mantissa and a decimal exponent, rather than an integer part over a fractional divisor.
     u128 mantissa            = 0;
     s64  decimal_exponent    = 0;
     b8   mantissa_saturated  = false;
     b8   has_fractional_part = false;
 
-    // Scientific notation. The mantissa is scanned first and the exponent applied at the end, so
-    // 1.5e3 and 1500 produce the same value. Without this every JSON document containing an
-    // exponent, which is how most encoders write large or small reals, would fail to parse.
+    // Scientific notation: the mantissa is scanned first and the exponent applied at the end, so 1.5e3 and 1500 match; without it every JSON document with an exponent would fail to parse.
     s32 exponent            = 0;
     b8  has_exponent        = false;
     b8  exponent_negative   = false;
@@ -431,8 +402,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
             has_exponent_digits = true;
 
-            // Clamped, because anything past this is already infinity or zero and letting it run
-            // would overflow the counter itself.
+            // Clamped, because anything past this is already infinity or zero and letting it run would overflow the counter itself.
             if (exponent < 100000) exponent = (exponent * 10) + (c - '0');
             continue;
         }
@@ -455,10 +425,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
         u8 digit = c - '0';
 
-        // _nya_type_accumulate_digit leaves the accumulator untouched when the multiply would
-        // overflow, which is the saturation wanted here, so the guard is not spelled out a
-        // fourth time. The flag is sticky: once a digit has been dropped a later, smaller one must
-        // not sneak back in under the limit and land in the wrong place value.
+        // _nya_type_accumulate_digit leaves the accumulator untouched when the multiply would overflow, the saturation wanted here; the sticky flag stops a later smaller digit landing in the wrong place value.
         if (mantissa_saturated || !_nya_type_accumulate_digit(&mantissa, 10, digit)) {
             // Past what the accumulator holds. The digit's *place* still counts; its value does not.
             mantissa_saturated = true;
@@ -475,12 +442,9 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
     if (has_exponent) decimal_exponent += exponent_negative ? -exponent : exponent;
 
-    /*
-     * Zero is left alone, because scaling it would not leave it zero.
-     * */
+    // Zero is left alone, because scaling it would not leave it zero.
     if (mantissa != 0 && decimal_exponent != 0) {
-        // Bounded before negating, so the magnitude below cannot overflow and powl is asked for
-        // something it can answer with an infinity rather than with undefined behaviour.
+        // Bounded before negating, so the magnitude below cannot overflow and powl is asked for something it can answer with an infinity rather than undefined behaviour.
         if (decimal_exponent > 1000000) decimal_exponent = 1000000;
         if (decimal_exponent < -1000000) decimal_exponent = -1000000;
 

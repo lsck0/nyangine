@@ -98,11 +98,7 @@
 #include "nyangine/base/base_object.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * What nya_reflect_to_object_redacted writes in place of a `@redact` field.
@@ -113,11 +109,7 @@
  * */
 #define NYA_REFLECT_REDACTED "<redacted>"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_ReflectKind        NYA_ReflectKind;
 typedef enum NYA_ReflectHint        NYA_ReflectHint;
@@ -289,11 +281,7 @@ struct NYA_TypeReflection {
     NYA_ReflectApplyFn on_apply;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /**
  * The reflection for `type`, by its bare name: `nya_reflect_of(NYA_Entity)`.
@@ -323,40 +311,7 @@ NYA_API b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCS
  * */
 NYA_API b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE LAYOUT HASH
- * ─────────────────────────────────────────────────────────
- *
- * One number that changes whenever a document written from this type could be read wrongly by a build
- * whose type differs. The binary `.nya` header carries it, so a peer built from other headers is
- * refused by name instead of misread; see serde_nya_binary.h.
- *
- * What it covers, walked depth first from `type` in declaration order:
- *
- * - every type met: its kind, its `size` and its `alignment`
- * - a primitive, and an enum's underlying integer: the type's name ("u32"), not its NYA_Type number,
- *   so inserting a member into NYA_Type does not change every hash
- * - an enum: whether it is bitflags, and every variant's name and value, since a document carries
- *   the name and a renamed or renumbered variant reads as a different one
- * - a struct or union: every field's name, `offset` and tag value, then the field's type; and a
- *   union's tag field by name
- * - an array or vector: its element count, then the element type
- * - a pointer: only the pointee's kind and primitive, since reflection follows nothing but `char*`
- *   and a self referencing type would otherwise never end
- *
- * What it leaves out, because none of it changes what a document means: type names (renaming a
- * struct is not a layout change), hints, `is_key`, `is_redacted`, `is_secret` and `on_apply`. Tagging
- * a field `@redact` changes what a *log* holds, never what nya_reflect_to_object writes, so two builds
- * that disagree about it still read each other's documents. `@secret` is applied a layer up, in the
- * reflected save path, over the object this describes rather than in the wire encode the hash guards,
- * so it does not belong here either.
- *
- * Offsets and sizes are the compiler's, so a 32 bit peer disagrees with a 64 bit one over any type
- * holding a pointer, `char*` included. That is the intended strictness; a DTO meant for both carries
- * `char[N]` rather than a string pointer. FNV-1a 64 over an explicit little endian stream, so the
- * answer does not depend on the host's byte order, and the same on every run of every build.
- * */
+/* THE LAYOUT HASH: one FNV-1a number over a type's on-wire layout (kinds, sizes, offsets, names, enum variants), carried in the .nya header so a peer built from other headers is refused by name, not misread; excludes what does not change a document's meaning. */
 
 /**
  * Deepest nesting of described types the hash walks. The described types in the tree nest a handful of
@@ -388,11 +343,7 @@ NYA_API NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* i
 /** The inverse. Converts where safe: integers widen, floats never become integers. */
 NYA_API b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value value);
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE GENERIC CONVERSION
- * ─────────────────────────────────────────────────────────
- */
+// THE GENERIC CONVERSION
 
 /**
  * Any annotated type, as a self describing document.
@@ -419,24 +370,7 @@ NYA_API NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* 
  * */
 NYA_API NYA_Object* nya_reflect_to_object_redacted(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * CHECKING A DOCUMENT BEFORE IT IS APPLIED
- * ─────────────────────────────────────────────────────────
- *
- * nya_reflect_from_object skips what it cannot write, which is what keeps one bad line in a hand
- * edited file from costing the user the rest of it. Skipping in silence is the other half of the
- * problem, so nya_reflect_check walks the same document first and says exactly what it found.
- *
- * ```c
- * static void report(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data) {
- *     nya_log_warn("%s: '%s' is %s, expected %s; ignoring it.", (NYA_ConstCString)user_data, path, found, expected);
- * }
- *
- * (void)nya_reflect_check(nya_reflect_of(NYA_SettingsGraphics), document, report, NYA_SETTINGS_FILE);
- * NYA_TRY(nya_reflect_from_object(nya_reflect_of(NYA_SettingsGraphics), &graphics, document));
- * ```
- */
+/* CHECKING A DOCUMENT BEFORE IT IS APPLIED: nya_reflect_from_object skips what it cannot write, so nya_reflect_check walks the same document first and reports exactly what it found, so a skip is not silent. */
 
 /** Longest dotted path a report carries, terminator included. Deep enough for any described tree; a document nested past it is reported at the depth that fits. */
 #define NYA_REFLECT_PATH_MAX 256

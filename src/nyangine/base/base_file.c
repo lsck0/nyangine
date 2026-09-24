@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * HANDLE FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// HANDLE FUNCTIONS
 
 NYA_Error nya_file_read_string(NYA_File* file, OUT NYA_String* out_content) {
     nya_assert(file != nullptr);
@@ -51,17 +47,9 @@ NYA_Error nya_file_append_string(NYA_File* file, NYA_ConstCString content) __att
     return nya_file_write_string(file, content);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FILE FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FILE FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * READ
- * ─────────────────────────────────────────────────────────
- */
+// READ
 
 NYA_Error nya_file_read(const char* path, OUT NYA_String* out_content) __attr_overloaded {
     nya_assert(path != nullptr);
@@ -85,11 +73,7 @@ NYA_Error nya_file_read(const NYA_String* path, OUT NYA_String* out_content) __a
     return nya_file_read(c_path, out_content);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WRITE
- * ─────────────────────────────────────────────────────────
- */
+// WRITE
 
 NYA_Error nya_file_write(const char* path, const NYA_String* content) __attr_overloaded {
     nya_assert(path != nullptr);
@@ -143,11 +127,7 @@ NYA_Error nya_file_write(const NYA_String* path, NYA_ConstCString content) __att
     );
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * APPEND
- * ─────────────────────────────────────────────────────────
- */
+// APPEND
 
 NYA_Error nya_file_append(const char* path, const NYA_String* content) __attr_overloaded {
     nya_assert(path != nullptr);
@@ -201,11 +181,7 @@ NYA_Error nya_file_append(const NYA_String* path, NYA_ConstCString content) __at
     );
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ATOMIC WRITE
- * ─────────────────────────────────────────────────────────
- */
+// ATOMIC WRITE
 
 /** Shared by every thread, so two writers in one process never pick the same temp name. */
 NYA_INTERNAL _Atomic u32 _nya_file_atomic_counter = 0;

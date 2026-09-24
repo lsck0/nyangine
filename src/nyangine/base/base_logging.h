@@ -8,11 +8,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Roomy enough that a thrown error can carry its message and its full propagation trace. */
 #define NYA_CRASH_MESSAGE_MAX_LENGTH 1024
@@ -53,11 +49,7 @@
 #define NYA_LOG_RING_LINE_MAX 256
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_LogLevel    NYA_LogLevel;
 typedef enum NYA_CrashSource NYA_CrashSource;
@@ -188,15 +180,9 @@ struct NYA_LogRecord {
 /** Receives every record, message and typed fields together, so the sink alone decides how it reads. */
 typedef void (*NYA_LogRecordSink)(const NYA_LogRecord* record, void* user_data);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * Which level to use, and how to word it.
- */
+// Which level to use, and how to word it.
 // clang-format off
 #define nya_log_trace(format, ...) _nya_log_message(NYA_LOG_LEVEL_TRACE, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
 #define nya_log_debug(format, ...) _nya_log_message(NYA_LOG_LEVEL_DEBUG, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
@@ -206,10 +192,7 @@ typedef void (*NYA_LogRecordSink)(const NYA_LogRecord* record, void* user_data);
 #define nya_log_panic(format, ...) _nya_crash_raise(NYA_CRASH_SOURCE_PANIC, __FUNCTION__, __FILE__, __LINE__, 0, format __VA_OPT__(, __VA_ARGS__))
 // clang-format on
 
-/*
- * Typed fields, named inline where a record is logged. A value spelled `nya_log_int("count", n)` builds one
- * NYA_LogField; the nya_log_*_fields macros below gather however many are named into one record.
- */
+/* Typed fields, named inline where a record is logged: nya_log_int("count", n) builds one NYA_LogField, and the nya_log_*_fields macros gather however many are named into one record. */
 // clang-format off
 #define nya_log_str(k, v)   ((NYA_LogField){ .key = (k), .kind = NYA_LOG_FIELD_STRING, .as_string = (v) })
 #define nya_log_int(k, v)   ((NYA_LogField){ .key = (k), .kind = NYA_LOG_FIELD_INT,    .as_int    = (s64)(v) })
@@ -217,19 +200,7 @@ typedef void (*NYA_LogRecordSink)(const NYA_LogRecord* record, void* user_data);
 #define nya_log_bool(k, v)  ((NYA_LogField){ .key = (k), .kind = NYA_LOG_FIELD_BOOL,   .as_bool   = (b8)(v) })
 // clang-format on
 
-/*
- * Logs one record: a plain message, no format specifiers, followed by the typed fields it carries. The
- * message is a fixed event name and the fields are the variables, which is what lets a machine sink key on
- * the message and read the fields as columns. A call with no fields is a plain nya_log_* and stays that way.
- *
- * ```c
- * nya_log_info_fields("request served", nya_log_str("route", path), nya_log_int("status", code), nya_log_float("ms", elapsed));
- * ```
- *
- * The array is a compound literal that lives to the end of the full expression, which is the whole log call,
- * so _nya_log_fields borrows it and returns before it dies. sizeof counts the fields without evaluating
- * them a second time, so a value with a side effect is evaluated once.
- */
+/* Logs one record: a fixed event-name message plus the typed fields it carries, so a machine sink can key on the message and read the fields as columns; the fields are a compound literal evaluated once. */
 // clang-format off
 #define _nya_log_fields_at(level, message, ...)                                                                        \
     _nya_log_fields((level), __FUNCTION__, __FILE__, __LINE__, (message), (const NYA_LogField[]){ __VA_ARGS__ },        \
@@ -296,21 +267,9 @@ NYA_API void nya_log_tag_clear(void);
 /** The current thread's tag, or "" when there is none. */
 NYA_API NYA_ConstCString nya_log_tag_get(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * RING
- * ─────────────────────────────────────────────────────────
- */
+// RING
 
-/*
- * The last NYA_LOG_RING_MAX lines, kept so that whoever reports a crash can print what led to it. Always
- * on and never filtered further than nya_log_level_set already filters: a line the ring did not keep is a
- * line nobody can get back once the process is gone.
- *
- * ```c
- * for (u32 i = 0; i < nya_log_ring_count(); i++) printf("%s\n", nya_log_ring_at(i));
- * ```
- */
+/* The last NYA_LOG_RING_MAX lines, kept so a crash report can print what led to it; always on and filtered no further than nya_log_level_set, since a dropped line cannot be recovered. */
 
 /** Lines held, at most NYA_LOG_RING_MAX. */
 NYA_API u32 nya_log_ring_count(void) __attr_no_discard;
@@ -324,11 +283,7 @@ NYA_API NYA_LogLevel nya_log_ring_level_at(u32 index) __attr_no_discard;
 /** Drops everything the ring holds. */
 NYA_API void nya_log_ring_clear(void);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 NYA_API void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCString file, u32 line, NYA_ConstCString format, ...)
     __attr_fmt_printf(5, 6);

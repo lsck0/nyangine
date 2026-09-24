@@ -6,16 +6,9 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_filesystem.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FILE DESCRIPTOR FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FILE DESCRIPTOR FUNCTIONS
 
-/*
- * Whole-content helpers over an open NYA_File. These took a raw `s32 fd` before, which quietly made
- * them POSIX only; NYA_File wraps a descriptor or a Windows HANDLE, so the same code works on both.
- */
+/* Whole-content helpers over an open NYA_File. These took a raw s32 fd before, quietly POSIX-only; NYA_File wraps a descriptor or a Windows HANDLE, so the same code works on both. */
 
 NYA_API NYA_Error nya_file_read_string(NYA_File* file, OUT NYA_String* out_content) __attr_no_discard;
 NYA_API NYA_Error nya_file_write_string(NYA_File* file, const NYA_String* content) __attr_overloaded __attr_no_discard;
@@ -23,11 +16,7 @@ NYA_API NYA_Error nya_file_write_string(NYA_File* file, NYA_ConstCString content
 NYA_API NYA_Error nya_file_append_string(NYA_File* file, const NYA_String* content) __attr_overloaded __attr_no_discard;
 NYA_API NYA_Error nya_file_append_string(NYA_File* file, NYA_ConstCString content) __attr_overloaded __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FILE FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FILE FUNCTIONS
 
 NYA_API NYA_Error nya_file_read(const char* path, OUT NYA_String* out_content) __attr_overloaded __attr_no_discard;
 NYA_API NYA_Error nya_file_read(const NYA_String* path, OUT NYA_String* out_content) __attr_overloaded __attr_no_discard;
@@ -40,11 +29,7 @@ NYA_API NYA_Error nya_file_append(const NYA_String* path, const NYA_String* cont
 NYA_API NYA_Error nya_file_append(const char* path, NYA_ConstCString content) __attr_overloaded __attr_no_discard;
 NYA_API NYA_Error nya_file_append(const NYA_String* path, NYA_ConstCString content) __attr_overloaded __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ATOMIC WRITE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ATOMIC WRITE
 
 /**
  * Tries before giving up on finding an unused temp name. The name carries the pid and a counter, so a

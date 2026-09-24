@@ -32,11 +32,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_compare.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** Name of the ring buffer type derived for `type`, e.g. NYA_Ringᐸu32ᐳ. */
 #define _nya_derive_ring_name(type) nya_template(NYA_Ring, type)
@@ -53,11 +49,7 @@
     } _nya_derive_ring_name(type);
 // NOLINTEND(bugprone-macro-parentheses)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CREATION MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CREATION MACROS
 
 #define _NYA_RING_DEFAULT_CAPACITY 8
 
@@ -129,11 +121,7 @@
         (ring_ptr)->items    = nullptr;                                                                                                              \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ACCESS MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ACCESS MACROS
 
 #define _nya_ring_access_guard(index, length)                                                                                                        \
     nya_assert(0 <= (index) && (index) < (length), "Ring index " FMTs64 " (length " FMTu64 ") out of bounds.", (s64)(index), length);
@@ -162,19 +150,12 @@
         &(ring_ptr)->items[((ring_ptr)->head + (offset)) % (ring_ptr)->capacity];                                                                    \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUSH / POP MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUSH / POP MACROS
 
 #define nya_ring_push(ring_ptr, item)                                                                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (ring_ptr)->items[0]);                                                                                           \
-        /*                                                                                                                                           \
-         * A zero capacity ring has null `items` and the wrap is a modulo by capacity. Rings never grow,                                             \
-         * so pushing onto one is a caller mistake.                                                                                                  \
-         */                                                                                                                                          \
+        /* A zero-capacity ring has null `items` and the wrap is a modulo by capacity; rings never grow, so pushing onto one is a caller mistake. */ \
         nya_assert((ring_ptr)->capacity > 0, "Cannot push onto a ring buffer with zero capacity.");                                                  \
         (ring_ptr)->items[(ring_ptr)->tail] = item;                                                                                                  \
         (ring_ptr)->tail                    = ((ring_ptr)->tail + 1) % (ring_ptr)->capacity;                                                         \
@@ -205,9 +186,7 @@
         }                                                                                                                                            \
     })
 
-/*
- * The count is read once, before anything is popped.
- * */
+// The count is read once, before anything is popped.
 #define nya_ring_pop_many(ring_ptr, count)                                                                                                           \
     ({                                                                                                                                               \
         u64 _ring_pop_many_count = (count);                                                                                                          \
@@ -215,11 +194,7 @@
         for (u64 _ring_pop_many_i = 0; _ring_pop_many_i < _ring_pop_many_count; _ring_pop_many_i++) { (void)nya_ring_pop(ring_ptr); }                \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE MACROS
 
 #define nya_ring_is_empty(ring_ptr) ((ring_ptr)->length == 0)
 #define nya_ring_length(ring_ptr)   ((ring_ptr)->length)
@@ -230,11 +205,7 @@
  * */
 #define nya_ring_available_space(ring_ptr) ((ring_ptr)->capacity - (ring_ptr)->length)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MISC MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MISC MACROS
 
 #define nya_ring_copy(ring_ptr)                                                                                                                      \
     ({                                                                                                                                               \
@@ -266,11 +237,7 @@
         (ring_ptr) = _ring_move_new_ptr;                                                                                                             \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ITERATOR MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ITERATOR MACROS
 
 #define nya_ring_foreach(ring_ptr, item_name)                                                                                                        \
     for (u64 _nya_ring_idx = 0;                                                                                                                      \

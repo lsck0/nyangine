@@ -2,16 +2,11 @@
 
 #include "nyangine/base/base_basic.h"
 
-// Named rather than relied on from base.h's ordering: the bounded nya_alloca below uses both, and a
-// header that only compiles in one include order reports errors in the editor while building fine.
+// Named rather than relied on from base.h's ordering: the bounded nya_alloca below uses both, and a header that compiles in only one include order shows editor errors while building fine.
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MEMORY OPERATIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MEMORY OPERATIONS
 
 /**
  * Largest stack allocation nya_alloca will make. Override with -DNYA_ALLOCA_MAX=<bytes>.
@@ -41,9 +36,7 @@
 #define nya_calloc  calloc
 #define nya_free    free
 
-/*
- * The libc block operations, made safe to call with a count of zero.
- * */
+// The libc block operations, made safe to call with a count of zero.
 #define nya_memcmp(lhs, rhs, size)                                                                                                                   \
     ({                                                                                                                                               \
         u64 _nya_mem_size = (size);                                                                                                                  \
@@ -76,20 +69,14 @@
 
 #define nya_is_zeroed(val) (nya_memcmp(&(val), &(typeof(val)){ 0 }, sizeof(val)) == 0)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPE AND OFFSET MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPE AND OFFSET MACROS
 
 #define nya_typeof_field(type, member) typeof(((type*)0)->member)
 #define nya_sizeof_field(type, member) sizeof((((type*)0)->member))
 #define nya_offsetof(type, member)     __builtin_offsetof(type, member)
 #define nya_offsetof_end(type, member) (nya_offsetof(type, member) + nya_sizeof_field(type, member))
 
-/*
- * Recovers the enclosing struct from a pointer to one of its members.
- */
+// Recovers the enclosing struct from a pointer to one of its members.
 #define nya_container_of(ptr, type, member)                                                                                                          \
     _Generic(                                                                                                                                        \
         ptr,                                                                                                                                         \
@@ -106,11 +93,7 @@
         ((type*)(void*)(_nya_container_of_base - nya_offsetof(type, member)));                                                                       \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * UNIT CONVERSION UTILITIES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// UNIT CONVERSION UTILITIES
 
 #define nya_byte_to_kibyte(val) ((val) >> 10)
 #define nya_byte_to_mebyte(val) ((val) >> 20)

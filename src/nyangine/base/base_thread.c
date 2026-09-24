@@ -3,11 +3,7 @@
 #include "nyangine/base/base_thread.h"
 #include "nyangine/os/os_thread.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 struct NYA_Thread {
     /** Where the record came from and where nya_thread_join hands it back. */
@@ -39,11 +35,7 @@ struct NYA_Semaphore {
     NYA_OsSemaphore os_semaphore;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /** True on exactly one thread, because only that thread ever runs the store. */
 NYA_INTERNAL thread_local b8 _nya_thread_is_main = false;
@@ -54,11 +46,7 @@ NYA_INTERNAL atomic b8 _nya_thread_main_claimed = false;
 /** Who claimed, so a guard that fires can say which thread it was rather than only that it was not. */
 NYA_INTERNAL atomic u64 _nya_thread_main_id = 0;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 /**
  * Every thread starts here: it names itself, runs what it was spawned for, and raises the flag on its
@@ -74,17 +62,9 @@ NYA_INTERNAL void _nya_thread_entry(void* data) {
     atomic_store_explicit(&thread->finished, true, memory_order_release);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * THREADS
- * ─────────────────────────────────────────────────────────
- */
+// THREADS
 
 NYA_Error nya_thread_spawn(NYA_Arena* arena, NYA_ThreadFn function, void* data, NYA_ConstCString name, OUT NYA_Thread** out_thread) {
     nya_assert(arena != nullptr);
@@ -137,11 +117,7 @@ void nya_thread_abandon(NYA_Thread* thread) {
     nya_os_thread_abandon(thread->os_thread);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTEXES
- * ─────────────────────────────────────────────────────────
- */
+// MUTEXES
 
 NYA_Error nya_mutex_create(NYA_Arena* arena, OUT NYA_Mutex** out_mutex) {
     nya_assert(arena != nullptr);
@@ -181,11 +157,7 @@ void nya_mutex_unlock(NYA_Mutex* mutex) {
     nya_os_mutex_unlock(&mutex->os_mutex);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SEMAPHORES
- * ─────────────────────────────────────────────────────────
- */
+// SEMAPHORES
 
 NYA_Error nya_semaphore_create(NYA_Arena* arena, u32 initial, OUT NYA_Semaphore** out_semaphore) {
     nya_assert(arena != nullptr);
@@ -232,11 +204,7 @@ b8 nya_semaphore_wait_timeout(NYA_Semaphore* semaphore, u32 timeout_ms) {
     return nya_os_semaphore_wait(&semaphore->os_semaphore, timeout_ms) == NYA_OS_THREAD_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE MAIN THREAD
- * ─────────────────────────────────────────────────────────
- */
+// THE MAIN THREAD
 
 void nya_thread_main_claim(void) {
     _nya_thread_is_main = true;

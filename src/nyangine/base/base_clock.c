@@ -1,17 +1,9 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/os/os_time.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * Both clocks are one os call in nanoseconds, and every unit below is that number divided. This used
- * to be two files of seven functions, each doing its own conversion from the platform's own epoch and
- * its own tick rate, which is seven chances for the two targets to disagree about the same moment.
- */
+/* Both clocks are one os call in nanoseconds, every unit below that number divided; this replaced two files of seven functions each doing its own epoch and tick-rate conversion. */
 
 u64 nya_clock_get_timestamp_s(void) {
     return nya_os_time_wall_ns() / 1'000'000'000ULL;
@@ -41,11 +33,7 @@ u64 nya_clock_get_monotonic_ns(void) {
     return nya_os_time_monotonic_ns();
 }
 
-/*
- * Civil date from a day count, after Howard Hinnant's chrono algorithms. Not localtime_r or gmtime_r:
- * those touch the timezone database and, on glibc, a lock, and the crash path formats a timestamp from
- * a signal handler.
- */
+/* Civil date from a day count, after Howard Hinnant's algorithms; not localtime_r/gmtime_r, which touch the timezone database and a glibc lock, and the crash path formats from a signal handler. */
 void nya_clock_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day) {
     nya_assert(out_year != nullptr);
     nya_assert(out_month != nullptr);

@@ -3,11 +3,7 @@
 #include "nyangine/base/base_dict.h"
 #include "nyangine/base/base_error.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_Value NYA_Value;
 nya_derive_array(NYA_Value);
@@ -71,11 +67,7 @@ struct NYA_Value {
     };
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 NYA_API NYA_Object* nya_object_create(NYA_Arena* arena);
 NYA_API NYA_Object  nya_object_create_on_stack(NYA_Arena* arena);

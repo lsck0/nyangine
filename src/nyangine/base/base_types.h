@@ -8,11 +8,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_basic.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPEDEFS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPEDEFS
 
 typedef void* voidptr;
 
@@ -33,16 +29,9 @@ typedef int32_t     s32;
 typedef int64_t     s64;
 typedef __int128_t  s128;
 #if defined(__wasm__) || defined(__EMSCRIPTEN__)
-// clang for wasm32-unknown-emscripten rejects _Float16 ("not supported on this target") and no flag
-// turns it on, so the wasm build takes f16 as a plain float. This is a soft-float widening: f16
-// becomes 4 bytes here, not 2. The wasm demo only serialises to JSON *text* (nya_serialize ... JSON),
-// where a value's in-memory width never reaches the wire, so it is invisible there. It would matter to
-// the binary serde format and to reflection (both read sizeof), so this platform only serialises to
-// text. Guarded so the native build keeps _Float16 exactly.
+// clang for wasm rejects _Float16, so the wasm build takes f16 as a plain 4-byte float; invisible to its JSON-text serialisation, and guarded so the native build keeps _Float16 exactly.
 typedef float       f16;
-// f16 is now the same type as f32, so the two collapse: any function overloaded on both (nya_matrix_create,
-// nya_matrix_times_vector) would declare the same signature twice, and clang rejects that. Code that guards its
-// f16 overloads with !NYA_F16_IS_F32 keeps only the f32 twin here, which f16 arguments resolve to unchanged.
+// f16 equals f32 here, so overloads on both would declare the same signature twice; code guarding its f16 overloads with !NYA_F16_IS_F32 keeps only the f32 twin, which f16 arguments resolve to.
 #define NYA_F16_IS_F32 1
 #else
 typedef _Float16    f16;
@@ -52,9 +41,7 @@ typedef float       f32;
 typedef double      f64;
 typedef long double f128;
 
-/*
- * Named for their component width, matching the f types above: a c64 is two f64s, not 64 bits.
- */
+// Named for their component width, matching the f types above: a c64 is two f64s, not 64 bits.
 typedef float _Complex c32;
 typedef double _Complex c64;
 typedef long double _Complex c128;
@@ -91,11 +78,7 @@ typedef const wchar* NYA_ConstWCString;
 typedef char*       NYA_CString;
 typedef const char* NYA_ConstCString;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPE ENUM AND VALUE UNION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPE ENUM AND VALUE UNION
 
 typedef enum {
     NYA_TYPE_NULL,
@@ -211,11 +194,7 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
     [NYA_TYPE_ARRAY] = "array",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LIMITS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// LIMITS
 
 #define U8_MIN   ((u8)0)
 #define U8_MAX   ((u8) ~(u8)0)
@@ -248,11 +227,7 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
 #define F128_MIN (-__LDBL_MAX__)
 #define F128_MAX (__LDBL_MAX__)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FORMATTING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FORMATTING
 
 // use like: nya_log_debug("number: "FMTu64, number);
 #define FMTb8   "%" PRIu8
@@ -272,15 +247,9 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
 #define FMTf64  "%lf"
 #define FMTf128 "%Le"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SAFE CASTING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// SAFE CASTING
 
-/*
- * A negative value is rejected on its own, before the range comparison.
- * */
+// A negative value is rejected on its own, before the range comparison.
 
 /** True when `val` is a signed type holding a value below zero. Always false for unsigned types. */
 #define _nya_value_is_negative(val) (((typeof(val))-1 < (typeof(val))0) && ((val) < (typeof(val))0))
@@ -380,11 +349,7 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
         (f128)(val);                                                                                                                                 \
     })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PARSING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PARSING
 
 NYA_API b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_value);
 NYA_API b8 nya_type_name_parse(const u8* data, u64 length, OUT NYA_Type* out_type, OUT NYA_ConstCString* out_type_name);

@@ -21,11 +21,7 @@
 #include "nyangine/base/base_array.h"
 #include "nyangine/base/base_string.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_TokenType  NYA_TokenType;
 typedef enum NYA_LexerFlags NYA_LexerFlags;
@@ -113,11 +109,7 @@ struct NYA_Lexer {
     NYA_ArrayᐸNYA_Tokenᐳ* tokens;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 NYA_API NYA_Lexer nya_lexer_create(NYA_ConstCString source) __attr_overloaded;
 

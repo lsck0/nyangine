@@ -88,11 +88,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 #define NYA_ARG_MAX_COMMANDS   256
 #define NYA_ARG_MAX_PARAMETERS 256
@@ -243,11 +239,7 @@ struct NYA_ArgShell {
     void (*generate)(NYA_ArgParser* parser, NYA_ConstCString binary_name, FILE* stream);
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 NYA_API NYA_Error nya_args_parse(NYA_ArgParser* parser, s32 argc, NYA_CString* argv, OUT NYA_ArgCommand** out_command) __attr_no_discard;
 NYA_API NYA_Error nya_args_run_command(NYA_ArgCommand* command) __attr_no_discard;

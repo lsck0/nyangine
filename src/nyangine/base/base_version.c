@@ -7,11 +7,7 @@
 
 #include <stdio.h>
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /** Stat'ed once. The executable does not change under a running process. */
 NYA_INTERNAL u8 _NYA_BUILD_TIME[NYA_BUILD_TIME_MAX] = { 0 };
@@ -45,11 +41,7 @@ NYA_INTERNAL NYA_ConstCString _nya_build_time(void) {
     return (NYA_ConstCString)_NYA_BUILD_TIME;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 NYA_BuildInfo nya_build_info(void) {
     return (NYA_BuildInfo){
@@ -71,8 +63,7 @@ u32 nya_build_line(OUT u8* out, u32 capacity) {
         (char*)out, capacity, "%s%s %s %s, built %s", info.kind, info.headless ? " headless" : "", info.version, info.commit, info.built
     );
 
-    // snprintf reports what it *wanted* to write, so a truncated line would otherwise be reported
-    // as longer than the buffer and index past it in the caller.
+    // snprintf reports what it wanted to write, so a truncated line would otherwise be reported as longer than the buffer and index past it in the caller.
     if (written < 0) {
         out[0] = '\0';
         return 0;

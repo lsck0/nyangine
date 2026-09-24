@@ -5,19 +5,14 @@
 #include "nyangine/os/os_file.h"
 #include "nyangine/os/os_time.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /** What the layer below says, as the error kind this API has always reported for it. */
 NYA_INTERNAL NYA_ErrorKind _nya_filesystem_error_kind(NYA_OsFileStatus status) {
     switch (status) {
         case NYA_OS_FILE_STATUS_NOT_FOUND:   return NYA_ERROR_NOT_FOUND;
 
-        // BUSY is Windows refusing with a sharing violation or ACCESS_DENIED, so once the waiting is
-        // over it means what it always meant.
+        // BUSY is Windows refusing with a sharing violation or ACCESS_DENIED, so once the waiting is over it means what it always meant.
         case NYA_OS_FILE_STATUS_BUSY:
         case NYA_OS_FILE_STATUS_DENIED:      return NYA_ERROR_PERMISSION_DENIED;
 
@@ -56,17 +51,9 @@ NYA_INTERNAL NYA_String* _nya_filesystem_path(NYA_Arena* arena, NYA_ConstCString
 #endif
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * QUERIES
- * ─────────────────────────────────────────────────────────
- */
+// QUERIES
 
 b8 nya_filesystem_exists(NYA_ConstCString path) {
     nya_assert(path != nullptr);
@@ -151,11 +138,7 @@ NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString path, OUT N
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTATION
- * ─────────────────────────────────────────────────────────
- */
+// MUTATION
 
 NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destination) {
     nya_assert(source != nullptr);
@@ -202,8 +185,7 @@ NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString desti
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "filesystem_replace");
     defer     nya_arena_destroy_on_stack(&scratch);
 
-    // fsync the directory holding it, which is what makes the rename survive a power cut. Windows has no
-    // call for that and says so; there the write-through in the replace itself is the whole story.
+    // fsync the directory holding it, which is what makes the rename survive a power cut; Windows has no such call and says so, where the write-through in the replace is the whole story.
     NYA_String*      parent = nya_path_dirname(&scratch, destination);
     NYA_OsFileStatus synced = nya_os_directory_sync(nya_string_to_cstring(&scratch, parent));
     if (synced != NYA_OS_FILE_STATUS_OK && synced != NYA_OS_FILE_STATUS_UNSUPPORTED) {
@@ -233,9 +215,7 @@ NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destinat
         if (got > 0) NYA_TRY(nya_file_write_bytes(&destination_file, buffer, got));
     } while (got > 0);
 
-    // Carry the source's permissions over. Copying an executable and silently dropping its executable
-    // bit would, among other things, break restoring the build system from its backup. Set here rather
-    // than through the open, whose mode argument the umask masks.
+    // Carry the source's permissions over: dropping an executable bit would, among other things, break restoring the build system from its backup; set here rather than through the open, whose mode the umask masks.
     u32 mode = 0;
     if (nya_os_file_mode_get(source, &mode) == NYA_OS_FILE_STATUS_OK) (void)nya_os_file_mode_set(destination, mode);
 
@@ -245,8 +225,7 @@ NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destinat
 NYA_Error nya_filesystem_delete(NYA_ConstCString path) {
     nya_assert(path != nullptr);
 
-    // which call is right depends on what is there: unlink refuses a directory, and removing one refuses
-    // everything else. Not following links, so deleting a link deletes the link.
+    // Which call is right depends on what is there: unlink refuses a directory and removing one refuses everything else; links are not followed, so deleting a link deletes the link.
     NYA_OsFileStat   info   = { 0 };
     NYA_OsFileStatus status = nya_os_file_stat(path, false, &info);
     if (status != NYA_OS_FILE_STATUS_OK) return _nya_filesystem_error(status, "failed to delete '%s'", path);
@@ -256,8 +235,7 @@ NYA_Error nya_filesystem_delete(NYA_ConstCString path) {
     } else {
         status = nya_os_file_unlink(path);
 
-        // a link to a directory is a file to POSIX and a directory to Windows, and only one of the two
-        // calls will take it.
+        // A link to a directory is a file to POSIX and a directory to Windows, and only one of the two calls will take it.
         if (status != NYA_OS_FILE_STATUS_OK && info.kind == NYA_OS_FILE_KIND_SYMLINK) status = nya_os_directory_destroy(path);
     }
 
@@ -282,8 +260,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
         b8 is_last      = i + 1 == length;
         if (!is_separator && !is_last) continue;
 
-        // Skip the empty component in front of a leading separator: it names nothing, and creating ""
-        // fails with ERROR_PATH_NOT_FOUND on Windows.
+        // Skip the empty component before a leading separator: it names nothing, and creating "" fails with ERROR_PATH_NOT_FOUND on Windows.
         if (i == 0 && is_separator) continue;
 
         // Do not try to create the bare drive letter in "C:\", which is not ours to make.
@@ -304,11 +281,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * DIRECTORIES
- * ─────────────────────────────────────────────────────────
- */
+// DIRECTORIES
 
 NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_ArrayᐸNYA_DirectoryEntryᐳ** out_entries) {
     nya_assert(arena != nullptr);
@@ -330,9 +303,7 @@ NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_A
         u64          size        = entry.size;
         u64          modified_at = entry.modified_ms;
 
-        // The listing carries metadata so a browser does not have to stat every row itself. POSIX's
-        // readdir gives a name and little else, so there it costs a stat per entry; the Windows find
-        // data already holds all of it.
+        // The listing carries metadata so a browser need not stat every row: POSIX's readdir gives little, so it costs a stat per entry there, while the Windows find data already holds it all.
         if (!entry.has_metadata) {
             NYA_FileInfo info = { 0 };
             (void)nya_filesystem_info(nya_string_to_cstring(arena, nya_path_join(arena, path, entry.name)), &info);
@@ -366,13 +337,7 @@ NYA_INTERNAL NYA_Error
 _nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback callback, void* user_data, u32 depth, OUT b8* out_keep_going) {
     nya_assert(depth < NYA_FILESYSTEM_WALK_DEPTH_MAX, "Maximum directory depth exceeded walking '%s' (symlink loop?).", path);
 
-    // A scratch arena per level, so memory tracks the depth of the tree rather than its total size.
-    // Walking a large tree otherwise grows without bound, which is what a file browser does.
-    //
-    // Explicitly sized because the default region is a gibibyte, which a sanitized build poisons in
-    // full on creation: a fixed cost per directory that dwarfed the walk itself. A mebibyte holds a
-    // few thousand entries and their joined paths, and a directory larger than that just chains
-    // another region.
+    // A scratch arena per level, so memory tracks tree depth not total size; sized to a mebibyte because the default gibibyte region is poisoned in full on creation under sanitizers.
     NYA_Arena* scratch = nya_arena_create(.region_size = nya_mebyte_to_byte(1));
     defer      nya_arena_destroy(scratch);
 
@@ -382,9 +347,7 @@ _nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback c
     nya_array_foreach (entries, entry) {
         NYA_CString full = nya_string_to_cstring(scratch, nya_path_join(scratch, path, nya_string_to_cstring(scratch, entry->name)));
 
-        // Depth first, children before their parent, so a caller deleting as it goes never has to
-        // remove a directory that still has contents. Links are not followed: one pointing at an
-        // ancestor would otherwise walk forever, which is why a reparse point reports as a link.
+        // Depth first, children before parent, so a caller deleting as it goes never removes a directory that still has contents; links are not followed, since one pointing at an ancestor would walk forever.
         if (entry->type == NYA_FILE_TYPE_DIRECTORY) {
             NYA_TRY(_nya_filesystem_walk(arena, full, callback, user_data, depth + 1, out_keep_going));
             if (!*out_keep_going) return NYA_OK;
@@ -408,11 +371,7 @@ NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkC
     return _nya_filesystem_walk(arena, path, callback, user_data, 0, &keep_going);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * RECURSIVE MUTATION
- * ─────────────────────────────────────────────────────────
- */
+// RECURSIVE MUTATION
 
 /**
  * Deletes one entry, remembering the first failure.
@@ -450,9 +409,7 @@ NYA_INTERNAL NYA_Error _nya_filesystem_copy_link(NYA_ConstCString source, NYA_Co
     char             target[NYA_OS_PATH_MAX];
     NYA_OsFileStatus read = nya_os_file_link_read(source, target, sizeof(target));
 
-    // Windows cannot read where a link points, so the new one points at the source instead, and making
-    // one there needs developer mode or elevation: a refusal falls back to copying the contents rather
-    // than failing the whole tree copy.
+    // Windows cannot read where a link points, so the new one points at the source instead, and making one needs developer mode or elevation: a refusal falls back to copying the contents.
     if (read == NYA_OS_FILE_STATUS_UNSUPPORTED) {
         *out_linked = nya_os_file_link_set(destination, source) == NYA_OS_FILE_STATUS_OK;
         return NYA_OK;
@@ -483,9 +440,7 @@ NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCStrin
         NYA_String* parent = nya_path_dirname(arena, destination);
         NYA_TRY(nya_filesystem_create_directory(nya_string_to_cstring(arena, parent)));
 
-        // A symlink is recreated as a symlink. Copying its contents instead would silently turn a
-        // link into a full duplicate of its target, which for a tree copy is both wrong and a way
-        // to accidentally expand a small tree into a huge one.
+        // A symlink is recreated as a symlink: copying its contents would turn a link into a full duplicate of its target, which for a tree copy is wrong and can expand a small tree into a huge one.
         NYA_FileInfo info;
         NYA_TRY(nya_filesystem_info(source, &info));
 
@@ -517,11 +472,7 @@ NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCStrin
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * FILE HANDLES
- * ─────────────────────────────────────────────────────────
- */
+// FILE HANDLES
 
 NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file) {
     nya_assert(path != nullptr);
@@ -536,8 +487,7 @@ NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
     if (mode & NYA_FILE_MODE_APPEND) flags |= NYA_OS_FILE_OPEN_APPEND;
     if (mode & NYA_FILE_MODE_TRUNCATE) flags |= NYA_OS_FILE_OPEN_TRUNCATE;
     if (mode & NYA_FILE_MODE_EXCLUSIVE) flags |= NYA_OS_FILE_OPEN_EXCLUSIVE;
-    // WRITE and APPEND imply CREATE, since opening to write something that does not exist yet is
-    // the common case rather than an error.
+    // WRITE and APPEND imply CREATE, since opening to write something that does not exist yet is the common case rather than an error.
     if (mode & (NYA_FILE_MODE_CREATE | NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)) flags |= NYA_OS_FILE_OPEN_CREATE;
 
     NYA_OsFile       file   = NYA_OS_FILE_NONE;
@@ -635,11 +585,7 @@ NYA_Error nya_file_flush(NYA_File* file) {
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WELL KNOWN LOCATIONS
- * ─────────────────────────────────────────────────────────
- */
+// WELL KNOWN LOCATIONS
 
 NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** out_path) {
     nya_assert(arena != nullptr);

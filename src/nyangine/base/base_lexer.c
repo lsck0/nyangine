@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * Whether `character` may begin or continue an identifier.
@@ -18,11 +14,7 @@ NYA_INTERNAL b8 _nya_lexer_is_ident_continue(u8 character, NYA_LexerFlags flags)
  * */
 NYA_INTERNAL void _nya_lexer_quoted(NYA_Lexer* lexer, u8 quote, NYA_TokenType type);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Lexer nya_lexer_create(NYA_ConstCString source) __attr_overloaded {
     return nya_lexer_create(source, NYA_LEXER_DEFAULT);
@@ -32,8 +24,7 @@ NYA_Lexer nya_lexer_create(NYA_ConstCString source, NYA_LexerFlags flags) __attr
     nya_assert(source != nullptr);
 
     NYA_Lexer lexer = {
-        // A token stream is small and short lived, so it gets a region sized for one rather than
-        // the gibibyte default, which a sanitized build pays for in full on creation.
+        // A token stream is small and short-lived, so it gets a region sized for one rather than the gibibyte default a sanitized build pays for in full on creation.
         .arena               = nya_arena_create(.region_size = nya_mebyte_to_byte(1)),
         .source              = source,
         .cursor              = 0,
@@ -78,17 +69,14 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             continue;
         }
 
-        /*
-         * lex comment
-         */
+        // lex comment
         if (current_char == '/' && (lexer->source[lexer->cursor + 1] == '/' || lexer->source[lexer->cursor + 1] == '*')) {
             b8 is_block = lexer->source[lexer->cursor + 1] == '*';
 
             u32 start_char_number = lexer->current_char_number;
             u32 start_line_number = lexer->current_line_number;
 
-            // Past the opener, so the token covers the body. Same convention as a string literal,
-            // whose source_location points after the quote.
+            // Past the opener, so the token covers the body; same convention as a string literal, whose source_location points after the quote.
             lexer->cursor              += 2;
             lexer->current_char_number += 2;
 
@@ -98,17 +86,14 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             while (true) {
                 current_char = lexer->source[lexer->cursor];
 
-                // Unterminated: the body runs to the end of the source and the token is emitted
-                // anyway, matching how an unterminated string literal is handled rather than
-                // discarding everything that came before the mistake.
+                // Unterminated: the body runs to the end of source and the token is emitted anyway, matching an unterminated string literal rather than discarding everything before the mistake.
                 if (current_char == '\0') {
                     body_end = lexer->cursor;
                     break;
                 }
 
                 if (!is_block && current_char == '\n') {
-                    // The newline itself is left for the main loop, which is what keeps the line
-                    // counter in one place instead of two.
+                    // The newline itself is left for the main loop, which keeps the line counter in one place instead of two.
                     body_end = lexer->cursor;
                     break;
                 }
@@ -204,9 +189,7 @@ void nya_lexer_run(NYA_Lexer* lexer) {
                 }
 
                 if (is_hex) {
-                    // A hexadecimal float: 0x1.91eb86p+1. The mantissa is written in hex so it
-                    // survives a round trip through text exactly, which decimal cannot promise, and
-                    // the dot is part of the number rather than the end of it.
+                    // A hexadecimal float: 0x1.91eb86p+1. The mantissa is in hex so it survives a text round trip exactly, which decimal cannot promise, and the dot is part of the number.
                     if (current_char == '.') {
                         if (is_float) break;
                         is_float                    = true;
@@ -249,15 +232,8 @@ void nya_lexer_run(NYA_Lexer* lexer) {
                 }
             }
 
-            // Scientific notation: 1e9, 2.5E-3, 6e+23. Only for decimal literals, since in a hex literal
-            // 'e' is a digit and in a binary one it is not valid at all.
-            //
-            // The whole exponent is taken or none of it: "1e" and "1e+" are the number 1 followed by an
-            // identifier, so the cursor rewinds rather than producing a number token that will not parse.
-            /*
-             * A hex literal takes its exponent with 'p' rather than 'e', because 'e' is a hex digit.
-             * The exponent itself is decimal and scales by a power of two: 0x1.8p+1 is 3.
-             */
+            // Scientific notation (1e9, 2.5E-3), decimal only since 'e' is a hex digit; the whole exponent is taken or none, so "1e" is 1 then an identifier and the cursor rewinds.
+            /* A hex literal takes its exponent with 'p' rather than 'e' (since 'e' is a hex digit); the exponent is decimal and scales by a power of two: 0x1.8p+1 is 3. */
             if (is_hex) {
                 char exponent_char = lexer->source[lexer->cursor];
 
@@ -351,11 +327,7 @@ void nya_lexer_run(NYA_Lexer* lexer) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_lexer_quoted(NYA_Lexer* lexer, u8 quote, NYA_TokenType type) {
     nya_assert(lexer != nullptr);

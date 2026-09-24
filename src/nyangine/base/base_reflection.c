@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * Reads any integer-shaped primitive as a signed 64 bit value.
@@ -25,9 +21,7 @@ NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA
 NYA_INTERNAL NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance, b8 redact)
     __attr_no_discard;
 
-/*
- * The check. See nya_reflect_check.
- */
+// The check. See nya_reflect_check.
 
 /** Longest rendering of one value a report carries: a type name and a little of its contents. */
 #define _NYA_REFLECT_FOUND_MAX 96
@@ -76,9 +70,7 @@ NYA_INTERNAL u32 _nya_reflect_check_object(
     u64                       length
 );
 
-/*
- * The layout hash. See nya_reflect_layout_hash.
- */
+// The layout hash. See nya_reflect_layout_hash.
 
 /** Stable names for the kinds, hashed instead of their enum values for the reason NYA_TYPE_NAME_MAP is. */
 NYA_INTERNAL const NYA_ConstCString _NYA_REFLECT_KIND_NAME_MAP[NYA_REFLECT_COUNT] = {
@@ -90,11 +82,7 @@ NYA_INTERNAL u64 _nya_reflect_layout_feed_u64(u64 hash, u64 value);
 NYA_INTERNAL u64 _nya_reflect_layout_feed_text(u64 hash, NYA_ConstCString text);
 NYA_INTERNAL u64 _nya_reflect_layout_feed_type(u64 hash, const NYA_TypeReflection* type, u32 depth);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 const NYA_ReflectField* nya_reflect_field(const NYA_TypeReflection* type, NYA_ConstCString name) {
     if (type == nullptr || name == nullptr) return nullptr;
@@ -120,9 +108,7 @@ const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_Con
     void*                     cursor = instance;
 
     for (NYA_ConstCString segment = path; *segment != '\0';) {
-        /*
-         * The segment is compared in place rather than copied out.
-         */
+        // The segment is compared in place rather than copied out.
         u64 length = 0;
         while (segment[length] != '\0' && segment[length] != '.') length++;
 
@@ -145,8 +131,7 @@ const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_Con
         segment += length;
         if (*segment == '.') segment++;
 
-        // Only descend when there is more path left: the last segment names the answer, and its type
-        // may perfectly well be a primitive with no fields to walk into.
+        // Only descend when there is more path left: the last segment names the answer, and its type may be a primitive with no fields to walk into.
         if (*segment != '\0') {
             walk = found->type;
 
@@ -215,8 +200,7 @@ b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value) {
 
         case NYA_TYPE_CHAR: *out_value = (u8)value.as_char; return true;
 
-        // A whole number written with a decimal point is still a whole number. Truncation is
-        // deliberate rather than an error, so "count": 3.0 loads.
+        // A whole number written with a decimal point is still a whole number; truncation is deliberate, not an error, so "count": 3.0 loads.
         case NYA_TYPE_F32: return _nya_reflect_real_to_s64((f64)value.as_f32, out_value);
         case NYA_TYPE_F64: return _nya_reflect_real_to_s64(value.as_f64, out_value);
 
@@ -235,8 +219,7 @@ b8 nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value) {
         return true;
     }
 
-    // Integers widen into a float without complaint, which is the case that matters: a hand written
-    // 1 has to load into an f32 field.
+    // Integers widen into a float without complaint, the case that matters: a hand-written 1 has to load into an f32 field.
     s64 integer = 0;
     if (!nya_reflect_value_to_s64(value, &integer)) return false;
 
@@ -249,8 +232,7 @@ NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)
 
     if (type == nullptr || instance == nullptr) return none;
 
-    // An enum reads as its underlying integer. Turning it into a name is nya_reflect_to_object's
-    // business, because that is a serialisation choice and not what the field holds.
+    // An enum reads as its underlying integer; turning it into a name is nya_reflect_to_object's business, a serialisation choice and not what the field holds.
     if (type->kind == NYA_REFLECT_ENUM) {
         s64 value = 0;
         if (!_nya_reflect_read_integer(type->primitive, instance, &value)) return none;
@@ -281,9 +263,7 @@ NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)
 
         case NYA_TYPE_CHAR: return (NYA_Value){ .type = NYA_TYPE_CHAR, .as_char = *(const char*)instance };
 
-        /*
-         * A string field is a pointer the struct does not own, and it is copied as that pointer.
-         */
+        // A string field is a pointer the struct does not own, and it is copied as that pointer.
         case NYA_TYPE_STRING: return (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = *(char* const*)instance };
 
         default: return none;
@@ -302,9 +282,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
 
     if (type->kind != NYA_REFLECT_PRIMITIVE) return false;
 
-    /*
-     * Coerced rather than matched exactly.
-     */
+    // Coerced rather than matched exactly.
     switch (type->primitive) {
         case NYA_TYPE_STRING: {
             if (value.type != NYA_TYPE_STRING) return false;
@@ -351,11 +329,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE GENERIC CONVERSION
- * ─────────────────────────────────────────────────────────
- */
+// THE GENERIC CONVERSION
 
 NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance) {
     return _nya_reflect_to_object(arena, type, instance, false);
@@ -373,8 +347,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
 
     NYA_Object* object = nya_object_create(arena);
 
-    // A union is written as the one member its tag selects. Without a tag there is no way to know
-    // which member is live, so nothing is written rather than something arbitrary. See the header.
+    // A union is written as the one member its tag selects; without a tag there is no way to know which is live, so nothing is written rather than something arbitrary. See the header.
     if (type->kind == NYA_REFLECT_UNION && type->tag_field == nullptr) return object;
 
     for (u32 i = 0; i < type->field_count; i++) {
@@ -384,13 +357,8 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
 
         if (field_type == nullptr) continue;
 
-        /*
-         * Before the switch and before the field is read, so what happens next does not depend on the
-         * field's kind: a tagged string, a tagged struct and a tagged array of them all come out as the
-         * same four words, and adding a kind to the switch below cannot open a hole in this.
-         */
-        // `@secret` is masked here too, not only `@redact`: a value encrypted at rest still has no
-        // place in a log, and the redacting walk is what every logging and dumping path goes through.
+        /* Before the switch and before the field is read, so what happens next does not depend on the field's kind: a tagged string, struct or array all come out as the same four words. */
+        // `@secret` is masked here too, not only `@redact`: a value encrypted at rest still has no place in a log, and this redacting walk is what every logging path goes through.
         if (redact && (field->is_redacted || field->is_secret)) {
             nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = NYA_REFLECT_REDACTED });
             continue;
@@ -405,16 +373,13 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                 break;
             }
 
-            /*
-             * An enum is written as its variant *name*.
-             */
+            // An enum is written as its variant *name*.
             case NYA_REFLECT_ENUM: {
                 s64 raw = 0;
                 if (!_nya_reflect_read_integer(field_type->primitive, address, &raw)) continue;
 
                 if (field_type->is_bitflags) {
-                    // A set of flags is a list of names, so a flag being added or removed changes
-                    // only which names appear rather than the meaning of a number.
+                    // A set of flags is a list of names, so adding or removing a flag changes only which names appear, not the meaning of a number.
                     NYA_ArrayᐸNYA_Valueᐳ* names = nya_array_create(arena, NYA_Value);
 
                     for (u32 v = 0; v < field_type->variant_count; v++) {
@@ -432,8 +397,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
 
                 NYA_ConstCString name = nya_reflect_variant_name(field_type, raw);
 
-                // A value with no name is written as the number, because losing it entirely would be
-                // worse than writing something a newer build can still read.
+                // A value with no name is written as the number, since losing it entirely is worse than writing something a newer build can still read.
                 if (name == nullptr) {
                     nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = raw });
                     break;
@@ -454,8 +418,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
 
             case NYA_REFLECT_ARRAY:
             case NYA_REFLECT_VECTOR: {
-                // A char array is text, not a list of numbers. `char name[32]` written as thirty two
-                // integers is technically complete and useless to read.
+                // A char array is text, not a list of numbers: `char name[32]` written as thirty-two integers is technically complete and useless to read.
                 if (nya_reflect_is_char_array(field_type)) {
                     const char* text = (const char*)address;
 
@@ -484,9 +447,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                 break;
             }
 
-            /*
-             * Pointers are not followed.
-             */
+            // Pointers are not followed.
             case NYA_REFLECT_POINTER: break;
 
             case NYA_REFLECT_COUNT:
@@ -512,8 +473,7 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
 
         NYA_Value* value = nya_object_get(object, (NYA_CString)field->name);
 
-        // Absent means "leave it alone", not "zero it". See the header: that is what lets an older
-        // save load into a newer struct without erasing the fields it has never heard of.
+        // Absent means "leave it alone", not "zero it"; see the header: that is what lets an older save load into a newer struct without erasing fields it never heard of.
         if (value == nullptr) continue;
 
         void* address = (u8*)instance + field->offset;
@@ -541,8 +501,7 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
                     break;
                 }
 
-                // written as a name, so read as one, falling back to the number for unnamed values and hand written
-                // files.
+                // Written as a name, so read as one, falling back to the number for unnamed values and hand-written files.
                 if (value->type == NYA_TYPE_STRING && value->as_string != nullptr) {
                     s64 named = 0;
 
@@ -576,14 +535,11 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
 
                     u64 length = strlen(value->as_string);
 
-                    // Truncated to fit, and always terminated: the array is the struct's own storage
-                    // and a longer string in the file must not run past it.
+                    // Truncated to fit and always terminated: the array is the struct's own storage and a longer string in the file must not run past it.
                     if (length >= field_type->element_count) {
                         length = field_type->element_count - 1;
 
-                        // Back off any continuation bytes, since a cut mid-character would store
-                        // invalid UTF-8 for anything downstream to trip over. Same rule as
-                        // nya_settings_player_name_set.
+                        // Back off any continuation bytes, since a cut mid-character would store invalid UTF-8 for anything downstream to trip over; same rule as nya_settings_player_name_set.
                         while (length > 0 && ((u8)value->as_string[length] & 0xC0) == 0x80) length--;
                     }
 
@@ -621,9 +577,7 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
         }
     }
 
-    /*
-     * The hook runs last, once every plain field is in place.
-     */
+    // The hook runs last, once every plain field is in place.
     if (type->on_apply != nullptr) return type->on_apply(instance);
 
     return NYA_OK;
@@ -638,11 +592,7 @@ u32 nya_reflect_check(const NYA_TypeReflection* type, const NYA_Object* object, 
     return _nya_reflect_check_object(type, object, report, user_data, path, 0);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u64 _nya_reflect_path_push(OUT char* path, u64 length, NYA_ConstCString name, char separator) {
     nya_assert(path != nullptr);
@@ -655,8 +605,7 @@ u64 _nya_reflect_path_push(OUT char* path, u64 length, NYA_ConstCString name, ch
 
     u64 name_length = strlen(name);
 
-    // Truncated rather than grown: a report is a message, and a path deep enough to overflow this is
-    // already past the point where a longer string would help anyone.
+    // Truncated rather than grown: a report is a message, and a path deep enough to overflow this is already past where a longer string would help.
     if (length + name_length >= NYA_REFLECT_PATH_MAX) name_length = NYA_REFLECT_PATH_MAX - 1 - length;
 
     nya_memcpy(path + length, name, name_length);
@@ -738,8 +687,7 @@ void _nya_reflect_describe_names(OUT char* out, u64 capacity, NYA_ConstCString p
     nya_assert(names != nullptr || count == 0);
     nya_assert(stride >= sizeof(NYA_ConstCString), "the name must be the first member of the struct being listed");
 
-    // the elision is held back out of the budget, so a list that does not fit ends on a whole name
-    // followed by "..." rather than halfway through a word that reads like a different one.
+    // The elision is held back out of the budget, so a list that does not fit ends on a whole name followed by "..." rather than halfway through a word.
     nya_assert(capacity > sizeof(_NYA_REFLECT_ELISION) + strlen(prefix));
     const u64 budget = capacity - sizeof(_NYA_REFLECT_ELISION) + 1;
 
@@ -749,8 +697,7 @@ void _nya_reflect_describe_names(OUT char* out, u64 capacity, NYA_ConstCString p
     for (u32 i = 0; i < count; i++) {
         NYA_ConstCString name = *(const NYA_ConstCString*)((const u8*)names + ((u64)i * stride));
 
-        // a generator that could not name something leaves it null rather than emitting an entry that
-        // claims to be called "".
+        // A generator that could not name something leaves it null rather than emitting an entry that claims to be called "".
         if (name == nullptr) continue;
 
         s32 added = snprintf(out + written, budget - written, first ? "%s" : ", %s", name);
@@ -838,8 +785,7 @@ u32 _nya_reflect_check_value(
     } else if (type->kind == NYA_REFLECT_POINTER) {
         accepted = false;
     } else {
-        // Written into a scratch cell rather than judged by a second copy of the writer's rules: the
-        // one that decides is the one that runs.
+        // Written into a scratch cell rather than judged by a second copy of the writer's rules: the one that decides is the one that runs.
         u8 scratch[sizeof(u64)] = { 0 };
 
         nya_assert(type->size <= sizeof(scratch), "'%s' is a primitive wider than the check's scratch cell", type->name);
@@ -900,17 +846,14 @@ u32 _nya_reflect_check_object(
 
         if (value == nullptr) continue;
 
-        // Reported rather than ignored: an unknown key is usually a typo or a setting that was
-        // renamed, and both are invisible to whoever wrote the file if nothing says so.
+        // Reported rather than ignored: an unknown key is usually a typo or a renamed setting, both invisible to whoever wrote the file if nothing says so.
         if (field == nullptr || field->type == nullptr) {
             char found[_NYA_REFLECT_FOUND_MAX]       = { 0 };
             char expected[_NYA_REFLECT_EXPECTED_MAX] = { 0 };
 
             (void)snprintf(found, sizeof(found), "not a key this build knows");
 
-            // The keys themselves rather than the type's name: whoever is reading this is looking at
-            // a file, not at the source, and "one of msaa_samples, fxaa, bloom" is the answer to what
-            // they should have written.
+            // The keys themselves rather than the type's name: whoever reads this is looking at a file, not the source, and "one of msaa_samples, fxaa, bloom" is the answer to what they should have written.
             _nya_reflect_describe_names(expected, sizeof(expected), "one of ", type->fields, sizeof(type->fields[0]), type->field_count);
 
             if (report != nullptr) report(child_path, found, expected, user_data);
@@ -957,8 +900,7 @@ b8 _nya_reflect_read_integer(NYA_Type primitive, const void* instance, OUT s64* 
         case NYA_TYPE_U16: *out_value = (s64) * (const u16*)instance; return true;
         case NYA_TYPE_U32: *out_value = (s64) * (const u32*)instance; return true;
 
-        // Reinterpreted rather than range checked: a u64 above the signed maximum comes back negative
-        // and is written back as the same bits, which round trips even though it does not compare.
+        // Reinterpreted rather than range checked: a u64 above the signed maximum comes back negative and is written back as the same bits, which round-trips even though it does not compare.
         case NYA_TYPE_U64: *out_value = (s64) * (const u64*)instance; return true;
 
         case NYA_TYPE_S8:  *out_value = (s64) * (const s8*)instance; return true;
@@ -995,11 +937,7 @@ b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s64 value) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE LAYOUT HASH
- * ─────────────────────────────────────────────────────────
- */
+// THE LAYOUT HASH
 
 /** Eight bytes, least significant first, whatever the host's order. */
 u64 _nya_reflect_layout_feed_u64(u64 hash, u64 value) {
@@ -1057,8 +995,7 @@ u64 _nya_reflect_layout_feed_type(u64 hash, const NYA_TypeReflection* type, u32 
                 hash = _nya_reflect_layout_feed_type(hash, field->type, depth + 1);
             }
 
-            // the name, and an empty one for none: an untagged union and one tagged by a field
-            // called "" cannot both exist, since a field always has a name.
+            // The name, and an empty one for none: an untagged union and one tagged by a field called "" cannot both exist, since a field always has a name.
             return _nya_reflect_layout_feed_text(hash, type->tag_field != nullptr ? type->tag_field->name : "");
         }
 

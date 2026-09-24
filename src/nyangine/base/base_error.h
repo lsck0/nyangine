@@ -11,11 +11,7 @@
 #include "nyangine/base/base_template.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_ERROR_MESSAGE_MAX_LENGTH 192
 #define NYA_ERROR_TRACE_MAX          8
@@ -30,11 +26,7 @@
 #define NYA_ERROR_CAPTURE_STACK 0
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_ErrorKind NYA_ErrorKind;
 typedef struct NYA_Error   NYA_Error;
@@ -97,17 +89,9 @@ __attr_allow_unused static NYA_ConstCString NYA_ERRORKIND_NAME_MAP[NYA_ERROR_COU
     [NYA_ERROR_PARSE]             = "PARSE",
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * ─────────────────────────────────────────────────────────
- * MISSING VALUES
- * ─────────────────────────────────────────────────────────
- */
+// MISSING VALUES
 
 /** Name of the optional type derived for `type`, e.g. NYA_Maybeᐸu64ᐳ. */
 #define _nya_derive_maybe_name(type) nya_template(NYA_Maybe, type)
@@ -141,16 +125,9 @@ nya_derive_maybe(f32);
 nya_derive_maybe(f64);
 nya_derive_maybe(f128);
 
-/*
- * ─────────────────────────────────────────────────────────
- * ERROR HANDLING
- * ─────────────────────────────────────────────────────────
- */
+// ERROR HANDLING
 
-// Kept as compound literals so both stay usable wherever an initializer is expected.
-//
-// `ok` is spelled out in both rather than left to the zero value, because it is derived from `kind`
-// and the two must not disagree. See the field's note in NYA_Error.
+// Kept as compound literals so both stay usable wherever an initializer is expected; `ok` is spelled out rather than left to the zero value, since it is derived from `kind` and must not disagree. See NYA_Error.
 #define NYA_OK     ((NYA_Error){ .kind = NYA_ERROR_NONE, .ok = true })
 #define NYA_NOT_OK ((NYA_Error){ .kind = NYA_ERROR_NOT_OK, .ok = false })
 
@@ -211,11 +188,7 @@ NYA_API NYA_Error nya_error_from_errno(void) __attr_no_discard;
 /** Renders the propagation chain and the captured stack into `buffer`. Always null terminates. */
 NYA_API u32 nya_error_format(const NYA_Error* error, OUT u8* buffer, u32 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 // clang-format off
 #define _nya_error(...)  _NYA_PICK_ERR(__VA_ARGS__, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR3, _NYA_ERROR2, _NYA_ERROR1)(__VA_ARGS__)

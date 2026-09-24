@@ -41,11 +41,7 @@
 #define NYA_PERF_ENABLED 0
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPE DEFINITIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPE DEFINITIONS
 
 #define NYA_PERF_MEASUREMENT_SAMPLES 64
 
@@ -132,15 +128,9 @@ struct NYA_PerfStats {
     f64 average_cycles;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * With the module compiled out, the readers return nothing rather than panicking.
- */
+// With the module compiled out, the readers return nothing rather than panicking.
 // clang-format off
 #if NYA_PERF_ENABLED
 #define nya_perf_timer_get(name)      _nya_perf_timer_get(name)
@@ -172,11 +162,7 @@ struct NYA_PerfStats {
 #define nya_perf_time_this_function()  nya_perf_time_this_scope(__FUNCTION__)
 // clang-format on
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 #if NYA_PERF_ENABLED
 NYA_API NYA_PerfMeasurement*            _nya_perf_timer_get(NYA_ConstCString name);

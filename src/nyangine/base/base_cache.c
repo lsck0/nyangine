@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** No entry: the end of the free list, or a failed find. */
 #define _NYA_CACHE_NONE UINT32_MAX
@@ -67,11 +63,7 @@ struct NYA_Cache {
     b8 busy;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL _NYA_CacheCeiling _nya_cache_ceilings[NYA_CACHE_CEILING_MAX] = { 0 };
 NYA_INTERNAL u32               _nya_cache_ceiling_count                    = 0;
@@ -104,11 +96,7 @@ NYA_INTERNAL void _nya_cache_ceiling_attach(NYA_Cache* cache);
 NYA_INTERNAL void _nya_cache_ceiling_update(NYA_Cache* cache);
 NYA_INTERNAL void _nya_cache_ceiling_detach(NYA_Cache* cache);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Cache* nya_cache_create_with_options(NYA_Arena* arena, NYA_CacheOptions options) {
     nya_assert(arena != nullptr);
@@ -194,9 +182,7 @@ void nya_cache_destroy(NYA_Cache* cache) {
     nya_arena_free(arena, allocation, size);
 }
 
-// forced inline into engine callers: nya_asset_get runs on every draw, and the call plus the hash call cost a
-// nanosecond on a five nanosecond lookup. Not built on nya_cache_lookup for the same reason: its out parameter
-// brings a stack protector.
+// Force-inlined into engine callers: nya_asset_get runs every draw and the call plus hash cost a nanosecond on a five-nanosecond lookup; not built on nya_cache_lookup, whose out parameter brings a stack protector.
 __attribute__((always_inline)) void* nya_cache_get(NYA_Cache* cache, const void* key, u64 key_size, u64 tag) {
     nya_assert(cache != nullptr);
     nya_assert(key != nullptr && key_size > 0, "cache keys are never empty");
@@ -363,11 +349,7 @@ u32 nya_cache_capacity(const NYA_Cache* cache) {
     return cache->options.capacity;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_ConstCString _nya_cache_label(const NYA_Cache* cache) {
     return cache->options.name != nullptr ? cache->options.name : "unnamed";
@@ -462,10 +444,7 @@ void _nya_cache_bucket_erase(NYA_Cache* cache, u32 index) {
         hole = (hole + 1) & mask;
     }
 
-    /*
-     * Backward shift: pull each later member of the run into the hole unless its home lies cyclically inside
-     * (hole, next], where moving it would put it before its home and hide it from its own probe.
-     */
+    /* Backward shift: pull each later member of the run into the hole unless its home lies cyclically inside (hole, next], where moving it would hide it from its own probe. */
     for (u32 next = (hole + 1) & mask; cache->buckets[next] != 0; next = (next + 1) & mask) {
         u32 home = (u32)cache->entries[cache->buckets[next] - 1].hash & mask;
 

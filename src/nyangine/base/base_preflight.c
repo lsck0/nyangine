@@ -4,11 +4,7 @@
 #include "nyangine/os/os_library.h"
 #include "nyangine/os/os_process.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRESENT / ABSENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRESENT / ABSENT
 
 b8 nya_preflight_program_present(NYA_ConstCString name) {
     if (name == nullptr || name[0] == '\0') return false;
@@ -23,18 +19,12 @@ b8 nya_preflight_library_present(NYA_ConstCString soname) {
     return nya_os_library_probe(soname);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * REQUIRE (CRASH WHEN ABSENT)
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// REQUIRE (CRASH WHEN ABSENT)
 
 void nya_require_program(NYA_ConstCString name, NYA_ConstCString why) {
     if (nya_preflight_program_present(name)) return;
 
-    // The three things whoever reads the crash needs: what is missing, what wanted it, and where it was
-    // looked for. install-and-relaunch rather than a distribution-specific package name, because the
-    // one program the engine spawns (gpg) is packaged under a different name on every system.
+    // The three things a crash reader needs: what is missing, what wanted it, and where it was sought; install-and-relaunch, not a distro package name, since gpg is named differently on every system.
     nya_log_panic(
         "required program '%s' is not on PATH: %s needs it. install it and make sure it is on this process's PATH, then relaunch.",
         name != nullptr ? name : "(null)",

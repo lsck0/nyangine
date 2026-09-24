@@ -66,11 +66,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Longest URL accepted, in bytes. 2048 is the limit links on the web already keep to (the sitemaps
@@ -95,11 +91,7 @@ static_assert(NYA_URL_MAX_BYTES <= U16_MAX, "a span is a u16 offset and a u16 le
 /** Digits in a port. Five is enough for 65535 and stops the accumulator long before it could wrap. */
 #define NYA_URL_PORT_MAX_DIGITS 5
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_UrlScheme   NYA_UrlScheme;
 typedef enum NYA_UrlHostKind NYA_UrlHostKind;
@@ -209,11 +201,7 @@ struct NYA_UrlFailure {
     u32         offset;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Parses an absolute URL with one of the schemes in NYA_UrlScheme.
@@ -259,11 +247,7 @@ NYA_API NYA_Error nya_url_query_find(const NYA_Url* url, NYA_ConstCString name, 
 /** The rule's name, for a log line. */
 NYA_API NYA_ConstCString nya_url_rule_text(NYA_UrlRule rule) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * PERCENT ENCODING
- * ─────────────────────────────────────────────────────────
- */
+// PERCENT ENCODING
 
 /**
  * Escapes every byte but RFC 3986's unreserved set (letters, digits, "-._~") as "%XX" in upper case, so

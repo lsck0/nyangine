@@ -2,11 +2,7 @@
 #include "nyangine/base/base_clock.h"
 #include "nyangine/base/base_clock_instant.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Zeroed until something installs a source, which is the wall clock. */
 NYA_INTERNAL NYA_InstantSource _NYA_INSTANT_SOURCE = { 0 };
@@ -21,25 +17,16 @@ NYA_INTERNAL s64 _nya_instant_floor_div(s64 value, s64 divisor, OUT s64* out_rem
 NYA_INTERNAL s64 _nya_date_days_min(void) __attr_no_discard;
 NYA_INTERNAL s64 _nya_date_days_max(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * INSTANTS
- * ─────────────────────────────────────────────────────────
- */
+// INSTANTS
 
 NYA_Instant nya_instant_now(void) {
     if (_NYA_INSTANT_SOURCE.now != nullptr) return _NYA_INSTANT_SOURCE.now(_NYA_INSTANT_SOURCE.context);
 
     u64 ns = nya_clock_get_timestamp_ns();
 
-    // a system clock set past 2262 is not a time this type can hold, and pretending otherwise would
-    // hand every caller a negative instant.
+    // A system clock set past 2262 is not a time this type can hold, and pretending otherwise would hand every caller a negative instant.
     nya_assert(ns <= (u64)S64_MAX, "the wall clock reads past 2262");
 
     return (NYA_Instant){ .ns = (s64)ns };
@@ -146,8 +133,7 @@ b8 nya_instant_from_utc(NYA_Date date, NYA_TimeOfDay time, OUT NYA_Instant* out_
     nya_assert(nya_date_is_valid(date), "%d-%u-%u is not a date", date.year, date.month, date.day);
     nya_assert(nya_time_of_day_is_valid(time), "%u:%u:%u.%u is not a time of day", time.hour, time.minute, time.second, time.nanosecond);
 
-    // wide, because the earliest instant's midnight is before the earliest instant: 1677-09-21T00:12Z is
-    // in range and 1677-09-21T00:00Z is not, so the day alone may overflow where the sum does not.
+    // Wide, because the earliest instant's midnight precedes the earliest instant: 1677-09-21T00:12Z is in range and 00:00Z is not, so the day alone may overflow where the sum does not.
     s128 ns = (s128)nya_date_to_days(date) * (s128)NYA_NS_PER_DAY + nya_time_of_day_to_duration(time).ns;
     if (ns < (s128)S64_MIN || ns > (s128)S64_MAX) return false;
 
@@ -155,11 +141,7 @@ b8 nya_instant_from_utc(NYA_Date date, NYA_TimeOfDay time, OUT NYA_Instant* out_
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * DATES
- * ─────────────────────────────────────────────────────────
- */
+// DATES
 
 b8 nya_date_is_valid(NYA_Date date) {
     if (date.year < NYA_DATE_YEAR_MIN || date.year > NYA_DATE_YEAR_MAX) return false;
@@ -226,8 +208,7 @@ b8 nya_date_add_months_checked(NYA_Date date, s32 months, OUT NYA_Date* out_date
     nya_assert(out_date != nullptr);
     nya_assert(nya_date_is_valid(date), "%d-%u-%u is not a date", date.year, date.month, date.day);
 
-    // counted in s64 months since year zero: an s32 of months is at most 179 million years, so this
-    // cannot overflow, and the range check below is all that can fail.
+    // Counted in s64 months since year zero: an s32 of months is at most 179 million years, so this cannot overflow and only the range check below can fail.
     s64 index = (s64)date.year * 12 + (s64)(date.month - 1) + (s64)months;
     if (index < (s64)NYA_DATE_YEAR_MIN * 12 || index > (s64)NYA_DATE_YEAR_MAX * 12 + 11) return false;
 
@@ -259,11 +240,7 @@ NYA_Weekday nya_date_weekday(NYA_Date date) {
 }
 
 NYA_IsoWeek nya_date_iso_week(NYA_Date date) {
-    /*
-     * The week belongs to the year its Thursday is in, and is numbered by how many Thursdays of that year
-     * came before. Found through the Thursday rather than through the special cases (week 53, week 1 of
-     * next year) because the special cases are exactly what the Thursday rule defines.
-     */
+    /* The week belongs to the year its Thursday is in, numbered by how many Thursdays of that year came before; found through the Thursday since that is what the week-53/week-1 special cases define. */
     s64 days     = nya_date_to_days(date);
     s64 thursday = days - (s64)nya_date_weekday(date) + NYA_WEEKDAY_THURSDAY;
 
@@ -279,11 +256,7 @@ NYA_IsoWeek nya_date_iso_week(NYA_Date date) {
     return (NYA_IsoWeek){ .year = year, .week = (u8)week };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * TIMES OF DAY
- * ─────────────────────────────────────────────────────────
- */
+// TIMES OF DAY
 
 b8 nya_time_of_day_is_valid(NYA_TimeOfDay time) {
     return time.hour < 24 && time.minute < 60 && time.second < 60 && time.nanosecond < (u32)NYA_NS_PER_SECOND;
@@ -298,11 +271,7 @@ NYA_Duration nya_time_of_day_to_duration(NYA_TimeOfDay time) {
     return (NYA_Duration){ .ns = ns };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 u32 _nya_date_month_length(s32 year, u32 month) {
     nya_assert(month >= 1 && month <= 12);

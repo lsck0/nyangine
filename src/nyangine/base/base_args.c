@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 #define _NYA_ARGS_DESCRIPTION_INDENT 16
 
@@ -23,11 +19,7 @@ NYA_INTERNAL void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommand
 /** parse `str` into `value` according to `value->type`. returns false on parse failure. */
 NYA_INTERNAL b8 _nya_args_parse_value(NYA_Value* value, NYA_CString str);
 
-/*
- * ─────────────────────────────────────────────────────────
- * COMPLETION BACKENDS
- * ─────────────────────────────────────────────────────────
- */
+// COMPLETION BACKENDS
 
 NYA_INTERNAL void _nya_args_zsh_generate(NYA_ArgParser* parser, NYA_ConstCString binary_name, FILE* stream);
 
@@ -44,11 +36,7 @@ NYA_INTERNAL const NYA_ArgShell _NYA_ARGS_SHELLS[] = {
 
 #define _NYA_ARGS_SHELL_COUNT (sizeof(_NYA_ARGS_SHELLS) / sizeof(_NYA_ARGS_SHELLS[0]))
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_args_parse(NYA_ArgParser* parser, s32 argc, NYA_CString* argv, OUT NYA_ArgCommand** out_command) {
     _nya_args_validate_parser(parser);
@@ -73,8 +61,7 @@ subcommand_matching:
             argc--;
             argv++;
 
-            // the command tree is the program's own, so this depth is a programmer mistake, and
-            // _nya_args_validate_command_tree would have overflowed the stack before reaching here.
+            // The command tree is the program's own, so this depth is a programmer mistake that _nya_args_validate_command_tree would have overflowed the stack before reaching.
             nya_assert(path_count < NYA_ARG_MAX_COMMANDS, "command nesting is deeper than the %d this parser tracks", NYA_ARG_MAX_COMMANDS);
 
             path[path_count++] = subcommand;
@@ -82,12 +69,7 @@ subcommand_matching:
         }
     }
 
-    /*
-     * The command that will run. A command with subcommands and nothing of its own is incomplete when
-     * it is named alone — `./build` is not a thing to do — but one that also has a handler is a
-     * command that does something *and* has more under it, which is what `gnyame` is: it plays, and
-     * `gnyame serve` is a different way to start the same engine.
-     */
+    /* The command that will run. One with subcommands but no handler is incomplete when named alone (`./build`); one with a handler too both does something and has more under it, which is what `gnyame` is. */
     command_to_execute      = path[path_count - 1];
     b8 bad_input_flags_only = false;
 
@@ -102,9 +84,7 @@ subcommand_matching:
         argv++;
     }
 
-    // determine where to start processing arguments
-    // if we have a subcommand, argv[0] is already the first argument (subcommand name was skipped)
-    // if no subcommand, argv[0] is the program name and we should skip it
+    // If there is a subcommand, argv[0] is already the first argument; otherwise it is the program name and is skipped.
     s32 start_index = (path_count > 1) ? 0 : 1;
 
     for (s32 arg_index = start_index; arg_index < argc; arg_index++) {
@@ -115,9 +95,7 @@ subcommand_matching:
             NYA_CString       flag_name = argv[arg_index] + 2; // skip the '--' prefix
             NYA_ArgParameter* param     = nullptr;
 
-            /*
-             * `--flag=value`, split here so the lookup below sees the name alone.
-             */
+            // `--flag=value`, split here so the lookup below sees the name alone.
             char        flag_name_buffer[NYA_ARG_MAX_NAME] = { 0 };
             NYA_CString inline_value                       = nullptr;
 
@@ -158,9 +136,7 @@ subcommand_matching:
                 return nya_error(NYA_ERROR_NOT_OK, "unexpected flag: '--%s'", flag_name);
             }
 
-            /*
-             * A boolean flag is its own value. It never reaches for the next token.
-             */
+            // A boolean flag is its own value. It never reaches for the next token.
             if (param->value.type == NYA_TYPE_B8) {
                 if (inline_value == nullptr) {
                     param->value.as_b8 = true;
@@ -308,9 +284,7 @@ subcommand_matching:
 NYA_Error nya_args_run_command(NYA_ArgCommand* command) {
     nya_assert(command);
 
-    // INVALID_ARGUMENT, and the only kind this function produces itself: it is what tells a caller
-    // that the command line was wrong, as against the command having been understood and then having
-    // failed. Everything below propagates the handler's or the rule's own kind unchanged.
+    // INVALID_ARGUMENT, the only kind this function produces: it says the command line was wrong, not that an understood command failed; everything below propagates the handler's kind.
     if (command->incomplete) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no subcommand provided for command '%s'", command->name ? command->name : "root");
     }
@@ -487,8 +461,7 @@ NYA_Error nya_args_write_completions(NYA_ArgParser* parser, NYA_ConstCString bin
         return NYA_OK;
     }
 
-    // Built here rather than listed in the message literal, so a backend added to the table shows up
-    // in the error without anyone remembering to also edit this string.
+    // Built here rather than in the message literal, so a backend added to the table shows up in the error without anyone editing this string.
     char supported[_NYA_ARGS_NAME_MAX] = { 0 };
     u64  length                        = 0;
     for (u32 shell_index = 0; shell_index < _NYA_ARGS_SHELL_COUNT; shell_index++) {
@@ -545,11 +518,7 @@ void nya_args_command_path_join(
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommandVisit* visit, NYA_ArgCommandVisitFn visit_fn) {
     nya_assert(command);
@@ -559,9 +528,7 @@ void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommandVisit* visit,
     visit->path[visit->path_count] = command;
     visit->path_count++;
 
-    // Flags are matched against the whole command path by nya_args_parse, so a subcommand is in
-    // scope of its parents' flags as well as its own. Recorded once here so no consumer has to
-    // rediscover it, and restored on the way back out.
+    // Flags match against the whole command path, so a subcommand is in scope of its parents' flags too; recorded once here and restored on the way back out.
     u32 inherited_count = visit->flag_count;
     for (u32 param_index = 0; param_index < NYA_ARG_MAX_PARAMETERS; param_index++) {
         NYA_ArgParameter* param = command->parameters[param_index];
@@ -581,8 +548,7 @@ void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommandVisit* visit,
 
         _nya_args_walk_command(subcommand, visit, visit_fn);
 
-        // The visitor may have moved on, but the walk has not: everything below this node was
-        // reached through it.
+        // The visitor may have moved on, but the walk has not: everything below this node was reached through it.
         visit->command = command;
     }
 
@@ -590,11 +556,7 @@ void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommandVisit* visit,
     visit->path_count--;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ZSH BACKEND
- * ─────────────────────────────────────────────────────────
- */
+// ZSH BACKEND
 
 /**
  * Writes `text` as the inside of a zsh single quoted word.
@@ -604,8 +566,7 @@ NYA_INTERNAL void _nya_args_zsh_print_escaped(FILE* stream, NYA_ConstCString tex
 
     for (NYA_ConstCString cursor = text; *cursor != '\0'; cursor++) {
         switch (*cursor) {
-            // Close the word, hand zsh one escaped quote, reopen it. The only way a single quote
-            // gets into a single quoted shell word.
+            // Close the word, hand zsh one escaped quote, reopen it: the only way a single quote gets into a single-quoted shell word.
             case '\'': (void)fprintf(stream, "'\\''"); break;
             case ':':  (void)fprintf(stream, "\\:"); break;
             case '[':
@@ -613,8 +574,7 @@ NYA_INTERNAL void _nya_args_zsh_print_escaped(FILE* stream, NYA_ConstCString tex
                 if (escape_brackets) (void)fprintf(stream, "\\");
                 (void)fprintf(stream, "%c", *cursor);
                 break;
-            // A description is one line in the completion listing, so anything that would break it
-            // into two becomes a space.
+            // A description is one line in the completion listing, so anything that would break it into two becomes a space.
             case '\n':
             case '\r': (void)fprintf(stream, " "); break;
             default:   (void)fprintf(stream, "%c", *cursor); break;
@@ -626,8 +586,7 @@ NYA_INTERNAL void _nya_args_zsh_print_escaped(FILE* stream, NYA_ConstCString tex
 NYA_INTERNAL void _nya_args_zsh_print_quoted(FILE* stream, NYA_ConstCString text) {
     (void)fprintf(stream, "\"");
     for (NYA_ConstCString cursor = text; *cursor != '\0'; cursor++) {
-        // A glob's own metacharacters have to survive, so only what the shell would act on inside
-        // double quotes is escaped. ${PWD} below is deliberately left expandable.
+        // A glob's own metacharacters must survive, so only what the shell acts on inside double quotes is escaped; ${PWD} below is deliberately left expandable.
         if (*cursor == '"' || *cursor == '\\' || *cursor == '`') (void)fprintf(stream, "\\");
         (void)fprintf(stream, "%c", *cursor);
     }
@@ -650,9 +609,7 @@ NYA_INTERNAL void _nya_args_zsh_print_action(FILE* stream, const NYA_ArgParamete
 
             if (param->completion.directory != nullptr) {
                 (void)fprintf(stream, " -W ");
-                // _files takes -W as an absolute path. Given a relative one it silently completes
-                // from the filesystem root instead, which looks like the completion simply not
-                // working, so the working directory is spliced in by the shell at completion time.
+                // _files takes -W as an absolute path; given a relative one it silently completes from the root, so the working directory is spliced in by the shell at completion time.
                 b8 is_absolute = param->completion.directory[0] == '/';
                 if (!is_absolute) {
                     (void)fprintf(stream, "\"${PWD}/");
@@ -688,8 +645,7 @@ NYA_INTERNAL void _nya_args_zsh_print_action(FILE* stream, const NYA_ArgParamete
             (void)fprintf(stream, ")");
         } break;
 
-        // An empty action still tells _arguments the argument exists and takes a word, which is all
-        // that is known about it.
+        // An empty action still tells _arguments the argument exists and takes a word, which is all that is known about it.
         case NYA_ARG_COMPLETION_KIND_NONE:
         default:                           break;
     }
@@ -798,8 +754,7 @@ void _nya_args_zsh_generate(NYA_ArgParser* parser, NYA_ConstCString binary_name,
     _NYA_ArgZshContext context = { .stream = stream, .root_function = root_function };
     nya_args_walk_commands(parser, &_nya_args_zsh_print_command, &context);
 
-    // Autoloaded #compdef files define their function and then run it, because compinit sources the
-    // file in place of the call it was standing in for.
+    // Autoloaded #compdef files define their function and then run it, because compinit sources the file in place of the call it stood in for.
     (void)fprintf(stream, "%s \"$@\"\n", root_function);
 }
 

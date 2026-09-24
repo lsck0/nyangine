@@ -8,11 +8,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** What the host OS uses natively. Everything here emits '/' regardless. */
 #if OS_WINDOWS
@@ -23,11 +19,7 @@
 
 #define NYA_PATH_SEPARATOR '/'
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /**
  * Joins two path segments with exactly one separator, however many the inputs had.

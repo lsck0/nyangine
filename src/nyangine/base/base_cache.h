@@ -56,11 +56,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Distinct cache names that can show as ceilings. The engine names three.
@@ -69,11 +65,7 @@
 #define NYA_CACHE_CEILING_MAX 16
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_Cache        NYA_Cache;
 typedef struct NYA_CacheOptions NYA_CacheOptions;
@@ -131,11 +123,7 @@ struct NYA_CacheOptions {
     void*               user_data;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /** Creates a cache of `value_type` values. The remaining arguments are NYA_CacheOptions designated initializers. */
 #define nya_cache_create(arena, value_type, ...)                                                                                                     \

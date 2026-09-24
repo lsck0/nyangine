@@ -45,11 +45,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/os/os_socket.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_ResolverStatus NYA_ResolverStatus;
 typedef struct NYA_Resolver     NYA_Resolver;
@@ -68,11 +64,7 @@ enum NYA_ResolverStatus {
     NYA_RESOLVER_STATUS_COUNT,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Starts looking `host` up, with `port` carried through to the answer.

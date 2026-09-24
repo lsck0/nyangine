@@ -14,11 +14,7 @@
 #include <signal.h>
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Alternate stack size. Must stay generous: a stack overflow is symbolized on this stack. */
 #define _NYA_BACKTRACE_ALT_STACK_SIZE (SIGSTKSZ * 4)
@@ -40,11 +36,7 @@ NYA_INTERNAL int  _nya_backtrace_frame_callback(void* data, uintptr_t pc, const 
 NYA_INTERNAL void _nya_backtrace_install_fault_handlers(void);
 NYA_INTERNAL void _nya_backtrace_restore_fault_handlers(void);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_backtrace_init(void) {
     if (_nya_backtrace_initialized) return;
@@ -54,8 +46,7 @@ void nya_backtrace_init(void) {
     // A null filename makes libbacktrace resolve the running executable itself.
     _nya_backtrace_state = backtrace_create_state(nullptr, true, _nya_backtrace_error_callback, nullptr);
 
-    // Warm the symbolization state. Parsing debug info lazily inside a fault handler would mean
-    // mmapping and allocating in async signal context, so we pay that cost here instead.
+    // Warm the symbolization state: parsing debug info lazily inside a fault handler would mmap and allocate in async-signal context, so pay it here.
     NYA_Backtrace warmup = { 0 };
     nya_backtrace_capture(&warmup, 0);
 #endif // NYA_BACKTRACE_SUPPORTED
@@ -69,8 +60,7 @@ void nya_backtrace_deinit(void) {
 
     _nya_backtrace_restore_fault_handlers();
 
-    // The symbolization state is deliberately kept. It is never freed by libbacktrace anyway, and
-    // a crash during shutdown should still produce a readable trace.
+    // The symbolization state is deliberately kept: libbacktrace never frees it anyway, and a crash during shutdown should still produce a readable trace.
 }
 
 void nya_backtrace_capture(OUT NYA_Backtrace* out_backtrace, u32 skip) {
@@ -102,8 +92,7 @@ u32 nya_backtrace_format(const NYA_Backtrace* backtrace, OUT u8* buffer, u32 cap
         s32 written = snprintf((char*)buffer, capacity, "  <no stack trace available>\n");
         if (written <= 0) return 0;
 
-        // clamped like the loop below. snprintf reports what it would have written, and the header promises
-        // bytes actually written, so a small capacity must not return a count past the buffer.
+        // Clamped like the loop below: snprintf reports what it would have written, but a small capacity must not return a count past the buffer.
         return (u32)written < capacity ? (u32)written : capacity - 1;
     }
 
@@ -131,16 +120,11 @@ u32 nya_backtrace_format(const NYA_Backtrace* backtrace, OUT u8* buffer, u32 cap
     return length;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 #if NYA_BACKTRACE_SUPPORTED
 NYA_INTERNAL void _nya_backtrace_error_callback(void* data, const char* message, int error_number) {
-    // Symbolization failures must never themselves crash or allocate. A frame we cannot resolve is
-    // simply left out, so there is nothing useful to do here.
+    // Symbolization failures must never crash or allocate; a frame we cannot resolve is simply left out, so there is nothing to do here.
     nya_unused(data, message, error_number);
 }
 
@@ -150,8 +134,7 @@ NYA_INTERNAL int _nya_backtrace_frame_callback(void* data, uintptr_t pc, const c
 
     if (backtrace->count >= NYA_BACKTRACE_DEPTH_MAX) return 1; // non-zero stops the walk
 
-    // The strings belong to libbacktrace's debug info mapping and outlive every caller, so storing
-    // the pointers is safe and keeps this function allocation free.
+    // The strings belong to libbacktrace's debug-info mapping and outlive every caller, so storing the pointers is safe and allocation-free.
     backtrace->frames[backtrace->count++] = (NYA_BacktraceFrame){
         .address  = (u64)pc,
         .function = function,
@@ -163,11 +146,7 @@ NYA_INTERNAL int _nya_backtrace_frame_callback(void* data, uintptr_t pc, const c
 }
 #endif // NYA_BACKTRACE_SUPPORTED
 
-/*
- * ─────────────────────────────────────────────────────────
- * FAULT HANDLERS
- * ─────────────────────────────────────────────────────────
- */
+// FAULT HANDLERS
 
 #if OS_LINUX
 
@@ -180,8 +159,7 @@ NYA_INTERNAL u8 _nya_backtrace_alt_stack[_NYA_BACKTRACE_ALT_STACK_SIZE];
 NYA_INTERNAL void _nya_backtrace_fault_handler(int signal_number, siginfo_t* info, void* context) {
     nya_unused(context);
 
-    // Reset to the default action immediately. If anything below faults again the process dies
-    // straight away instead of re-entering this handler forever.
+    // Reset to the default action immediately, so if anything below faults again the process dies straight away instead of re-entering this handler forever.
     (void)signal(signal_number, SIG_DFL);
 
     u64 fault_address = (info != nullptr) ? (u64)(uintptr_t)info->si_addr : 0;
@@ -189,8 +167,7 @@ NYA_INTERNAL void _nya_backtrace_fault_handler(int signal_number, siginfo_t* inf
 }
 
 NYA_INTERNAL void _nya_backtrace_install_fault_handlers(void) {
-    // Run the handler on its own stack so a stack overflow is still reportable. Without this the
-    // handler would need stack space that a stack overflow by definition does not have.
+    // Run the handler on its own stack so a stack overflow is still reportable; otherwise it would need stack space a stack overflow by definition lacks.
     stack_t alt_stack = {
         .ss_sp    = _nya_backtrace_alt_stack,
         .ss_size  = sizeof(_nya_backtrace_alt_stack),
@@ -235,8 +212,7 @@ NYA_INTERNAL LONG WINAPI _nya_backtrace_fault_filter(EXCEPTION_POINTERS* info) {
 }
 
 NYA_INTERNAL void _nya_backtrace_install_fault_handlers(void) {
-    // SetUnhandledExceptionFilter rather than a vectored handler on purpose: a first chance
-    // vectored hook would steal exceptions that SDL and GPU drivers raise and handle internally.
+    // SetUnhandledExceptionFilter rather than a vectored handler: a first-chance vectored hook would steal exceptions SDL and GPU drivers raise and handle internally.
     _nya_backtrace_previous_filter = SetUnhandledExceptionFilter(_nya_backtrace_fault_filter);
 }
 

@@ -85,11 +85,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define NYA_NS_PER_SECOND 1'000'000'000LL
 #define NYA_NS_PER_MINUTE (60LL * NYA_NS_PER_SECOND)
@@ -104,11 +100,7 @@
 #define NYA_DATE_YEAR_MIN 0
 #define NYA_DATE_YEAR_MAX 9'999
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_Instant       NYA_Instant;
 typedef struct NYA_Duration      NYA_Duration;
@@ -180,17 +172,9 @@ struct NYA_InstantSource {
     void* context;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * INSTANTS
- * ─────────────────────────────────────────────────────────
- */
+// INSTANTS
 
 /**
  * The current moment. The wall clock, so it can step in either direction when the system clock is set;
@@ -235,11 +219,7 @@ NYA_API void nya_instant_to_utc(NYA_Instant instant, OUT NYA_Date* out_date, OUT
  * */
 NYA_API b8 nya_instant_from_utc(NYA_Date date, NYA_TimeOfDay time, OUT NYA_Instant* out_instant) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * DATES
- * ─────────────────────────────────────────────────────────
- */
+// DATES
 
 /** Month 1 to 12, day within that month in that year, year within NYA_DATE_YEAR_MIN and _MAX. */
 NYA_API b8 nya_date_is_valid(NYA_Date date) __attr_no_discard;
@@ -284,11 +264,7 @@ NYA_API NYA_Weekday nya_date_weekday(NYA_Date date) __attr_no_discard;
  * */
 NYA_API NYA_IsoWeek nya_date_iso_week(NYA_Date date) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * TIMES OF DAY
- * ─────────────────────────────────────────────────────────
- */
+// TIMES OF DAY
 
 /** Hour below 24, minute and second below 60, nanosecond below a second. */
 NYA_API b8 nya_time_of_day_is_valid(NYA_TimeOfDay time) __attr_no_discard;

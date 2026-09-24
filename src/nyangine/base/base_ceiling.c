@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct {
     NYA_ConstCString name;
@@ -32,11 +28,7 @@ typedef struct {
 /* No init: a zeroed registry is already a valid empty one. */
 NYA_INTERNAL _NYA_CeilingRegistry _nya_ceiling_registry = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * live/capacity for `index` into `entries`, not the sorted order. Zero for a zero capacity rather than
@@ -49,11 +41,7 @@ NYA_INTERNAL f32 _nya_ceiling_fullness(u32 index);
  * */
 NYA_INTERNAL void _nya_ceiling_order(OUT u32 order[NYA_CEILING_REGISTRY_MAX]);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_ceiling_register(NYA_ConstCString name, u32 capacity, const u32* live) {
     nya_assert(name != nullptr, "a ceiling must be registered with a name");
@@ -79,8 +67,7 @@ void nya_ceiling_unregister(NYA_ConstCString name) {
     for (u32 index = 0; index < _nya_ceiling_registry.count; index++) {
         if (strcmp(_nya_ceiling_registry.entries[index].name, name) != 0) continue;
 
-        // The last entry fills the hole and the count shrinks; the sorted order is rebuilt on every
-        // query, so the entries need not stay in any order here.
+        // The last entry fills the hole and the count shrinks; the sorted order is rebuilt on every query, so entries need not stay ordered here.
         _nya_ceiling_registry.count--;
         _nya_ceiling_registry.entries[index]                       = _nya_ceiling_registry.entries[_nya_ceiling_registry.count];
         _nya_ceiling_registry.entries[_nya_ceiling_registry.count] = (_NYA_CeilingEntry){ 0 };
@@ -163,11 +150,7 @@ __attr_maybe_unused void _nya_ceiling_registry_reset_for_test(void) {
 }
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 f32 _nya_ceiling_fullness(u32 index) {
     const _NYA_CeilingEntry* entry = &_nya_ceiling_registry.entries[index];

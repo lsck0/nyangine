@@ -8,11 +8,7 @@
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /**
  * Also writes the log to `path`, buffered to avoid a syscall per line. Flushed when full, on WARN or

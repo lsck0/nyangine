@@ -35,11 +35,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** How much of a string is written down. A crash report wants to recognise a value, not to hold all of it. */
 #define NYA_WATCH_STRING_MAX 64
@@ -58,11 +54,7 @@
  * */
 #define NYA_WATCH_RING_MAX 64
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_WatchType     NYA_WatchType;
 typedef struct NYA_WatchEntry  NYA_WatchEntry;
@@ -110,11 +102,7 @@ struct NYA_WatchEntry {
     u32           size;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VALUES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// VALUES
 
 /**
  * The arm of NYA_WatchType that fits `value`'s type, as a constant.
@@ -160,11 +148,7 @@ struct NYA_WatchEntry {
  * */
 NYA_API u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* address, OUT u8* buffer, u32 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ASSERTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ASSERTIONS
 
 /**
  * The comparison assertions. Identical to `nya_assert(a == b)` except that the report carries what `a`
@@ -189,21 +173,9 @@ NYA_API u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* add
 #define nya_assert_gt(left, right) _NYA_ASSERT_COMPARE(left, right, >)
 #define nya_assert_ge(left, right) _NYA_ASSERT_COMPARE(left, right, >=)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE RING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE RING
 
-/*
- * The live locals of every frame that asked to be watched, innermost last, one ring per thread. The
- * generated code in src/genyarated/watches writes it and the crash report reads it; see
- * build/pp/watch.h for what a function has to say to get there.
- *
- * Per thread and not shared, which is what makes it safe where a crash report is composed: the walk
- * reads the ring of the thread that crashed, so it needs no lock, and the ring is fixed storage, so it
- * needs no allocator.
- */
+/* The live locals of every watched frame, innermost last, one ring per thread: the generated code in src/genyarated/watches writes it and the crash report reads it. Per-thread and unshared, so it needs no lock or allocator. */
 
 /**
  * Opens a frame's group. The returned mark is both the id its locals are grouped by and the depth
@@ -233,11 +205,7 @@ NYA_API const NYA_WatchEntry* nya_watch_at(u32 index) __attr_no_discard;
 /** How many entries the ring dropped to make room. Reported, so a short list never reads as a whole one. */
 NYA_API u32 nya_watch_dropped(void) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 /** What __builtin_classify_type answers for a pointer. Its other codes are not relied on. */
 #define _NYA_WATCH_CLASS_POINTER 5

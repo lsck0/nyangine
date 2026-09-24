@@ -27,11 +27,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Code hashed per sweep step, about 15 µs of SipHash. Code past NYA_INTEGRITY_CODE_CHUNK_MAX chunks widens them. */
 #define NYA_INTEGRITY_CODE_CHUNK_BYTES (64ULL * 1024ULL)
@@ -58,11 +54,7 @@
 /** Distinct from a crash and from a normal exit, so a launcher or a support log can tell what happened. */
 #define NYA_INTEGRITY_EXIT_CODE 86
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_IntegrityStatus NYA_IntegrityStatus;
 typedef struct NYA_IntegrityState NYA_IntegrityState;
@@ -112,9 +104,7 @@ struct NYA_IntegrityState {
     /** The chunk hashes folded in order. A completed pass has to fold to the same value. */
     u64 baseline_digest;
 
-    /*
-     * Main thread only from here.
-     */
+    // Main thread only from here.
 
     u32 sweep_cursor;
     u64 sweep_next_ns;
@@ -127,11 +117,7 @@ struct NYA_IntegrityState {
     u64 watchdog_stalled_ns;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /** The keyed hash every check compares: over the file, over code chunks, over asset entries. */
 NYA_API u64 nya_integrity_hash(const void* data, u64 size) __attr_no_discard;
@@ -139,11 +125,7 @@ NYA_API u64 nya_integrity_hash(const void* data, u64 size) __attr_no_discard;
 /** Logs why and exits with NYA_INTEGRITY_EXIT_CODE. Safe from any thread. */
 NYA_API void nya_integrity_fail(NYA_IntegrityStatus status, NYA_ConstCString detail) __attr_noreturn;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ON DISK
- * ─────────────────────────────────────────────────────────
- */
+// ON DISK
 
 /** Stamps the MAC into a freshly linked binary. Called by the build system after linking. */
 NYA_API NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) __attr_no_discard;
@@ -151,11 +133,7 @@ NYA_API NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out
 /** Whether the file at `path` still matches the hash stamped into it. */
 NYA_API b8 nya_integrity_verify_file(NYA_ConstCString path) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * AT RUNTIME
- * ─────────────────────────────────────────────────────────
- */
+// AT RUNTIME
 
 /**
  * Starts the checks on a thread of their own: verifies the executable file, then captures the code baseline. Shipping

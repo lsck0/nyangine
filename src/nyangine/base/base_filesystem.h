@@ -14,20 +14,12 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/os/os_file.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bounds the recursion in walk and copy, so a symlink loop fails loudly instead of blowing the stack. */
 #define NYA_FILESYSTEM_WALK_DEPTH_MAX 256
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_FileType         NYA_FileType;
 typedef struct NYA_FileInfo       NYA_FileInfo;
@@ -77,17 +69,9 @@ nya_derive_array(NYA_DirectoryEntry);
  * */
 typedef b8 (*NYA_WalkCallback)(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * ─────────────────────────────────────────────────────────
- * QUERIES
- * ─────────────────────────────────────────────────────────
- */
+// QUERIES
 
 /** True if anything exists at `path`, file or directory. */
 NYA_API b8 nya_filesystem_exists(NYA_ConstCString path) __attr_no_discard;
@@ -105,11 +89,7 @@ NYA_API NYA_Error nya_filesystem_last_modified(NYA_ConstCString path, OUT u64* o
 /** Resolves symlinks and relative segments into an absolute path. */
 NYA_API NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_String** out_path) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * MUTATION
- * ─────────────────────────────────────────────────────────
- */
+// MUTATION
 
 NYA_API NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destination) __attr_no_discard;
 
@@ -133,11 +113,7 @@ NYA_API NYA_Error nya_filesystem_delete_recursive(NYA_ConstCString path) __attr_
 /** Copies a directory tree. Copying a plain file works too. Destination parents are created. */
 NYA_API NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCString destination) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * DIRECTORIES
- * ─────────────────────────────────────────────────────────
- */
+// DIRECTORIES
 
 /**
  * Lists one directory level, metadata included. `.` and `..` are omitted.
@@ -147,11 +123,7 @@ NYA_API NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, O
 /** Depth first walk of everything under `path`. Children are visited before their parent. */
 NYA_API NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback callback, void* user_data) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * FILE HANDLES
- * ─────────────────────────────────────────────────────────
- */
+// FILE HANDLES
 
 /**
  * An open file.
@@ -196,11 +168,7 @@ NYA_API NYA_Error nya_file_tell(NYA_File* file, OUT u64* out_offset) __attr_no_d
 NYA_API NYA_Error nya_file_truncate(NYA_File* file, u64 length) __attr_no_discard;
 NYA_API NYA_Error nya_file_flush(NYA_File* file) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * WELL KNOWN LOCATIONS
- * ─────────────────────────────────────────────────────────
- */
+// WELL KNOWN LOCATIONS
 
 NYA_API NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** out_path) __attr_no_discard;
 NYA_API NYA_Error nya_filesystem_working_directory_set(NYA_ConstCString path) __attr_no_discard;

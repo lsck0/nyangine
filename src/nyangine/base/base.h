@@ -55,6 +55,5 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_url.h"
 #include "nyangine/base/base_version.h"
-// after base_string.h and base_logging.h: its value formatter prints an NYA_String and its comparison
-// assertions raise through the crash sink.
+// After base_string.h and base_logging.h: its value formatter prints an NYA_String and its comparison assertions raise through the crash sink.
 #include "nyangine/base/base_watch.h"

@@ -55,11 +55,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The first retry's window when the policy leaves `base_ms` at zero. */
 #define NYA_RECONNECT_BASE_MS 500
@@ -67,11 +63,7 @@
 /** The longest a retry ever waits when the policy leaves `cap_ms` at zero. */
 #define NYA_RECONNECT_CAP_MS 30000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_ReconnectPolicy NYA_ReconnectPolicy;
 typedef struct NYA_Reconnect       NYA_Reconnect;
@@ -114,11 +106,7 @@ struct NYA_Reconnect {
     u64 retry_at_ms;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Sets `reconnect` to a fresh state under `policy`: no attempts spent, nothing scheduled. */
 NYA_API void nya_reconnect_init(OUT NYA_Reconnect* reconnect, NYA_ReconnectPolicy policy);

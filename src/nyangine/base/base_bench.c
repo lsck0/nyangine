@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 typedef struct {
     NYA_ConstCString group;
@@ -17,11 +13,7 @@ typedef struct {
 
 NYA_INTERNAL _NYA_BenchState _nya_bench_state = { 0 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_bench_begin(NYA_ConstCString group) {
     _nya_bench_state = (_NYA_BenchState){ .group = group != nullptr ? group : "bench" };
@@ -50,9 +42,7 @@ void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_count, u64
 
     qsort(samples, sample_count, sizeof(f64), _nya_bench_compare);
 
-    /*
-     * The best sample is the result, and the median is printed beside it.
-     */
+    // The best sample is the result, and the median is printed beside it.
     f64 best   = samples[0];
     f64 median = samples[sample_count / 2];
     f64 worst  = samples[sample_count - 1];
@@ -72,8 +62,7 @@ void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_count, u64
 
     (void)printf("  %-26s %13.1f %12s %12.1f %7.2fx %9s\n", name, best, per_item_text, median, spread, relative);
 
-    // A wide spread means the numbers are contaminated, and saying so is more useful than a footnote
-    // nobody reads. Not a failure: a busy machine is not a broken benchmark.
+    // A wide spread means the numbers are contaminated, and saying so beats a footnote nobody reads; not a failure, since a busy machine is not a broken benchmark.
     if (spread > 2.0) {
         (void)printf("  %-26s   (noisy: worst round was %.2fx the best; batch %llu)\n", "", spread, (unsigned long long)batch);
     }

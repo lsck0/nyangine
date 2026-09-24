@@ -1,11 +1,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /**
  * The ring, one per thread.
@@ -39,11 +35,7 @@ NYA_INTERNAL u32 _nya_watch_format_integer(u128 magnitude, b8 negative, OUT u8* 
 /** `count` bytes of text, quoted and cut, with no read past the first terminator. */
 NYA_INTERNAL u32 _nya_watch_format_text(const u8* text, u64 length, OUT u8* buffer, u32 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VALUES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// VALUES
 
 u32 _nya_watch_write(OUT u8* buffer, u32 capacity, NYA_ConstCString format, ...) {
     va_list arguments;
@@ -141,8 +133,7 @@ u32 _nya_watch_format_text(const u8* text, u64 length, OUT u8* buffer, u32 capac
     if (written + 1 < capacity) buffer[written++] = '"';
 
     for (u64 i = 0; i < length && i < NYA_WATCH_STRING_MAX && written + 1 < capacity; i++) {
-        // Control bytes become a dot: the report is read as one line per value, and a stray newline or
-        // escape from a string somebody was building would take the line apart.
+        // Control bytes become a dot: the report is read as one line per value, and a stray newline or escape from a string being built would take the line apart.
         const u8 byte   = text[i] >= 0x20 && text[i] != 0x7F ? text[i] : (u8)'.';
         buffer[written] = byte;
         written++;
@@ -180,8 +171,7 @@ u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* address, OU
 
         case NYA_WATCH_TYPE_UNSIGNED: return _nya_watch_format_integer(_nya_watch_read_unsigned(address, size), false, buffer, capacity);
 
-        // %Lg rather than %Lf: a crash report is read for the order of magnitude of a wrong number, and
-        // a value too small or too large to see is exactly the kind that is wrong.
+        // %Lg rather than %Lf: a crash report is read for a wrong number's order of magnitude, and a value too small or large to see is exactly the kind that is wrong.
         case NYA_WATCH_TYPE_FLOAT: return _nya_watch_write(buffer, capacity, "%Lg", _nya_watch_read_float(address, size));
 
         case NYA_WATCH_TYPE_BOOL: return _nya_watch_write(buffer, capacity, "%s", _nya_watch_read_unsigned(address, size) != 0 ? "true" : "false");
@@ -200,12 +190,7 @@ u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* address, OU
 
             if (text == nullptr) return _nya_watch_write(buffer, capacity, "nullptr");
 
-            /*
-             * The one read this function makes through a pointer it was given, and the one that can fault.
-             * A pointer inside the null page is refused, which is the case that actually happens: a member
-             * read off a null struct. Anything else is read, and a dangling one takes the reentrancy guard
-             * in base_logging.c rather than the report.
-             */
+            /* The one read this function makes through a caller-given pointer, and the one that can fault: a pointer in the null page is refused (a member off a null struct); a dangling one hits the base_logging.c reentrancy guard. */
             if ((u64)(uintptr_t)text < _NYA_WATCH_NULL_PAGE) return _nya_watch_write(buffer, capacity, "0x%llx (unreadable)", (unsigned long long)(uintptr_t)text);
 
             u64 length = 0;
@@ -239,8 +224,7 @@ u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* address, OU
             return _nya_watch_write(buffer, capacity, "0x%llx", (unsigned long long)(uintptr_t)pointer);
         }
 
-        // Nothing is known about the bytes, so the address is what is worth printing: it is what a
-        // debugger attached to the core dump needs, and printing the bytes would be a guess.
+        // Nothing is known about the bytes, so the address is worth printing: it is what a debugger on the core dump needs, and printing the bytes would be a guess.
         case NYA_WATCH_TYPE_OPAQUE: return _nya_watch_write(buffer, capacity, "<" FMTu32 " bytes at 0x%llx>", size, (unsigned long long)(uintptr_t)address);
 
         default: break;
@@ -250,25 +234,19 @@ u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* address, OU
     return _nya_watch_write(buffer, capacity, "<unknown>");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE RING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE RING
 
 u32 nya_watch_frame_begin(void) {
     return _nya_watch_depth;
 }
 
 void nya_watch_frame_end(u32 frame) {
-    // A mark from a frame that has already unwound: nothing to take back, and nothing to complain about
-    // either, because this runs while the stack is coming apart.
+    // A mark from a frame that has already unwound: nothing to take back, and nothing to complain about, because this runs while the stack is coming apart.
     if (frame >= _nya_watch_depth) return;
 
     _nya_watch_depth = frame;
 
-    // Everything below the new depth was overwritten and is not coming back, so the readable range
-    // closes rather than exposing slots that now hold a newer frame's locals.
+    // Everything below the new depth was overwritten and is not coming back, so the readable range closes rather than exposing slots that now hold a newer frame's locals.
     if (_nya_watch_lost > _nya_watch_depth) _nya_watch_lost = _nya_watch_depth;
 }
 
@@ -285,8 +263,7 @@ void nya_watch_record(
     nya_assert(name != nullptr);
     nya_assert(type_name != nullptr);
 
-    // The slot about to be written still holds a live entry: say so before it goes, or the walk would
-    // read it back as though it belonged to the frame that has since taken the slot.
+    // The slot about to be written still holds a live entry: say so before it goes, or the walk would read it back as belonging to the frame that has since taken the slot.
     if (_nya_watch_depth >= NYA_WATCH_RING_MAX) {
         const u32 oldest_kept = _nya_watch_depth - NYA_WATCH_RING_MAX + 1;
         if (oldest_kept > _nya_watch_lost) _nya_watch_lost = oldest_kept;

@@ -1,20 +1,12 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL u32 _nya_error_format_error_trace(const NYA_Error* error, OUT u8* buffer, u32 capacity);
 NYA_INTERNAL u32 _nya_error_format_summary(const NYA_Error* error, OUT u8* buffer, u32 capacity);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_error_from_errno(void) {
     NYA_ErrorKind kind;
@@ -72,18 +64,13 @@ u32 nya_error_format(const NYA_Error* error, OUT u8* buffer, u32 capacity) {
     return length;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_error_create(NYA_ErrorKind kind, NYA_ConstCString fmt, ...) {
     nya_assert(fmt != nullptr);
     nya_assert(kind < NYA_ERROR_COUNT);
 
-    // The third and last place an NYA_Error is constructed, after NYA_OK and NYA_NOT_OK. `ok` is
-    // derived here rather than by the caller so the two cannot drift apart.
+    // The third and last place an NYA_Error is constructed, after NYA_OK and NYA_NOT_OK; `ok` is derived here rather than by the caller so the two cannot drift apart.
     NYA_Error error = { .kind = kind, .ok = kind == NYA_ERROR_NONE };
 
     va_list args;
@@ -92,8 +79,7 @@ NYA_Error _nya_error_create(NYA_ErrorKind kind, NYA_ConstCString fmt, ...) {
     va_end(args);
 
 #if NYA_ERROR_CAPTURE_STACK
-    // Captured here rather than at throw time: by the time an error is thrown the frames it was
-    // born in are long gone.
+    // Captured here rather than at throw time: by the time an error is thrown the frames it was born in are long gone.
     if (kind != NYA_ERROR_NONE) nya_backtrace_capture(&error.stack_trace, 1);
 #endif // NYA_ERROR_CAPTURE_STACK
 
@@ -121,14 +107,10 @@ void _nya_error_throw(NYA_Error error, NYA_ConstCString function, NYA_ConstCStri
         }
     }
 
-    // Then the error itself: kind, message and propagation chain. Deliberately not the stack: it
-    // is handed to the sink below instead of being flattened into the message, which keeps the two
-    // from being printed twice and from crowding each other out of the buffer.
+    // Then the error itself: kind, message and propagation chain; deliberately not the stack, which is handed to the sink instead of flattened into the message, so the two are not printed twice.
     if (length + 1 < sizeof(detail)) (void)_nya_error_format_summary(&error, &detail[length], (u32)sizeof(detail) - length);
 
-    // The stack the error was *created* with, not the stack of whoever finally threw it. That is
-    // the one that says where things actually went wrong. Absent from the struct at all when the
-    // capture is off, in which case the sink captures at the throw site as it would for a panic.
+    // The stack the error was created with, not whoever threw it, since that says where things went wrong; absent when capture is off, where the sink captures at the throw site instead.
 #if NYA_ERROR_CAPTURE_STACK
     const NYA_Backtrace* backtrace = error.stack_trace.count > 0 ? &error.stack_trace : nullptr;
 #else
@@ -143,8 +125,7 @@ void _nya_error_push_frame(NYA_Error* error, NYA_ConstCString function, NYA_Cons
     nya_assert(function != nullptr);
     nya_assert(file != nullptr);
 
-    // Deep propagation chains are truncated rather than overflowing. The innermost frames are the
-    // interesting ones, so the tail is what gets dropped.
+    // Deep propagation chains are truncated rather than overflowing: the innermost frames are the interesting ones, so the tail is dropped.
     if (error->error_trace_count >= NYA_ERROR_TRACE_MAX) return;
 
     error->error_trace[error->error_trace_count++] = (NYA_BacktraceFrame){

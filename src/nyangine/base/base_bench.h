@@ -19,11 +19,7 @@
 
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** How many untimed rounds run first, to fault in pages and settle the branch predictors and caches. */
 #ifndef NYA_BENCH_WARMUP
@@ -49,11 +45,7 @@
 #define NYA_BENCH_MAX_BATCH 1'000'000
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /** Starts a named group and prints its header. */
 NYA_API void nya_bench_begin(NYA_ConstCString group);
@@ -76,11 +68,7 @@ NYA_API void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_co
         /* Untimed, to fault in pages and settle caches and branch predictors. */                                                                     \
         for (u32 _nya_bench_warm = 0; _nya_bench_warm < NYA_BENCH_WARMUP; _nya_bench_warm++) { __VA_ARGS__; }                                               \
                                                                                                                                                      \
-        /*                                                                                                                                           \
-         * Calibrate a batch size, so one timed sample is long enough that the clock call does not                                                    \
-         * dominate it. Doubling rather than dividing an estimate: the body may not be linear in the                                                  \
-         * batch, and doubling until it is long enough needs no assumption that it is.                                                                \
-         */                                                                                                                                          \
+        /* Calibrate a batch size so one timed sample outlasts the clock call; doubling rather than dividing an estimate needs no assumption that the body is linear in the batch. */ \
         u64 _nya_bench_batch = 1;                                                                                                                     \
         while (_nya_bench_batch < NYA_BENCH_MAX_BATCH) {                                                                                              \
             u64 _nya_bench_c0 = nya_clock_get_monotonic_ns();                                                                                         \
@@ -105,9 +93,7 @@ NYA_API void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_co
  * Makes a value observable, so the optimiser cannot delete the work that produced it.
  * */
 #if defined(__clang__) || defined(__GNUC__)
-/*
- * Copied into a local first, then constrained as memory.
- */
+// Copied into a local first, then constrained as memory.
 #define nya_bench_keep(value_)                                                                                                                       \
     do {                                                                                                                                             \
         __auto_type _nya_bench_kept = (value_);                                                                                                      \

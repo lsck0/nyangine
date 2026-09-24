@@ -58,11 +58,7 @@
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MACROS
 
 // NOLINTBEGIN(bugprone-macro-parentheses): the type and declarator parameters (Type, prefix, capacity)
 // name a type and paste identifiers, neither of which can be parenthesized.
@@ -164,15 +160,7 @@
 
 // NOLINTEND(bugprone-macro-parentheses)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE THREE PARSED TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * The types TODO.md's SO section names. Each is the macro above plus one predicate: the predicate is the
- * whole definition of what the type admits, and it is an ordinary function so it can be read, tested and
- * reused on its own.
- */
+/* THE THREE PARSED TYPES: the types TODO.md's SO section names, each the macro above plus one predicate function that is the whole definition of what the type admits. */
 
 /** RFC 5321's ceiling on an address, plus the NUL. Anything longer is refused before it is looked at. */
 #define NYA_EMAIL_CAPACITY 255
@@ -205,8 +193,7 @@ __attr_allow_unused NYA_INTERNAL b8 nya_email_is_valid(const u8* bytes, u32 leng
     const u32 domain_length = length - domain_start;
     if (local_length == 0 || domain_length == 0) return false;
 
-    // local part: visible ASCII that is neither a space nor a control, with dots that neither lead, trail,
-    // nor double. This is a sane subset of RFC 5321's atext, not the quoted-string escape hatch.
+    // Local part: visible ASCII that is neither space nor control, with dots that neither lead, trail nor double; a sane subset of RFC 5321's atext, not the quoted-string escape hatch.
     if (bytes[0] == '.' || bytes[local_length - 1] == '.') return false;
     for (u32 i = 0; i < local_length; i++) {
         const u8 c = bytes[i];
