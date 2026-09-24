@@ -44,6 +44,26 @@ per-file and total line coverage of `src/nyangine`. It exits non-zero when the t
 `--html` also writes an annotated listing under `.coverage/html`. It needs `llvm-profdata` and
 `llvm-cov`, which ship with clang, and skips with a notice rather than failing when they are absent.
 
+## Reproducible toolchain (nix)
+
+Getting the compiler right is the fiddly part of the bootstrap above: the engine needs a clang new
+enough for C2Y, `-fdefer-ts`, `-fenable-matrix` and `_Float16`, and a distribution's default clang
+is rarely it. If you have [nix](https://nixos.org) with [devenv](https://devenv.sh) and
+[direnv](https://direnv.net), an optional pinned toolchain is one command away:
+
+```bash
+direnv allow    # or, without direnv: devenv shell
+./build
+```
+
+That drops you into a shell with exactly the LLVM 22 clang CI builds with, plus mold, cmake, ninja,
+make, the coverage and spell-check tools the gates need, and the system libraries the vendored SDL
+stack compiles against — all pinned. `devenv.nix` documents the two things it does not cover
+(Windows cross-compilation, which the toolchain header hardwires to a distro sysroot, and
+emscripten's writable cache). This is purely an alternative to installing the packages in
+[.github/ci-packages.txt](.github/ci-packages.txt) by hand; the from-source bootstrap above still
+works without nix, and nothing in the build depends on it.
+
 ## Where things are
 
 - [AGENTS.md](AGENTS.md) — the layout, the build modes, the conventions. Start here.
