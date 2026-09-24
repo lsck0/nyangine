@@ -33,9 +33,23 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 ---
 
-## In flight: headless server deploy profile (minimal vendor subset, no shadercross/SDL for a webapp; smallest-possible multi-stage Dockerfile; homelab docker-swarm stack).
+## Still missing — the highlights
+
+The big open fronts, most-blocking first. Each expands in "Roadmap" below.
+
+- **Web client / game→web (CSR).** `[ ]` The renderer is 100% SDL_GPU with no browser backend — the wall that blocks a rendered game on the web. Needs a WebGL2/WebGPU backend, `platform/web` (clock, CSPRNG, OPFS, fetch, WebSocket, input), and the wasm toolchain. UI-only CSR runs today; a rendered game does not.
+- **Layering: a server links the whole engine.** `[~]` `http`/`net` sit on `core`, and `core` is SDL, so a webapp or CLI still compiles and links the full engine. `NYA_NO_SDL` does **not** build http (proven 2026-09-24: http/net/crypto/tls/core/reflection all sit inside `#ifndef NYA_NO_SDL`, and `NYA_App` embeds the renderer by value). Real headless needs `core` split out of the SDL wall. Mitigated for deploy by `--server` (release + `--gc-sections` drops SDL at link), not fixed.
+- **Components + profiles.** `[ ]` The whole "everything is a plugin" refactor: one descriptor per component the build reads, and named profiles (`cli`/`tui`/`server`/`desktop`/`game`/`web`). This is what makes the vendor subset and a true headless build real rather than link-time GC.
+- **Accounts.** `[~]` No login route, no user store, no password hashing, no revocation, no cookies wired end-to-end. TOTP and PGP seams exist; PGP encryptor + preflight landed, TOTP verify path open.
+- **TLS in process + ACME.** `[ ]` mbedTLS/OpenSSL wrapped in `http` (1.3 floor 1.2), then ACME so one executable renews its own cert. Until then TLS is a proxy's job (missing HSTS across the scans is downstream of this).
+- **CI is red.** `[!]` Every master run since 2026-09-22 fails or is cancelled; Windows tests never compiled, fixed one push at a time. Blocks trusting any "green" claim.
+- **Renderer.** `[ ]` Compute passes (raymarched volumes, GPU fluids/particles, SSAO); screen-space + planar reflections; the realistic-but-stylized showcase scene composing wind+foliage+water+dust+light-shafts (user, 2026-09-24).
+- **Model/SO/DTO web profile.** `[ ]` The conversion split in `http`/`db`, the `web` profile refusing model/SO headers, `@secret` encrypted fields.
+- **Smaller open items:** pentest pass over `http_server`; scheduled CI (fuzz/simulation/benchmarks); pinned vendor releases (SDL/Box3D untagged); clang-format gate; job queue; passkeys (WebAuthn); DOM presenter + shadcn-like widget set + node/code editors; structured logging; a parsed-newtype helper; typed route-table client calls; web hot reload.
 
 ## Recently landed (2026-09-24, agent batch)
+
+Headless server deploy: a `--server` build profile (release + LTO + `-Wl,--gc-sections` + strip; SDL eliminated at link, 38M→9.4M) with a minimal vendor subset macro, `web_server` decoupled from SDL (`nya_os_time_sleep_ms`, `--address` to bind `0.0.0.0`, a `--healthcheck` self-probe), a scratch Docker image (`docker images` 39.2MB, GET / = 200, HEALTHCHECK healthy) and a homelab swarm `stack.yaml` + README (`7b97eeb3`, `af8c42b4`, `c60dc309`). Caveat: the example still links the full vendor set because it compiles the whole engine graph; the subset is the real link set only once `core` leaves the SDL wall.
 
 Batch 3: water depth-difference shoreline foam + richer wave heightfield (`d5c7c078`), WebSocket net transport + player-key allowlist + version rejection (`20360276`), our own opt-in stereo panner (`bd26b494`), `./build sbom` CycloneDX + licence-allowlist gate + CVE hook (`f6f70433`). Runtime-dependency preflight — crash at startup when a required program/library is missing, `gpg` wired (`681c8066`). Privacy pass: crash report scrubs home/user/host before it leaves the process (`7e0a794d`), server bind default pinned to loopback in one named place (`80f4e0c6`). `.wasm` served from the static bundle as `application/wasm`, so the CSR bundle hosts its own module through the engine (`31556ffa`).
 
@@ -1165,18 +1179,20 @@ The current track, reordered around one missing primitive.
   one shared wind field, kept inside the flat stylized art style (never photoreal). Not three separate examples
   (`renderer_stress`/`foliage3d`/`water3d`) but a single cohesive world that proves they compose. Reuse the
   existing systems; add the light-shaft/god-ray pass hookup if not already wired into a scene.
-- `[ ]` Our own stereo panner for interaural delay and head shadow. If it replaces what SDL_mixer does for us,
-  SDL_mixer leaves the vendor list and only its decoders stay.
-- `[ ]` Multiplayer: fragmentation, lag compensation at render time, a WebSocket transport so browsers can join a
-  native server, a player key allowlist, and version rejection that disconnects at once.
+- `[x]` Our own stereo panner for interaural delay and head shadow. Landed 2026-09-24 (`bd26b494`), opt-in:
+  equal-power gains, Woodworth ITD and head shadow, replacing SDL_mixer's positioning on stereo devices. It does
+  not remove SDL_mixer (still the decoder, resampler and mixer), so SDL_mixer stays in the vendor list.
+- `[~]` Multiplayer: the WebSocket transport, player-key allowlist and immediate version rejection landed
+  2026-09-24 (`20360276`). Open: fragmentation of a message across frames, lag compensation at render time, and
+  the browser-side client half.
 
 ## Phase 6 — customization and desktop
 
 - `[ ]` UI style files: `NYA_UIStyle` from a `.nya` theme through reflection, hot reloaded, validated like
   settings (the file, the key, the value, the range), user editable under `data/`.
-- `[ ]` Signed plugins: an Ed25519 signature over the plugin directory, publisher keys pinned in the program,
-  and a signed repository index. Unsigned plugins load only after an explicit opt-in that says what a plugin can
-  do. Then repositories by URL as under "Plugins".
+- `[~]` Signed plugins: Ed25519 signature over the plugin directory with publisher keys pinned in the program,
+  refusing anything not signed by a pinned key, landed 2026-09-24 (`f4c21979`). Open: a signed repository index
+  and repositories by URL as under "Plugins".
 - `[ ]` VM budgets: an instruction count hook and a heap ceiling through the allocator, so a plugin can be slow
   or large but never hang or exhaust the host.
 - `[ ]` The ambient current UI for Lua, runtime asset roots, and the in-app toggles for plugins and systems.
@@ -1228,8 +1244,8 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   `./site` and `docs/doxygen/` are gitignored; only the sources (prose, `doxygen.config`, `.gitbook.yaml`,
   `SUMMARY.md`, the build rule) are committed. Follow-up: a CI step that runs `./build docs` and publishes `./site`.
 
-- `[ ]` Shipping flags: `_FORTIFY_SOURCE=3`, `-fstack-clash-protection`, full RELRO and `-z now`, checked on the
-  produced binary rather than trusted from the flag list.
+- `[x]` Shipping flags: `_FORTIFY_SOURCE=3`, `-fstack-clash-protection`, full RELRO and `-z now`, NX, checked on
+  the produced binary rather than trusted from the flag list. Landed 2026-09-24 (`2c758ee8`, ELF-verified).
 - `[ ]` Pinned releases: SDL is at `release-3.4.0-1237`, an untagged commit on main, and Box3D is pre-1.0. Pin
   each vendor to a release tag, or write down beside the submodule why not.
 - `[x]` An SBOM and a licence allowlist generated from the vendor rules, and a CVE check against it in CI.
@@ -1242,9 +1258,10 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   rather than failing offline. Nothing is vendored and nothing reaches the network by default.
 - `[ ]` Scheduled CI: fuzzing from the committed corpus, simulation with random seeds keeping every failure,
   benchmarks on a fixed runner with regressions flagged.
-- `[ ]` Privacy pass: crash reports strip the home directory, user name and host name before anything leaves
-  the machine and show exactly what will be sent; the metrics resource binds loopback unless told otherwise;
-  nothing phones home.
+- `[x]` Privacy pass: crash reports strip the home directory, user name and host name before anything leaves
+  the machine, the metrics resource binds loopback unless told otherwise, and nothing phones home. Landed
+  2026-09-24 (`7e0a794d` scrub in `nya_crash_report_compose`, `80f4e0c6` loopback bind default). Follow-up: a
+  confirm-what-will-be-sent view before the report leaves.
 - `[ ]` The clang-format gate, as one reformat commit in a quiet window.
 - `[ ]` The open items under "Distribution".
 
