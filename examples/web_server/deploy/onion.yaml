@@ -1,0 +1,69 @@
+# A docker compose stack that publishes the web_server example as a Tor v3 onion service.
+#
+# Two containers on a private network. The app is the same scratch image the swarm stack uses, bound
+# to 0.0.0.0:8000 exactly as it already is — no app change is needed to serve over Tor, because Tor
+# reaches it as an ordinary HTTP peer. It publishes nothing to the host: the only way in is the
+# .onion. Beside it, a tor daemon whose one job is a HiddenService that forwards the onion's virtual
+# port 80 to web:8000.
+#
+#   docker compose -f examples/web_server/deploy/onion.yaml up -d
+#   # read the address Tor generated (the hostname file in the HiddenService dir):
+#   docker compose -f examples/web_server/deploy/onion.yaml exec tor cat /var/lib/tor/hidden_service/hostname
+#
+# The <56-char-hash>.onion it prints is the address; open it in Tor Browser. See this directory's
+# README for pinning a persistent or vanity key, and for wiring the mirror attestation to the onion.
+
+services:
+  web:
+    image: registry.lsck0.dev/web_server:latest
+    # No `ports:` — the app faces the tor container over the `onion` network, never the host. It
+    # still binds the wildcard (the image's ENTRYPOINT already passes --address 0.0.0.0), which is
+    # the whole reason no application change is needed to go from the swarm to Tor.
+    expose:
+      - "8000"
+    environment:
+      # The origin the mirror attestation binds its signature to. Once `up` has printed the .onion,
+      # set this to "http://<hash>.onion" and redeploy, so the signed statement names the address the
+      # bytes are actually served from. Until then it is a placeholder and a mirror check is moot.
+      WEB_SERVER_ORIGIN: "http://localhost"
+      # The Ed25519 seed the attestation is signed with, as 32 bytes of base64url. A real deployment
+      # injects this as a secret (a compose `secrets:` entry, a swarm secret, sops); it is NEVER
+      # committed. With none set the server makes a throwaway key each start and logs its public half.
+      # WEB_SERVER_ATTESTATION_SEED: "<32 bytes base64url — inject as a secret, do not commit>"
+    # The scratch image carries no curl, so it probes itself; the same healthcheck the swarm uses.
+    healthcheck:
+      test: ["CMD", "/web_server.example", "--healthcheck", "--port", "8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    volumes:
+      - web_server_data:/data
+    networks:
+      - onion
+    restart: unless-stopped
+
+  tor:
+    # A minimal Tor daemon that reads /etc/tor/torrc and nothing else. Any small tor image works; this
+    # one ships just tor and an entrypoint. Pin a digest in a real deployment.
+    image: osminogin/tor-simple:latest
+    depends_on:
+      - web
+    volumes:
+      # The config above. Read-only: the container never rewrites its own policy.
+      - ./tor/torrc:/etc/tor/torrc:ro
+      # The hidden service's key and hostname. A named volume, so the .onion is the same across a
+      # restart. This directory holds the private key that *is* the address — back it up somewhere
+      # secret to move the service, and NEVER commit it or bake it into an image.
+      - onion_keys:/var/lib/tor/hidden_service
+    networks:
+      - onion
+    restart: unless-stopped
+
+networks:
+  # Private to the stack: web is reachable at `web:8000` by tor and by nothing outside these two.
+  onion:
+
+volumes:
+  web_server_data:
+  onion_keys:

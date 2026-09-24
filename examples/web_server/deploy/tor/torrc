@@ -1,0 +1,18 @@
+# Minimal Tor configuration for the web_server onion service.
+#
+# This daemon exists to publish one v3 hidden service and nothing else: no SOCKS relay a client
+# could use, no exit traffic, no directory mirror. It forwards the onion's virtual port 80 to the
+# web container's :8000 over the compose network, so the address a visitor opens is the .onion and
+# the app itself is never exposed to the host or the internet.
+#
+# The HiddenServiceDir holds the service's private key and its hostname file. It is a named volume
+# in onion.yaml so the .onion survives a restart; that key is what *is* the address, so it is never
+# committed and never baked into an image. See this directory's README for reading the hostname and
+# for pinning a persistent or vanity key.
+
+SocksPort 0
+Log notice stderr
+
+HiddenServiceDir /var/lib/tor/hidden_service
+HiddenServiceVersion 3
+HiddenServicePort 80 web:8000

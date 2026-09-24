@@ -753,7 +753,10 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
      // leaves this route pointing into the old image.
      .summary       = "Every note",
      .description   = "A read, and therefore a QUERY rather than a GET. `?contains=text` keeps the notes containing it.",
-     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     // UNAUTHORIZED is here for the optional proof-of-work layer below, which walls the whole notes
+     // resource when `--proof-of-work` is set and answers 401 with a challenge; a route's statuses cover
+     // its whole chain, and declaring one the chain can produce is safe whether or not the layer is on.
+     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method        = NYA_HTTP_METHOD_POST,
@@ -767,8 +770,8 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
      // CONFLICT, and UNPROCESSABLE beyond the handler's own: the idempotency layer on this router can
      // answer 409 for a duplicate still in flight and 422 for a key reused with a different body, and a
      // route's statuses cover its whole chain. BAD_REQUEST covers the layer's malformed-key answer too.
-     .statuses      = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_UNPROCESSABLE,
-                           NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     .statuses      = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
+                           NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method       = NYA_HTTP_METHOD_DELETE,
@@ -779,8 +782,8 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
      .summary      = "Removes a note by id",
      // CONFLICT and UNPROCESSABLE for the same reason as the POST: an unsafe verb behind the
      // idempotency layer can be answered by it, so it declares what the whole chain can produce.
-     .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_NOT_FOUND,
-                          NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_UNPROCESSABLE },
+     .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
+                          NYA_HTTP_STATUS_NOT_FOUND, NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_UNPROCESSABLE },
      },
 };
 
@@ -792,7 +795,16 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
  */
 NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS[] = { nya_http_layer_idempotency };
 
-NYA_INTERNAL const NYA_HttpRouter NOTE_ROUTER = {
+/*
+ * The same chain with the proof-of-work wall outermost, wired in when `--proof-of-work` is set. Outermost
+ * on purpose: a request that has not paid is turned away before the idempotency store is even consulted,
+ * so the wall is the cheapest thing in the chain and everything behind it only ever sees paid traffic.
+ * This is the abuse brake an onion service reaches for, having no client IP to rate-limit; see http_pow.h.
+ */
+NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS_POW[] = { nya_http_layer_pow, nya_http_layer_idempotency };
+
+// Not const: main() points its layers at NOTE_LAYERS_POW when the flag is set, before the router is merged.
+NYA_INTERNAL NYA_HttpRouter NOTE_ROUTER = {
     .name        = "notes",
     .routes      = NOTE_ROUTES,
     .route_count = nya_carray_length(NOTE_ROUTES),
@@ -906,6 +918,64 @@ NYA_INTERNAL const NYA_HttpRouter SESSION_ROUTER = {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE MIRROR ATTESTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * A signed statement of who this origin is and what it serves, published at a well-known path so a mirror
+ * can serve it unchanged and a client that has pinned this origin's public key can prove a mirror faithful.
+ * The manifest is made once at startup — the origin, the moment, and a digest of the mounted bundle — and
+ * signed with the origin's Ed25519 key; the handler only renders it. See http_attestation.h, and
+ * `--verify-mirror` below for the other half. The key is a configured secret, never checked in: a seed
+ * from WEB_SERVER_ATTESTATION_SEED if one is set, otherwise a throwaway pair made here whose public half
+ * is logged so an operator can pin it.
+ */
+static NYA_CryptoSignKeyPair       ORIGIN_KEY      = { 0 };
+static NYA_HttpAttestationManifest ATTESTATION     = { 0 };
+static NYA_CryptoSignature         ATTESTATION_SIG = { 0 };
+static b8                          ATTESTATION_READY = false;
+
+/** The digest of the served bundle, folded in mount_bundle so the manifest names exactly what is mounted. */
+static NYA_CryptoSha256Digest BUNDLE_DIGEST = { 0 };
+
+/** Renders the signed statement. Reads the statics made at startup, so NYA_HTTP_AFFINITY_MAIN. */
+NYA_INTERNAL NYA_HttpStatus attestation_get(NYA_HttpExchange* exchange) {
+    // Not signed yet — no origin key, or the bundle was not mounted — so there is nothing honest to serve.
+    if (!ATTESTATION_READY) return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+
+    NYA_Object* document = nullptr;
+
+    if (!nya_http_attestation_to_json(exchange->arena, &ATTESTATION, &ORIGIN_KEY.public_key, &ATTESTATION_SIG, &document).ok) {
+        return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    }
+
+    return nya_http_response_json(exchange->response, exchange->arena, document).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
+}
+
+NYA_INTERNAL const NYA_HttpRoute ATTESTATION_ROUTES[] = {
+    {
+     .method      = NYA_HTTP_METHOD_GET,
+     .path        = NYA_HTTP_ATTESTATION_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
+     .handler     = attestation_get,
+     .summary     = "The signed mirror attestation",
+     .description = "An Ed25519 signature, over a length-prefixed manifest of this origin and a digest of the bundle it serves, "
+                        "so a mirror serving these bytes can be proven to serve the origin's and not tampered ones. GET, because a "
+                        "browser and a fetch have no other verb for it.",
+     .statuses    = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
+};
+
+NYA_INTERNAL const NYA_HttpRouter ATTESTATION_ROUTER = {
+    .name        = "attestation",
+    .routes      = ATTESTATION_ROUTES,
+    .route_count = nya_carray_length(ATTESTATION_ROUTES),
+};
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE PAGE
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -945,8 +1015,155 @@ NYA_INTERNAL NYA_Error mount_bundle(NYA_Arena* scratch) {
         };
     }
 
+    /*
+     * The digest the mirror attestation names, folded over the same files in mount order: each path and
+     * its bytes, length-prefixed, so a verifier that fetches these paths from a mirror recomputes exactly
+     * this. Done here because this is where the bytes are in hand; the manifest is signed in main().
+     */
+    NYA_HttpAttestationFile attested[nya_carray_length(BUNDLE_SOURCES)] = { 0 };
+
+    for (u64 index = 0; index < nya_carray_length(files); index++) {
+        attested[index] = (NYA_HttpAttestationFile){ .path = files[index].path, .data = files[index].data, .size = files[index].size };
+    }
+
+    nya_http_attestation_bundle_digest(attested, nya_carray_length(attested), &BUNDLE_DIGEST);
+
     // the mount copies what it is handed, so `scratch` is the caller's to drop after this returns.
     return nya_http_static_mount((NYA_HttpStaticConfig){ .files = files, .count = nya_carray_length(files) });
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * MIRROR VERIFICATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Loads the origin's signing key. A base64url seed — from `--attestation-seed` or WEB_SERVER_ATTESTATION_SEED
+ * — gives the same key every restart, which is what a mirror verifier pins; with none, a throwaway pair is
+ * made and its public half logged, so a run without a configured secret still works and says how to pin it.
+ *
+ * The seed is a secret and is never checked in: an example that shipped one would be shipping the power to
+ * forge its own attestation. The throwaway path is the honest default for a demo.
+ * */
+NYA_INTERNAL b8 origin_key_load(NYA_ConstCString seed_b64) {
+    if (seed_b64 != nullptr && seed_b64[0] != '\0') {
+        NYA_CryptoKey32 seed = { 0 };
+        defer           nya_memset(&seed, 0, sizeof(seed));
+
+        u64 size = 0;
+        if (!nya_crypto_base64url_decode(seed_b64, strlen(seed_b64), seed.bytes, sizeof(seed.bytes), &size) || size != sizeof(seed.bytes)) {
+            nya_log_error("The attestation seed must be 32 bytes of base64url.");
+            return false;
+        }
+
+        nya_crypto_sign_key_pair_from_seed(&seed, &ORIGIN_KEY);
+        return true;
+    }
+
+    if (!nya_crypto_sign_key_pair_create(&ORIGIN_KEY).ok) {
+        nya_log_error("The system random source failed, so no attestation key could be made.");
+        return false;
+    }
+
+    char pub_b64[64] = { 0 };
+    u64  pub_size    = 0;
+    (void)nya_crypto_base64url_encode(ORIGIN_KEY.public_key.bytes, sizeof(ORIGIN_KEY.public_key.bytes), pub_b64, sizeof(pub_b64), &pub_size);
+
+    nya_log_info("No attestation seed set: made a throwaway key. Pin this public key to verify a mirror: %s", pub_b64);
+
+    return true;
+}
+
+/**
+ * The verifier half of the attestation, run as a client and then exited — the shape `--healthcheck` takes.
+ *
+ * Fetches `<base_url>/.well-known/mirror-attestation`, checks the signature against the pinned origin key
+ * (not the key the document carries — a mirror could present its own), then fetches the bundle from the
+ * same host and recomputes the content digest, so a mirror is proven to serve the origin's exact bytes.
+ * Returns EXIT_SUCCESS only when both hold. `base_url` has no trailing slash: "http://<host>.onion".
+ * */
+NYA_INTERNAL s32 verify_mirror(NYA_ConstCString base_url, NYA_ConstCString pin_b64) {
+    if (pin_b64 == nullptr || pin_b64[0] == '\0') {
+        nya_log_error("--verify-mirror needs --origin-key <base64url of the 32-byte pinned public key>.");
+        return EXIT_FAILURE;
+    }
+
+    NYA_CryptoSignPublicKey pinned = { 0 };
+    u64                     pin_size = 0;
+    if (!nya_crypto_base64url_decode(pin_b64, strlen(pin_b64), pinned.bytes, sizeof(pinned.bytes), &pin_size) || pin_size != sizeof(pinned.bytes)) {
+        nya_log_error("--origin-key must be 32 bytes of base64url.");
+        return EXIT_FAILURE;
+    }
+
+    NYA_Arena* arena = nya_arena_create(.name = "verify_mirror");
+    defer      nya_arena_destroy(arena);
+
+    // The signed statement, from the mirror.
+    char attestation_url[512] = { 0 };
+    (void)snprintf(attestation_url, sizeof(attestation_url), "%s%s", base_url, NYA_HTTP_ATTESTATION_PATH);
+
+    NYA_Response response = { 0 };
+    NYA_Error    got      = nya_request_get(arena, attestation_url, &response);
+
+    if (!got.ok || response.status != 200 || response.body == nullptr) {
+        nya_log_error("Could not fetch the attestation from %s (status %u).", attestation_url, response.status);
+        return EXIT_FAILURE;
+    }
+
+    NYA_HttpAttestationManifest manifest  = { 0 };
+    NYA_CryptoSignPublicKey     presented = { 0 };
+    NYA_CryptoSignature         signature = { 0 };
+
+    if (!nya_http_attestation_from_json(response.body, &manifest, &presented, &signature).ok) {
+        nya_log_error("The attestation document is malformed.");
+        return EXIT_FAILURE;
+    }
+
+    // The key the document carries must be the pinned one: a mirror presenting its own key and a matching
+    // signature has signed nothing the verifier asked about, so this is checked before the signature is.
+    if (nya_memcmp(presented.bytes, pinned.bytes, sizeof(pinned.bytes)) != 0) {
+        nya_log_error("The attestation is signed by a different key than the pinned origin key.");
+        return EXIT_FAILURE;
+    }
+
+    if (!nya_http_attestation_verify(&pinned, &manifest, &signature)) {
+        nya_log_error("The attestation signature does not verify against the pinned origin key.");
+        return EXIT_FAILURE;
+    }
+
+    // The signature is the origin's. Now prove the mirror actually serves the bytes it names: fetch the
+    // same bundle from this host and recompute the digest the manifest carries.
+    NYA_HttpAttestationFile files[nya_carray_length(BUNDLE_SOURCES)] = { 0 };
+
+    for (u64 index = 0; index < nya_carray_length(BUNDLE_SOURCES); index++) {
+        char file_url[512] = { 0 };
+        (void)snprintf(file_url, sizeof(file_url), "%s%s", base_url, BUNDLE_SOURCES[index].path);
+
+        NYA_Response file_response = { 0 };
+        if (!nya_request_get(arena, file_url, &file_response).ok || file_response.status != 200 || file_response.raw_body == nullptr) {
+            nya_log_error("Could not fetch %s from the mirror (status %u).", file_url, file_response.status);
+            return EXIT_FAILURE;
+        }
+
+        files[index] = (NYA_HttpAttestationFile){
+            .path = BUNDLE_SOURCES[index].path,
+            .data = file_response.raw_body->items,
+            .size = file_response.raw_body->length,
+        };
+    }
+
+    NYA_CryptoSha256Digest recomputed = { 0 };
+    nya_http_attestation_bundle_digest(files, nya_carray_length(files), &recomputed);
+
+    if (nya_memcmp(recomputed.bytes, manifest.content.bytes, sizeof(recomputed.bytes)) != 0) {
+        nya_log_error("The mirror serves different bytes than the attestation names: the bundle does not match.");
+        return EXIT_FAILURE;
+    }
+
+    nya_log_info("Mirror verified: %s serves %s's attested bundle, signed at %llu.", base_url, manifest.origin, (unsigned long long)manifest.issued_at_s);
+
+    return EXIT_SUCCESS;
 }
 
 /*
@@ -996,9 +1213,23 @@ s32 main(s32 argc, char** argv) {
     // request and then exits, which is what a container's HEALTHCHECK runs. See below.
     b8 health_check = false;
 
+    // Proof of work in front of the notes resource. Off by default so the curl recipes in this file's
+    // block still work as written; on, every note request is walled behind a challenge. See http_pow.h.
+    b8 proof_of_work = false;
+
+    // The mirror-verification client mode, and its inputs: a mirror to check and the origin key to trust.
+    NYA_ConstCString verify_mirror_url = "";
+    NYA_ConstCString origin_key_pin    = "";
+
+    // The attestation origin string and the seed its key is derived from. The seed may also come from the
+    // environment, which is where a deployment keeps a secret rather than on the command line.
+    NYA_ConstCString attestation_origin = "";
+    NYA_ConstCString attestation_seed   = getenv("WEB_SERVER_ATTESTATION_SEED");
+
     // Deliberately not base_args: a handful of options, and the point of the file is the server.
     for (s32 i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--healthcheck") == 0) health_check = true;
+        if (strcmp(argv[i], "--proof-of-work") == 0) proof_of_work = true;
 
         // The rest come in pairs, so a value has to follow.
         if (i + 1 >= argc) continue;
@@ -1006,6 +1237,10 @@ s32 main(s32 argc, char** argv) {
         if (strcmp(argv[i], "--certificate") == 0) certificate_path = argv[i + 1];
         if (strcmp(argv[i], "--key") == 0) key_path = argv[i + 1];
         if (strcmp(argv[i], "--address") == 0) address = argv[i + 1];
+        if (strcmp(argv[i], "--verify-mirror") == 0) verify_mirror_url = argv[i + 1];
+        if (strcmp(argv[i], "--origin-key") == 0) origin_key_pin = argv[i + 1];
+        if (strcmp(argv[i], "--attestation-origin") == 0) attestation_origin = argv[i + 1];
+        if (strcmp(argv[i], "--attestation-seed") == 0) attestation_seed = argv[i + 1];
 
         if (strcmp(argv[i], "--port") != 0) continue;
 
@@ -1036,6 +1271,16 @@ s32 main(s32 argc, char** argv) {
         NYA_Error    got      = nya_request_get(arena, url, &response);
 
         return got.ok && response.status == 200 ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    /*
+     * The other client mode: fetch a mirror's attestation, check it against the pinned origin key, and
+     * prove the mirror serves the origin's exact bundle. Runs and exits like the healthcheck, starting
+     * none of the server. See verify_mirror above, and the deploy README for the curl form of the same.
+     */
+    if (verify_mirror_url[0] != '\0') {
+        nya_log_level_set(NYA_LOG_LEVEL_INFO);
+        return verify_mirror(verify_mirror_url, origin_key_pin);
     }
 
     b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
@@ -1153,6 +1398,21 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_idempotency_init(NOTES_ARENA, .ttl_s = 120), "while readying the idempotency store");
     defer nya_http_idempotency_deinit();
 
+    /*
+     * The proof-of-work wall, when asked for. Its spent-nonce store is readied here, before the layer can
+     * run, so its lock exists for the four workers; and the notes router is pointed at the chain that has
+     * the wall outermost. A modest difficulty for a demo — a browser clears it unnoticed, a script pays it
+     * every request — and the challenge lives a couple of minutes. See http_pow.h.
+     */
+    if (proof_of_work) {
+        NYA_EXPECT(nya_http_pow_init(NOTES_ARENA, .difficulty = 18, .ttl_s = 120), "while readying the proof-of-work store");
+
+        NOTE_ROUTER.layers      = NOTE_LAYERS_POW;
+        NOTE_ROUTER.layer_count = nya_carray_length(NOTE_LAYERS_POW);
+    }
+
+    defer nya_http_pow_deinit();
+
     // one root layer, outermost, so its record covers the whole exchange.
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
@@ -1252,6 +1512,30 @@ s32 main(s32 argc, char** argv) {
     defer nya_http_server_unmerge(nya_http_static_router());
 
     /*
+     * The mirror attestation. The bundle is mounted and its digest folded above, so now the origin key is
+     * loaded, the manifest — this origin, now, that digest — is signed once, and the route that serves it
+     * is merged. A key that cannot be loaded is fatal here: an origin that means to publish an attestation
+     * and cannot make one should not come up pretending it did. See http_attestation.h and verify_mirror.
+     */
+    if (!origin_key_load(attestation_seed)) return EXIT_FAILURE;
+
+    defer nya_crypto_sign_key_pair_destroy(&ORIGIN_KEY);
+
+    // The origin string names where these bytes are served from, which is what a client pins alongside the
+    // key: the .onion under Tor, set with --attestation-origin or WEB_SERVER_ORIGIN. Loopback is the honest
+    // default for a laptop, and says plainly that a mirror check against it only means anything on one host.
+    NYA_ConstCString origin = attestation_origin[0] != '\0' ? attestation_origin : getenv("WEB_SERVER_ORIGIN");
+
+    ATTESTATION = (NYA_HttpAttestationManifest){ .issued_at_s = nya_clock_get_timestamp_s(), .content = BUNDLE_DIGEST };
+    (void)snprintf(ATTESTATION.origin, sizeof(ATTESTATION.origin), "%s", origin != nullptr && origin[0] != '\0' ? origin : "http://127.0.0.1:8000");
+
+    NYA_EXPECT(nya_http_attestation_sign(&ORIGIN_KEY.secret_key, &ATTESTATION, &ATTESTATION_SIG), "while signing the mirror attestation");
+    ATTESTATION_READY = true;
+
+    NYA_EXPECT(nya_http_server_merge(&ATTESTATION_ROUTER), "while merging the mirror attestation");
+    defer nya_http_server_unmerge(&ATTESTATION_ROUTER);
+
+    /*
      * The stream. A websocket route is not in the OpenAPI document — the specification describes
      * requests and answers, and this is neither — so it is mounted on its own and documented in the
      * line below and in this file's comment.
@@ -1271,6 +1555,11 @@ s32 main(s32 argc, char** argv) {
                  nya_http_health_check_count());
     nya_log_info("Logging at level %d, addresses as %d: a code posted to " OTP_VERIFY_PATH " is logged as \"" NYA_REFLECT_REDACTED "\".",
                  (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
+    nya_log_info("Serving a signed mirror attestation at " NYA_HTTP_ATTESTATION_PATH " for origin %s. Verify a mirror with --verify-mirror <url> --origin-key <key>.",
+                 ATTESTATION.origin);
+    if (proof_of_work) {
+        nya_log_info("Proof-of-work is on: the notes resource is walled behind a challenge (see the " NYA_HTTP_POW_TOKEN_HEADER " headers).");
+    }
 
     /*
      * The sockets are the listener thread's now, so what this loop owes the server is the other half:
