@@ -70,7 +70,7 @@ docs/doxygen/
 # keep
 !src/build/
 
-# Coverage profiles and merged data from `./build run coverage`.
+# Coverage profiles, merged data and the HTML listing from `./build coverage`.
 .coverage/
 
 # The SBOM `./build sbom` generates from the vendored submodules: a CycloneDX document and a human

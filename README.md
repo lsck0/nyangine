@@ -38,6 +38,12 @@ tests, and `./build run example hello_world` builds and runs one of the examples
 The first build brings up every vendored dependency, which takes a while; after that they are
 cached.
 
+`./build coverage` builds the tests under clang's source-based coverage, runs them, and reports
+per-file and total line coverage of `src/nyangine`. It exits non-zero when the total is below
+`--fail-under` (default 45, a floor meant to be ratcheted up), so CI can call it as a gate;
+`--html` also writes an annotated listing under `.coverage/html`. It needs `llvm-profdata` and
+`llvm-cov`, which ship with clang, and skips with a notice rather than failing when they are absent.
+
 ## Where things are
 
 - [AGENTS.md](AGENTS.md) — the layout, the build modes, the conventions. Start here.
