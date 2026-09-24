@@ -39,11 +39,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_vector.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_RNGDistributionType NYA_RNGDistributionType;
 typedef struct NYA_RNG               NYA_RNG;
@@ -116,11 +112,7 @@ struct NYA_RNGDistribution {
 
 static_assert(_NYA_RNG_BUFFER_SIZE % 128 == 0, "RNG buffer size must be a multiple of 128 bytes.");
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 #define nya_rng_create(...) nya_rng_create_with_options((NYA_RNGOptions){ _NYA_RNG_DEFAULT_OPTIONS, __VA_ARGS__ })
 NYA_API NYA_RNG nya_rng_create_with_options(NYA_RNGOptions options);

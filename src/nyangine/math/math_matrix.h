@@ -8,11 +8,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_vector.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef f16  f16_2x2 __attr_matrix(2, 2);
 typedef f16  f16_3x3 __attr_matrix(3, 3);
@@ -40,11 +36,7 @@ nya_derive_array(f128_2x2);
 nya_derive_array(f128_3x3);
 nya_derive_array(f128_4x4);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 #if !NYA_F16_IS_F32
 NYA_API f16_2x2  nya_matrix_create(f16x2 row1, f16x2 row2) __attr_overloaded;
@@ -81,15 +73,7 @@ NYA_API f128_4x4 nya_matrix_create(f128 entries[4][4]) __attr_overloaded;
  * */
 NYA_API f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom);
 
-/*
- * 3D projections
- *
- * All three target the clip space described at nya_matrix_orthographic: Direct3D style, as SDL_GPU
- * normalizes every backend, x and y in -1..+1 with y up, z in 0..1. OpenGL references use -1..1 depth,
- * which here clips the near half of the frustum.
- *
- * The view is right-handed looking down -z, matching nya_matrix_look_at and nya_vector_cross.
- */
+// 3D projections: clip space is Direct3D style (x,y in -1..+1, y up, z in 0..1), view right-handed looking down -z.
 
 /**
  * A perspective projection: parallel lines converge, and distance shrinks things.
@@ -129,11 +113,7 @@ NYA_API f128x2 nya_matrix_times_vector(f128_2x2 mat, f128x2 vec) __attr_overload
 NYA_API f128x3 nya_matrix_times_vector(f128_3x3 mat, f128x3 vec) __attr_overloaded;
 NYA_API f128x4 nya_matrix_times_vector(f128_4x4 mat, f128x4 vec) __attr_overloaded;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /* Declared after nya_matrix_create because they expand to calls to it; an overload set must be complete at the point of use. */
 

@@ -15,19 +15,11 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_scalar.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /* c32, c64 and c128 are declared in base_types.h, next to the f types whose width they carry. */
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define c32_zero  ((c32)0.0F)
 #define c64_zero  ((c64)0.0)
@@ -42,11 +34,7 @@
 #define c64_i  nya_complex_f64(0.0, 1.0)
 #define c128_i nya_complex_f128(0.0L, 1.0L)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FORMATTING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FORMATTING
 
 /* Rendered as `a+bi`, with the sign of the imaginary part carried by %+. */
 
@@ -58,32 +46,16 @@
 #define FMTc64_ARG(value)  (f64) nya_complex_real(value), (f64)nya_complex_imag(value)
 #define FMTc128_ARG(value) (f128) nya_complex_real(value), (f128)nya_complex_imag(value)
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * ─────────────────────────────────────────────────────────
- * COMPONENTS
- * ─────────────────────────────────────────────────────────
- */
+// COMPONENTS
 
-/*
- * __real__ and __imag__ rather than creal/cimag because these are lvalues: `nya_complex_imag(z) = 0`
- * compiles, where the standard functions would only let you read. They are also exact at every
- * width, while creal on a c128 would go through a double on a strict reading.
- */
+// __real__/__imag__ rather than creal/cimag: these are assignable lvalues and stay exact at every width.
 
 #define nya_complex_real(value) __real__(value)
 #define nya_complex_imag(value) __imag__(value)
 
-/*
- * ─────────────────────────────────────────────────────────
- * CONSTRUCTION
- * ─────────────────────────────────────────────────────────
- */
+// CONSTRUCTION
 
 /**
  * Builds a complex number from its components, at the width of the arguments.
@@ -107,14 +79,9 @@ NYA_API c32  nya_complex_unit(f32 radians) __attr_overloaded __attr_no_discard;
 NYA_API c64  nya_complex_unit(f64 radians) __attr_overloaded __attr_no_discard;
 NYA_API c128 nya_complex_unit(f128 radians) __attr_overloaded __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// OPERATIONS
 
-/* cabs, carg, conj, cexp, clog, cpow, csqrt and the trig functions come from <tgmath.h>, which
- * base_basic.h already includes. Only what it does not provide lives below. */
+// cabs, carg, conj, cexp, clog, cpow, csqrt and the trig functions come from <tgmath.h>; only what it lacks lives below.
 
 /** Squared magnitude. Prefer it over cabs for comparisons; it skips the square root. */
 NYA_API f32  nya_complex_magnitude_squared(c32 value) __attr_overloaded __attr_no_discard;

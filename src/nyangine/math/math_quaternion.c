@@ -1,27 +1,15 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** How close |sin(pitch)| may get to 1 before to_euler switches to its gimbal lock branch. */
 #define _NYA_QUATERNION_GIMBAL_LOCK_THRESHOLD 0.99999F
 
 NYA_INTERNAL f32 _nya_quaternion_vector_length(f32x3 vector);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * CONSTRUCTION
- * ─────────────────────────────────────────────────────────
- */
+// CONSTRUCTION
 
 NYA_Quaternion nya_quaternion_create(f32 x, f32 y, f32 z, f32 w) {
     return (NYA_Quaternion){ .x = x, .y = y, .z = z, .w = w };
@@ -53,8 +41,7 @@ NYA_Quaternion nya_quaternion_from_euler(f32 pitch, f32 yaw, f32 roll) {
     f32 sr = sinf(roll * 0.5F);
     f32 cr = cosf(roll * 0.5F);
 
-    // Expansion of qYaw * qPitch * qRoll, written out rather than composed with three calls to
-    // nya_quaternion_multiply because most of that product is multiplication by zero.
+    // Expansion of qYaw * qPitch * qRoll written out, since most of that product is multiplication by zero.
     return (NYA_Quaternion){
         .x = cy * sp * cr + sy * cp * sr,
         .y = sy * cp * cr - cy * sp * sr,
@@ -75,9 +62,7 @@ void nya_quaternion_to_euler(NYA_Quaternion quaternion, OUT f32* out_pitch, OUT 
     f32 roll  = 0.0F;
 
     if (fabsf(sine_pitch) > _NYA_QUATERNION_GIMBAL_LOCK_THRESHOLD) {
-        // Straight up or straight down. Yaw and roll turn about the same world axis here, so only
-        // their sum is recoverable; attributing all of it to yaw is the conventional choice and
-        // keeps a camera's roll from flipping as it passes the pole.
+        // At the poles yaw and roll turn about the same axis; attribute their sum to yaw so roll does not flip through the pole.
         yaw  = atan2f(2.0F * (q.w * q.y - q.x * q.z), 1.0F - 2.0F * (q.y * q.y + q.z * q.z));
         roll = 0.0F;
     } else {
@@ -124,8 +109,7 @@ NYA_Quaternion nya_quaternion_from_to(f32x3 from, f32x3 to) {
     if (cosine > 1.0F - NYA_EPSILON) return nya_quaternion_identity;
 
     if (cosine < -1.0F + NYA_EPSILON) {
-        // Exactly opposite: every axis perpendicular to `a` is a valid half turn, and the cross
-        // product below would be zero. Pick whichever cardinal axis is least parallel to `a`.
+        // Exactly opposite: any perpendicular axis is a valid half turn (the cross product is zero), so pick the cardinal axis least parallel to `a`.
         f32x3 fallback = fabsf(a.x) < 0.9F ? f32x3_unit_x : f32x3_unit_y;
 
         f32x3 axis = {
@@ -143,8 +127,7 @@ NYA_Quaternion nya_quaternion_from_to(f32x3 from, f32x3 to) {
         a.x * b.y - a.y * b.x,
     };
 
-    // w = 1 + cos θ together with the unnormalized cross product gives the half angle rotation
-    // directly, so no trigonometry is needed.
+    // w = 1 + cos θ with the unnormalized cross product gives the half-angle rotation directly, no trigonometry.
     NYA_Quaternion result = { .x = axis.x, .y = axis.y, .z = axis.z, .w = 1.0F + cosine };
     return nya_quaternion_normalize(result);
 }
@@ -181,11 +164,7 @@ NYA_Quaternion nya_quaternion_look(f32x3 direction, f32x3 up) {
     return nya_quaternion_multiply(nya_quaternion_from_to(swung_up, desired_up), swing);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ALGEBRA
- * ─────────────────────────────────────────────────────────
- */
+// ALGEBRA
 
 NYA_Quaternion nya_quaternion_multiply(NYA_Quaternion a, NYA_Quaternion b) {
     return (NYA_Quaternion){
@@ -254,17 +233,12 @@ b8 nya_quaternion_approx_equals(NYA_Quaternion a, NYA_Quaternion b, f32 epsilon)
     return fabsf(nya_quaternion_dot(nya_quaternion_normalize(a), nya_quaternion_normalize(b))) >= 1.0F - epsilon;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * APPLICATION
- * ─────────────────────────────────────────────────────────
- */
+// APPLICATION
 
 f32x3 nya_quaternion_rotate(NYA_Quaternion quaternion, f32x3 vector) {
     f32x3 axis = { quaternion.x, quaternion.y, quaternion.z };
 
-    // v + 2 * (axis × (axis × v + w * v)). Equivalent to q * v * q⁻¹ but without building the
-    // intermediate quaternions.
+    // v + 2 * (axis × (axis × v + w * v)): equivalent to q * v * q⁻¹ without building the intermediate quaternions.
     f32x3 inner = {
         axis.y * vector.z - axis.z * vector.y + quaternion.w * vector.x,
         axis.z * vector.x - axis.x * vector.z + quaternion.w * vector.y,
@@ -280,11 +254,7 @@ f32x3 nya_quaternion_rotate(NYA_Quaternion quaternion, f32x3 vector) {
     return vector + outer * 2.0F;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERPOLATION
- * ─────────────────────────────────────────────────────────
- */
+// INTERPOLATION
 
 NYA_Quaternion nya_quaternion_nlerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
     // Flip b onto the same hemisphere as a, otherwise the interpolation takes the long way round.
@@ -303,9 +273,7 @@ NYA_Quaternion nya_quaternion_slerp_unit(NYA_Quaternion a, NYA_Quaternion b, f32
         cosine = -cosine;
     }
 
-    /*
-     * Nearly parallel: nlerp instead.
-     */
+    // Nearly parallel: nlerp instead.
     if (cosine > NYA_QUATERNION_NLERP_THRESHOLD) return nya_quaternion_nlerp(a, b, t);
 
     f32 theta = acosf(nya_clamp(cosine, -1.0F, 1.0F));
@@ -322,11 +290,7 @@ NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
     return nya_quaternion_slerp_unit(nya_quaternion_normalize(a), nya_quaternion_normalize(b), t);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MATRIX CONVERSION
- * ─────────────────────────────────────────────────────────
- */
+// MATRIX CONVERSION
 
 f32_3x3 nya_quaternion_to_matrix3(NYA_Quaternion quaternion) {
     NYA_Quaternion q = nya_quaternion_normalize(quaternion);
@@ -362,8 +326,7 @@ f32_4x4 nya_quaternion_to_matrix4(NYA_Quaternion quaternion) {
 NYA_Quaternion nya_quaternion_from_matrix(f32_3x3 matrix) {
     f32 trace = matrix[0][0] + matrix[1][1] + matrix[2][2];
 
-    // Shepperd's method. Each branch divides by a component known to be large in that case, which
-    // is what keeps the result accurate; the naive single formula loses precision near a half turn.
+    // Shepperd's method: each branch divides by a component known to be large, staying accurate near a half turn.
     if (trace > 0.0F) {
         f32 scale = sqrtf(trace + 1.0F) * 2.0F;
         return nya_quaternion_normalize((NYA_Quaternion){
@@ -403,11 +366,7 @@ NYA_Quaternion nya_quaternion_from_matrix(f32_3x3 matrix) {
     });
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_INTERNAL f32 _nya_quaternion_vector_length(f32x3 vector) {
     f32x3 squared = vector * vector;

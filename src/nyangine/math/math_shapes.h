@@ -7,11 +7,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_vector.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_Rectf   NYA_Rectf;
 typedef struct NYA_Circlef NYA_Circlef;
@@ -27,17 +23,9 @@ struct NYA_Circlef {
     f32   radius;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * RECTANGLE
- * ─────────────────────────────────────────────────────────
- */
+// RECTANGLE
 
 /** From two opposite corners, in either order. Normalized, so the result never has a negative extent. */
 NYA_API NYA_Rectf nya_rect_from_corners(f32x2 a, f32x2 b) __attr_no_discard;
@@ -89,11 +77,7 @@ NYA_API NYA_Rectf nya_rect_translate(NYA_Rectf rect, f32x2 offset) __attr_no_dis
 /** The point in `rect` closest to `point`. Inside it, that is the point itself. */
 NYA_API f32x2 nya_rect_closest_point(NYA_Rectf rect, f32x2 point) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * CIRCLE
- * ─────────────────────────────────────────────────────────
- */
+// CIRCLE
 
 /** Half open at the rim, matching the rectangle: a point exactly `radius` away is outside. */
 NYA_API b8 nya_circle_contains(NYA_Circlef circle, f32x2 point) __attr_no_discard;

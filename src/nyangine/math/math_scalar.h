@@ -7,11 +7,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_compare.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * Default tolerance for f32 comparisons.
@@ -20,18 +16,9 @@
 
 /** π and friends come from <math.h>, which base_basic.h already includes: M_PI, M_PI_2, M_SQRT2. */
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * Every argument is bound to a temporary before use. Written the obvious way these macros expand
- * their operands two or more times, so nya_min(i++, j) increments twice and nya_clamp(read(), lo,
- * hi) calls read() three times. The temporaries also give nya_assert_type_match something stable to
- * inspect.
- */
+// Each argument is bound to a temporary first, so the macros evaluate their operands once (and give nya_assert_type_match something stable).
 
 
 /**

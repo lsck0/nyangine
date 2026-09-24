@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 #define _NYA_F2 0.3660254037844386F  // (sqrt(3) - 1) / 2
 #define _NYA_G2 0.21132486540518713F // (3 - sqrt(3)) / 6
@@ -17,11 +13,7 @@ NYA_INTERNAL f32 _nya_noise_grad1(s32 hash, f32 x);
 NYA_INTERNAL f32 _nya_noise_grad2(s32 hash, f32 x, f32 y);
 NYA_INTERNAL f32 _nya_noise_grad3(s32 hash, f32 x, f32 y, f32 z);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION: CREATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION: CREATION
 
 NYA_Noise nya_noise_create(NYA_RNG* rng) {
     nya_assert(rng != nullptr);
@@ -51,11 +43,7 @@ NYA_Noise nya_noise_create(NYA_RNG* rng) {
     return noise;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION: PERLIN NOISE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION: PERLIN NOISE
 
 f32 nya_noise_perlin1(NYA_Noise* noise, f32 x) {
     nya_assert(noise != nullptr);
@@ -122,11 +110,7 @@ f32 nya_noise_perlin3(NYA_Noise* noise, f32 x, f32 y, f32 z) {
     return _nya_noise_lerp(_nya_noise_lerp(l1, l2, v), _nya_noise_lerp(l3, l4, v), w);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION: SIMPLEX NOISE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION: SIMPLEX NOISE
 
 f32 nya_noise_simplex2(NYA_Noise* noise, f32 x, f32 y) {
     nya_assert(noise != nullptr);
@@ -286,11 +270,7 @@ f32 nya_noise_simplex3(NYA_Noise* noise, f32 x, f32 y, f32 z) {
     return 32.0F * (n0 + n1 + n2 + n3);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION: VALUE NOISE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION: VALUE NOISE
 
 f32 nya_noise_value2(NYA_Noise* noise, f32 x, f32 y) {
     nya_assert(noise != nullptr);
@@ -340,11 +320,7 @@ f32 nya_noise_value3(NYA_Noise* noise, f32 x, f32 y, f32 z) {
     return _nya_noise_lerp(l1, l2, w);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION: FBM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION: FBM
 
 f32 nya_noise_fbm1(NYA_Noise* noise, f32 x, NYA_NoiseParams p) {
     nya_assert(noise != nullptr);
@@ -400,11 +376,7 @@ f32 nya_noise_fbm3(NYA_Noise* noise, f32 x, f32 y, f32 z, NYA_NoiseParams p) {
     return sum / max_amp;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION: UTILITIES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION: UTILITIES
 
 f32 nya_noise_ridged2(NYA_Noise* noise, f32 x, f32 y, NYA_NoiseParams p) {
     nya_assert(noise != nullptr);
@@ -447,11 +419,7 @@ f32 nya_noise_remap01(f32 value) {
     return value * 0.5F + 0.5F;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_INTERNAL f32 _nya_noise_fade(f32 t) {
     return t * t * t * (t * (t * 6.0F - 15.0F) + 10.0F);

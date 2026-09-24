@@ -13,11 +13,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef f16  f16x2 __attr_vector(2);
 typedef f16  f16x3 __attr_vector(3);
@@ -48,24 +44,11 @@ nya_derive_array(f128x2);
 nya_derive_array(f128x3);
 nya_derive_array(f128x4);
 
-/*
- * Integer lanes, for code that works on a whole register at once rather than on a point in space.
- * */
+// Integer lanes, for code that works on a whole register at once rather than on a point in space.
 typedef u32 u32x8 __attr_vector(8);
 typedef u64 u64x4 __attr_vector(4);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRODUCTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * The four operations the elementwise operators cannot express.
- *
- * `a * b` on vectors is already elementwise, so dot and cross must be functions. Length and normalize
- * live here so the zero-length case is handled once instead of dividing by zero at call sites.
- *
- * f32 only, and only the widths in use. See the note on the integer lane types above.
- */
+// PRODUCTS: dot, cross, length, normalize — the four operations elementwise `a * b` cannot express (f32 only).
 
 NYA_API f32 nya_vector_dot(f32x2 a, f32x2 b) __attr_overloaded __attr_no_discard;
 NYA_API f32 nya_vector_dot(f32x3 a, f32x3 b) __attr_overloaded __attr_no_discard;
@@ -84,11 +67,7 @@ NYA_API f32 nya_vector_length(f32x3 vector) __attr_overloaded __attr_no_discard;
 NYA_API f32x2 nya_vector_normalize(f32x2 vector) __attr_overloaded __attr_no_discard;
 NYA_API f32x3 nya_vector_normalize(f32x3 vector) __attr_overloaded __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FORMATTING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FORMATTING
 
 #define FMTf16x2  "(" FMTf16 ", " FMTf16 ")"
 #define FMTf16x3  "(" FMTf16 ", " FMTf16 ", " FMTf16 ")"
@@ -103,11 +82,7 @@ NYA_API f32x3 nya_vector_normalize(f32x3 vector) __attr_overloaded __attr_no_dis
 #define FMTf128x3 "(" FMTf128 ", " FMTf128 ", " FMTf128 ")"
 #define FMTf128x4 "(" FMTf128 ", " FMTf128 ", " FMTf128 ", " FMTf128 ")"
 
-/*
- * f16 and f32 are promoted to double by the default argument promotions before printf ever sees
- * them, so FMTf16 and FMTf32 are double conversions. The casts here are what makes that explicit
- * instead of relying on it, and they keep -Wdouble-promotion quiet.
- */
+// f16/f32 promote to double before printf, so FMTf16/FMTf32 use double conversions; the casts make that explicit and keep -Wdouble-promotion quiet.
 #define FMTf16x2_ARG(val)  (f64)(val).x, (f64)(val).y
 #define FMTf16x3_ARG(val)  (f64)(val).x, (f64)(val).y, (f64)(val).z
 #define FMTf16x4_ARG(val)  (f64)(val).x, (f64)(val).y, (f64)(val).z, (f64)(val).w
@@ -121,11 +96,7 @@ NYA_API f32x3 nya_vector_normalize(f32x3 vector) __attr_overloaded __attr_no_dis
 #define FMTf128x3_ARG(val) (val).x, (val).y, (val).z
 #define FMTf128x4_ARG(val) (val).x, (val).y, (val).z, (val).w
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 #define f16x2_zero  ((f16x2){ 0, 0 })
 #define f16x3_zero  ((f16x3){ 0, 0, 0 })

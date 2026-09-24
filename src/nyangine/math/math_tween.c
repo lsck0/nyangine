@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL f32 _nya_ease_linear(f32 t);
 NYA_INTERNAL f32 _nya_ease_quad_in(f32 t);
@@ -42,11 +38,7 @@ NYA_INTERNAL f32 _nya_ease_smootherstep(f32 t);
 
 NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 typedef f32 (*NYA_EaseFunc)(f32);
 
@@ -105,11 +97,7 @@ f32 nya_ease_spring(f32 t, f32 frequency, f32 damping) {
     return 1.0F - expf(-damping * t) * cosf(frequency * t * 2.0F * (f32)M_PI);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_INTERNAL f32 _nya_ease_linear(f32 t) {
     return t;
@@ -257,14 +245,11 @@ NYA_INTERNAL f32 _nya_ease_smootherstep(f32 t) {
     return t * t * t * (t * (t * 6.0F - 15.0F) + 10.0F);
 }
 
-// Solve for parameter s on the x-axis of cubic bézier B(s) = (1-s)³·0 + 3(1-s)²s·x1 + 3(1-s)s²·x2 + s³·1
-// given target x = t. Uses Newton-Raphson with bisection fallback.
+// Solve for s where cubic bézier B(s) = 3(1-s)²s·x1 + 3(1-s)s²·x2 + s³ equals target x = t, via Newton-Raphson with bisection fallback.
 NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
     f32 s = t; // initial guess
 
-    /*
-     * Newton first, and it returns the moment it has the answer.
-     */
+    // Newton first, and it returns the moment it has the answer.
     for (u32 i = 0; i < 8; i++) {
         f32 s2   = s * s;
         f32 s3   = s2 * s;
@@ -278,18 +263,14 @@ NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
 
         f32 dx = 3.0F * inv2 * x1 + 6.0F * inv * s * (x2 - x1) + 3.0F * s2 * (1.0F - x2);
 
-        // A flat spot: the tangent gives no direction to step in, so Newton cannot continue and the
-        // bisection below has to finish the job.
+        // A flat spot: the tangent gives no step direction, so the bisection below finishes the job.
         if (fabsf(dx) < 1e-7F) break;
 
         s -= error / dx;
         s  = fmaxf(0.0F, fminf(1.0F, s));
     }
 
-    /*
-     * Bisection, only when Newton did not converge: a flat tangent, or control points that make x non
-     * monotonic.
-     */
+    // Bisection, only when Newton did not converge (flat tangent, or control points that make x non-monotonic).
     f32 lo = 0.0F, hi = 1.0F;
     for (u32 i = 0; i < 16; i++) {
         f32 mid = (lo + hi) * 0.5F;

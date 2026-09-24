@@ -17,22 +17,14 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_vector.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /**
  * The largest step a spring will integrate at once, in seconds.
  * */
 #define NYA_SPRING_MAX_STEP 0.1F
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_SpringF32   NYA_SpringF32;
 typedef struct NYA_SpringF32x2 NYA_SpringF32x2;
@@ -69,11 +61,7 @@ struct NYA_SpringF32x3 {
 /** What a zeroed `frequency` means. Responsive without being twitchy. */
 #define NYA_SPRING_DEFAULT_FREQUENCY 4.0F
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 /** Steps the spring toward `target` and returns its new value. */
 NYA_API f32   nya_spring_f32(NYA_SpringF32* spring, f32 target, f32 delta_time_s);

@@ -1,16 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * MATRIX CONSTRUCTORS
- * ─────────────────────────────────────────────────────────
- */
+// MATRIX CONSTRUCTORS
 
 #if !NYA_F16_IS_F32
 f16_2x2 nya_matrix_create(f16x2 row1, f16x2 row2) __attr_overloaded {
@@ -336,11 +328,7 @@ f128_4x4 nya_matrix_create(f128 entries[4][4]) __attr_overloaded {
     return result;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * MATRIX VECTOR MULTIPLICATION
- * ─────────────────────────────────────────────────────────
- */
+// MATRIX VECTOR MULTIPLICATION
 
 #if !NYA_F16_IS_F32
 f16x2 nya_matrix_times_vector(f16_2x2 mat, f16x2 vec) __attr_overloaded {
@@ -440,20 +428,13 @@ f128x4 nya_matrix_times_vector(f128_4x4 mat, f128x4 vec) __attr_overloaded {
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * PROJECTIONS
- * ─────────────────────────────────────────────────────────
- */
+// PROJECTIONS
 
 f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom) {
     nya_assert(right != left, "an orthographic projection needs a non-zero width");
     nya_assert(bottom != top, "an orthographic projection needs a non-zero height");
 
-    /*
-     * Clip space is the Direct3D convention SDL_GPU normalizes every backend to: x and y in -1..+1 with
-     * y up, z in 0..1.
-     */
+    // Clip space is the Direct3D convention SDL_GPU normalizes to: x and y in -1..+1 with y up, z in 0..1.
     f32 x_scale = 2.0F / (right - left);
     f32 y_scale = 2.0F / (top - bottom);
 
@@ -464,9 +445,7 @@ f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom) {
     return nya_matrix_create(
         (f32x4){ x_scale, 0.0F, 0.0F, x_translate },
         (f32x4){ 0.0F, y_scale, 0.0F, y_translate },
-        // z passes through unscaled into the 0..1 depth range. Nothing drawn through this is depth
-        // tested, so the only requirement is that a z of 0 lands inside the range rather than on its
-        // boundary, where a clipper is free to reject it.
+        // z passes through unscaled into the 0..1 depth range; the only requirement is that z=0 lands inside it, not on the boundary.
         (f32x4){ 0.0F, 0.0F, 1.0F, 0.0F },
         (f32x4){ 0.0F, 0.0F, 0.0F, 1.0F }
     );
@@ -481,9 +460,7 @@ f32_4x4 nya_matrix_perspective(f32 fov_y, f32 aspect, f32 near_plane, f32 far_pl
     // cot(fov_y / 2): how far the near plane is from the camera in units of half its height.
     f32 focal = 1.0F / tanf(fov_y * 0.5F);
 
-    /*
-     * The z row maps view depth onto 0..1, not -1..1.
-     */
+    // The z row maps view depth onto 0..1, not -1..1.
     return nya_matrix_create(
         (f32x4){ focal / aspect, 0.0F, 0.0F, 0.0F },
         (f32x4){ 0.0F, focal, 0.0F, 0.0F },
@@ -501,9 +478,7 @@ f32_4x4 nya_matrix_orthographic_3d(f32 height, f32 aspect, f32 near_plane, f32 f
     f32 y_scale = 2.0F / height;
     f32 x_scale = y_scale / aspect;
 
-    // Linear in view depth, unlike the perspective one, and onto the same 0..1: -near maps to zero
-    // and -far maps to one. w stays at one throughout, which is the whole of what "no vanishing
-    // point" means.
+    // Linear in view depth onto 0..1: -near maps to zero, -far to one, and w stays one (no vanishing point).
     return nya_matrix_create(
         (f32x4){ x_scale, 0.0F, 0.0F, 0.0F },
         (f32x4){ 0.0F, y_scale, 0.0F, 0.0F },
@@ -515,24 +490,18 @@ f32_4x4 nya_matrix_orthographic_3d(f32 height, f32 aspect, f32 near_plane, f32 f
 f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up) {
     f32x3 forward = nya_vector_normalize(target - eye);
 
-    // A camera that has not been aimed anywhere. Identity rather than an assert, because this is
-    // routinely called with a target that is still being computed on the first frame.
+    // Unaimed camera: identity rather than an assert, since the target is often still being computed on the first frame.
     if (nya_vector_dot(forward, forward) < 0.5F) return f32_4x4_id;
 
     f32x3 right = nya_vector_normalize(nya_vector_cross(forward, up));
 
-    // Zero exactly when `up` is parallel to the view direction, which names no roll at all. Same
-    // reasoning as above: a usable frame beats a matrix of NaNs.
+    // Zero when `up` is parallel to the view direction; a usable frame beats a matrix of NaNs.
     if (nya_vector_dot(right, right) < 0.5F) return f32_4x4_id;
 
     // the cross of two orthogonal unit vectors is already unit, so no renormalize.
     f32x3 above = nya_vector_cross(right, forward);
 
-    /*
-     * The rotation is the transpose of the camera's basis, because a view matrix moves the *world*
-     * into the camera's frame rather than moving the camera. The translation is the negated
-     * projection of the eye onto each axis, which is the same statement applied to the origin.
-     */
+    // Rotation is the transpose of the camera basis (the view moves the world into the camera frame); translation is the negated eye projected onto each axis.
     return nya_matrix_create(
         (f32x4){ right.x, right.y, right.z, -nya_vector_dot(right, eye) },
         (f32x4){ above.x, above.y, above.z, -nya_vector_dot(above, eye) },
@@ -542,10 +511,7 @@ f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up) {
 }
 
 f32_4x4 nya_matrix_transform(f32x3 translation, f32_3x3 rotation, f32x3 scale) {
-    /*
-     * Written by rows, as nya_matrix_create takes them, but stored by columns. Code reading the sixteen
-     * floats raw reads columns.
-     */
+    // Written by rows as nya_matrix_create takes them, but stored by columns.
     return nya_matrix_create(
         (f32x4){ rotation[0][0] * scale.x, rotation[0][1] * scale.y, rotation[0][2] * scale.z, translation.x },
         (f32x4){ rotation[1][0] * scale.x, rotation[1][1] * scale.y, rotation[1][2] * scale.z, translation.y },

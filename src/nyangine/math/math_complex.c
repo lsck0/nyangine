@@ -1,23 +1,10 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * CONSTRUCTION
- * ─────────────────────────────────────────────────────────
- */
+// CONSTRUCTION
 
-/*
- * Built by assigning the components rather than as `real + imaginary * I`, because I is a
- * float _Complex: the arithmetic form would compute a c32 and widen it, quietly costing precision
- * in a c64 or c128. It also keeps an infinite component from meeting a zero one and producing a NaN
- * that was never in the input.
- */
+// Assign the components directly: `real + imaginary * I` would widen through a c32, costing precision, and can fold an inf/zero pair into a NaN.
 
 c32 nya_complex_f32(f32 real, f32 imaginary) {
     c32 result;
@@ -67,11 +54,7 @@ c128 nya_complex_unit(f128 radians) __attr_overloaded {
     return nya_complex_f128(cosl(radians), sinl(radians));
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// OPERATIONS
 
 f32 nya_complex_magnitude_squared(c32 value) __attr_overloaded {
     f32 real = nya_complex_real(value);
@@ -94,10 +77,7 @@ f128 nya_complex_magnitude_squared(c128 value) __attr_overloaded {
     return real * real + imag * imag;
 }
 
-/*
- * Zero has no direction, so there is nothing correct to normalize it to. Returning it unchanged
- * keeps a NaN out of whatever the caller does next; callers that care can test the magnitude first.
- */
+// Zero has no direction to normalize to; return it unchanged so callers do not get a NaN.
 
 c32 nya_complex_normalize(c32 value) __attr_overloaded {
     f32 magnitude = cabsf(value);
@@ -144,8 +124,7 @@ c32 nya_complex_slerp(c32 a, c32 b, f32 t) __attr_overloaded {
     f32 angle_a = cargf(a);
     f32 angle_b = cargf(b);
 
-    // carg returns (-π, π], so two angles either side of the cut differ by nearly a full turn.
-    // Wrapping the difference is what keeps the interpolation on the short arc.
+    // carg returns (-π, π]; wrap the angle difference so the interpolation follows the short arc.
     f32 delta = angle_b - angle_a;
     while (delta > (f32)M_PI) delta -= 2.0F * (f32)M_PI;
     while (delta < -(f32)M_PI) delta += 2.0F * (f32)M_PI;

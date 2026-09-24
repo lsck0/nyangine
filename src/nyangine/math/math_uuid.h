@@ -26,22 +26,14 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_random.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 #define NYA_UUID_STRING_LENGTH      36
 #define NYA_UUID_STRING_BUFFER_SIZE 37
 
 typedef u128 NYA_Uuid;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
 NYA_API NYA_Uuid nya_uuid_v4_create(NYA_RNG* rng);
 NYA_API NYA_Uuid nya_uuid_v7_create(NYA_RNG* rng);

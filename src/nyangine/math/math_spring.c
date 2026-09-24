@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNALS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNALS
 
 /**
  * The coefficients of one implicit integration step, shared by every spring below.
@@ -21,12 +17,10 @@ NYA_INTERNAL _NYA_SpringStep _nya_spring_step(f32 frequency, f32 damping, f32 de
     if (frequency <= 0.0F) frequency = NYA_SPRING_DEFAULT_FREQUENCY;
     if (damping <= 0.0F) damping = 1.0F;
 
-    // Clamped for the sake of what a stall *means* rather than for stability, which the step no longer
-    // needs: a frame longer than this is a debugger pause, and snapping to the target is the honest answer.
+    // Clamped for what a stall means, not stability: a longer frame is a debugger pause, so snapping to the target is honest.
     f32 h = nya_min(delta_time_s, NYA_SPRING_MAX_STEP);
 
-    // M_PI, as math_complex.c does; the engine has no pi constant of its own. Angular frequency, so
-    // `frequency` can be stated in oscillations per second.
+    // M_PI (the engine has no pi constant); angular frequency so `frequency` is in oscillations per second.
     f32 omega = frequency * 2.0F * (f32)M_PI;
 
     f32 f    = 1.0F + (2.0F * h * damping * omega);
@@ -43,11 +37,7 @@ NYA_INTERNAL _NYA_SpringStep _nya_spring_step(f32 frequency, f32 damping, f32 de
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 f32 nya_spring_f32(NYA_SpringF32* spring, f32 target, f32 delta_time_s) {
     nya_assert(spring != nullptr);

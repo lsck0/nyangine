@@ -14,11 +14,7 @@
 #include "nyangine/math/math_matrix.h"
 #include "nyangine/math/math_vector.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_Quaternion NYA_Quaternion;
 
@@ -37,11 +33,7 @@ struct NYA_Quaternion {
 
 static_assert(sizeof(NYA_Quaternion) == sizeof(f32x4), "NYA_Quaternion must stay layout compatible with f32x4.");
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** The rotation that does nothing. */
 #define nya_quaternion_identity ((NYA_Quaternion){ 0.0F, 0.0F, 0.0F, 1.0F })
@@ -49,17 +41,9 @@ static_assert(sizeof(NYA_Quaternion) == sizeof(f32x4), "NYA_Quaternion must stay
 #define FMTquaternion          "(" FMTf32 ", " FMTf32 ", " FMTf32 ", " FMTf32 ")"
 #define FMTquaternion_ARG(val) (f64)(val).x, (f64)(val).y, (f64)(val).z, (f64)(val).w
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS AND MACROS
 
-/*
- * ─────────────────────────────────────────────────────────
- * CONSTRUCTION
- * ─────────────────────────────────────────────────────────
- */
+// CONSTRUCTION
 
 NYA_API NYA_Quaternion nya_quaternion_create(f32 x, f32 y, f32 z, f32 w) __attr_no_discard;
 
@@ -84,11 +68,7 @@ NYA_API NYA_Quaternion nya_quaternion_from_to(f32x3 from, f32x3 to) __attr_no_di
 /** Rotation whose -Z axis points along `direction` and whose Y axis is as close to `up` as possible. */
 NYA_API NYA_Quaternion nya_quaternion_look(f32x3 direction, f32x3 up) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * ALGEBRA
- * ─────────────────────────────────────────────────────────
- */
+// ALGEBRA
 
 /** Composition: applies `b` first, then `a`, matching the equivalent matrix product; does not commute. */
 NYA_API NYA_Quaternion nya_quaternion_multiply(NYA_Quaternion a, NYA_Quaternion b) __attr_no_discard;
@@ -115,20 +95,12 @@ NYA_API f32 nya_quaternion_angle_between(NYA_Quaternion a, NYA_Quaternion b) __a
 /** `q` and `-q` are the same rotation, so this compares rotations, not representations. */
 NYA_API b8 nya_quaternion_approx_equals(NYA_Quaternion a, NYA_Quaternion b, f32 epsilon) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * APPLICATION
- * ─────────────────────────────────────────────────────────
- */
+// APPLICATION
 
 /** Rotates `vector` by a unit `quaternion`. */
 NYA_API f32x3 nya_quaternion_rotate(NYA_Quaternion quaternion, f32x3 vector) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * INTERPOLATION
- * ─────────────────────────────────────────────────────────
- */
+// INTERPOLATION
 
 /** Normalized linear interpolation: cheap, shortest arc, non-constant angular velocity. Good for blending poses every frame. */
 NYA_API NYA_Quaternion nya_quaternion_nlerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) __attr_no_discard;
@@ -149,11 +121,7 @@ NYA_API NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, 
  * */
 NYA_API NYA_Quaternion nya_quaternion_slerp_unit(NYA_Quaternion a, NYA_Quaternion b, f32 t) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * MATRIX CONVERSION
- * ─────────────────────────────────────────────────────────
- */
+// MATRIX CONVERSION
 
 /* Two names, not one overload set: return type differs and C overloading can't resolve on that alone. */
 

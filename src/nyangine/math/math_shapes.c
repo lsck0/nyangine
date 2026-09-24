@@ -1,16 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * RECTANGLE
- * ─────────────────────────────────────────────────────────
- */
+// RECTANGLE
 
 NYA_Rectf nya_rect_from_corners(f32x2 a, f32x2 b) {
     f32 min_x = nya_min(a.x, b.x);
@@ -50,9 +42,7 @@ f32x2 nya_rect_size(NYA_Rectf rect) {
 }
 
 b8 nya_rect_is_empty(NYA_Rectf rect) {
-    // `<=`, so a zero width rectangle is empty rather than a line segment. Half open containment
-    // already means nothing is inside one, and reporting it as non-empty would make
-    // nya_rect_intersection return something that contains no points.
+    // `<=` so a zero-width rectangle counts as empty, not a line segment; otherwise nya_rect_intersection could return a box containing no points.
     return rect.width <= 0.0F || rect.height <= 0.0F;
 }
 
@@ -70,8 +60,7 @@ b8 nya_rect_contains(NYA_Rectf rect, f32x2 point) {
 }
 
 b8 nya_rect_contains_rect(NYA_Rectf outer, NYA_Rectf inner) {
-    // an empty inner rectangle is vacuously contained anywhere. Answering false keeps a collapsed box
-    // from reporting as inside something far away.
+    // An empty inner rectangle is vacuously contained anywhere; answer false so a collapsed box is not reported inside something far away.
     if (nya_rect_is_empty(inner)) return false;
 
     if (inner.x < outer.x || inner.y < outer.y) return false;
@@ -96,9 +85,7 @@ NYA_Rectf nya_rect_intersection(NYA_Rectf a, NYA_Rectf b) {
     f32 max_x = nya_min(a.x + a.width, b.x + b.width);
     f32 max_y = nya_min(a.y + a.height, b.y + b.height);
 
-    // Clamped to zero rather than left negative. A negative extent is already empty by
-    // nya_rect_is_empty, but it also carries the *distance* between the two boxes, and feeding that
-    // into a union or an expand produces a rectangle out of nowhere.
+    // Clamp the extent to zero, not negative: a negative extent carries the gap between the boxes and would conjure a rectangle in a union or expand.
     return (NYA_Rectf){
         .x      = min_x,
         .y      = min_y,
@@ -108,8 +95,7 @@ NYA_Rectf nya_rect_intersection(NYA_Rectf a, NYA_Rectf b) {
 }
 
 NYA_Rectf nya_rect_union(NYA_Rectf a, NYA_Rectf b) {
-    // An empty operand is ignored, so a bound accumulated over a loop can start from a zeroed
-    // rectangle without the origin being dragged into every result.
+    // An empty operand is ignored, so a bound accumulated in a loop can start from a zeroed rectangle without dragging in the origin.
     if (nya_rect_is_empty(a)) return nya_rect_is_empty(b) ? (NYA_Rectf){ 0 } : b;
     if (nya_rect_is_empty(b)) return a;
 
@@ -149,11 +135,7 @@ f32x2 nya_rect_closest_point(NYA_Rectf rect, f32x2 point) {
     };
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * CIRCLE
- * ─────────────────────────────────────────────────────────
- */
+// CIRCLE
 
 b8 nya_circle_contains(NYA_Circlef circle, f32x2 point) {
     if (circle.radius <= 0.0F) return false;
@@ -176,9 +158,7 @@ b8 nya_circle_overlaps(NYA_Circlef a, NYA_Circlef b) {
 b8 nya_circle_overlaps_rect(NYA_Circlef circle, NYA_Rectf rect) {
     if (circle.radius <= 0.0F || nya_rect_is_empty(rect)) return false;
 
-    // Against the closest point on the box rather than against its centre or its corners: that one
-    // comparison is correct for a circle beside an edge and for one tucked into a corner alike,
-    // which the naive "is the centre inside, or is any corner within radius" test is not.
+    // Test against the closest point on the box, which is correct for a circle beside an edge or tucked into a corner alike.
     f32x2 closest = nya_rect_closest_point(rect, circle.center);
     f32x2 offset  = circle.center - closest;
 

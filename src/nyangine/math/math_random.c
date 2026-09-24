@@ -1,14 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-// Nothing up my sleeve: those are the hex digits of Φ,
-// the least approximable irrational number.
-// $ echo 'scale=310;obase=16;(sqrt(5)-1)/2' | bc
+// Nothing up my sleeve: the hex digits of Φ, the least approximable irrational number.
 NYA_INTERNAL const u64 PHI[16] = {
     0x9E3779B97F4A7C15, 0xF39CC0605CEDC834, 0x1082276BF3A27251, 0xF86C6A11D0C18E95, 0x2767F0B153D27B7F, 0x0347045B5BF1827F,
     0x01886F0928403002, 0xC1D64BA40F335E36, 0xF06AD7AE9717877E, 0x85839D6EFFBD7DC6, 0x64D325D1C5371682, 0xCADD0CCCFDFFBBE1,
@@ -17,11 +11,7 @@ NYA_INTERNAL const u64 PHI[16] = {
 
 NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
     nya_assert(rng != nullptr);
@@ -44,38 +34,18 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
     u64x4 u3;
     u64x4 counter = rng->counter;
 
-    // The following shuffles move weak (low-diffusion) 32-bit parts of 64-bit
-    // additions to strong positions for enrichment. The low 32-bit part of a
-    // 64-bit chunk never moves to the same 64-bit chunk as its high part.
-    // They do not remain in the same chunk. Each part eventually reaches all
-    // positions ringwise: A to B, B to C, …, H to A.
-    // You may notice that they are simply 256-bit rotations (96 and 160).
-    // As lane index lists rather than a mask register: result lane i takes source lane SHUFFLE_A[i].
-    // Both are rotations of the eight 32-bit lanes, by five and by three, which is what the ringwise
-    // movement described above amounts to.
+    // Ringwise rotations of the eight 32-bit lanes (by five and three) moving weak lane halves to strong positions; result lane i takes source SHUFFLE_A[i].
 #define _NYA_RNG_SHUFFLE_A 5, 6, 7, 0, 1, 2, 3, 4
 #define _NYA_RNG_SHUFFLE_B 3, 4, 5, 6, 7, 0, 1, 2
 
-    /*
-     * One 64-bit lane vector shuffled as eight 32-bit lanes, then read back as 64-bit lanes.
-     * */
+    // One 64-bit lane vector shuffled as eight 32-bit lanes, then read back as 64-bit lanes.
 #define _nya_rng_shuffle(vector, ...) ((u64x4)__builtin_shufflevector((u32x8)(vector), (u32x8)(vector), __VA_ARGS__))
 
-    // The counter is not necessary to beat PractRand.
-    // It sets a lower bound of 2^71 bytes = 2 ZiB to the period,
-    // or about 7 millennia at 10 GiB/s.
-    // The increments are picked as odd numbers,
-    // since only coprimes of the base cover the full cycle,
-    // and all odd numbers are coprime of 2.
-    // I use different odd numbers for each 64-bit chunk
-    // for a tiny amount of variation stirring.
-    // I used the smallest odd numbers to avoid having a magic number.
+    // Counter sets a 2^71-byte period floor; odd increments (coprime to 2), a different small one per 64-bit chunk to avoid magic numbers.
     u64x4 increment = { 7, 5, 3, 1 };
 
     for (u64 index = 0; index < _NYA_RNG_BUFFER_SIZE; index += 128) {
-        // memcpy rather than a store through a vector pointer: the buffer is a plain byte array in
-        // the middle of a struct and carries no promise of 32 byte alignment. It compiles to the
-        // unaligned store either way.
+        // memcpy rather than a vector store: the buffer has no 32-byte alignment promise, and it compiles to the unaligned store anyway.
         nya_memcpy(&rng->buffer[index + 0], &o0, sizeof(o0));
         nya_memcpy(&rng->buffer[index + 32], &o1, sizeof(o1));
         nya_memcpy(&rng->buffer[index + 64], &o2, sizeof(o2));
@@ -86,13 +56,7 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
         s3      += counter;
         counter += increment;
 
-        // SIMD does not support rotations. Shift is the next best thing to entangle
-        // bits with other 64-bit positions. We must shift by an odd number so that
-        // each bit reaches all 64-bit positions, not just half. We must lose bits
-        // of information, so we minimize it: 1 and 3. We use different shift values
-        // to increase divergence between the two sides. We use rightward shift
-        // because the rightmost bits have the least diffusion in addition (the low
-        // bit is just a XOR of the low bits).
+        // No SIMD rotate; shift by odd counts (1 and 3) so every bit reaches all positions, rightward since low bits diffuse least in addition.
         u0 = s0 >> 1;
         u1 = s1 >> 3;
         u2 = s2 >> 1;
@@ -102,8 +66,7 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
         t2 = _nya_rng_shuffle(s2, _NYA_RNG_SHUFFLE_A);
         t3 = _nya_rng_shuffle(s3, _NYA_RNG_SHUFFLE_B);
 
-        // Addition is the main source of diffusion.
-        // Storing the output in the state keeps that diffusion permanently.
+        // Addition is the main source of diffusion; storing the output back into state keeps it.
         s0 = t0 + u0;
         s1 = t1 + u1;
         s2 = t2 + u2;
@@ -127,19 +90,12 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
     rng->counter   = counter;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_RNG* nya_rng_create_in(NYA_Arena* arena, NYA_ConstCString seed) {
     nya_assert(arena != nullptr);
 
-    /*
-     * An arena configured with `.alignment = alignof(NYA_RNG)` or better already hands back what is
-     * needed, so nothing is wasted in the case a caller has set up deliberately.
-     */
+    // An arena with `.alignment = alignof(NYA_RNG)` or better already returns suitable memory, so nothing is wasted.
     if (arena->options.alignment >= alignof(NYA_RNG)) {
         NYA_RNG* rng = nya_arena_alloc(arena, sizeof(NYA_RNG));
         *rng         = nya_rng_create(.seed = seed);
@@ -201,9 +157,7 @@ NYA_RNG nya_rng_create_with_options(NYA_RNGOptions options) {
     }
     rng.seed[64] = '\0';
 
-    // Diffuse first two seed elements in s0, then the last two. Same for s1.
-    // We must keep half of the state unchanged so users cannot set a bad state.
-    // Lane order is lowest first here, where _mm256_set_epi64x took its arguments highest first.
+    // Diffuse the seed two elements at a time into s0 then s1, keeping half the state fixed so no bad state can be set; lane order lowest-first here.
     rng.state[0] = (u64x4){ PHI[0] ^ seed[0], PHI[1], PHI[2] ^ seed[1], PHI[3] };
     rng.state[1] = (u64x4){ PHI[4] ^ seed[2], PHI[5], PHI[6] ^ seed[3], PHI[7] };
     rng.state[2] = (u64x4){ PHI[8] ^ seed[2], PHI[9], PHI[10] ^ seed[3], PHI[11] };
