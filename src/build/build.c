@@ -18,6 +18,8 @@
 #include "build/check.c"
 // Before dist.c: it defines build_capture, and writes the CHANGELOG.md every distribution ships.
 #include "build/changelog.c"
+// After changelog.c: it calls build_capture, which changelog.c defines.
+#include "build/sbom.c"
 #include "build/dist.c"
 #include "build/example.c"
 #include "build/plugin.c"

@@ -10,6 +10,7 @@
  *
  *   bench.c      `./build run bench`
  *   changelog.c  `./build version` and `./build changelog`
+ *   sbom.c       `./build sbom`
  *   check.c      `./build check`
  *   lint.c       the rules `./build check` runs before clang-tidy
  *   dist.c       `./build dist`
@@ -145,6 +146,12 @@ NYA_ConstCString dist_completion_target(u32 index);
  * Writes CHANGELOG.md from the conventional commits in the history, or prints one release's notes.
  * */
 void changelog_runner(NYA_ArgCommand* command);
+
+/**
+ * Generates the SBOM from the vendored submodules, gates it against the licence allowlist, and runs the
+ * CVE hook. See sbom.c.
+ * */
+void sbom_runner(NYA_ArgCommand* command);
 
 /**
  * Prints VERSION on stdout and nothing else. The one thing a shell script may parse.

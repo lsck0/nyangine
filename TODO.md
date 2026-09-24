@@ -1226,7 +1226,14 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   produced binary rather than trusted from the flag list.
 - `[ ]` Pinned releases: SDL is at `release-3.4.0-1237`, an untagged commit on main, and Box3D is pre-1.0. Pin
   each vendor to a release tag, or write down beside the submodule why not.
-- `[ ]` An SBOM and a licence allowlist generated from the vendor rules, and a CVE check against it in CI.
+- `[x]` An SBOM and a licence allowlist generated from the vendor rules, and a CVE check against it in CI.
+  `./build sbom` (src/build/sbom.c) reads `.gitmodules` and the commit HEAD pins each submodule to, detects
+  each dependency's licence from its LICENSE/COPYING file, and writes a CycloneDX 1.5 document plus a human
+  summary under `sbom/` (gitignored). The checked-in allowlist is `src/build/vendor/licence_allowlist.h`;
+  a detected licence off it — or one that could not be determined — fails the command, so a new copyleft
+  or unknown dependency is caught. The CVE step is a hook over osv-scanner: it scans the CycloneDX document
+  when osv-scanner is installed and `NYA_SBOM_CVE_SCAN=1` is set (CI), and skips with a notice otherwise
+  rather than failing offline. Nothing is vendored and nothing reaches the network by default.
 - `[ ]` Scheduled CI: fuzzing from the committed corpus, simulation with random seeds keeping every failure,
   benchmarks on a fixed runner with regressions flagged.
 - `[ ]` Privacy pass: crash reports strip the home directory, user name and host name before anything leaves

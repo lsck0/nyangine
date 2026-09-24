@@ -642,6 +642,12 @@ NYA_INTERNAL NYA_ArgCommand changelog = {
     .parameters  = { &changelog_release_flag, },
 };
 
+NYA_INTERNAL NYA_ArgCommand sbom = {
+    .name        = "sbom",
+    .description = "Generate the SBOM from the vendored submodules, fail on a licence off the allowlist, and run the CVE hook.",
+    .handler     = &sbom_runner,
+};
+
 NYA_INTERNAL NYA_ArgCommand version = {
     .name        = "version",
     .description = "Print the version on stdout. The only place anything outside this tool may read it from.",
@@ -739,6 +745,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &dist,
             &check,
             &changelog,
+            &sbom,
             &version,
             &perf,
             &docs,

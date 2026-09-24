@@ -73,6 +73,11 @@ docs/doxygen/
 # Coverage profiles and merged data from `./build run coverage`.
 .coverage/
 
+# The SBOM `./build sbom` generates from the vendored submodules: a CycloneDX document and a human
+# summary, both regenerated on every run. The command, the licence allowlist and the CVE hook are
+# committed; the generated bill of materials is not.
+/sbom/
+
 # Daily log files written by nya_log_directory_open, pruned to NYA_LOG_RETENTION_DAYS.
 /logs/
 
