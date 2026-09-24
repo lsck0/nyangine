@@ -111,7 +111,7 @@
  * build does not have, so it is switched on here rather than compiled unconditionally by
  * nyangine.h. The component system in TODO.md's roadmap replaces this with a component list.
  */
-#define FLAGS_MODULES "-DNYA_MODULE_DB", FLAGS_MODULE_TLS
+#define FLAGS_MODULES "-DNYA_MODULE_DB", FLAGS_MODULE_TLS FLAGS_MODULE_COMPRESSION
 
 /*
  * `tls` links the system's OpenSSL, which a Windows build has no copy of: curl reaches TLS through
@@ -122,6 +122,23 @@
 #define FLAGS_MODULE_TLS "-DNYA_NO_TLS"
 #else
 #define FLAGS_MODULE_TLS "-DNYA_MODULE_TLS"
+#endif
+
+/*
+ * HTTP response compression reaches the system's zlib and brotli, which a Windows build here has no
+ * copy of on the link line — so the feature is Linux only for now and compiles to a no-op elsewhere,
+ * the same shape as `tls` above. The libraries themselves are added to the Linux link in
+ * FLAGS_LINUX_X86_64, next to the rpath, since they are a system dependency and not a vendored archive.
+ * NYA_HTTP_COMPRESSION turns on gzip and deflate; NYA_HTTP_COMPRESSION_BROTLI adds `br`.
+ *
+ * A leading comma rather than a trailing one, and no comma before it in FLAGS_MODULES: that is how a
+ * macro that may expand to nothing joins a list here without leaving a double comma behind on the
+ * platform where it is empty, the same trick FLAGS_TARGET_WINDOWS_X86_64 uses.
+ */
+#if OS_WINDOWS
+#define FLAGS_MODULE_COMPRESSION
+#else
+#define FLAGS_MODULE_COMPRESSION , "-DNYA_HTTP_COMPRESSION", "-DNYA_HTTP_COMPRESSION_BROTLI"
 #endif
 
 /*
@@ -359,7 +376,10 @@
  */
 #define FLAGS_STEAM "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", FLAGS_SHIPPING
 
-#define FLAGS_LINUX_X86_64   "-Wl,-rpath,$ORIGIN"
+// -lz and the brotli encoder are the system libraries HTTP response compression reaches (see
+// FLAGS_MODULE_COMPRESSION); they ride the Linux link line only, and are harmless on a binary that does
+// not call them. libbrotlienc needs libbrotlicommon behind it.
+#define FLAGS_LINUX_X86_64   "-Wl,-rpath,$ORIGIN", "-lz", "-lbrotlienc", "-lbrotlicommon"
 #define FLAGS_WINDOWS_X86_64 "-Wl,-subsystem,windows", "-static"
 
 // mold is Linux only, and -rdynamic is what lets the hot reloaded game DLL resolve engine symbols

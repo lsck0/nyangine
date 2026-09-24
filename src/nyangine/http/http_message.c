@@ -10,6 +10,20 @@
 #include "nyangine/serde/serde.h"
 
 /*
+ * The content-coding libraries, on the platform whose link line carries them (see
+ * FLAGS_MODULE_COMPRESSION). Both are system libraries: zlib is what gzip and the `deflate` coding are
+ * produced with, and libbrotlienc is the `br` one. Where the macros are undefined — a Windows build
+ * here, and the build tool, which links neither — nya_http_response_compress compiles to a no-op and
+ * none of this is reached.
+ */
+#ifdef NYA_HTTP_COMPRESSION
+#include <zlib.h>
+#ifdef NYA_HTTP_COMPRESSION_BROTLI
+#include <brotli/encode.h>
+#endif
+#endif
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONSTANTS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -159,6 +173,36 @@ NYA_INTERNAL NYA_HttpParse _nya_http_decode_chunked(
 
 /** Appends to a rendered head, refusing to write past `capacity`. */
 NYA_INTERNAL b8 _nya_http_head_append(OUT u8* buffer, u64 capacity, OUT u64* size, NYA_ConstCString text);
+
+/** Whether a body of this type is worth compressing: text and the document formats, never the already-compressed binaries. */
+NYA_INTERNAL b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) __attr_no_discard;
+
+#ifdef NYA_HTTP_COMPRESSION
+
+/** The content codings this server can produce, in no order; the negotiation picks between them. */
+typedef enum {
+    _NYA_HTTP_ENCODING_NONE = 0,
+    _NYA_HTTP_ENCODING_GZIP,
+    _NYA_HTTP_ENCODING_DEFLATE,
+    _NYA_HTTP_ENCODING_BROTLI,
+} _NYA_HttpEncoding;
+
+/**
+ * The quality a client gave `token` in its Accept-Encoding, on a 0..1000 scale, or -1 when the header
+ * names neither the token nor a `*` that would stand in for it.
+ *
+ * A `;q=0` is a real answer — the client saying "not this one" — and comes back as 0, which the
+ * negotiation reads as unacceptable. A malformed weight is read as no weight, so 1000.
+ * */
+NYA_INTERNAL s32 _nya_http_encoding_quality(NYA_ConstCString accept, NYA_ConstCString token) __attr_no_discard;
+
+/** The one qvalue between `text` and `end`, milli-scaled: "1" -> 1000, "0.5" -> 500, malformed -> 1000. */
+NYA_INTERNAL s32 _nya_http_qvalue(const char* text, const char* end) __attr_no_discard;
+
+/** The coding to answer this Accept-Encoding with, by the client's own weights, ties broken br > gzip > deflate. */
+NYA_INTERNAL _NYA_HttpEncoding _nya_http_negotiate_encoding(NYA_ConstCString accept) __attr_no_discard;
+
+#endif
 
 /**
  * The body as a document. `type` is what a binary body must have been encoded against, or null for an
@@ -692,6 +736,119 @@ NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString 
     return NYA_OK;
 }
 
+b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_ConstCString accept_encoding) {
+    nya_assert(response != nullptr);
+    nya_assert(arena != nullptr);
+
+#ifndef NYA_HTTP_COMPRESSION
+    // No zlib on this link line: the response goes out as it is. The parameters are named so a caller
+    // reads the same signature everywhere; nothing here touches them.
+    (void)response;
+    (void)arena;
+    (void)accept_encoding;
+
+    return false;
+#else
+    // A client that did not ask, a body too small to earn the framing, or a type whose bytes are
+    // already packed — each is a reason to send the body untouched rather than spend a compressor on it.
+    if (response->body == nullptr || accept_encoding == nullptr) return false;
+    if (response->body_size < NYA_HTTP_COMPRESS_MIN_BYTES) return false;
+    if (!_nya_http_media_type_compressible(response->media_type)) return false;
+
+    // Never a second coding on top of a handler's own: a body that already carries Content-Encoding was
+    // encoded on purpose, and layering gzip over it would leave a client unable to undo either.
+    for (u32 index = 0; index < response->header_count && index < NYA_HTTP_MAX_RESPONSE_HEADERS; index++) {
+        if (_nya_http_equals_ignore_case(response->headers[index].name, strlen(response->headers[index].name), "Content-Encoding")) return false;
+    }
+
+    // Room for the two headers this adds, checked before anything is encoded: a body compressed but
+    // unannounced, or announced but with the Vary missing, is worse than one left alone.
+    if (response->header_count + 2 > NYA_HTTP_MAX_RESPONSE_HEADERS) return false;
+
+    _NYA_HttpEncoding encoding = _nya_http_negotiate_encoding(accept_encoding);
+    if (encoding == _NYA_HTTP_ENCODING_NONE) return false;
+
+    NYA_ConstCString coding_name = nullptr;
+    u64              compressed  = 0;
+
+    switch (encoding) {
+        case _NYA_HTTP_ENCODING_GZIP:
+        case _NYA_HTTP_ENCODING_DEFLATE: {
+            // gzip and the `deflate` coding are the same deflate stream in two wrappers: windowBits 15
+            // is the zlib wrapper RFC 9110 means by `deflate`, and + 16 swaps it for the gzip one.
+            int window_bits = encoding == _NYA_HTTP_ENCODING_GZIP ? 15 + 16 : 15;
+
+            z_stream stream = { 0 };
+            if (deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, window_bits, 8, Z_DEFAULT_STRATEGY) != Z_OK) return false;
+
+            // The bound is the most the coding can produce, so one Z_FINISH always completes; the scratch
+            // lives in the exchange arena and is gone the moment this returns.
+            u64 bound   = deflateBound(&stream, response->body_size);
+            u8* scratch = nya_arena_alloc(arena, bound);
+            if (scratch == nullptr) {
+                (void)deflateEnd(&stream);
+                return false;
+            }
+
+            stream.next_in   = response->body;
+            stream.avail_in  = (uInt)response->body_size;
+            stream.next_out  = scratch;
+            stream.avail_out = (uInt)bound;
+
+            int result = deflate(&stream, Z_FINISH);
+            compressed  = (u64)stream.total_out;
+            (void)deflateEnd(&stream);
+
+            if (result != Z_STREAM_END) return false;
+
+            coding_name = encoding == _NYA_HTTP_ENCODING_GZIP ? "gzip" : "deflate";
+
+            if (compressed == 0 || compressed >= response->body_size) return false;
+
+            memcpy(response->body, scratch, compressed);
+            break;
+        }
+
+        case _NYA_HTTP_ENCODING_BROTLI: {
+#ifdef NYA_HTTP_COMPRESSION_BROTLI
+            size_t bound   = BrotliEncoderMaxCompressedSize(response->body_size);
+            u8*    scratch = nya_arena_alloc(arena, bound > 0 ? bound : 1);
+            if (scratch == nullptr) return false;
+
+            // Quality 5 rather than the default 11: a server answers in real time, and 11 spends many
+            // times the CPU for a few percent on bodies this size. GENERIC, since the type is not always text.
+            size_t encoded = bound;
+            if (!BrotliEncoderCompress(5, BROTLI_DEFAULT_WINDOW, BROTLI_MODE_GENERIC, response->body_size, response->body, &encoded, scratch)) {
+                return false;
+            }
+
+            compressed  = (u64)encoded;
+            coding_name = "br";
+
+            if (compressed == 0 || compressed >= response->body_size) return false;
+
+            memcpy(response->body, scratch, compressed);
+            break;
+#else
+            return false;
+#endif
+        }
+
+        case _NYA_HTTP_ENCODING_NONE:
+        default:                       return false;
+    }
+
+    // The room was checked above, so neither add fails; the body has already been replaced, and these
+    // are what let a client and a cache read it back.
+    (void)nya_http_response_header(response, "Content-Encoding", coding_name);
+    (void)nya_http_response_header(response, "Vary", "Accept-Encoding");
+
+    response->body_size = compressed;
+
+    return true;
+#endif
+}
+
 NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, u8* buffer, u64 capacity,
                                  u64* out_size) {
     nya_assert(response != nullptr);
@@ -1145,6 +1302,134 @@ b8 _nya_http_head_append(u8* buffer, u64 capacity, u64* size, NYA_ConstCString t
 
     return true;
 }
+
+b8 _nya_http_media_type_compressible(NYA_HttpMediaType media_type) {
+    switch (media_type) {
+        // Text and the document formats: every one of these is markup or characters, where deflate finds
+        // the repetition it lives on. `application/nya` is text too and rides along.
+        case NYA_HTTP_MEDIA_JSON:
+        case NYA_HTTP_MEDIA_NYA:
+        case NYA_HTTP_MEDIA_TEXT:
+        case NYA_HTTP_MEDIA_HTML:
+        case NYA_HTTP_MEDIA_CSS:
+        case NYA_HTTP_MEDIA_JAVASCRIPT:
+        case NYA_HTTP_MEDIA_SVG:
+        case NYA_HTTP_MEDIA_XML:
+        case NYA_HTTP_MEDIA_RSS:
+        case NYA_HTTP_MEDIA_ATOM:
+        case NYA_HTTP_MEDIA_MARKDOWN: return true;
+
+        // Everything else is bytes already packed — png, woff2 and wasm carry their own compression,
+        // and the native binary document is a compact encoding — or has no body to compress. Spending a
+        // compressor on those costs CPU only to make the response a little larger, and a media type
+        // added later is left uncompressed until it is judged here rather than compressed by accident.
+        default: return false;
+    }
+}
+
+#ifdef NYA_HTTP_COMPRESSION
+
+s32 _nya_http_qvalue(const char* text, const char* end) {
+    // Leading OWS, then "0"/"1" and an optional "." with up to three digits. Anything the grammar does
+    // not allow is a weight this cannot read, and an unreadable weight is treated as none, so 1000.
+    while (text < end && (*text == ' ' || *text == '\t')) text++;
+
+    if (text >= end || (*text != '0' && *text != '1')) return 1000;
+
+    s32 whole = *text - '0';
+    text++;
+
+    s32 milli = whole * 1000;
+
+    if (text >= end || *text != '.') return milli;
+    text++;
+
+    // Up to three fractional digits, each ten times finer than the last. A fourth is ignored, as the
+    // grammar caps a qvalue at three places anyway.
+    s32 scale = 100;
+    for (u32 place = 0; place < 3 && text < end; place++) {
+        if (*text < '0' || *text > '9') break;
+
+        milli += (*text - '0') * scale;
+        scale /= 10;
+        text++;
+    }
+
+    // A qvalue is at most 1.000; a client that wrote 1.5 gets read as the ceiling rather than believed.
+    return milli > 1000 ? 1000 : milli;
+}
+
+s32 _nya_http_encoding_quality(NYA_ConstCString accept, NYA_ConstCString token) {
+    u64 length   = strlen(accept);
+    s32 wildcard = -1;
+
+    u64 cursor = 0;
+    while (cursor < length) {
+        // Skip the separators and the whitespace between entries.
+        while (cursor < length && (accept[cursor] == ',' || accept[cursor] == ' ' || accept[cursor] == '\t')) cursor++;
+        if (cursor >= length) break;
+
+        // The coding name runs to the ';' that begins its weight or the ',' that ends the entry.
+        u64 name_start = cursor;
+        while (cursor < length && accept[cursor] != ';' && accept[cursor] != ',') cursor++;
+
+        u64 name_end = cursor;
+        while (name_end > name_start && (accept[name_end - 1] == ' ' || accept[name_end - 1] == '\t')) name_end--;
+
+        // The weight, when the entry carries one: from just past the ';' to the ',' that ends the entry.
+        s32 quality = 1000;
+        if (cursor < length && accept[cursor] == ';') {
+            u64 params_start = cursor + 1;
+
+            u64 params_end = params_start;
+            while (params_end < length && accept[params_end] != ',') params_end++;
+
+            // Find the "q=" inside the params. Only a 'q' that opens the parameter counts, so the search
+            // is for "q=" run against each position rather than a bare 'q'.
+            for (u64 scan = params_start; scan + 1 < params_end; scan++) {
+                if ((accept[scan] == 'q' || accept[scan] == 'Q') && accept[scan + 1] == '=') {
+                    quality = _nya_http_qvalue(accept + scan + 2, accept + params_end);
+                    break;
+                }
+            }
+
+            cursor = params_end;
+        }
+
+        u64 name_length = name_end - name_start;
+
+        if (name_length == 1 && accept[name_start] == '*') {
+            wildcard = quality;
+        } else if (_nya_http_equals_ignore_case(accept + name_start, name_length, token)) {
+            return quality;
+        }
+    }
+
+    return wildcard;
+}
+
+_NYA_HttpEncoding _nya_http_negotiate_encoding(NYA_ConstCString accept) {
+    s32 gzip    = _nya_http_encoding_quality(accept, "gzip");
+    s32 deflate = _nya_http_encoding_quality(accept, "deflate");
+
+#ifdef NYA_HTTP_COMPRESSION_BROTLI
+    s32 brotli = _nya_http_encoding_quality(accept, "br");
+#else
+    s32 brotli = -1;
+#endif
+
+    // The highest weight wins, and a weight has to be above zero to count — a `;q=0` is the client
+    // ruling a coding out. A tie falls to brotli over gzip and gzip over deflate, this server's order
+    // when the client states none: brotli is chosen while it is at least as good as the other two, then
+    // gzip while it is at least as good as deflate, then deflate on its own.
+    if (brotli > 0 && brotli >= gzip && brotli >= deflate) return _NYA_HTTP_ENCODING_BROTLI;
+    if (gzip > 0 && gzip >= deflate) return _NYA_HTTP_ENCODING_GZIP;
+    if (deflate > 0) return _NYA_HTTP_ENCODING_DEFLATE;
+
+    return _NYA_HTTP_ENCODING_NONE;
+}
+
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────

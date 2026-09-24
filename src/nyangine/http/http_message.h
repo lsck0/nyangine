@@ -88,6 +88,16 @@
  * */
 #define NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 5376
 
+/**
+ * The smallest body worth negotiating a content coding for.
+ *
+ * A gzip stream carries about twenty bytes of framing before it has said anything, so a body shorter
+ * than this either grows or saves a handful of bytes that a round trip through the encoder does not
+ * earn. Below it nya_http_response_compress leaves the body alone, which is also why a tiny error
+ * document is never touched.
+ * */
+#define NYA_HTTP_COMPRESS_MIN_BYTES 256
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -297,6 +307,33 @@ NYA_API void nya_http_hsts_set(b8 enabled);
 
 /** Whether it is on, which is what a test asks and what an operator's status page shows. */
 NYA_API b8 nya_http_hsts(void) __attr_no_discard;
+
+/**
+ * Compresses the body in place when the client asked for it, the type is worth compressing and it
+ * helps, and reports whether it did.
+ *
+ * `accept_encoding` is the request's Accept-Encoding header, or null when there was none; the
+ * negotiation is a pure function of that string, so this stays on the wire boundary with everything
+ * else here and never reaches for the request. The coding is picked from the client's list by its own
+ * q-values, ties broken br > gzip > deflate, and a coding it marked `;q=0` is refused. `arena` is
+ * scratch the encoder writes into and holds nothing once this returns; the compressed bytes are copied
+ * back over `response->body`.
+ *
+ * Nothing happens, and false comes back, when there is no Accept-Encoding, when the body is under
+ * NYA_HTTP_COMPRESS_MIN_BYTES, when the media type is one already-compressed or binary (png, woff2,
+ * wasm and the native binary document are left alone), when the response already carries a
+ * Content-Encoding (a handler that encoded its own body owns it), when there is no header room for the
+ * two this adds, or when the coding did not actually shrink the body. On true the body has been
+ * replaced with the compressed bytes, `Content-Encoding` names the coding and `Vary: Accept-Encoding`
+ * is set so a shared cache keeps the codings apart; `body_size` is the compressed length, which is
+ * what nya_http_response_head then renders as Content-Length. The media type, and so Content-Type, is
+ * unchanged: a coding is not a type.
+ *
+ * Built only where zlib is on the link line (Linux today); elsewhere it compiles to a no-op that
+ * returns false, so a response simply goes out uncompressed rather than a caller having to guess
+ * whether the feature is there.
+ * */
+NYA_API b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_ConstCString accept_encoding);
 
 /**
  * Renders the status line and every header into `buffer`, ending with the blank line. The body is not

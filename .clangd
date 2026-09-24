@@ -41,6 +41,10 @@ CompileFlags:
       # The optional modules, mirroring FLAGS_MODULES: without it the whole db module is empty here.
       -DNYA_MODULE_DB,
       -DNYA_MODULE_TLS,
+      # HTTP response compression, mirroring FLAGS_MODULE_COMPRESSION: without these the whole of the
+      # gzip/deflate/brotli path in http_message.c is dead text to the editor.
+      -DNYA_HTTP_COMPRESSION,
+      -DNYA_HTTP_COMPRESSION_BROTLI,
       -DNYA_PLUGIN_CURL,
       -DNYA_PLUGIN_DISCORD,
       -DNYA_PLUGIN_LUA,

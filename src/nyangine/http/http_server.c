@@ -1243,6 +1243,12 @@ void _nya_http_dispatch(_NYA_HttpState* state, _NYA_HttpSlot* slot) {
 
     slot->answer = _NYA_HTTP_ANSWER_WRITE;
     slot->status = nya_http_router_dispatch(&exchange, slot->routers, slot->router_count, state->layers, state->layer_count);
+
+    // The one negotiated content coding, decided by http_message.c, which owns the response bytes: this
+    // hands it the client's Accept-Encoding and it compresses the body in place when that is worth doing,
+    // setting Content-Encoding and Vary and fixing Content-Length. The exchange arena is its scratch. A
+    // HEAD keeps the coding so its headers match the GET's; only the body is held back, downstream.
+    (void)nya_http_response_compress(&slot->response, slot->arena, nya_http_request_header(&slot->request, "accept-encoding"));
 }
 
 b8 _nya_http_answer(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
