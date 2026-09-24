@@ -126,12 +126,17 @@ lines change; nothing a program does changes.
    cluster joins the free floor. This is the step that makes the runtime core actually useful to a
    server: a system registry with events and config in it.
 
-4. **Lift http/net/crypto/tls out of the wall.** With steps 2–3 done, move `crypto.c`, `net.c`, `tls.c`,
-   `acme.c`, `smtp.c` and `http.c` out of the `#ifndef NYA_NO_SDL` block in `nyangine.c`, and their
-   headers likewise in `nyangine.h`, guarded (if at all) only by their own module flags. `core_app.c`'s
-   `nya_system_http_tick()` call is already behind a guard and stays. Prove it by compiling a headless
-   TU that includes `http.h` under `-DNYA_NO_SDL`. This is the step that retires "a CLI tool links the
-   whole engine" for the http/net half.
+4. **[done] Lift http/net out of the wall, behind `NYA_SERVER`.** crypto, tls and acme were already
+   above the block. With steps 2–3 done, net and http followed: `nyangine.h` now pulls them under
+   `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)` rather than the SDL block. The guard is additive on
+   purpose — `NYA_NO_SDL` still means "no networking" for the host build tool and the wasm demos (they
+   set it and not `NYA_SERVER`, so they are byte-for-byte unchanged), and a full build gets net/http as
+   before. What is new is `-DNYA_NO_SDL -DNYA_SERVER`: it compiles `base`/`os`/`math`/`crypto`/`tls`/
+   `acme`/`net`/`http`/`db`/`accounts`/`serde`/`template` with **no** `core` and **no** renderer, and it
+   compiles clean — the very thing the ground-truth note called impossible while http sat inside the SDL
+   block. This retires "a CLI/server links the whole engine" for the http/net half at the compile seam.
+   Still open on this axis: a headless *link* (step 6–7) — a server binary needs an app loop that ticks
+   `nya_http_server_tick` itself rather than `core_app.c` doing it, and the `NYA_SERVER_VENDORS` link set.
 
 5. **Give the runtime core a home off `NYA_App`.** Introduce the smaller aggregate the free systems live
    on (registry, callbacks, jobs, save, config, events), owned by a headless program directly, with
