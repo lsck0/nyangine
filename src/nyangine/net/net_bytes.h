@@ -40,8 +40,6 @@ NYA_INTERNAL s64 _nya_net_read_signed(_NYA_NetReader* reader);
 /** Whether `count` more bytes are available, poisoning the reader if not. */
 NYA_INTERNAL b8 _nya_net_reader_has(_NYA_NetReader* reader, u64 count);
 
-/**
- * Milliseconds from `then` to `now`, saturating at zero rather than wrapping.
- * */
+/** Milliseconds from `then` to `now`, saturating at zero rather than wrapping. */
 NYA_INTERNAL u64 _nya_net_elapsed_ms(u64 now, u64 then) __attr_no_discard;
 NYA_INTERNAL u64 _nya_net_elapsed_ns(u64 now, u64 then) __attr_no_discard;

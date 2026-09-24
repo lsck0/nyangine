@@ -22,11 +22,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_NetKeyPair NYA_NetKeyPair;
 
@@ -41,11 +37,7 @@ struct NYA_NetKeyPair {
     u8 public_key[NYA_NET_KEY_SIZE];
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** A fresh key pair from the operating system's random source. Fails only when that source does. */
 NYA_API NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;

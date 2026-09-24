@@ -1,18 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/**
- * Whether `name` is a flag that takes a value, which is what decides whether the next argv entry
- * belongs to it or is an argument of its own.
- *
- * An exception of one rather than a second description of every flag: `--server` is the only flag in
- * this vocabulary that takes none.
- * */
+/** Whether `name` is a flag that takes a value; `--server` is the only one that takes none. */
 NYA_INTERNAL b8 _nya_net_config_takes_value(NYA_ConstCString name) __attr_no_discard;
 
 /** Parses an unsigned decimal, or reports the default with a warning. Never exits. */
@@ -21,19 +11,13 @@ NYA_INTERNAL u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString 
 /** Parses a percentage, 0..100 with a fraction allowed, or reports zero with a warning. */
 NYA_INTERNAL f32 _nya_net_config_percent(NYA_ConstCString text, NYA_ConstCString what) __attr_no_discard;
 
-/**
- * Whether every byte of `text` could appear in a hostname, an IPv4 literal or a bare IPv6 literal.
- * */
+/** Whether every byte of `text` could appear in a hostname, an IPv4 literal or a bare IPv6 literal. */
 NYA_INTERNAL b8 _nya_net_config_address_is_plausible(NYA_ConstCString text, u64 length) __attr_no_discard;
 
 /** Parses exactly `length` decimal digits as a port, 1..65535. Zero means it was not one. */
 NYA_INTERNAL u16 _nya_net_config_port_from_text(NYA_ConstCString text, u64 length) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_NetLaunchConfig nya_net_config_default(void) {
     NYA_NetLaunchConfig config = {
@@ -41,12 +25,7 @@ NYA_NetLaunchConfig nya_net_config_default(void) {
         .role = NYA_NET_ROLE_SERVER,
         .port = NYA_NET_DEFAULT_PORT,
 
-        /*
-         * Sockets unless something says otherwise. Loopback is the zero of the enum and the transport a
-         * single player game attaches to itself with, but it is not something a command line can ask
-         * for: it has no second end, so a `--server` that kept the zero would start, report a port and
-         * refuse every player with "that transport cannot accept players".
-         */
+        // Sockets unless something says otherwise: loopback (the enum's zero) has no second end and a command line cannot ask for it.
         .transport = NYA_NET_TRANSPORT_UDP,
     };
 
@@ -77,8 +56,7 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
     if (nya_string_equals(name, "port")) {
         u64 port = _nya_net_config_number(value, "--port", NYA_NET_DEFAULT_PORT);
 
-        // Zero is "let the system choose", which is meaningless for a port players have to reach,
-        // and anything above 65535 is not a port at all.
+        // Zero ("let the system choose") is meaningless for a port players must reach, and above 65535 is not a port.
         if (port == 0 || port > 65535) {
             nya_log_warn("--port %llu is not a usable port; using %d.", (unsigned long long)port, NYA_NET_DEFAULT_PORT);
             port = NYA_NET_DEFAULT_PORT;
@@ -106,8 +84,7 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
         return true;
         }
 
-        // Truncated rather than refused. A name is cosmetic, and a player with a long one should
-        // get a short one rather than no game.
+        // Truncated rather than refused: a name is cosmetic, so a long one is shortened rather than rejected.
         (void)snprintf(config->name, sizeof(config->name), "%s", value);
         config->named = true;
         return true;
@@ -182,9 +159,7 @@ void nya_net_config_finish(NYA_NetLaunchConfig* config) {
 
     b8 wants_connect = config->address[0] != '\0';
 
-    /*
-     * Contradictory. The server wins.
-     */
+    // Contradictory: the server wins.
     if (config->dedicated && wants_connect) {
         nya_log_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
 
@@ -197,8 +172,7 @@ void nya_net_config_finish(NYA_NetLaunchConfig* config) {
         config->dedicated = false;
     }
 
-    // A dedicated server listens by definition: it exists for other people to connect to, so a
-    // --server without a --listen would be a process nobody can reach.
+    // A dedicated server listens by definition, so a --server without a --listen would be unreachable.
     if (config->dedicated && config->listen_port == 0) config->listen_port = config->port;
 }
 
@@ -212,11 +186,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
         NYA_ConstCString argument = argv[at];
         NYA_ConstCString attached = nullptr;
 
-        /*
-         * The vocabulary lives in nya_net_config_apply and this loop only finds the pairs to hand it,
-         * so a program with its own command line — gnyame's, over nya_args — means the same thing by
-         * `--tickrate` as this does without either of them saying it twice.
-         */
+        // The vocabulary lives in nya_net_config_apply; this loop only finds the pairs to hand it.
         char name[64] = { 0 };
 
         u64 length = 0;
@@ -232,15 +202,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
 
         if (argument[length] == '=') attached = argument + length + 1;
 
-        // A flag that takes no value must not eat the next argument, and one that does must: which is
-        // which is the vocabulary's business, so the value is read lazily as the next entry and the
-        // cursor only moves when the flag actually took it.
-        /*
-         * The next entry is this flag's value only if it is not itself a flag. `--port --server` is a
-         * port with no value followed by a flag, not a port called "--server": swallowing the second
-         * one would drop it silently, which is exactly what this used to do before the test below
-         * caught it.
-         */
+        // The value is read lazily as the next entry, but only when it is not itself a flag: `--port --server` is a port with no value.
         NYA_ConstCString next = at + 1 < argc && argv[at + 1] != nullptr ? argv[at + 1] : nullptr;
 
         if (next != nullptr && next[0] == '-' && next[1] == '-') next = nullptr;
@@ -300,11 +262,7 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
     nya_log_info("Single player as '%s'.", config->name);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * JOIN SECRETS
- * ─────────────────────────────────────────────────────────
- */
+// JOIN SECRETS
 
 b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* out_secret, u64 capacity) {
     nya_assert(config != nullptr);
@@ -315,22 +273,18 @@ b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* ou
 
     b8 steam = config->transport == NYA_NET_TRANSPORT_STEAM;
 
-    /* Which of the two ports is the one a friend would dial. */
+    // Which of the two ports is the one a friend would dial.
     u16 port = config->role == NYA_NET_ROLE_CLIENT ? config->port : config->listen_port;
 
-    // over Steam there is no port to dial and the default stands in for one, so that a secret always has
-    // the same five fields and the parser has no optional ones to get wrong.
+    // over Steam there is no port to dial, so the default stands in and the secret keeps its five fixed fields.
     if (steam) port = port == 0 ? NYA_NET_DEFAULT_PORT : port;
 
-    // single player has no port open, so there is nothing to invite anybody to. reported rather than
-    // asserted: a presence update runs every frame and single player is the ordinary case.
+    // single player has no port open, so nothing to invite to; reported, not asserted, since it is the ordinary case.
     if (port == 0) return false;
 
     NYA_ConstCString address = config->address;
 
-    // a listen server does not know its own public address and does not try to guess one: the host's
-    // provider substitutes its own routing (a Steam lobby id, a Discord secret the host answers), and a
-    // guessed LAN address would send the guest somewhere real and wrong.
+    // a listen server does not guess its own public address; the provider substitutes its own routing.
     if (config->role != NYA_NET_ROLE_CLIENT) address = "";
 
     char steam_address[24] = { 0 };
@@ -346,8 +300,7 @@ b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* ou
 
     NYA_ConstCString scheme = steam ? NYA_NET_JOIN_SCHEME_STEAM : NYA_NET_JOIN_SCHEME_UDP;
 
-    // no key over Steam: the account is the identity and pinning is a UDP concept, so writing one would
-    // be a field the other side is told to ignore.
+    // no key over Steam: the account is the identity and pinning is a UDP concept.
     char hex[NYA_NET_KEY_HEX_SIZE] = { 0 };
     b8   keyed                     = !steam && nya_net_key_is_set(config->server_key);
 
@@ -372,7 +325,7 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
 
     if (secret == nullptr) return false;
 
-    /* Bounded before anything else reads it: everything below indexes inside this length. */
+    // Bounded before anything else reads it: everything below indexes inside this length.
     u64 length = strnlen(secret, NYA_NET_MAX_JOIN_SECRET);
     if (length == 0 || length >= NYA_NET_MAX_JOIN_SECRET) return false;
 
@@ -380,9 +333,7 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
     if (length <= tag_length) return false;
     if (strncmp(secret, NYA_NET_JOIN_SECRET_TAG, tag_length) != 0) return false;
 
-    /*
-     * The scheme first, from the left: it is a fixed word with no colon in it.
-     */
+    // The scheme first, from the left: it is a fixed word with no colon in it.
     u64 scheme_end = tag_length;
     while (scheme_end < length && secret[scheme_end] != ':') scheme_end++;
 
@@ -400,14 +351,10 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
         transport = NYA_NET_TRANSPORT_STEAM;
     }
 
-    // a scheme this build has no transport for. refused rather than defaulted to UDP, which would dial
-    // an address meant for something else.
+    // a scheme this build has no transport for; refused, not defaulted to UDP, which would dial the wrong thing.
     if (transport == NYA_NET_TRANSPORT_KIND_COUNT) return false;
 
-    /*
-     * Then from the right, not the left: an IPv6 literal is full of colons, so the address is whatever
-     * is left once the two fixed-width tail fields have been taken off.
-     */
+    // Then from the right: an IPv6 literal is full of colons, so the address is what remains after the fixed tail fields.
     u64 body_start = scheme_end + 1;
     u64 body_end   = length;
 
@@ -416,7 +363,7 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
     u8 server_key[NYA_NET_KEY_SIZE] = { 0 };
     b8 keyed                        = false;
 
-    /* The optional key first, since it is the last field when it is there. */
+    // The optional key first, since it is the last field when it is there.
     u64 last_colon = body_end;
     for (u64 i = body_end; i > body_start; i--) {
         if (secret[i - 1] == ':') {
@@ -432,8 +379,7 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
         nya_memcpy(hex, secret + last_colon + 1, NYA_NET_KEY_HEX_SIZE - 1);
         hex[NYA_NET_KEY_HEX_SIZE - 1] = '\0';
 
-        // a 64 character tail that is not hex is not a key, so the secret is refused rather than read as
-        // a very long port.
+        // a 64 character tail that is not hex is not a key, so the secret is refused rather than read as a long port.
         if (!nya_net_key_from_hex(hex, server_key)) return false;
 
         keyed    = true;
@@ -457,8 +403,7 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
     if (address_length >= NYA_NET_MAX_ADDRESS) return false;
     if (!_nya_net_config_address_is_plausible(secret + body_start, address_length)) return false;
 
-    // an empty address only means something over UDP, where the provider routes the connection. Over
-    // Steam the address is the account to dial and there is nothing to substitute for it.
+    // an empty address only means something over UDP; over Steam the address is the account to dial.
     if (address_length == 0 && transport == NYA_NET_TRANSPORT_STEAM) return false;
 
     out_config->role      = NYA_NET_ROLE_CLIENT;
@@ -477,25 +422,19 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_net_config_address_is_plausible(NYA_ConstCString text, u64 length) {
     nya_assert(text != nullptr);
 
-    // an empty address is legal and means "the provider routes this", which is what a Steam lobby or a
-    // Discord host answering its own invite does.
+    // an empty address is legal and means "the provider routes this" (a Steam lobby, a Discord invite).
     for (u64 i = 0; i < length; i++) {
         char character = text[i];
 
         b8 letter = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z');
         b8 digit  = character >= '0' && character <= '9';
 
-        // the full set a hostname, an IPv4 literal and a bare IPv6 literal need, and nothing else: a
-        // '/' or a '%' here would be a path or a scope id going into getaddrinfo.
+        // the full set a hostname, IPv4 or bare IPv6 literal needs; a '/' or '%' would be a path or scope id.
         if (!letter && !digit && character != '.' && character != '-' && character != ':') return false;
     }
 
@@ -551,8 +490,7 @@ u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString what, u64 fal
             return fallback;
         }
 
-        // Overflow, on a value that came from a command line. Reported rather than wrapped, because a
-        // wrapped port number is a port nobody asked for.
+        // Overflow on a command-line value: reported rather than wrapped, since a wrapped port is one nobody asked for.
         if (value > (UINT64_MAX - (u64)(*cursor - '0')) / 10) {
             nya_log_warn("%s '%s' is too large; using %llu.", what, text, (unsigned long long)fallback);
             return fallback;

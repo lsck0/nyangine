@@ -10,11 +10,7 @@
 #include "nyangine/net/net_crypto.h"
 #include "nyangine/net/net_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_NetTransport      NYA_NetTransport;
 typedef struct NYA_NetTransportVTable NYA_NetTransportVTable;
@@ -194,17 +190,9 @@ struct NYA_NetTransport {
     void* state;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * CONSTRUCTION
- * ─────────────────────────────────────────────────────────
- */
+// CONSTRUCTION
 
 /**
  * A transport that carries messages between two endpoints in the same process.
@@ -222,17 +210,9 @@ NYA_API NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptio
  * */
 NYA_API NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTransport** out_transport) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// OPERATIONS
 
-/*
- * Thin forwarders over the vtable. They exist so a caller writes nya_net_transport_send rather than
- * transport->vtable->send(transport, ...), and so a null vtable entry is one assertion here instead
- * of a fault at every call site.
- */
+// Thin forwarders over the vtable, so a null entry is one assertion here rather than a fault at every call site.
 
 NYA_API NYA_Error nya_net_transport_listen(NYA_NetTransport* transport, u16 port) __attr_no_discard;
 

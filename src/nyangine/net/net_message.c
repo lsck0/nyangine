@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 void nya_net_message_begin(NYA_String* out, NYA_NetMessageKind kind) {
     nya_assert(out != nullptr);
@@ -20,9 +16,7 @@ NYA_NetMessageKind nya_net_message_kind(const u8* data, u64 size, OUT u64* out_b
 
     u8 kind = data[0];
 
-    /*
-     * An unknown kind is reported as COUNT rather than refused.
-     */
+    // An unknown kind is reported as COUNT rather than refused.
     if (kind == 0 || kind >= NYA_NET_MSG_COUNT) return NYA_NET_MSG_COUNT;
 
     if (out_body_offset != nullptr) *out_body_offset = 1;
@@ -40,8 +34,7 @@ NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out, const 
     NYA_String* document = nya_serialize(arena, object, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     if (document == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize a network message");
 
-    // length prefixed, so a reader finds the end without parsing and can skip documents it does not
-    // understand.
+    // length prefixed, so a reader finds the end without parsing and can skip documents it does not understand.
     u32 length = (u32)document->length;
     for (u32 i = 0; i < 4; i++) nya_string_push_back(out, (u8)((length >> (i * 8)) & 0xFF));
 
@@ -63,9 +56,7 @@ NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size
     u32 length = 0;
     for (u32 i = 0; i < 4; i++) length |= (u32)data[i] << (i * 8);
 
-    /*
-     * The prefix is checked against what actually arrived, not trusted.
-     */
+    // The prefix is checked against what actually arrived, not trusted.
     if (length > size - 4) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a message claiming %u bytes of document in %llu bytes", length, (unsigned long long)size);
     }

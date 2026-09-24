@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** Poly1305 tag length, appended to every sealed packet. */
 #define _NYA_NET_MAC_SIZE NYA_CRYPTO_TAG_BYTES
@@ -22,17 +18,10 @@
 static_assert(NYA_NET_KEY_SIZE == NYA_CRYPTO_EXCHANGE_KEY_BYTES, "a net key is an X25519 key");
 static_assert(NYA_NET_KEY_SIZE == NYA_CRYPTO_KEY_BYTES, "a session key is an XChaCha20-Poly1305 key");
 
-/**
- * X25519 of a secret and a public key. False when the result is all zero, which is what a low order public key
- * produces and what a peer would send to force a known shared secret.
- * */
+/** X25519 of a secret and a public key; false on an all-zero result, which a low-order key forces. */
 NYA_INTERNAL b8 _nya_net_crypto_exchange(OUT u8* shared, const u8* secret_key, const u8* public_key) __attr_no_discard;
 
-/**
- * What the client can compute before it has heard the server's ephemeral key: both exchanges against the server's
- * identity, bound to the three public keys involved. `dh_static_static` and `client_static` are zero for an anonymous
- * player.
- * */
+/** What the client computes before the server's ephemeral key: both static exchanges, bound to the three public keys (zero for anonymous). */
 NYA_INTERNAL void _nya_net_crypto_premaster(
     OUT u8* premaster, const u8* dh_ephemeral_static, const u8* dh_static_static, const u8* server_static, const u8* client_ephemeral,
     const u8* client_static
@@ -53,11 +42,7 @@ NYA_INTERNAL void _nya_net_crypto_seal(const u8* key, u64 counter, const u8* ad,
 NYA_INTERNAL b8 _nya_net_crypto_open(const u8* key, u64 counter, const u8* ad, u64 ad_size, u8* text, u64 size, const u8* mac)
     __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) {
     nya_assert(out_key_pair != nullptr);
@@ -169,7 +154,7 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString path, OUT NYA_NetKeyPair* out_k
             }
         }
 
-        // a damaged file is replaced rather than trusted, which gives the endpoint a new identity. Said out loud, since players who pinned the old one will be refused.
+        // a damaged file is replaced (a new identity); logged, since players who pinned the old key will be refused.
         nya_log_warn("The key pair in '%s' is unreadable; making a new one.", path);
     }
 
@@ -194,11 +179,7 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString path, OUT NYA_NetKeyPair* out_k
     return written;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 b8 _nya_net_crypto_exchange(OUT u8* shared, const u8* secret_key, const u8* public_key) {
     NYA_CryptoExchangeSecretKey secret = { 0 };
@@ -221,8 +202,7 @@ void _nya_net_crypto_premaster(
     OUT u8* premaster, const u8* dh_ephemeral_static, const u8* dh_static_static, const u8* server_static, const u8* client_ephemeral,
     const u8* client_static
 ) {
-    // one buffer hashed once is the same BLAKE2b as the pieces fed in turn, so the bytes on the wire are
-    // what they were when this streamed.
+    // one buffer hashed once is the same BLAKE2b as the pieces fed in turn.
     u8  transcript[_NYA_NET_CRYPTO_PREMASTER_BYTES] = { 0 };
     u64 at                                          = 0;
 

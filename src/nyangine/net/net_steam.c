@@ -1,46 +1,12 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STEAM TRANSPORT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STEAM TRANSPORT
 
-/*
- * The same NYA_NetTransport the UDP and loopback ones satisfy, over SteamNetworkingMessages.
- *
- * What this transport does and does not do, and why:
- *
- * - No encryption, no key exchange and no reliability of its own, unlike net_udp.c. Valve's relay
- *   already authenticates both ends by Steam account and encrypts the link, and the reliable channel is
- *   ordered and retransmitted by the SDK. Adding a second copy of either would be paying twice for the
- *   same guarantee, so public_key and peer_key are null here and a client cannot pin a server key over
- *   Steam. Pinning is a UDP concept; on Steam the account is the identity.
- * - An address is a Steam id in decimal, and the port is ignored. There is nothing to bind: peers reach
- *   each other by account through the relay, so `listen` means "accept sessions from now on".
- * - No fragmentation. SteamNetworkingMessages carries a message whole, and everything above this keeps
- *   to NYA_NET_MAX_DATAGRAM anyway.
- * - Conditions (latency, loss) are not simulated. The wire is Valve's and this transport never sees a
- *   datagram; `--net-latency` and friends only apply to the UDP transport, which is where the
- *   prediction work they exist to exercise is also implemented.
- *
- * Every peer's bytes are untrusted in exactly the way the UDP transport's are, and the layer above
- * parses them; what this file owes is a bounded peer table and a bounded inbox, which is what it has.
- */
+// The NYA_NetTransport over SteamNetworkingMessages: no encryption or reliability of its own (Valve's relay provides both), address is a Steam id, no fragmentation, conditions not simulated.
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/**
- * The one Steam channel this transport uses.
- *
- * One rather than one per NYA_NetChannel: reliability is a per-message flag in this SDK, not a channel,
- * and two channels would let a reliable message and the unreliable one behind it arrive in an order
- * neither endpoint chose.
- * */
+/** The one Steam channel this transport uses: reliability is a per-message flag in this SDK, not a channel. */
 #define _NYA_NET_STEAM_CHANNEL 0
 
 /** One message taken off Steam and not yet polled. */
@@ -78,17 +44,11 @@ typedef struct {
 
     _NYA_NetSteamPeer peers[NYA_NET_MAX_PEERS];
 
-    /**
-     * Connects and disconnects waiting to be reported, oldest first.
-     * */
+    /** Connects and disconnects waiting to be reported, oldest first. */
     _NYA_NetSteamEvent events[NYA_NET_MAX_PEERS * 2];
     u32                event_count;
 
-    /**
-     * One receive round's messages. Refilled only once every entry has been polled, so the bytes a
-     * MESSAGE event points at stay valid until the poll after the one that handed them out, which is
-     * the same lifetime the loopback transport gives.
-     * */
+    /** One receive round's messages, refilled only once every entry has been polled, so a MESSAGE event's bytes stay valid until the next poll. */
     _NYA_NetSteamInboxEntry inbox[NYA_STEAM_MAX_RECEIVE];
     u32                     inbox_count;
     u32                     inbox_read;
@@ -108,9 +68,7 @@ NYA_INTERNAL void             _nya_net_steam_destroy(NYA_NetTransport* transport
 /** Finds the slot holding `user`, or NYA_NET_MAX_PEERS. */
 NYA_INTERNAL u32 _nya_net_steam_find(const _NYA_NetSteamEndpoint* endpoint, NYA_SteamId user) __attr_no_discard;
 
-/**
- * Takes a free slot for `user` and reports it as connected, or NYA_NET_MAX_PEERS when the table is full.
- * */
+/** Takes a free slot for `user` and reports it as connected, or NYA_NET_MAX_PEERS when the table is full. */
 NYA_INTERNAL u32 _nya_net_steam_add(_NYA_NetSteamEndpoint* endpoint, NYA_SteamId user) __attr_no_discard;
 
 /** Frees a slot and reports the peer as gone. */
@@ -153,11 +111,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_STEAM_VTABLE = {
     .peer_key   = nullptr,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTransport** out_transport) {
     nya_assert(arena != nullptr);
@@ -165,8 +119,7 @@ NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTransport*
 
     *out_transport = nullptr;
 
-    // reported rather than asserted: a player who closed Steam and pressed "host" gets a message, and a
-    // build with no Steamworks library at all gets the same one.
+    // reported, not asserted: a player who closed Steam and pressed "host" gets a message, as does a build with no Steamworks.
     if (!nya_steam_is_connected()) {
         return nya_error(NYA_ERROR_NOT_SUPPORTED, "the Steam transport needs a running Steam client; use the UDP transport");
     }
@@ -187,17 +140,12 @@ NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTransport*
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_net_steam_listen(NYA_NetTransport* transport, u16 port) {
     _NYA_NetSteamEndpoint* endpoint = transport->state;
 
-    // there is no socket to bind: a Steam peer reaches this process by account through Valve's relay.
-    // the port is accepted and ignored so a caller can pass the same launch config to either transport.
+    // no socket to bind (peers reach this by account through Valve's relay); the port is accepted and ignored.
     if (port != 0) nya_log_debug("The Steam transport has no port to bind; ignoring %u.", port);
 
     endpoint->accepting = true;
@@ -224,8 +172,7 @@ NYA_Error _nya_net_steam_connect(NYA_NetTransport* transport, NYA_ConstCString a
     u32 index = _nya_net_steam_add(endpoint, host);
     if (index == NYA_NET_MAX_PEERS) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no free peer slot");
 
-    // accepted here as well as on the far end: SteamNetworkingMessages is symmetric, and without it the
-    // host's first reply would raise a session request this side would then have to answer.
+    // pre-accepted here too (the SDK is symmetric), else the host's first reply would raise a session request to answer.
     NYA_Error accepted = nya_steam_p2p_accept(host);
     if (!accepted.ok) nya_log_debug("Steam did not pre-accept the session with %llu; the first message will open it.", (unsigned long long)host.value);
 
@@ -251,8 +198,7 @@ NYA_Error _nya_net_steam_send(NYA_NetTransport* transport, NYA_NetPeerId peer, N
 b8 _nya_net_steam_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event) {
     _NYA_NetSteamEndpoint* endpoint = transport->state;
 
-    // sessions before messages: a peer's CONNECTED has to be reported before the first message from it,
-    // or the layer above sees data from a peer it was never told about.
+    // sessions before messages: a peer's CONNECTED must precede its first message, or the layer above sees an unknown peer.
     if (endpoint->event_count == 0) _nya_net_steam_drain_sessions(endpoint);
 
     if (endpoint->event_count > 0) {
@@ -266,8 +212,7 @@ b8 _nya_net_steam_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* o
         return true;
     }
 
-    // only with the inbox drained: the bytes handed out by the previous poll live in the same buffer a
-    // receive overwrites.
+    // only with the inbox drained: the previous poll's bytes live in the same buffer a receive overwrites.
     if (endpoint->inbox_read == endpoint->inbox_count) _nya_net_steam_receive(endpoint);
 
     if (endpoint->inbox_read == endpoint->inbox_count) return false;
@@ -298,12 +243,10 @@ void _nya_net_steam_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer, 
     u32 index = _nya_net_steam_resolve(endpoint, peer);
     if (index == NYA_NET_MAX_PEERS) return;
 
-    // Steam is told, so the far end's session ends now rather than on its own timeout. The layer above
-    // has already sent whatever goodbye message it wanted to.
+    // Steam is told so the far end's session ends now rather than on its own timeout.
     nya_steam_p2p_close(endpoint->peers[index].user);
 
-    // no event: this side asked for it, and the layer above does not want to hear its own disconnect
-    // back. _nya_net_steam_remove is for the far end going away.
+    // no event: this side asked for it; _nya_net_steam_remove is for the far end going away.
     endpoint->peers[index] = (_NYA_NetSteamPeer){ .generation = endpoint->peers[index].generation };
 
     nya_unused(reason);
@@ -315,8 +258,7 @@ NYA_NetPeerStats _nya_net_steam_stats(NYA_NetTransport* transport, NYA_NetPeerId
     u32 index = _nya_net_steam_resolve(endpoint, peer);
     if (index == NYA_NET_MAX_PEERS) return (NYA_NetPeerStats){ 0 };
 
-    // round trip, jitter and loss stay zero. They are Valve's relay's numbers and this transport never
-    // measures a packet; showing an invented one would be worse than showing none.
+    // round trip, jitter and loss stay zero: they are Valve's relay's numbers, and this transport never measures a packet.
     return endpoint->peers[index].stats;
 }
 
@@ -361,8 +303,7 @@ u32 _nya_net_steam_add(_NYA_NetSteamEndpoint* endpoint, NYA_SteamId user) {
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
         if (endpoint->peers[i].connected) continue;
 
-        // bumped on every reuse, so a peer id held across a reconnect names the old connection and
-        // resolves to nothing rather than to whoever now holds the slot.
+        // bumped on every reuse, so a peer id held across a reconnect resolves to nothing, not the slot's new owner.
         endpoint->peers[i].generation++;
         endpoint->peers[i].user      = user;
         endpoint->peers[i].connected = true;
@@ -410,8 +351,7 @@ u32 _nya_net_steam_resolve(const _NYA_NetSteamEndpoint* endpoint, NYA_NetPeerId 
 }
 
 void _nya_net_steam_event_push(_NYA_NetSteamEndpoint* endpoint, _NYA_NetSteamEvent event) {
-    // two per peer is a connect and a disconnect each, which is the most that can be outstanding: a
-    // peer cannot connect a second time without its slot being freed first.
+    // two per peer (a connect and a disconnect) is the most outstanding: no second connect before the slot is freed.
     if (endpoint->event_count >= nya_carray_length(endpoint->events)) {
         nya_log_warn("The Steam transport's event queue is full; dropping a %s.",
                      event.kind == NYA_NET_TRANSPORT_EVENT_CONNECTED ? "connect" : "disconnect");
@@ -429,8 +369,7 @@ void _nya_net_steam_drain_sessions(_NYA_NetSteamEndpoint* endpoint) {
         if (!nya_steam_id_is_set(event.user)) continue;
 
         if (event.kind == NYA_STEAM_EVENT_SESSION_REQUEST) {
-            // a client refuses everyone: it talks to the one account it connected to, and anything
-            // else knocking is somebody who found the account, not the game.
+            // a client refuses everyone: anything but the one account it connected to is not the game.
             if (!endpoint->accepting) {
                 if (_nya_net_steam_find(endpoint, event.user) == NYA_NET_MAX_PEERS) {
                     nya_steam_p2p_close(event.user);
@@ -447,8 +386,7 @@ void _nya_net_steam_drain_sessions(_NYA_NetSteamEndpoint* endpoint) {
             }
 
             if (_nya_net_steam_add(endpoint, event.user) == NYA_NET_MAX_PEERS) {
-                // the table is full, which on a server is the player limit reached. Closed rather than
-                // left half open, so the far end learns now instead of timing out.
+                // the table is full (the player limit); closed rather than left half open, so the far end learns now.
                 nya_log_warn("Refusing a Steam session from %llu: the peer table is full.", (unsigned long long)event.user.value);
                 nya_steam_p2p_close(event.user);
             }
@@ -460,8 +398,7 @@ void _nya_net_steam_drain_sessions(_NYA_NetSteamEndpoint* endpoint) {
             u32 index = _nya_net_steam_find(endpoint, event.user);
             if (index == NYA_NET_MAX_PEERS) continue;
 
-            // Steam reports a session that broke, never one a peer closed politely, so this is always
-            // the "the link went away" case.
+            // Steam reports only sessions that broke, never a polite close, so this is always "the link went away".
             _nya_net_steam_remove(endpoint, index, NYA_NET_DISCONNECT_TIMEOUT);
             continue;
         }
@@ -492,8 +429,7 @@ void _nya_net_steam_receive(_NYA_NetSteamEndpoint* endpoint) {
         u32 index = _nya_net_steam_find(endpoint, message->sender);
 
         if (index == NYA_NET_MAX_PEERS) {
-            // a first message from a peer whose session request was accepted by Steam before this
-            // transport existed, which is what an invite accepted at the main menu looks like.
+            // a first message from a peer Steam accepted before this transport existed (an invite taken at the menu).
             if (!endpoint->accepting) continue;
 
             index = _nya_net_steam_add(endpoint, message->sender);
@@ -527,8 +463,7 @@ NYA_SteamId _nya_net_steam_id_from_address(NYA_ConstCString address) {
     for (u64 i = 0; i < length; i++) {
         if (address[i] < '0' || address[i] > '9') return NYA_STEAM_ID_NONE;
 
-        // the address came from a join secret another player's client produced, so a twenty digit
-        // number past 2^64 is refused rather than wrapped into somebody else's account.
+        // the address came off a join secret, so a number past 2^64 is refused rather than wrapped into another account.
         if (value > (UINT64_MAX - (u64)(address[i] - '0')) / 10) return NYA_STEAM_ID_NONE;
 
         value = (value * 10) + (u64)(address[i] - '0');

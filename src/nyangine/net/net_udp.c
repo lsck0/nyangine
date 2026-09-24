@@ -3,47 +3,13 @@
 #include "nyangine/net/net_bytes.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE WIRE FORMAT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE WIRE FORMAT
 
-/*
- * Handshake packets start with the protocol word and a kind, and are the only thing a stranger may send:
- *
- * ```
- * CONNECT    client  protocol u32, kind u8, zeros to 64 bytes
- * CHALLENGE  server  protocol, kind, cookie u64, server key [32]
- * RESPONSE   client  protocol, kind, cookie u64, ephemeral key [32], client key [32] or zeros, tag [16]
- * ACCEPT     server  protocol, kind, ephemeral key [32], tag [16]
- * REFUSED    server  protocol, kind, reason u8
- * ```
- *
- * A server answers CONNECT without keeping anything: the cookie is a keyed hash of the address and a coarse clock,
- * recomputed when it comes back, and CONNECT is padded so a challenge is never larger than what asked for it. Only a
- * RESPONSE with a valid cookie and a valid tag takes a peer slot. See net_crypto.h for the keys.
- *
- * Everything after the handshake is a sealed packet from an established peer's address:
- *
- * ```
- * kind u8, sequence u16, ack u16, ack bits u32, reliable ack u16, fragment count u8     the header, authenticated
- * fragments: channel u8, message id u16, index u16, total u16, length u16, bytes        encrypted
- * tag [16]
- * ```
- *
- * The sequence on the wire is the low 16 bits of a 64 bit counter; the receiver rebuilds the rest from the newest
- * sequence it has, and the whole counter is the nonce. A packet older than the ack window, or already inside it, is a
- * replay and is dropped before it is decrypted.
- */
+// The wire format: cookie-authenticated handshake (CONNECT/CHALLENGE/RESPONSE/ACCEPT/REFUSED) taking no server state until a valid RESPONSE, then sealed packets whose wire sequence is the low 16 bits of the 64-bit nonce counter; replays are dropped before decryption. See net_crypto.h for the keys.
 
 #define _NYA_NET_UDP_PROTOCOL 0x6E796106U /* "nya" + version 6 */
 
-/**
- * How long destroying a transport waits for a hostname it is still resolving. A name answers in milliseconds, and
- * NXDOMAIN for a made up one is as quick; the wait exists for the resolver thread that has not started yet on a
- * loaded machine. Bounded, since a transport closed mid lookup must not stall the program that closed it.
- * */
+/** How long destroying a transport waits for a hostname it is still resolving, bounded so a mid-lookup close cannot stall the program. */
 #define _NYA_NET_UDP_RESOLVE_WAIT_MS 1000
 
 #define _NYA_NET_UDP_KIND_DATA       0
@@ -94,10 +60,7 @@
 /** How long a cookie stays valid, in milliseconds. The previous window is accepted too. */
 #define _NYA_NET_UDP_COOKIE_WINDOW_MS 20000
 
-/**
- * How many message ids behind the newest one are remembered per channel, for duplicate suppression. An id further
- * back than this is treated as a duplicate: nothing legitimate arrives that late.
- * */
+/** How many message ids behind the newest are remembered per channel for duplicate suppression; anything older counts as a duplicate. */
 #define _NYA_NET_UDP_SEEN_WINDOW    1024
 #define _NYA_NET_UDP_SEEN_WORD_BITS 64
 
@@ -135,11 +98,7 @@
 /** Datagrams the conditioner can hold back at once. Past it they are dropped, as a full router would. */
 #define _NYA_NET_UDP_CONDITIONER_QUEUE 1024
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** A reliable message awaiting acknowledgement. Kept whole; fragmentation happens at send time. */
 typedef struct {
@@ -212,10 +171,7 @@ typedef struct {
     /** Next reliable id to deliver. Later ones are held until it arrives. */
     u16 next_delivery_id;
 
-    /**
-     * Ids already received, per channel, as a window behind the newest id: bit k is `newest - k`. Relative to the
-     * newest, so an id arriving out of order cannot clear another's mark.
-     * */
+    /** Ids already received, per channel, as a window behind the newest: bit k is `newest - k`, so an out-of-order id cannot clear another's mark. */
     u64 seen[NYA_NET_CHANNEL_COUNT][_NYA_NET_UDP_SEEN_WINDOW / _NYA_NET_UDP_SEEN_WORD_BITS];
     u16 seen_newest[NYA_NET_CHANNEL_COUNT];
     b8  seen_any[NYA_NET_CHANNEL_COUNT];
@@ -312,14 +268,7 @@ typedef struct {
     u64          connect_started_ms;
     u64          connect_last_sent_ms;
 
-    /**
-     * The hostname has not come back yet, so there is no socket and no peer.
-     *
-     * The lookup runs on its own thread and nya_resolver_poll asks without blocking, so this is polled
-     * from the update instead of waited on. Connecting used to wait here for up to the whole connect
-     * timeout, five seconds, inside the caller's call — which for a game is five seconds of a frozen
-     * frame on a hostname that was misspelled.
-     * */
+    /** The hostname has not come back yet (no socket, no peer): the lookup runs on its own thread and is polled from the update, never waited on. */
     b8 resolving;
 
     /** A challenge came back with a key other than the pinned one, so a timeout is reported as an identity failure. */
@@ -397,9 +346,7 @@ NYA_INTERNAL void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 pe
 /** Resends whatever reliable messages are due. */
 NYA_INTERNAL void _nya_net_udp_flush(NYA_NetTransport* transport, u32 peer_index);
 
-/**
- * Seals and sends the packet whose body is already at send_buffer + _NYA_NET_UDP_HEADER_SIZE.
- * */
+/** Seals and sends the packet whose body is already at send_buffer + _NYA_NET_UDP_HEADER_SIZE. */
 NYA_INTERNAL void _nya_net_udp_send_packet(NYA_NetTransport* transport, u32 peer_index, u8 kind, u8 fragment_count, u64 body_size);
 
 /** Appends one fragment's header and bytes to the body at send_buffer + _NYA_NET_UDP_HEADER_SIZE + `at`, returning the new end. */
@@ -477,10 +424,7 @@ NYA_INTERNAL void _nya_net_udp_reassemble(
 /** Hands up every reliable message now in order, starting from next_delivery_id. */
 NYA_INTERNAL void _nya_net_udp_drain_ordered(NYA_NetTransport* transport, u32 peer_index);
 
-/*
- * Message ids wrap at 16 bits, so 0 is newer than 65535. a is newer than b when the forward distance is less than
- * half the space.
- */
+// Message ids wrap at 16 bits: a is newer than b when the forward distance is less than half the space.
 NYA_INTERNAL b8 _nya_net_udp_sequence_newer(u16 a, u16 b) __attr_no_discard;
 
 /** Little endian readers and writers, so every host produces the same bytes. */
@@ -512,11 +456,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_UDP_VTABLE = {
     .destroy      = &_nya_net_udp_destroy,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions options, OUT NYA_NetTransport** out_transport) {
     nya_assert(arena != nullptr);
@@ -560,17 +500,9 @@ NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions optio
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFECYCLE
- * ─────────────────────────────────────────────────────────
- */
+// LIFECYCLE
 
 NYA_Error _nya_net_udp_listen(NYA_NetTransport* transport, u16 port) {
     _NYA_NetUdpState* state = transport->state;
@@ -579,11 +511,7 @@ NYA_Error _nya_net_udp_listen(NYA_NetTransport* transport, u16 port) {
 
     if (!nya_net_key_is_set(state->identity.secret_key)) NYA_TRY(nya_net_key_pair_create(&state->identity));
 
-    /*
-     * Zero means "whichever one is free", which is how two servers come up on one machine with nothing
-     * agreed in advance. The socket is asked afterwards what it actually bound, so a server can always
-     * tell a client where it is; nya_net_transport_port is how the caller reads it back.
-     */
+    // Zero binds whichever port is free; the socket is asked afterwards what it bound (read back via nya_net_transport_port).
     NYA_OsSocketStatus opened = nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, port, 0, &state->socket);
 
     if (opened == NYA_OS_SOCKET_IN_USE) return nya_error(NYA_ERROR_NOT_OK, "UDP port %u is already taken", port);
@@ -617,13 +545,7 @@ u16 _nya_net_udp_port(NYA_NetTransport* transport) {
     return state->port;
 }
 
-/**
- * Opens the socket and adds the server's peer, once the hostname has resolved.
- *
- * Split out of _nya_net_udp_connect because it can only run after the name is known, and the name is
- * now known from the update rather than from a wait inside connect. False when the socket could not be
- * opened, which the caller turns into a failed connection.
- * */
+/** Opens the socket and adds the server's peer once the hostname resolved; false when the socket could not be opened. */
 NYA_INTERNAL b8 _nya_net_udp_resolve_finish(NYA_NetTransport* transport, u64 now_ms) {
     _NYA_NetUdpState* state = transport->state;
 
@@ -640,11 +562,7 @@ NYA_INTERNAL b8 _nya_net_udp_resolve_finish(NYA_NetTransport* transport, u64 now
 
     state->resolving = false;
 
-    /*
-     * The clock restarts here rather than at connect. Otherwise a slow lookup spends the connection's
-     * whole budget before a single packet has been sent, and a player on a slow resolver would see a
-     * timeout without the game ever having tried to reach the server.
-     */
+    // The clock restarts here, not at connect, so a slow lookup does not spend the connection's whole budget first.
     state->connect_started_ms   = now_ms;
     state->connect_last_sent_ms = 0;
 
@@ -658,11 +576,7 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
 
     if (state->socket.handle != 0) return nya_error(NYA_ERROR_NOT_OK, "this transport already has a socket");
 
-    /*
-     * Started rather than waited for: a name lookup is the host's resolver and may take seconds, which
-     * for a game is seconds of a frozen frame on a hostname that was misspelled. A literal is answered
-     * inside this call, so connecting to an address costs nothing extra. See base_socket.h.
-     */
+    // Started, not waited for: a name lookup may take seconds (a frozen frame); a literal is answered inside this call. See base_socket.h.
     NYA_Resolver* resolver = nullptr;
     NYA_TRY(nya_resolver_create(state->allocator, address, port, NYA_OS_ADDRESS_NONE, &resolver));
 
@@ -672,10 +586,7 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
         return keyed;
     }
 
-    /*
-     * The socket and the peer wait for the name. A peer is found by address, and an address that has
-     * not resolved is not one yet; see _nya_net_udp_resolve_finish, which does both once it has.
-     */
+    // The socket and the peer wait for the name; _nya_net_udp_resolve_finish does both once it resolves.
     state->connecting           = true;
     state->resolving            = true;
     state->resolver             = resolver;
@@ -692,8 +603,7 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
     _NYA_NetUdpState* state = transport->state;
     if (state == nullptr) return;
 
-    // a courtesy: the datagram may be lost and the peer times out instead. worth it, since a clean exit is the common
-    // case and a ten second timeout is poor for everyone else.
+    // a courtesy: the datagram may be lost and the peer time out instead, but a clean exit is the common case.
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
         if (!state->peers[i].occupied) continue;
 
@@ -730,11 +640,7 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * SENDING
- * ─────────────────────────────────────────────────────────
- */
+// SENDING
 
 NYA_Error _nya_net_udp_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size) {
     _NYA_NetUdpState* state = transport->state;
@@ -963,8 +869,7 @@ void _nya_net_udp_condition(NYA_NetTransport* transport, NYA_NetConditions condi
 }
 
 u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NYA_OsAddress address, u64 epoch_offset) {
-    // The address's own bytes, which is what makes a cookie belong to one host: sixteen for v6 and the
-    // first four of them for v4.
+    // The address's own bytes make a cookie belong to one host: sixteen for v6, four for v4.
     u64       address_size  = address.kind == NYA_OS_ADDRESS_V6 ? 16 : (address.kind == NYA_OS_ADDRESS_V4 ? 4 : 0);
     const u8* address_bytes = address.bytes;
 
@@ -1023,11 +928,7 @@ b8 _nya_net_udp_handshake_allowed(_NYA_NetUdpState* state, NYA_OsAddress address
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * RECEIVING
- * ─────────────────────────────────────────────────────────
- */
+// RECEIVING
 
 b8 _nya_net_udp_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event) {
     _NYA_NetUdpState* state = transport->state;
@@ -1072,8 +973,7 @@ void _nya_net_udp_receive(NYA_NetTransport* transport) {
 
         NYA_OsSocketStatus received = nya_os_socket_receive_from(state->socket, datagram, sizeof(datagram), &size, &from);
 
-        // Nothing waiting is the ordinary end of this loop, and the one error a datagram socket gives
-        // per peer — a refused one on the way back — must not take the socket down with it.
+        // Nothing waiting ends the loop; a per-peer error (a refused datagram on the way back) must not take the socket down.
         if (received == NYA_OS_SOCKET_WOULD_BLOCK) return;
 
         if (received != NYA_OS_SOCKET_OK) {
@@ -1163,8 +1063,7 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress add
             continue;
         }
 
-        // by host and not by port: a second socket on the same machine is a second port, so counting
-        // ports would be counting nothing.
+        // by host, not by port: a second socket on one machine is a second port, so counting ports counts nothing.
         if (nya_os_address_equals_host(state->peers[i].address, address)) same_address++;
     }
 
@@ -1610,11 +1509,7 @@ void _nya_net_udp_event(_NYA_NetUdpState* state, _NYA_NetUdpEvent event) {
     nya_array_push_back(state->events, event);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * TIME
- * ─────────────────────────────────────────────────────────
- */
+// TIME
 
 void _nya_net_udp_update(NYA_NetTransport* transport) {
     _NYA_NetUdpState* state = transport->state;
@@ -1623,11 +1518,7 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
 
     u64 now_ms = nya_clock_get_monotonic_ms();
 
-    /*
-     * The name, if it has not come back yet. Asked, never waited on: this runs inside the caller's
-     * frame and a DNS lookup that takes a second must cost a second of connecting rather than a
-     * second of a stopped game.
-     */
+    // The name, if it has not come back yet: asked, never waited on, since this runs inside the caller's frame.
     if (state->connecting && state->resolving) {
         NYA_OsAddress      address = { 0 };
         NYA_ResolverStatus status  = nya_resolver_poll(state->resolver, &address);
@@ -1649,11 +1540,7 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
                 });
             }
         } else if (status == NYA_RESOLVER_FAILED || _nya_net_elapsed_ms(now_ms, state->connect_started_ms) > _NYA_NET_UDP_CONNECT_TIMEOUT_MS) {
-            /*
-             * A name that will not resolve and a name that is taking too long end the same way. It is
-             * reported as an event rather than returned, because by now the caller's connect has long
-             * since returned OK; that is what asking instead of waiting costs.
-             */
+            // An unresolvable name and one that took too long end the same way, reported as an event since connect already returned OK.
             nya_log_warn("Could not resolve the server's hostname: %s", nya_resolver_error(state->resolver));
 
             nya_resolver_destroy(state->resolver);
@@ -1740,11 +1627,7 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * PEERS
- * ─────────────────────────────────────────────────────────
- */
+// PEERS
 
 u32 _nya_net_udp_find_peer(_NYA_NetUdpState* state, NYA_OsAddress address) {
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
@@ -1891,11 +1774,7 @@ const u8* _nya_net_udp_peer_key(NYA_NetTransport* transport, NYA_NetPeerId peer)
     return nya_net_key_is_set(state->peers[index].remote_key) ? state->peers[index].remote_key : nullptr;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * ACKNOWLEDGEMENTS
- * ─────────────────────────────────────────────────────────
- */
+// ACKNOWLEDGEMENTS
 
 u64 _nya_net_udp_sequence_expand(u64 newest, u16 wire) {
     u64 candidate = (newest & ~0xFFFFULL) | wire;
@@ -2049,11 +1928,7 @@ b8 _nya_net_udp_reliable_acceptable(const _NYA_NetUdpPeer* peer, u16 message_id)
     return (u16)(message_id - next) < _NYA_NET_UDP_MAX_REORDER;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * BYTES
- * ─────────────────────────────────────────────────────────
- */
+// BYTES
 
 b8 _nya_net_udp_sequence_newer(u16 a, u16 b) {
     // half the space is the largest unambiguous window, and nothing here has 32768 messages in flight.

@@ -14,11 +14,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_NetProtocol NYA_NetProtocol;
 
@@ -30,11 +26,7 @@ enum NYA_NetProtocol {
     NYA_NET_PROTOCOL_COUNT,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * A free local port, chosen by the system: a socket is bound to port zero, the number the kernel put on it

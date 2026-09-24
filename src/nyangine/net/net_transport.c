@@ -1,34 +1,23 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 b8 nya_net_peer_equals(NYA_NetPeerId a, NYA_NetPeerId b) {
     return a.index == b.index && a.generation == b.generation;
 }
 
 b8 nya_net_peer_is_set(NYA_NetPeerId peer) {
-    // the generation, not the index. Slot zero is an ordinary peer (the host on a listen server), and
-    // only generation zero means never assigned.
+    // the generation, not the index: slot zero is an ordinary peer, only generation zero means never assigned.
     return peer.generation != 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// OPERATIONS
 
 NYA_Error nya_net_transport_listen(NYA_NetTransport* transport, u16 port) {
     nya_assert(transport != nullptr);
     nya_assert(transport->vtable != nullptr);
 
-    // Not an assertion: "this transport cannot accept connections" is a real answer for the loopback
-    // pair and for a Steam client socket, and a caller offering to open a game to the LAN should get
-    // an error it can show rather than a panic.
+    // Not an assertion: "cannot accept connections" is a real answer (loopback, Steam client), so return an error, not a panic.
     if (transport->vtable->listen == nullptr) {
         return nya_error(NYA_ERROR_NOT_SUPPORTED, "the %s transport cannot listen", transport->vtable->name);
     }
@@ -40,8 +29,7 @@ u16 nya_net_transport_port(NYA_NetTransport* transport) {
     nya_assert(transport != nullptr);
     nya_assert(transport->vtable != nullptr);
 
-    // zero, not an assertion: "no port" is the honest answer for a loopback pair and for Steam's relay,
-    // and a caller printing where it is reachable should be able to ask any transport.
+    // zero, not an assertion: "no port" is the honest answer for a loopback pair and for Steam's relay.
     if (transport->vtable->port == nullptr) return 0;
 
     return transport->vtable->port(transport);
@@ -64,8 +52,7 @@ NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer
     nya_assert(transport->vtable->send != nullptr, "the %s transport has no send", transport->vtable->name);
     nya_assert(channel < NYA_NET_CHANNEL_COUNT);
 
-    // A zero length message is a caller bug rather than a wire condition: every receiver here
-    // switches on a message id in the first byte, so an empty payload has nowhere to carry one.
+    // A zero length message is a caller bug: every receiver switches on a message id in the first byte.
     if (data == nullptr || size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an empty network message");
 
     return transport->vtable->send(transport, peer, channel, data, size);
@@ -110,8 +97,7 @@ NYA_ConstCString nya_net_transport_peer_address(NYA_NetTransport* transport, NYA
 }
 
 void nya_net_transport_destroy(NYA_NetTransport* transport) {
-    // Null tolerated: a teardown path runs over transports that may never have been created, and
-    // making every one of those check first is how one gets missed.
+    // Null tolerated: a teardown path runs over transports that may never have been created.
     if (transport == nullptr) return;
 
     nya_assert(transport->vtable != nullptr);

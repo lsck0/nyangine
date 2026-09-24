@@ -1,14 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/**
- * One queued message, waiting for the far end to poll for it.
- * */
+/** One queued message, waiting for the far end to poll for it. */
 typedef struct {
     u8*            data;
     u64            size;
@@ -25,14 +19,10 @@ struct _NYA_NetLoopbackEndpoint {
 
     NYA_Arena* allocator;
 
-    /**
-     * Messages this endpoint has been sent and has not yet polled.
-     * */
+    /** Messages this endpoint has been sent and has not yet polled. */
     NYA_Arrayᐸ_NYA_NetLoopbackMessageᐳ* inbox;
 
-    /**
-     * Bytes handed out by the last poll, freed by the next one.
-     * */
+    /** Bytes handed out by the last poll, freed by the next one. */
     NYA_Arena* delivered;
 
     /** Queued but not yet reported, so the pair can be created before either end is "connected". */
@@ -53,17 +43,14 @@ NYA_INTERNAL NYA_NetPeerStats _nya_net_loopback_stats(NYA_NetTransport* transpor
 NYA_INTERNAL NYA_ConstCString _nya_net_loopback_peer_address(NYA_NetTransport* transport, NYA_NetPeerId peer);
 NYA_INTERNAL void      _nya_net_loopback_destroy(NYA_NetTransport* transport);
 
-/**
- * The one peer a loopback endpoint ever has.
- * */
+/** The one peer a loopback endpoint ever has. */
 #define _NYA_NET_LOOPBACK_PEER ((NYA_NetPeerId){ .index = 0, .generation = 1 })
 
 NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_LOOPBACK_VTABLE = {
     .name = "loopback",
     .kind = NYA_NET_TRANSPORT_LOOPBACK,
 
-    // No listen and no connect. A loopback pair is joined at creation, which is the honest shape:
-    // there is no address to bind and nothing to wait for.
+    // No listen and no connect: a loopback pair is joined at creation, with no address to bind.
     .listen  = nullptr,
     .connect = nullptr,
 
@@ -75,11 +62,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_LOOPBACK_VTABLE = {
     .destroy      = &_nya_net_loopback_destroy,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b) {
     nya_assert(arena != nullptr);
@@ -101,8 +84,7 @@ NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTranspo
             .inbox     = nya_array_create(arena, _NYA_NetLoopbackMessage),
             .delivered = nya_arena_create(.name = "net_loopback_delivered"),
 
-            // both ends report a connection on their first poll. A pair is joined on creation, but the layers
-            // above expect to learn that from an event.
+            // both ends report a connection on their first poll, since the layers above learn it from an event.
             .connect_pending = true,
         };
 
@@ -122,11 +104,7 @@ NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTranspo
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 NYA_Error _nya_net_loopback_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size) {
     _NYA_NetLoopbackEndpoint* endpoint = transport->state;
@@ -137,15 +115,12 @@ NYA_Error _nya_net_loopback_send(NYA_NetTransport* transport, NYA_NetPeerId peer
 
     _NYA_NetLoopbackEndpoint* other = endpoint->other;
 
-    // The far end was destroyed, or disconnected. Reported rather than asserted: on a listen server
-    // this is what shutting down looks like from the half that is still running.
+    // The far end was destroyed or disconnected; reported, not asserted (a listen server shutting down).
     if (other == nullptr || !other->connected) {
         if (other == nullptr || !other->connect_pending) return nya_error(NYA_ERROR_NOT_OK, "the loopback peer is gone");
     }
 
-    /*
-     * Copied into the *receiver's* arena, not the sender's.
-     */
+    // Copied into the *receiver's* arena, not the sender's.
     u8* copy = nya_arena_alloc(other->allocator, size);
     nya_memcpy(copy, data, size);
 
@@ -182,8 +157,7 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
     _NYA_NetLoopbackMessage message = endpoint->inbox->items[0];
     nya_array_remove(endpoint->inbox, 0);
 
-    // the previous poll's bytes are done with. this one's move out of the long-lived arena, where the copy
-    // made on send would otherwise stay for the life of the connection.
+    // the previous poll's bytes are done with; this poll's move out of the long-lived arena the send copied into.
     nya_arena_free_all(endpoint->delivered);
 
     if (message.size > 0) {
@@ -216,8 +190,7 @@ void _nya_net_loopback_disconnect(NYA_NetTransport* transport, NYA_NetPeerId pee
     endpoint->connected       = false;
     endpoint->connect_pending = false;
 
-    // the far end learns about it the way a socket peer would: as a DISCONNECTED event with the reason, after
-    // whatever was already sent to it. It never did before, so a client on a listen server was not told.
+    // the far end learns it as a socket peer would: a DISCONNECTED event with the reason, after what was already sent.
     if (endpoint->other != nullptr && (endpoint->other->connected || endpoint->other->connect_pending)) {
         endpoint->other->connected          = false;
         endpoint->other->connect_pending    = false;
@@ -231,9 +204,7 @@ NYA_NetPeerStats _nya_net_loopback_stats(NYA_NetTransport* transport, NYA_NetPee
 
     _NYA_NetLoopbackEndpoint* endpoint = transport->state;
 
-    // Latency and loss stay zero, and that is a fact rather than a placeholder: there is no wire.
-    // nya_net_transport_is_local is what callers should branch on, but a debug overlay reading these
-    // should show honest zeroes rather than an invented small number.
+    // Latency and loss stay zero, a fact not a placeholder: there is no wire (branch on nya_net_transport_is_local).
     return endpoint->stats;
 }
 
@@ -247,8 +218,7 @@ void _nya_net_loopback_destroy(NYA_NetTransport* transport) {
     _NYA_NetLoopbackEndpoint* endpoint = transport->state;
     if (endpoint == nullptr) return;
 
-    // Unhook the far end first, so a send from the half that is still alive reports a dead peer
-    // rather than writing into an arena that is about to go.
+    // Unhook the far end first, so a send from the surviving half reports a dead peer, not a freed arena.
     if (endpoint->other != nullptr) {
         endpoint->other->other     = nullptr;
         endpoint->other->connected = false;
@@ -256,8 +226,7 @@ void _nya_net_loopback_destroy(NYA_NetTransport* transport) {
 
     nya_arena_destroy(endpoint->delivered);
 
-    // The inbox, the endpoint and the transport all came from the arena the caller passed in, which
-    // is the caller's to destroy. Only the delivered arena is this transport's own.
+    // The inbox, endpoint and transport are the caller's arena to destroy; only the delivered arena is this transport's own.
     endpoint->other = nullptr;
     transport->state = nullptr;
 }

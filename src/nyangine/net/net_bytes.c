@@ -2,19 +2,14 @@
 
 #include "nyangine/net/net_bytes.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API IMPLEMENTATION
 
 void _nya_net_write_u32(NYA_String* out, u32 value) {
     for (u32 i = 0; i < 4; i++) nya_string_push_back(out, (u8)((value >> (i * 8)) & 0xFF));
 }
 
 __attr_maybe_unused void _nya_net_write_f32(NYA_String* out, f32 value) {
-    // Through a memcpy rather than a pointer cast: type punning through a cast is undefined, and at
-    // -O2 clang is entitled to assume it does not happen. The copy compiles to a register move.
+    // Through a memcpy, not a pointer cast: type punning through a cast is undefined; this compiles to a register move.
     u32 bits = 0;
     nya_memcpy(&bits, &value, sizeof(bits));
 
@@ -37,8 +32,7 @@ __attr_maybe_unused void _nya_net_write_signed(NYA_String* out, s64 value) {
 b8 _nya_net_reader_has(_NYA_NetReader* reader, u64 count) {
     if (reader->failed) return false;
 
-    // Written as a subtraction rather than `at + count > size`, because the addition can overflow on
-    // a size that came off the wire and then compare as fitting.
+    // A subtraction, not `at + count > size`, since the addition can overflow on a wire size and then compare as fitting.
     if (count > reader->size - reader->at) {
         reader->failed = true;
         return false;

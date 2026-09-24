@@ -24,9 +24,7 @@
 
 #include "nyangine/net/net_types.h"
 /**/
-// net_bytes.h is not included: its codecs are NYA_INTERNAL, so every translation unit including
-// nyangine.h without nyangine.c (the game DLL) would warn about static declarations never defined.
-// The .c files that need it include it themselves.
+// net_bytes.h is not included here: its NYA_INTERNAL codecs would warn as undefined statics; the .c files include it themselves.
 #include "nyangine/net/net_config.h"
 #include "nyangine/net/net_crypto.h"
 #include "nyangine/net/net_message.h"

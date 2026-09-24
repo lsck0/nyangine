@@ -11,11 +11,7 @@
 #include "nyangine/base/base_types.h"
 #include "nyangine/net/net_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef enum NYA_NetMessageKind NYA_NetMessageKind;
 
@@ -25,9 +21,7 @@ typedef enum NYA_NetMessageKind NYA_NetMessageKind;
 #define NYA_NET_PROTOCOL_VERSION 2
 
 enum NYA_NetMessageKind {
-    /*
-     * ── client to server ──
-     */
+    // client to server
 
     /**
      * "May I join, and here is who I am." Reliable, and the first thing a client ever sends.
@@ -39,9 +33,7 @@ enum NYA_NetMessageKind {
      * */
     NYA_NET_MSG_COMMAND = 2,
 
-    /*
-     * ── server to client ──
-     */
+    // server to client
 
     /** "You are in." Reliable. Carries the peer's id, its entity, and the world description. */
     NYA_NET_MSG_WELCOME = 16,
@@ -56,9 +48,7 @@ enum NYA_NetMessageKind {
     NYA_NET_MSG_PEER_JOINED = 19,
     NYA_NET_MSG_PEER_LEFT   = 20,
 
-    /*
-     * ── either direction ──
-     */
+    // either direction
 
     /**
      * A game-defined event, as an NYA_Object. Reliable and ordered.
@@ -68,11 +58,7 @@ enum NYA_NetMessageKind {
     NYA_NET_MSG_COUNT,
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /** Starts a message: appends the kind byte, so the caller can then append its body. */
 NYA_API void nya_net_message_begin(NYA_String* out, NYA_NetMessageKind kind);

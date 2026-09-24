@@ -20,11 +20,7 @@
 #include "nyangine/net/net_transport.h"
 #include "nyangine/net/net_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_NetLaunchConfig NYA_NetLaunchConfig;
 
@@ -111,15 +107,8 @@ struct NYA_NetLaunchConfig {
     NYA_NetTransportKind transport;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/**
- * Reads the command line. Never fails, and never exits.
- * */
 /**
  * What a launch is before anything is said about it: single player, on the default port, over sockets.
  * */
@@ -152,26 +141,9 @@ NYA_API NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv
 /** Logs what the config resolved to, at info. What a dedicated server's first line of output should be. */
 NYA_API void nya_net_config_report(const NYA_NetLaunchConfig* config);
 
-/*
- * ─────────────────────────────────────────────────────────
- * JOIN SECRETS
- * ─────────────────────────────────────────────────────────
- */
+// JOIN SECRETS
 
-/*
- * A join secret is the one string a friend's client hands back when they accept an invite, over Discord
- * or over Steam. Both sides of it live here rather than in a game, because it is the launch config on the
- * wire and nothing else: a game that invented its own format would be parsing an address by hand at the
- * one boundary where the bytes came from somebody else's client.
- *
- * ```c
- * char secret[NYA_NET_MAX_JOIN_SECRET];
- * if (nya_net_config_to_join_secret(&hosting, secret, sizeof(secret))) invite(secret);
- *
- * NYA_NetLaunchConfig joining = { 0 };
- * if (nya_net_config_from_join_secret(secret, &joining)) reconnect(joining);
- * ```
- */
+// A join secret is the launch config on the wire: the string a friend's client hands back when accepting an invite.
 
 /**
  * Writes the address, port and server key of `config` as a join secret.

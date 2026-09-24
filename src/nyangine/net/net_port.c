@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port) {
     nya_assert(out_port != nullptr);
@@ -15,12 +11,7 @@ NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port) {
     if (nya_os_socket_start() != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_IO, "the host's socket library could not start");
     defer nya_os_socket_stop();
 
-    /*
-     * A socket on port zero, which the host answers with a free number, and then the socket is closed
-     * again. The number can be taken by somebody else between the close and whatever binds it next —
-     * that race is why a server binds zero itself and reads back what it got. This exists for the
-     * callers that cannot: a test that has to know the port before the thing it is testing starts.
-     */
+    // Bind port zero, read back the free number, close: racy, for callers (a test) that must know the port beforehand.
     NYA_OsSocket socket = NYA_OS_SOCKET_NONE;
 
     NYA_OsSocketStatus opened = protocol == NYA_NET_PROTOCOL_TCP ? nya_os_socket_open(NYA_OS_SOCKET_LISTENER, 0, 0, &socket) : nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &socket);
