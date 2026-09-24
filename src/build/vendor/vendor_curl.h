@@ -125,8 +125,9 @@ NYA_VendorRule vendor_curl_windows_x86_64 = {
     // an import library".
     .includes = { "-I./vendor/curl/include/", "-DCURL_STATICLIB", },
 
-    // schannel is the Windows TLS stack, so there is no third party crypto to ship at all.
-    .linker_flags = { CURL_A_WINDOWS_X86_64, "-lws2_32", "-lcrypt32", "-lbcrypt", "-lsecur32", "-lwldap32", "-lnormaliz", },
+    // schannel is the Windows TLS stack, so there is no third party crypto to ship at all. iphlpapi
+    // carries if_nametoindex, which curl reaches for to resolve an IPv6 scope id.
+    .linker_flags = { CURL_A_WINDOWS_X86_64, "-lws2_32", "-lcrypt32", "-lbcrypt", "-lsecur32", "-lwldap32", "-lnormaliz", "-liphlpapi", },
 
     .parts = {
         &(NYA_BuildRule){
