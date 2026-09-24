@@ -74,11 +74,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /**
  * Roles one table may hold, `@everyone` included.
@@ -120,11 +116,7 @@
  * */
 #define NYA_PERMISSION_MAX_AUDIT 128
 
-/*
- * ─────────────────────────────────────────────────────────
- * RESERVED PERMISSIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── RESERVED PERMISSIONS ─────────────────────────────────────
 
 /** Every permission, on every resource, deny or no deny. The one bit that skips resolution. */
 #define NYA_PERMISSION_ADMINISTRATOR (1ULL << 63)
@@ -153,11 +145,7 @@
  * */
 #define NYA_PERMISSION_SYSTEM 0ULL
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 /** A set of permissions: one bit each, the program's to name below NYA_PERMISSION_RESERVED. */
 typedef u64 NYA_Permission;
@@ -210,11 +198,7 @@ typedef struct {
     u64 at_s;
 } NYA_PermissionAudit;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * A table with `@everyone` in it and nothing else. Lives on `arena` and is freed with it.
@@ -233,11 +217,7 @@ NYA_API NYA_Permissions* nya_permissions_create(NYA_Arena* arena) __attr_no_disc
  * */
 NYA_API void nya_permissions_destroy(NYA_Permissions* permissions);
 
-/*
- * ─────────────────────────────────────────────────────────
- * ROLES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── ROLES ─────────────────────────────────────
 
 /**
  * Adds a role and answers its index, which is also its bit in a subject's role set.
@@ -300,11 +280,7 @@ NYA_API NYA_Permission nya_permission_role_forbids(const NYA_Permissions* permis
 /** How many roles the table holds, `@everyone` included. */
 NYA_API u32 nya_permission_role_count(const NYA_Permissions* permissions) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * SUBJECTS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── SUBJECTS ─────────────────────────────────────
 
 /**
  * Gives `subject` the role, adding the subject to the table if it is new.
@@ -350,11 +326,7 @@ NYA_API NYA_Error nya_permissions_owner_set(NYA_Permissions* permissions, u64 ac
 /** The owner, or NYA_PERMISSION_SYSTEM when the table has none. */
 NYA_API u64 nya_permissions_owner(const NYA_Permissions* permissions) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * OVERWRITES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OVERWRITES ─────────────────────────────────────
 
 /**
  * Sets one resource's overwrite for a role or a subject, replacing whatever was there.
@@ -377,19 +349,9 @@ NYA_API b8 nya_permission_overwrite_get(const NYA_Permissions* permissions, u64 
 /** How many overwrites the table holds, across every resource. */
 NYA_API u32 nya_permission_overwrite_count(const NYA_Permissions* permissions) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * LABELS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LABELS ─────────────────────────────────────
 
-/*
- * What each bit is called, so that a role editor can be written once and work over any program's
- * permissions. Without these an editor would have to be recompiled for every program, which is the
- * opposite of a table that is edited while the program runs.
- *
- * The engine labels its own three at creation; a program labels the bits it defines.
- */
+// What each bit is called, so a role editor is written once and works over any program's permissions; the engine labels its own three at creation.
 
 /**
  * Names one bit. NYA_ERROR_INVALID_ARGUMENT when `bit` is not exactly one bit or the name does not fit,
@@ -403,11 +365,7 @@ NYA_API NYA_ConstCString nya_permission_label(const NYA_Permissions* permissions
 /** Every bit that has a name, as a set, which is what an editor walks to draw its rows. */
 NYA_API NYA_Permission nya_permission_labelled(const NYA_Permissions* permissions) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * RESOLUTION
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── RESOLUTION ─────────────────────────────────────
 
 /**
  * Everything `subject` may do to `resource`, by the six steps in the file note.
@@ -450,11 +408,7 @@ NYA_API b8 nya_permission_may_act(
  * */
 NYA_API b8 nya_permission_outranks(const NYA_Permissions* permissions, u64 actor, u64 subject) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * AUDIT
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── AUDIT ─────────────────────────────────────
 
 /** How many entries the ring holds right now, at most NYA_PERMISSION_MAX_AUDIT. */
 NYA_API u32 nya_permission_audit_count(const NYA_Permissions* permissions) __attr_no_discard;

@@ -4,11 +4,7 @@
 #include "nyangine/base/base_ceiling.h"
 #include "nyangine/permission/permission.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct {
     char           name[NYA_PERMISSION_MAX_ROLE_NAME];
@@ -66,11 +62,7 @@ struct NYA_Permissions {
     u64                 audit_dropped;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** The subject's row, or null when the table has never seen it. */
 NYA_INTERNAL const _NYA_PermissionSubject* _nya_permission_subject_find(const NYA_Permissions* permissions, u64 subject) __attr_no_discard;
@@ -88,11 +80,7 @@ NYA_INTERNAL void _nya_permission_audit(NYA_Permissions* permissions, const NYA_
 /** Whether the actor may make a change at all: the owner, the system, or a holder of `required`. */
 NYA_INTERNAL b8 _nya_permission_may(const NYA_Permissions* permissions, u64 actor, NYA_Permission required) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Permissions* nya_permissions_create(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
@@ -100,7 +88,7 @@ NYA_Permissions* nya_permissions_create(NYA_Arena* arena) {
     NYA_Permissions* permissions = nya_arena_alloc(arena, sizeof(NYA_Permissions));
     if (permissions == nullptr) return nullptr;
 
-    // field by field after a memset: a compound literal of the whole table is a stack temporary of its size.
+    // Field by field after a memset: a compound literal of the whole table is a stack temporary of its size.
     nya_memset(permissions, 0, sizeof(*permissions));
 
     // @everyone exists from the start and allows nothing, which is the deny by default.
@@ -155,8 +143,7 @@ NYA_Error nya_permission_role_add(NYA_Permissions* permissions, u64 actor, NYA_C
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a role has a name of 1 to %d bytes", NYA_PERMISSION_MAX_ROLE_NAME - 1);
     }
 
-    // position zero belongs to @everyone, and a second role there would outrank nothing and be outranked
-    // by nothing, which is a role that cannot be managed by anyone but the owner.
+    // Position zero belongs to @everyone; a second role there would be unmanageable by anyone but the owner.
     if (position == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "position 0 is @everyone's");
 
     if (!_nya_permission_may(permissions, actor, NYA_PERMISSION_MANAGE_ROLES)) {
@@ -262,8 +249,7 @@ NYA_Error nya_permission_role_remove(NYA_Permissions* permissions, u64 actor, u3
 
     NYA_Permission before = permissions->roles[role].allow;
 
-    // taken from everyone holding it, and every overwrite about it dropped: an index that is reused by
-    // the next role added must not inherit a single bit of what this one meant.
+    // Taken from everyone holding it, and every overwrite about it dropped, so a reused index inherits nothing of what this role meant.
     for (u32 index = 0; index < NYA_PERMISSION_MAX_SUBJECTS; index++) {
         if (permissions->subjects[index].used) permissions->subjects[index].roles &= ~(1ULL << role);
     }
@@ -279,8 +265,7 @@ NYA_Error nya_permission_role_remove(NYA_Permissions* permissions, u64 actor, u3
 
     permissions->roles[role] = (_NYA_PermissionRole){ 0 };
 
-    // the count is the high water mark rather than a population, since an index is a bit position and
-    // reusing one for a different role would change what a subject's role word means.
+    // The count is a high-water mark, not a population: an index is a bit position, and reusing one would change what a subject's role word means.
     _nya_permission_audit(permissions, &(NYA_PermissionAudit){
                                            .change       = NYA_PERMISSION_CHANGE_ROLE_REMOVED,
                                            .actor        = actor,
@@ -327,14 +312,12 @@ NYA_Error nya_permission_role_forbid_set(NYA_Permissions* permissions, u64 actor
 
     b8 unbounded = actor == NYA_PERMISSION_SYSTEM || actor == permissions->owner;
 
-    // The role has to sit below the actor's rank, the same rule editing it has: a forbid on the role
-    // that outranks them would be a way to reach up the hierarchy.
+    // The role must sit below the actor's rank, like editing it: a forbid on the role that outranks them would reach up the hierarchy.
     if (!unbounded && permissions->roles[role].position >= nya_permission_subject_rank(permissions, actor)) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "a role at or above the actor's rank is not theirs to forbid on");
     }
 
-    // Unlike an allow, a forbid is not held to "you may only hand out what you hold": forbidding takes
-    // a permission away, and taking away is not escalation. A caller who may edit the role may forbid.
+    // Unlike an allow, a forbid is not held to "only what you hold": taking a permission away is not escalation.
     NYA_Permission before = permissions->roles[role].forbid;
 
     permissions->roles[role].forbid = forbid;
@@ -382,7 +365,7 @@ NYA_Error nya_permission_role_grant(NYA_Permissions* permissions, u64 actor, u64
 
         if (permissions->roles[role].position >= rank) return nya_error(NYA_ERROR_PERMISSION_DENIED, "that role is not below the actor's rank");
 
-        // the subject too: an officer arming a rival of equal rank is the escalation this refuses.
+        // The subject too: an officer arming a rival of equal rank is the escalation this refuses.
         if (!nya_permission_outranks(permissions, actor, subject)) {
             return nya_error(NYA_ERROR_PERMISSION_DENIED, "the actor does not outrank that subject");
         }
@@ -451,8 +434,7 @@ u64 nya_permission_subject_roles(const NYA_Permissions* permissions, u64 subject
 
     const _NYA_PermissionSubject* row = _nya_permission_subject_find(permissions, subject);
 
-    // @everyone whether the table has seen this subject or not, which is what makes an unknown subject
-    // resolve to the same thing as a known one holding nothing.
+    // @everyone whether the table has seen this subject or not, so an unknown subject resolves like a known one holding nothing.
     return (row != nullptr ? row->roles : 0ULL) | (1ULL << NYA_PERMISSION_ROLE_EVERYONE);
 }
 
@@ -488,8 +470,7 @@ NYA_Error nya_permission_subject_forbid_set(NYA_Permissions* permissions, u64 ac
 
     b8 unbounded = actor == NYA_PERMISSION_SYSTEM || actor == permissions->owner;
 
-    // The actor has to outrank the subject, the same rule granting a role has: a forbid on somebody who
-    // outranks you would be reaching up the hierarchy to disarm them, which is the escalation in reverse.
+    // The actor must outrank the subject, like granting a role: forbidding somebody who outranks you would reach up the hierarchy to disarm them.
     if (!unbounded && !nya_permission_outranks(permissions, actor, subject)) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the actor does not outrank that subject");
     }
@@ -525,8 +506,7 @@ NYA_Permission nya_permission_subject_forbids(const NYA_Permissions* permissions
 NYA_Error nya_permissions_owner_set(NYA_Permissions* permissions, u64 actor, u64 subject, u64 now_s) {
     nya_assert(permissions != nullptr);
 
-    // the only unbounded permission there is, so the only ones who may hand it over are the program
-    // itself and whoever already holds it.
+    // The only unbounded permission, so only the program itself and whoever already holds it may hand it over.
     if (actor != NYA_PERMISSION_SYSTEM && actor != permissions->owner) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "only the owner or the program itself sets the owner");
     }
@@ -559,7 +539,7 @@ NYA_Error nya_permission_overwrite_set(NYA_Permissions* permissions, u64 actor, 
 
     if (target >= NYA_PERMISSION_TARGET_COUNT) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an overwrite names a role or a subject");
 
-    // both at once is a precedence rule nobody remembers correctly; the caller says which one it meant.
+    // Both at once is a precedence rule nobody remembers correctly; the caller says which one it meant.
     if ((allow & deny) != 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a permission is allowed or denied, not both");
 
     if (target == NYA_PERMISSION_TARGET_ROLE && (id >= permissions->role_count || !permissions->roles[id].used)) {
@@ -732,8 +712,7 @@ NYA_Permission nya_permission_labelled(const NYA_Permissions* permissions) {
 NYA_Permission nya_permission_resolve(const NYA_Permissions* permissions, u64 subject, u64 resource) {
     nya_assert(permissions != nullptr);
 
-    // the program itself, and the owner: above every role and every deny. Checked first so that a table
-    // whose owner has been denied something on a resource still answers "the owner may".
+    // The program itself and the owner: above every role and deny, checked first so a denied owner still answers "the owner may".
     if (subject == NYA_PERMISSION_SYSTEM || (permissions->owner != NYA_PERMISSION_SYSTEM && subject == permissions->owner)) return ~0ULL;
 
     u64            roles  = nya_permission_subject_roles(permissions, subject);
@@ -747,14 +726,11 @@ NYA_Permission nya_permission_resolve(const NYA_Permissions* permissions, u64 su
         forbid |= permissions->roles[role].forbid;
     }
 
-    // A subject's own forbid joins its roles': both are absolute, and neither an allow nor an overwrite
-    // nor even ADMINISTRATOR below the owner puts back a bit that was forbidden. The owner already
-    // returned above, so a forbid can never lock the last person out of their own table.
+    // A subject's own forbid joins its roles': both are absolute, and nothing below the owner (allow, overwrite, ADMINISTRATOR) puts a forbidden bit back. The owner returned above, so a forbid never locks the last person out.
     const _NYA_PermissionSubject* record = _nya_permission_subject_find(permissions, subject);
     if (record != nullptr) forbid |= record->forbid;
 
-    // ADMINISTRATOR is every permission on every resource — except whatever is forbidden, which is what
-    // makes "forbidden" mean it even for an admin.
+    // ADMINISTRATOR is every permission on every resource, except whatever is forbidden, which is what makes "forbidden" hold even for an admin.
     if ((base & NYA_PERMISSION_ADMINISTRATOR) != 0) return ~0ULL & ~forbid;
 
     const _NYA_PermissionOverwrite* everyone =
@@ -765,11 +741,7 @@ NYA_Permission nya_permission_resolve(const NYA_Permissions* permissions, u64 su
         base |= everyone->allow;
     }
 
-    /*
-     * Every other held role's denies together, and then their allows together — not role by role. The
-     * difference shows when one role denies what another allows: taken together the allow wins, which is
-     * what makes adding a role never take a permission away.
-     */
+    // Every other held role's denies together, then their allows together — not role by role — so a role's allow wins another's deny and adding a role never removes a permission.
     NYA_Permission role_deny  = NYA_PERMISSION_NONE;
     NYA_Permission role_allow = NYA_PERMISSION_NONE;
 
@@ -793,8 +765,7 @@ NYA_Permission nya_permission_resolve(const NYA_Permissions* permissions, u64 su
         base |= own->allow;
     }
 
-    // Last, and after every overwrite: a forbidden permission is one a per-resource allow cannot hand
-    // back, which is the difference between a forbid and a deny.
+    // Last, after every overwrite: a per-resource allow cannot hand back a forbidden permission, the difference between a forbid and a deny.
     return base & ~forbid;
 }
 
@@ -850,11 +821,7 @@ u64 nya_permission_audit_dropped(const NYA_Permissions* permissions) {
     return permissions->audit_dropped;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 const _NYA_PermissionSubject* _nya_permission_subject_find(const NYA_Permissions* permissions, u64 subject) {
     for (u32 index = 0; index < NYA_PERMISSION_MAX_SUBJECTS; index++) {
@@ -887,7 +854,7 @@ _NYA_PermissionOverwrite* _nya_permission_overwrite_find(const NYA_Permissions* 
 
         if (!overwrite->used || overwrite->resource != resource || overwrite->target != target || overwrite->id != id) continue;
 
-        // const in, mutable out: the table is the caller's and the lookup is the same walk either way.
+        // Const in, mutable out: the table is the caller's and the lookup is the same walk either way.
         return (_NYA_PermissionOverwrite*)overwrite;
     }
 
