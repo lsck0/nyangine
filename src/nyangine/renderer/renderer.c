@@ -27,8 +27,7 @@
  * VERTICES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * Outside the headless split: packing floats into halves is arithmetic, and a headless build builds
- * the same vertices without uploading them.
+ * Outside the headless split: packing floats into halves is arithmetic, and a headless build builds the same vertices without uploading them.
  */
 
 void nya_render_clear_color_set(NYA_Window* window, NYA_Color color) {
@@ -79,10 +78,7 @@ NYA_RenderFrameStats nya_render_frame_stats(NYA_Window* window) {
 }
 
 NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) {
-    /*
-     * Colour is not clamped, unlike _nya_render2d_pack_color: values above one lift an emissive surface past the
-     * bloom threshold (see GNY_CUBE3D_FIRE_COLOR_START), which is why the field is a half.
-     */
+    // Colour is not clamped: values above one lift an emissive surface past the bloom threshold, which is why the field is a half.
     return (NYA_Vertex3D){
         .position = { position.x, position.y, position.z },
         .uv       = { (f16)uv.x, (f16)uv.y },
@@ -156,18 +152,7 @@ NYA_Error nya_system_renderer_init(void) {
         SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_SPIRV, NYA_DEVELOPMENT_BUILD, nullptr);
 
     if (gpu_device == nullptr) {
-        /*
-         * One failure has a known cause and a one line answer, so it gets said rather than left as
-         * "no supported backend".
-         *
-         * RenderDoc's Vulkan layer has no Wayland support. Under it SDL cannot build an instance that
-         * can make a surface, its Vulkan backend reports itself unsupported, and the only thing anyone
-         * sees is a program that closes the moment it is captured. Forcing SDL onto x11, which is
-         * XWayland here, makes both of them work.
-         *
-         * Probed from the environment rather than by asking Vulkan, because by this point Vulkan has
-         * already refused to say anything at all.
-         */
+        // RenderDoc's Vulkan layer has no Wayland support, so a capture closes at once; probed from the env and answered specifically, since Vulkan has already refused to speak.
         const b8 renderdoc = getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE") != nullptr || getenv("RENDERDOC_CAPTUREOPTS") != nullptr;
         NYA_ConstCString video = SDL_GetCurrentVideoDriver();
 
@@ -382,10 +367,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     window->render_system.clear_color  = NYA_COLOR_BLACK;
     window->render_system.color_format = SDL_GetGPUSwapchainTextureFormat(app->render_system.gpu_device, window->sdl_window);
 
-    /*
-     * The asked for sample count as far as the device takes it. Decided on the first window, whose swapchain format
-     * everything resolves onto; later changes go through nya_render_options_set.
-     */
+    // The asked-for sample count as far as the device takes it; decided on the first window, whose swapchain format everything resolves onto.
     if (!app->render_system.sample_count_decided) {
         app->render_system.sample_count         = _nya_renderer_sample_count_for(window, app->render_system.options.msaa_samples);
         app->render_system.applied_msaa_samples = app->render_system.options.msaa_samples;
@@ -552,10 +534,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     batch->ranges = nya_arena_alloc(app->render_system.allocator, NYA_RENDER2D_MAX_RANGES * sizeof(NYA_Render2DDrawRange));
     batch->draws  = nya_arena_alloc(app->render_system.allocator, NYA_RENDER2D_MAX_RANGES * sizeof(NYA_Render2DDraw));
 
-    /*
-     * The 3D mesh batch, set up for every window. Creating it on the first nya_render3d_begin would allocate GPU
-     * buffers mid-frame. A 2D game pays two buffers that are never uploaded to.
-     */
+    // The 3D mesh batch, set up for every window; creating it on the first nya_render3d_begin would allocate GPU buffers mid-frame.
     NYA_Render3DBatch* mesh_batch = &window->render_system.mesh_batch;
 
     *mesh_batch = (NYA_Render3DBatch){ 0 };
@@ -787,10 +766,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the instanced shadow pipeline");
 
-    /*
-     * The 2D light pass: a fullscreen triangle with no vertex buffer, reusing the procedural vertex shader. A
-     * pipeline must name a layout, and 2D is the likeliest to be bound later.
-     */
+    // The 2D light pass: a fullscreen triangle reusing the procedural vertex shader; a pipeline must name a layout, and 2D is likeliest.
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type   = NYA_ASSET_TYPE_SHADER_VERTEX,
       .handle = NYA_ASSET_SHADER_PROCEDURAL_VERT,
@@ -1053,8 +1029,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
       .handle    = NYA_ASSET_SHADER_WATER_FRAG,
-      // two samplers: the captured scene at t0 and the mirrored-sky planar reflection at t1 (water reads no
-      // shadow map). two uniform blocks: the shared lighting at b0 and the water look at b1.
+      // Two samplers: captured scene at t0, planar reflection at t1; two uniform blocks: lighting at b0, water look at b1.
       .as_shader = { .num_samplers = 2, .num_uniform_buffers = 2 },
   }), "while queueing the water fragment shader");
 
@@ -1185,10 +1160,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     );
     nya_assert(mesh_batch->shadow_none != nullptr, "SDL_CreateGPUTexture() failed for the shadow placeholder: %s", SDL_GetError());
 
-    /*
-     * Claiming the window installed a working swapchain already. Everything below is an improvement, so a
-     * refusal keeps the default.
-     */
+    // Claiming the window installed a working swapchain; everything below is an improvement, so a refusal keeps the default.
     SDL_GPUSwapchainComposition composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
     if (!SDL_WindowSupportsGPUSwapchainComposition(app->render_system.gpu_device, window->sdl_window, composition)) {
         nya_log_warn("Swapchain composition SDR is unsupported for window '%s'; keeping the driver's default.", window->title);
@@ -1307,8 +1279,7 @@ b8 nya_render_begin(NYA_Window* window) {
 
     NYA_App* app = nya_app_get();
 
-    // cleared first: everything below can bail, and nya_render_end checks render_pass for null. stale handles
-    // would draw into a pass sized for the previous frame.
+    // Cleared first: everything below can bail and nya_render_end checks render_pass; stale handles would draw into last frame's pass.
     window->render_system.render_commands   = nullptr;
     window->render_system.render_pass       = nullptr;
     window->render_system.swapchain_texture = nullptr;
@@ -1322,9 +1293,7 @@ b8 nya_render_begin(NYA_Window* window) {
 
     u32 swapchain_width  = 0;
     u32 swapchain_height = 0;
-    // The waiting variant, as SDL's header recommends. The non-waiting acquire can return a texture at the
-    // window's previous size after a resize, which the compositor draws at the wrong size and offset, and it
-    // lets command buffers pile up.
+    // The waiting variant, as SDL's header recommends; the non-waiting acquire can return a stale-size texture after a resize.
     if (!SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer, window->sdl_window, &swapchain_texture, &swapchain_width, &swapchain_height)) {
         nya_log_warn("SDL_WaitAndAcquireGPUSwapchainTexture() failed for window '%s': %s", window->title, SDL_GetError());
         SDL_CancelGPUCommandBuffer(command_buffer);
@@ -1388,31 +1357,21 @@ b8 nya_render_begin(NYA_Window* window) {
 
     SDL_GPUTexture* msaa = window->render_system.msaa_texture;
 
-    /*
-     * With multisampling the pass draws into the MSAA buffer and resolves onto the swapchain; without it, into the
-     * swapchain directly.
-     */
+    // With multisampling the pass draws into the MSAA buffer and resolves onto the swapchain; without it, straight into the swapchain.
     SDL_GPUColorTargetInfo target_info = {
         .texture          = msaa != nullptr ? msaa : swapchain_texture,
         .resolve_texture  = msaa != nullptr ? swapchain_texture : nullptr,
-        // opaque black unless the window asks otherwise. a zeroed SDL_FColor has zero alpha, which lets the desktop
-        // show through undrawn pixels. see nya_render_clear_color_set.
+        // Opaque black unless the window asks otherwise; a zeroed SDL_FColor's zero alpha would let the desktop show through (see nya_render_clear_color_set).
         .clear_color = (SDL_FColor){ .r = window->render_system.clear_color.r,
                                      .g = window->render_system.clear_color.g,
                                      .b = window->render_system.clear_color.b,
                                      .a = window->render_system.clear_color.a },
         .load_op          = SDL_GPU_LOADOP_CLEAR,
-        /*
-         * The opening pass resolves; passes reopened after it do not, until the last one. See
-         * _nya_render2d_pass_resume.
-         */
+        // The opening pass resolves; passes reopened after it do not, until the last (see _nya_render2d_pass_resume).
         .store_op         = msaa != nullptr ? SDL_GPU_STOREOP_RESOLVE_AND_STORE : SDL_GPU_STOREOP_STORE,
     };
 
-    /*
-     * Cleared every frame and stored, because the pass is suspended and reopened for uploads. DONT_CARE would
-     * discard depth mid-frame.
-     */
+    // Cleared every frame and stored, since the pass is suspended and reopened for uploads; DONT_CARE would discard depth mid-frame.
     SDL_GPUDepthStencilTargetInfo depth_info = {
         .texture          = window->render_system.depth_texture,
         .clear_depth      = 1.0F,

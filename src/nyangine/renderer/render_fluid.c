@@ -119,8 +119,7 @@ NYA_Fluid* nya_fluid_create(NYA_Arena* arena, NYA_FluidOptions options) {
     u32 width  = nya_max(options.width, 1U);
     u32 height = nya_max(options.height, 1U);
 
-    // a 2D volume is a 3D one exactly one cell deep; see the header. Forced rather than asserted, so a
-    // caller can reuse one options struct for both spaces.
+    // A 2D volume is a 3D one one cell deep (see the header); forced, not asserted, so one options struct works for both spaces.
     u32 depth = options.space == NYA_FLUID_SPACE_2D ? 1U : nya_max(options.depth, 1U);
 
     nya_assert(width <= NYA_FLUID_DIMENSION_MAX && height <= NYA_FLUID_DIMENSION_MAX && depth <= NYA_FLUID_DIMENSION_MAX,
@@ -184,9 +183,7 @@ NYA_Fluid* nya_fluid_create(NYA_Arena* arena, NYA_FluidOptions options) {
     fluid->options.up = nya_vector_normalize(fluid->options.up);
 
     if (options.space == NYA_FLUID_SPACE_2D) {
-        // the third axis is flattened once, here, rather than guarded against at every write. A 2D
-        // volume's z velocity then stays exactly zero, which is what makes the solver's two spaces
-        // the same arithmetic instead of merely the same algorithm.
+        // The third axis is flattened once here, not guarded at every write, so a 2D volume's z stays exactly zero and both spaces run the same arithmetic.
         fluid->options.up.z      = 0.0F;
         fluid->options.gravity.z = 0.0F;
     }
@@ -198,8 +195,7 @@ NYA_Fluid* nya_fluid_create(NYA_Arena* arena, NYA_FluidOptions options) {
     _nya_fluid_registry.count++;
     _nya_fluid_registry.bytes += nya_fluid_memory_bytes(fluid);
 
-    // registered on the first volume created, for the same reason base_arena.c registers its own
-    // ceiling lazily: a zeroed table needs no init, and a program with no fluid in it pays nothing.
+    // Registered on the first volume, like base_arena.c's lazy ceiling: a zeroed table needs no init and a fluid-free program pays nothing.
     if (!_nya_fluid_registry.registered) {
         _nya_fluid_registry.registered = true;
         nya_ceiling_register("fluid_volumes", NYA_FLUID_VOLUMES_MAX, &_nya_fluid_registry.count);
@@ -228,8 +224,7 @@ void nya_fluid_destroy(NYA_Fluid* fluid) {
         break;
     }
 
-    // arena owned, so nothing is freed here. Destroying a volume twice has to be a no-op, which is
-    // why this asserts the table shrank by at most one rather than exactly one.
+    // Arena-owned, so nothing is freed here; destroying twice must be a no-op, so the table may shrink by at most one.
     nya_assert(_nya_fluid_registry.count == count_before || _nya_fluid_registry.count + 1 == count_before,
                "destroying one volume changed the table by more than one row");
 }
@@ -344,9 +339,7 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
 
     _nya_fluid_forces_add(fluid, step_s);
 
-    // The wind: a uniform push into the velocity field, sampled once at the volume's origin, so the plume leans on
-    // the same air the foliage and particles read. Added alongside the other body forces, before vorticity and the
-    // projection clean it up; the same whole-field loop the forces use, so the padded borders are handled downstream.
+    // The wind: a uniform push sampled once at the volume's origin, added with the other body forces before vorticity and projection clean it up.
     if (fluid->wind != nullptr) {
         fluid->wind_time_s += step_s;
 
@@ -360,11 +353,7 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
         }
     }
 
-    // The force set: sampled per interior cell at that cell's own world centre, so a spatially varying force — a
-    // point well, a vortex, a curl-noise stir — actually shapes the grid instead of pushing it as one block the way
-    // the wind does. Drag reads the cell's current velocity, which is why the sample takes it. Added alongside the
-    // other body forces, before vorticity and the projection clean the field up; the interior-only sweep leaves the
-    // borders to the bounds pass downstream, exactly as _nya_fluid_forces_add does.
+    // The force set: sampled per interior cell at its world centre, so a varying force shapes the grid instead of pushing it as one block; drag reads the cell's velocity, and the borders are left to the bounds pass.
     if (fluid->forces != nullptr) {
         fluid->force_time_s += step_s;
 
@@ -380,8 +369,7 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
                 for (u32 i = 1; i <= fluid->width; i++) {
                     u32 index = row + i;
 
-                    // interior cell (i, j, k) is centred on world origin + (i - 0.5, j - 0.5, k - 0.5) * cell_size;
-                    // see _nya_fluid_grid_position, which is this map inverted.
+                    // Interior cell (i,j,k) is centred on origin + (i-0.5, j-0.5, k-0.5)*cell_size; see _nya_fluid_grid_position, the inverse map.
                     f32x3 world = {
                         origin.x + (((f32)i - 0.5F) * cell_size),
                         origin.y + (((f32)j - 0.5F) * cell_size),
@@ -462,8 +450,7 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
         f32 density     = fluid->density[i] * kept;
         f32 temperature = fluid->temperature[i] + ((ambient - fluid->temperature[i]) * cooled);
 
-        // sources add without asking what is already there, so the ceiling is what stops an emitter
-        // left running from reaching infinity and turning every later sample into a NaN.
+        // Sources add blindly, so the ceiling stops an emitter left running from reaching infinity and NaN-ing every later sample.
         fluid->density[i]     = nya_clamp(density, 0.0F, NYA_FLUID_FIELD_MAX);
         fluid->temperature[i] = nya_clamp(temperature, -NYA_FLUID_FIELD_MAX, NYA_FLUID_FIELD_MAX);
     }
@@ -490,10 +477,7 @@ void nya_fluid_emit(NYA_Fluid* fluid, NYA_FluidEmitter emitter) {
     f32   radius_cells    = radius / fluid->options.cell_size;
     f32   radius_cells_sq = radius_cells * radius_cells;
 
-    // a 2D volume has no third axis to push along. Cleared here rather than branched on inside the
-    // loop so the two dimensional path runs the identical arithmetic to the three dimensional one:
-    // a ternary in the loop lets the compiler contract the two branches differently, and the
-    // "2D is a one-cell-deep 3D volume" test then fails in the last bits. See render_fluid.h.
+    // A 2D volume has no third axis; cleared here, not branched in the loop, so 2D runs the identical arithmetic to 3D (see render_fluid.h).
     if (fluid->options.space == NYA_FLUID_SPACE_2D) emitter.velocity.z = 0.0F;
 
     for (u32 k = low[2]; k <= high[2]; k++) {
@@ -506,8 +490,7 @@ void nya_fluid_emit(NYA_Fluid* fluid, NYA_FluidEmitter emitter) {
                 f32 distance_sq = (dx * dx) + (dy * dy) + (dz * dz);
                 if (distance_sq >= radius_cells_sq) continue;
 
-                // (1 - t^2)^2: one at the centre, zero with zero slope at the rim, so a moving emitter
-                // does not leave a hard edged trail of cells behind it.
+                // (1 - t^2)^2: one at the centre, zero with zero slope at the rim, so a moving emitter leaves no hard-edged trail.
                 f32 t        = distance_sq / radius_cells_sq;
                 f32 falloff  = (1.0F - t) * (1.0F - t);
                 u32 index    = _nya_fluid_index(fluid, i, j, k);
@@ -625,9 +608,7 @@ u64 nya_fluid_checksum(const NYA_Fluid* fluid) {
 
     u64 field_bytes = (u64)fluid->cell_count * sizeof(f32);
 
-    // the five fields a caller can observe. The scratch arrays are swapped between steps, so their
-    // contents depend on how many stages ran rather than on the state, and hashing them would make
-    // the checksum change for reasons the caller cannot see.
+    // The five observable fields; the scratch arrays are swapped between steps, so hashing them would change the checksum for invisible reasons.
     u64 hash = nya_hash_fnv1a(fluid->velocity_x, field_bytes);
 
     hash ^= nya_hash_fnv1a(fluid->velocity_y, field_bytes);
@@ -753,10 +734,7 @@ void _nya_fluid_bounds_set(NYA_Fluid* fluid, f32* field, u32 bound) {
     u32 step_y = fluid->stride_x;
     u32 step_z = fluid->stride_x * fluid->stride_y;
 
-    /*
-     * A wall reflects the component that would cross it and mirrors everything else. That is what
-     * makes the box closed for velocity and open (no gradient) for pressure, density and heat.
-     */
+    // A wall reflects the crossing component and mirrors the rest: closed for velocity, open (no gradient) for pressure, density and heat.
     f32 sign_x = bound == _NYA_FLUID_BOUND_VELOCITY_X ? -1.0F : 1.0F;
     f32 sign_y = bound == _NYA_FLUID_BOUND_VELOCITY_Y ? -1.0F : 1.0F;
     f32 sign_z = bound == _NYA_FLUID_BOUND_VELOCITY_Z ? -1.0F : 1.0F;
@@ -765,11 +743,7 @@ void _nya_fluid_bounds_set(NYA_Fluid* fluid, f32* field, u32 bound) {
     u32 last_y = height + 1;
     u32 last_z = depth + 1;
 
-    /*
-     * Indices are stepped rather than recomputed per cell. This runs once per Gauss-Seidel sweep, so
-     * roughly forty times a step, and a two-assertion index helper in here costs more than the
-     * arithmetic it was checking; the bound is asserted once per plane instead.
-     */
+    // Indices are stepped, not recomputed: this runs ~40 times a step, so the index helper's assertions would cost more than the arithmetic; the bound is checked once per plane.
     for (u32 k = 1; k <= depth; k++) {
         for (u32 j = 1; j <= height; j++) {
             u32 row = (k * step_z) + (j * step_y);
@@ -788,11 +762,7 @@ void _nya_fluid_bounds_set(NYA_Fluid* fluid, f32* field, u32 bound) {
         }
     }
 
-    /*
-     * The two z planes are what reduce the solver to two dimensions when depth is one: they mirror
-     * the single interior plane, so the seven point stencil's z terms cancel against the centre cell.
-     * See "2D is 3D one cell deep" in the header.
-     */
+    // The two z planes reduce the solver to 2D when depth is one: they mirror the interior plane, so the stencil's z terms cancel (see "2D is 3D one cell deep" in the header).
     for (u32 j = 1; j <= height; j++) {
         u32 row = j * step_y;
 
@@ -802,11 +772,7 @@ void _nya_fluid_bounds_set(NYA_Fluid* fluid, f32* field, u32 bound) {
         }
     }
 
-    /*
-     * Edges and corners are the average of the face cells meeting there. Advection clamps its sample
-     * to half a cell inside the border, so it does reach them; leaving them at zero puts a dark seam
-     * down every edge of the box.
-     */
+    // Edges and corners average the face cells meeting there; advection reaches them, and leaving them zero puts a dark seam down every edge.
     for (u32 i = 1; i <= width; i++) {
         field[i]                                             = 0.5F * (field[step_y + i] + field[step_z + i]);
         field[(last_y * step_y) + i]                         = 0.5F * (field[(height * step_y) + i] + field[step_z + (last_y * step_y) + i]);
@@ -871,9 +837,7 @@ void _nya_fluid_linear_solve(NYA_Fluid* fluid, f32* field, const f32* field_sour
 
     const u8* obstacle = fluid->obstacle;
 
-    // hoisted out of the loop so a volume with no obstacles runs the plain stencil and never touches
-    // the mask. Both arms are the same expression with and without the wall rule, which is why this
-    // is one function and not an obstacle-free copy of the solve beside an obstacle-aware one.
+    // Hoisted out of the loop so a volume with no obstacles never touches the mask, keeping this one function instead of two copies.
     b8 walled = fluid->obstacle_count > 0;
 
     for (u32 iteration = 0; iteration < iterations; iteration++) {
@@ -912,8 +876,7 @@ void _nya_fluid_advect(NYA_Fluid* fluid, f32* field, const f32* field_source, f3
     nya_assert(delta_time_s > 0.0F && delta_time_s <= NYA_FLUID_STEP_SECONDS_MAX, "advecting over " FMTf32 " seconds",
                (f64)delta_time_s);
 
-    // velocity is world units per second and the grid is indexed in cells, so one conversion covers
-    // the whole trace back.
+    // Velocity is world units per second and the grid is in cells, so one conversion covers the whole trace back.
     f32 cells_per_unit = delta_time_s / fluid->options.cell_size;
 
     u32 step_y = fluid->stride_x;
@@ -928,8 +891,7 @@ void _nya_fluid_advect(NYA_Fluid* fluid, f32* field, const f32* field_source, f3
 
                 f32 x = (f32)i - (cells_per_unit * fluid->velocity_x[index]);
                 f32 y = (f32)j - (cells_per_unit * fluid->velocity_y[index]);
-                // a 2D volume's z velocity is held at exactly zero by every path that could write it,
-                // so this reduces to (f32)k with no branch to make the two spaces round differently.
+                // A 2D volume's z velocity is held at zero everywhere, so this reduces to (f32)k with no branch.
                 f32 z = (f32)k - (cells_per_unit * fluid->velocity_z[index]);
 
                 field[index] = _nya_fluid_sample(fluid, field_source, x, y, z);
@@ -960,17 +922,10 @@ void _nya_fluid_project(NYA_Fluid* fluid) {
                 f32 difference_y = fluid->velocity_y[index + step_y] - fluid->velocity_y[index - step_y];
                 f32 difference_z = fluid->velocity_z[index + step_z] - fluid->velocity_z[index - step_z];
 
-                /*
-                 * Stored already negated and already multiplied by the cell size squared, which is
-                 * exactly the right hand side the Gauss-Seidel sweep below takes: the discrete
-                 * Poisson equation (sum of neighbours - 6p) / h^2 = divergence rearranges to
-                 * p = (sum of neighbours - h^2 * divergence) / 6.
-                 */
+                // Stored already negated and times cell-size-squared, the exact right-hand side the Gauss-Seidel sweep below takes for the discrete Poisson equation.
                 fluid->divergence[index] = -0.5F * cell_size * (difference_x + difference_y + difference_z);
 
-                // cold start: a pressure left over from the previous step belongs to a velocity field
-                // that no longer exists, and warm starting from it converges to the same answer no
-                // faster while making the step depend on how many steps came before it.
+                // Cold start: a leftover pressure belongs to a gone velocity field and warm-starting converges no faster while making the step history-dependent.
                 fluid->pressure[index] = 0.0F;
             }
         }
@@ -1032,8 +987,7 @@ void _nya_fluid_forces_add(NYA_Fluid* fluid, f32 delta_time_s) {
             for (u32 i = 1; i <= fluid->width; i++) {
                 u32 index = row + i;
 
-                // hot fluid rises and dense fluid sinks, both along the volume's own up axis, so a
-                // 2D volume whose y grows down the screen needs no special case anywhere else.
+                // Hot fluid rises and dense fluid sinks along the volume's own up axis, so a y-down 2D volume needs no special case.
                 f32 lift = (buoyancy * (fluid->temperature[index] - ambient)) - (weight * fluid->density[index]);
 
                 fluid->velocity_x[index] += delta_time_s * ((up.x * lift) + gravity.x);
@@ -1061,11 +1015,7 @@ void _nya_fluid_vorticity_add(NYA_Fluid* fluid, f32 delta_time_s) {
     u32 step_y = fluid->stride_x;
     u32 step_z = fluid->stride_x * fluid->stride_y;
 
-    /*
-     * The curl goes in the velocity scratch arrays, which are free here: the next stage either swaps
-     * them out for diffusion or overwrites them for advection. One dedicated array is kept for the
-     * magnitude, because confinement needs its gradient after every component is known.
-     */
+    // The curl goes in the free velocity scratch arrays; one dedicated array holds the magnitude, since confinement needs its gradient after every component.
     f32* curl_x = fluid->velocity_x_previous;
     f32* curl_y = fluid->velocity_y_previous;
     f32* curl_z = fluid->velocity_z_previous;
@@ -1159,8 +1109,7 @@ f32 _nya_fluid_sample(const NYA_Fluid* fluid, const f32* field, f32 x, f32 y, f3
     nya_assert(fluid != nullptr && field != nullptr);
     nya_assert(fluid->stride_x >= 3 && fluid->stride_y >= 3 && fluid->stride_z >= 3, "a grid smaller than one interior cell");
 
-    // half a cell inside the border on each side, so the eight corners of the interpolation are
-    // always addressable and a fast flow clamps to the wall instead of reading off the end.
+    // Half a cell inside the border, so the eight interpolation corners stay addressable and a fast flow clamps to the wall.
     f32 clamped_x = nya_clamp(x, 0.5F, (f32)fluid->width + 0.5F);
     f32 clamped_y = nya_clamp(y, 0.5F, (f32)fluid->height + 0.5F);
     f32 clamped_z = nya_clamp(z, 0.5F, (f32)fluid->depth + 0.5F);
@@ -1177,9 +1126,7 @@ f32 _nya_fluid_sample(const NYA_Fluid* fluid, const f32* field, f32 x, f32 y, f3
     f32 sy = 1.0F - ty;
     f32 sz = 1.0F - tz;
 
-    // stepped rather than indexed eight times: this runs four times per cell per step, and the index
-    // helper's own assertions cost more here than the arithmetic they check. The clamp above is what
-    // makes every one of the eight corners addressable, and the assertion below is that bound.
+    // Stepped, not indexed eight times: the clamp above keeps every corner addressable, and the assertion below is that bound.
     u32 step_y = fluid->stride_x;
     u32 step_z = fluid->stride_x * fluid->stride_y;
 
@@ -1202,9 +1149,7 @@ f32x3 _nya_fluid_grid_position(const NYA_Fluid* fluid, f32x3 position) {
 
     f32 inverse = 1.0F / fluid->options.cell_size;
 
-    // a 2D volume has one interior plane and z means nothing, so every sample lands on that plane.
-    // Without this, a caller passing z = 0 lands halfway into the border plane and reads half the
-    // density that is actually there.
+    // A 2D volume has one interior plane, so every sample lands on it; otherwise z=0 lands in the border and reads half the density.
     f32 z = fluid->options.space == NYA_FLUID_SPACE_2D ? 1.0F : ((position.z - fluid->options.origin.z) * inverse) + 0.5F;
 
     // interior cell i is centred on grid coordinate i, and spans world [origin + (i-1)*h, origin + i*h].
@@ -1329,11 +1274,7 @@ void _nya_fluid_draw_2d(NYA_Window* window, const NYA_Fluid* fluid, NYA_FluidRen
 
             if (fluid->density[index] < options.threshold) continue;
 
-            /*
-             * Shaded from the four cells around each corner rather than flat per cell. It is the same
-             * vertex count through the same batch, and without it a coarse grid reads as a mosaic
-             * instead of as smoke.
-             */
+            // Shaded from the four cells at each corner, not flat per cell: same vertex count, but a coarse grid reads as smoke instead of a mosaic.
             NYA_Color corners[4];
 
             for (u32 corner = 0; corner < 4; corner++) {
@@ -1358,11 +1299,7 @@ void _nya_fluid_draw_3d(NYA_Window* window, const NYA_Fluid* fluid, NYA_FluidRen
     nya_assert(window != nullptr && fluid != nullptr);
     nya_assert(fluid->options.space == NYA_FLUID_SPACE_3D, "a 2D volume drawn through the 3D path");
 
-    /*
-     * Additive, so the splats need no sorting: addition commutes and the order cells come out of the
-     * grid in is therefore invisible. It is also what makes a hot volume glow, since bloom reads the
-     * scene after this and a stack of overlapping splats exceeds one.
-     */
+    // Additive, so the splats need no sorting and a hot volume glows once overlapping splats exceed one for bloom.
     nya_render3d_blend_set(window, NYA_RENDER3D_BLEND_ADDITIVE);
 
     // resolved once for the whole volume, the same reason nya_particles_draw resolves before its loop.
@@ -1393,7 +1330,6 @@ void _nya_fluid_draw_3d(NYA_Window* window, const NYA_Fluid* fluid, NYA_FluidRen
         }
     }
 
-    // back to the default rather than to a remembered value: render3d exposes no getter for the
-    // blend, and every caller in this engine draws additive geometry last for that reason.
+    // Back to the default, not a remembered value: render3d has no blend getter, so every caller draws additive geometry last.
     nya_render3d_blend_set(window, NYA_RENDER3D_BLEND_ALPHA);
 }
