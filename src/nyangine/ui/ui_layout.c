@@ -9,11 +9,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LAYOUT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// LAYOUT
 
 b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     return _nya_ui_panel_open(ui, id, panel, nullptr);
@@ -140,21 +136,11 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
 
         // moved by the pointer, then clamped so a panel dragged at the edge, or a shrinking window, cannot strand it.
         if (panel.draggable) {
-            /*
-             * Where it is on screen, which is where it was anchored plus everything it has been dragged
-             * by so far. The grab has to be taken from this and not from the anchor: a window moved once
-             * would otherwise keep its handle where it used to be, and the second grab would do nothing.
-             */
+            // Where it is on screen, which is where it was anchored plus everything it has been dragged by so far; the grab must be taken from this not the anchor, or a window moved once would keep its handle where it used to be and the second grab would do nothing.
             f32 shown_x = nya_clamp(bounds.x + state->drag.x, safe->x, nya_max(safe->x + safe->width - bounds.width, safe->x));
             f32 shown_y = nya_clamp(bounds.y + state->drag.y, safe->y, nya_max(safe->y + safe->height - bounds.height, safe->y));
 
-            /*
-             * From the top edge down to the bottom of the bar that is drawn, rather than the strip the
-             * layout reserved. The two are not the same rectangle: the bar sits a padding below the top
-             * edge and the reservation adds the spacing under it, so the reserved strip stops short of
-             * the bar's bottom — which is exactly where a person aims when the title is tall. Taking the
-             * frame's top edge with it keeps the whole visible header a handle.
-             */
+            // From the top edge down to the bottom of the bar that's drawn, not the strip the layout reserved: the bar sits a padding below the top edge and the reservation adds the spacing under it, so the reserved strip stops short of the bar's bottom — exactly where a person aims when the title is tall. Taking the frame's top edge with it keeps the whole visible header a handle.
             f32       strip = header > 0.0F ? before.y + look->title_bar : look->line_heights[NYA_UI_TEXT_BODY];
             NYA_Rectf grip  = { shown_x, shown_y, bounds.width, strip };
 
@@ -176,9 +162,7 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
             if (sizes[axis].max > 0.0F) room[axis] = nya_min(room[axis], _nya_ui_px(sizes[axis].max));
         }
 
-        // A titled or draggable top level panel swallows a pointer inside it, so a scene under a non-modal
-        // UI (nya_ui_pointer_over) can skip a world click that landed on the panel. The frameless HUD is a
-        // read-only overlay and takes no clicks, so it is left out.
+        // A titled or draggable top-level panel swallows a pointer inside it, so a scene under a non-modal UI (nya_ui_pointer_over) can skip a world click that landed on the panel; the frameless HUD is a read-only overlay that takes no clicks, so it's left out.
         if (ui->pass == NYA_UI_PASS_INPUT && (panel.title != nullptr || panel.draggable) && nya_rect_contains(bounds, _nya_ui.pointer)) {
             _nya_ui.pointer_over_panel = true;
         }
@@ -211,26 +195,21 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
     if (top_level) {
         state->bounds = bounds;
 
-        // a press anywhere in the topmost panel under the pointer raises it, chrome and widgets alike, which is
-        // what makes a dragged panel behave: it comes forward the moment it is touched and stays there.
+        // a press anywhere in the topmost panel under the pointer raises it, chrome and widgets alike, which makes a dragged panel behave: it comes forward the moment it's touched and stays there.
         if (ui->pass == NYA_UI_PASS_INPUT && _nya_ui.pointer_pressed && !covered && !_nya_ui_claimed(_nya_ui.pointer) &&
             nya_rect_contains(bounds, _nya_ui.pointer)) {
-            // a press that brought this panel out from under another is spent on that, and not on a
-            // widget inside it: somebody aiming at a window they cannot fully see is aiming at the window.
+            // a press that brought this panel out from under another is spent on that, not on a widget inside it: somebody aiming at a window they can't fully see is aiming at the window.
             if (_nya_ui_panel_raise(ui, index)) _nya_ui.raise_swallowed = state->id;
         }
 
-        // the renderer paints layers low to high whatever order the calls came in, so a raised panel declared
-        // first still draws over the ones after it. See nya_render2d_layer_set.
+        // the renderer paints layers low to high whatever order the calls came in, so a raised panel declared first still draws over the ones after it. See nya_render2d_layer_set.
         layer = _nya_ui.layer_base + 1 + (s32)_nya_ui_panel_rank(ui, index);
     }
 
-    // over every panel whatever it was raised to: a list belongs over the thing that opened it, and that thing is
-    // already the panel in front when the list is open at all.
+    // over every panel whatever it was raised to: a list belongs over the thing that opened it, and that thing is already the panel in front when the list is open at all.
     if (floating) layer = _nya_ui.layer_base + 1 + (s32)NYA_UI_PANELS_MAX;
 
-    // only when it moves: an ordinary nested container draws in its parent's layer, and the backends treat a set as
-    // a reason to end the batch they were filling.
+    // only when it moves: an ordinary nested container draws in its parent's layer, and the backends treat a set as a reason to end the batch they were filling.
     if (layer != parent->layer) _nya_ui_layer_set(ui, layer);
 
     f32x2 extent = { nya_max(bounds.width - chrome.x, 0.0F), nya_max(bounds.height - chrome.y, 0.0F) };
@@ -390,8 +369,7 @@ void nya_ui_panel_end(NYA_UI* ui) {
         }
     }
 
-    // after the scrollbars, which belong to the panel, and back to where the container was opened from, so anything
-    // the caller draws between two panels lands in the layer it asked for rather than in the last panel's.
+    // after the scrollbars, which belong to the panel, and back to where the container was opened from, so anything the caller draws between two panels lands in the layer it asked for rather than the last panel's.
     if (layout->layer != parent->layer) _nya_ui_layer_set(ui, parent->layer);
 }
 
@@ -448,11 +426,7 @@ NYA_Rectf nya_ui_space(NYA_UI* ui, f32 width, f32 height) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TABLES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TABLES
 
 b8 nya_ui_table_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UITable table) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
@@ -537,11 +511,7 @@ void nya_ui_table_row_end(NYA_UI* ui) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 u64 _nya_ui_id(u64 scope, NYA_ConstCString label) {
     u64 parts[2] = { scope, nya_hash_fnv1a(label) };
@@ -634,8 +604,7 @@ b8 _nya_ui_panel_raise(const NYA_UI* ui, u32 index) {
         // its own z band only: raising never lifts a panel over one the caller deliberately put above it.
         if (other->z != own->z || other->order <= own->order) continue;
 
-        // whether being under it was visible at all: a panel nothing overlaps looks the same in front as
-        // behind, so bringing it forward is not something a person can have meant by clicking it.
+        // whether being under it was visible at all: a panel nothing overlaps looks the same in front as behind, so bringing it forward isn't something a person can have meant by clicking it.
         overlapped |= nya_rect_overlaps(other->bounds, own->bounds);
         moved       = true;
     }
@@ -688,12 +657,7 @@ NYA_UISize _nya_ui_next_size(const _NYA_UILayout* layout, NYA_UISize own) {
     if (_nya_ui.next_set) return _nya_ui.next;
     if (own.kind != NYA_UI_SIZE_AUTO) return own;
 
-    /*
-     * A table row's cells are sized by their column, which is what lines one row up with the next. Inside a row
-     * only: the table itself keeps the widths so every row it opens can read them, and its own children are the
-     * rows, not cells. Without the direction test the first row took column 0 as its height and the rule under the
-     * headers took column 1, which drew a 70 pixel bar across the top of gnyame's counters table.
-     */
+    // A table row's cells are sized by their column, which lines one row up with the next; inside a row only, since the table keeps the widths so every row can read them and its own children are the rows not cells. Without the direction test the first row took column 0 as its height and the rule under the headers took column 1, drawing a 70-pixel bar across the top of gnyame's counters table.
     if (layout->columns != nullptr && layout->main == 0 && layout->count < layout->column_count) {
         f32 width = layout->columns[layout->count];
 
@@ -779,8 +743,7 @@ NYA_Rectf _nya_ui_place(NYA_UISize own, f32x2 natural, b8 fill) {
 }
 
 void _nya_ui_reveal(NYA_Rectf rect) {
-    // not `near` and `far`: windows.h still defines both as empty macros, and the Windows build fails
-    // here with "expected identifier" rather than with anything that names the collision.
+    // not `near` and `far`: windows.h still defines both as empty macros, and the Windows build fails here with "expected identifier" rather than anything that names the collision.
     f32x2 top_left     = { rect.x, rect.y };
     f32x2 bottom_right = { rect.x + rect.width, rect.y + rect.height + _nya_ui_look()->depth };
 
@@ -810,8 +773,7 @@ void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf
 
     if (ui->pass != NYA_UI_PASS_INPUT) return;
 
-    // `grip` is the title strip as it is drawn, or the top edge when there is no title. Dragging by the body
-    // would swallow every click in it.
+    // `grip` is the title strip as drawn, or the top edge when there's no title; dragging by the body would swallow every click in it.
     if (_nya_ui.pointer_pressed && !covered && !_nya_ui_claimed(_nya_ui.pointer) && ui->drag_panel == 0 && nya_rect_contains(grip, _nya_ui.pointer)) {
         ui->drag_panel       = key;
         ui->drag_grip        = (f32x2){ _nya_ui.pointer.x - state->drag.x, _nya_ui.pointer.y - state->drag.y };

@@ -13,11 +13,7 @@
 #include "nyangine/ui/ui_internal.h"
 #include "nyangine/ui/ui_present_html.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL void  _nya_ui_html_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
 NYA_INTERNAL void  _nya_ui_html_look_use(void* state, u32 depth);
@@ -62,11 +58,7 @@ NYA_INTERNAL void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u3
  * */
 NYA_INTERNAL void _nya_ui_html_meta_tag(NYA_UIHtml* scratch, NYA_ConstCString attr, NYA_ConstCString key, NYA_ConstCString value);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// LIFETIME
 
 void nya_ui_html_init(NYA_UIHtml* html, f32x2 cell) {
     nya_assert(html != nullptr);
@@ -160,11 +152,7 @@ b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, NYA_UIWidgetKind* out_kind
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DOCUMENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE DOCUMENT
 
 /**
  * The one stylesheet and the thin client, kept as a literal because it is the whole front-end a program
@@ -206,10 +194,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "<script%s>\n"
     "(function(){\n"
     "  var surface=document.getElementById('nya-surface');\n"
-    // morph the surface to the new HTML by id, rather than replacing it whole: an element that did not
-    // change is left alone, so its focus, caret and a mid-drag slider survive a redraw. The server is
-    // stateless — it holds no memory of the last render — so the diff has to happen here, which is where
-    // a browser keeps the live DOM anyway. New ids are added, gone ids removed, changed ones patched.
+    // morph the surface to the new HTML by id rather than replacing it whole: an element that didn't change is left alone, so its focus, caret and a mid-drag slider survive a redraw. The server is stateless (no memory of the last render), so the diff happens here where a browser keeps the live DOM anyway; new ids added, gone ids removed, changed ones patched.
     "  function morph(html){\n"
     "    var next=document.createElement('div');next.innerHTML=html;\n"
     "    var have={};for(var c=surface.firstElementChild;c;c=c.nextElementSibling)if(c.id)have[c.id]=c;\n"
@@ -226,9 +211,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "        if(html)morph(html);});\n"
     "  }\n"
     "  surface.addEventListener('click',function(e){var t=e.target.closest('[data-nya]');if(t&&t.dataset.nya==='click')send(t.id,'click',null);});\n"
-    // A value change on a slider or a field: the event name is the element's own data-nya — 'input' for the
-    // range, 'text' for the field — and the id sent is the widget's, the nearest ancestor carrying one, since
-    // the <input> itself has none. The value is capped so no field can post an unbounded body to the server.
+    // A value change on a slider or field: the event name is the element's own data-nya ('input' for the range, 'text' for the field), the id sent is the widget's (the nearest ancestor carrying one, since the <input> has none), and the value is capped so no field can post an unbounded body.
     "  surface.addEventListener('input',function(e){var t=e.target.closest('[data-nya]');if(!t)return;var host=t.closest('[id]');if(!host)return;var v=e.target.value;if(v!=null&&v.length>4096)v=v.slice(0,4096);send(host.id,t.dataset.nya,v);});\n"
     "})();\n"
     "</script></body></html>\n";
@@ -241,13 +224,11 @@ u32 nya_ui_html_document_meta(const NYA_UIHtml* html, char* out, u32 capacity, N
                               const NYA_PageMeta* meta) {
     nya_assert(html != nullptr && out != nullptr && capacity > 0);
 
-    // The nonce as the attribute it becomes, or nothing. It is this server's own random value, not user
-    // data, so it needs no escaping; a caller that passes something else has misused it.
+    // The nonce as the attribute it becomes, or nothing: it's this server's own random value, not user data, so it needs no escaping; a caller that passes something else has misused it.
     char nonce_attr[96] = { 0 };
     if (script_nonce != nullptr && script_nonce[0] != '\0') (void)snprintf(nonce_attr, sizeof(nonce_attr), " nonce=\"%s\"", script_nonce);
 
-    // The title through the same escaping a label gets, into a small stack buffer, since it is dropped
-    // into the format string where a raw `<` would break the page.
+    // The title through the same escaping a label gets, into a small stack buffer, since it's dropped into the format string where a raw `<` would break the page.
     char safe_title[128] = { 0 };
     {
         NYA_UIHtml scratch = { 0 };
@@ -256,8 +237,7 @@ u32 nya_ui_html_document_meta(const NYA_UIHtml* html, char* out, u32 capacity, N
         (void)snprintf(safe_title, sizeof(safe_title), "%.*s", (s32)nya_min(scratch.used, (u32)(sizeof(safe_title) - 1)), scratch.body);
     }
 
-    // The embedding metadata as its block of `<meta>`/`<link>` tags, each field escaped, or the empty string
-    // when there is no metadata — which is what keeps the default page byte-for-byte unchanged.
+    // The embedding metadata as its block of `<meta>`/`<link>` tags, each field escaped, or the empty string when there's no metadata — which keeps the default page byte-for-byte unchanged.
     char meta_head[NYA_PAGE_META_HEAD_MAX] = { 0 };
     if (meta != nullptr) _nya_ui_html_meta_head(meta, meta_head, sizeof(meta_head));
 
@@ -271,11 +251,7 @@ u32 nya_ui_html_document_meta(const NYA_UIHtml* html, char* out, u32 capacity, N
     return (u32)nya_min((u32)written, capacity - 1);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MEASUREMENT AND LOOK — the recorder's, so structure agrees across backends
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MEASUREMENT AND LOOK — the recorder's, so structure agrees across backends
 
 void _nya_ui_html_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out) {
     NYA_UIHtml* html = state;
@@ -348,11 +324,7 @@ void _nya_ui_html_layer_set(void* state, NYA_Window* window, s32 layer) {
     html->layer = layer;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DRAWING — one element per widget
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// DRAWING — one element per widget
 
 void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     NYA_UIHtml* html = state;
@@ -373,22 +345,17 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
 
     NYA_ConstCString kind = _nya_ui_html_class(widget->kind);
 
-    // The frame every element shares: an id for a patch, a class for CSS, the computed rectangle, the
-    // z-index, and the state as data attributes a stylesheet and a client both read.
+    // The frame every element shares: an id for a patch, a class for CSS, the computed rectangle, the z-index, and the state as data attributes a stylesheet and a client both read.
     _nya_ui_html_putf(html,
                       "<div id=\"w%u\" class=\"nya-%s\" style=\"left:%dpx;top:%dpx;width:%dpx;height:%dpx;z-index:%d",
                       id, kind, (s32)widget->rect.x, (s32)widget->rect.y, (s32)widget->rect.width, (s32)widget->rect.height, html->layer);
 
     if (widget->opacity < 1.0F) _nya_ui_html_putf(html, ";opacity:%.3f", (f64)widget->opacity);
 
-    // A colour the caller set on this specific widget, as the GPU backend also honours over the style. It
-    // wins the text colour, since the style block below writes fills and borders and never `color`.
+    // A colour the caller set on this specific widget, as the GPU backend also honours over the style: it wins the text colour, since the style block below writes fills and borders and never `color`.
     _nya_ui_html_style_color(html, "color", widget->color);
 
-    // The program's own style, at the depth this pass selected, written as inline CSS that layers over the
-    // fixed stylesheet: a custom accent, panel colour or radius set with nya_ui_style_set/_push reaches the
-    // browser here. It is the same NYA_UILook the GPU backend draws from, turned into properties rather than
-    // triangles; a zeroed colour is left to the stylesheet, exactly as the GPU leaves it to the style.
+    // The program's own style, at the depth this pass selected, as inline CSS layering over the fixed stylesheet: a custom accent, panel colour or radius set with nya_ui_style_set/_push reaches the browser here — the same NYA_UILook the GPU backend draws from, turned into properties rather than triangles; a zeroed colour is left to the stylesheet, as the GPU leaves it to the style.
     const NYA_UILook*  look  = &html->looks[html->depth];
     const NYA_UIStyle* style = &look->style;
 
@@ -400,14 +367,10 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
             if (look->radius > 0.0F) _nya_ui_html_putf(html, ";border-radius:%dpx", (s32)look->radius);
             break;
 
-        // The dim sheet over the surface behind a modal: the style's own scrim colour, falling through to
-        // the stylesheet's default the same way every other colour does.
+        // The dim sheet over the surface behind a modal: the style's own scrim colour, falling through to the stylesheet's default the way every other colour does.
         case NYA_UI_WIDGET_SCRIM: _nya_ui_html_style_color(html, "background", style->scrim); break;
 
-        // The value widgets paint through their own inner <input>, which no fill on this <div> would reach.
-        // Their look travels as inherited CSS custom properties instead — the stylesheet reads them off the
-        // input with the fixed sheet as the fallback — so a custom track, accent, radius or padding shows on
-        // the field and slider the way it does natively. A zeroed colour writes nothing and the default stands.
+        // The value widgets paint through their own inner <input>, which no fill on this <div> would reach; their look travels as inherited CSS custom properties instead (the stylesheet reads them off the input, with the fixed sheet as fallback), so a custom track, accent, radius or padding shows on the field and slider natively. A zeroed colour writes nothing and the default stands.
         case NYA_UI_WIDGET_FIELD:
             _nya_ui_html_style_color(html, "--nya-track", style->track);
             if (look->radius > 0.0F) _nya_ui_html_putf(html, ";--nya-radius:%dpx", (s32)look->radius);
@@ -419,9 +382,7 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
             _nya_ui_html_style_color(html, "--nya-track", style->track);
             break;
 
-        // The button family shares a body colour and a rounded border. A selectable or a toggle that is on
-        // takes the accent — the colour the stylesheet's `[data-on]` rule uses — since an inline fill would
-        // otherwise sit over that rule and hide the chosen state.
+        // The button family shares a body colour and a rounded border; a selectable or toggle that's on takes the accent (the colour the stylesheet's `[data-on]` rule uses), since an inline fill would otherwise sit over that rule and hide the chosen state.
         case NYA_UI_WIDGET_BUTTON:
         case NYA_UI_WIDGET_SELECTABLE:
         case NYA_UI_WIDGET_TOGGLE:
@@ -441,9 +402,7 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
         // The accent under a chosen tab is the accent colour, flat.
         case NYA_UI_WIDGET_UNDERLINE: _nya_ui_html_style_color(html, "background", style->accent); break;
 
-        // The rest keep the stylesheet's fill: a label and text follow the per-widget colour above, the
-        // rule and stripe are fixed sheets, and the field and slider carried their look as the custom
-        // properties above rather than a fill on the div.
+        // The rest keep the stylesheet's fill: a label and text follow the per-widget colour above, the rule and stripe are fixed sheets, and the field and slider carried their look as the custom properties above rather than a fill on the div.
         case NYA_UI_WIDGET_LABEL:
         case NYA_UI_WIDGET_COLOR_PICKER:
         case NYA_UI_WIDGET_CHART:
@@ -464,8 +423,7 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     if (widget->state.focused) _nya_ui_html_put(html, " data-focused=\"1\"");
     if (widget->state.held) _nya_ui_html_put(html, " data-held=\"1\"");
 
-    // The event a click on this widget stands for, so the thin client knows what to send back. Only the
-    // widgets a person acts on carry one; a label or a rule is inert.
+    // The event a click on this widget stands for, so the thin client knows what to send back: only the widgets a person acts on carry one; a label or a rule is inert.
     switch (widget->kind) {
         case NYA_UI_WIDGET_BUTTON:
         case NYA_UI_WIDGET_SELECTABLE:
@@ -489,8 +447,7 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
 
     _nya_ui_html_put(html, ">");
 
-    // The contents, which is where a kind's shape shows. Every kind is answered, so a widget added later
-    // is a -Wswitch error here rather than a blank element in a browser.
+    // The contents, where a kind's shape shows: every kind is answered, so a widget added later is a -Wswitch error here rather than a blank element in a browser.
     switch (widget->kind) {
         case NYA_UI_WIDGET_LABEL:
         case NYA_UI_WIDGET_BUTTON:
@@ -507,24 +464,18 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
             break;
 
         case NYA_UI_WIDGET_SLIDER:
-            // A real range input, so the browser gives the drag and the keyboard for free; the value the
-            // layout computed is its position, and `data-nya="input"` is added by the frame's default.
+            // A real range input, so the browser gives the drag and keyboard for free; the value the layout computed is its position, and `data-nya="input"` is added by the frame's default.
             _nya_ui_html_putf(html, "<input type=\"range\" min=\"0\" max=\"1000\" value=\"%d\" data-nya=\"input\">", (s32)(widget->as_slider.t * 1000.0F));
             break;
 
         case NYA_UI_WIDGET_FIELD:
-            // A real text input. `data-nya="text"` marks it as a text write-back, the event the client
-            // posts as `{ id, event: "text", value }` — distinct from the slider's `"input"`, so a server
-            // knows to set the field's text rather than aim a pointer. `maxlength` bounds what a browser
-            // sends to the field's own capacity; the server truncates to the same, so neither can overrun.
+            // A real text input: `data-nya="text"` marks it as a text write-back (the event the client posts as `{ id, event: "text", value }`, distinct from the slider's `"input"`, so a server knows to set the field's text rather than aim a pointer), and `maxlength` bounds what a browser sends to the field's capacity, which the server truncates to the same so neither can overrun.
             _nya_ui_html_putf(html, "<input type=\"text\" maxlength=\"%d\" value=\"", (s32)(NYA_UI_TEXT_INPUT_MAX - 1));
             _nya_ui_html_escape(html, widget->as_field.field.buffer != nullptr ? widget->as_field.field.buffer : "");
             _nya_ui_html_put(html, "\" data-nya=\"text\">");
             break;
 
-        // The rest are marks and fills the stylesheet draws from the class and the rectangle alone: a
-        // scrim is a dim sheet, a rule and an underline are lines, a panel is a frame. Their label, when
-        // they have one, is a title the frame already showed nothing of, so it goes in as text.
+        // The rest are marks and fills the stylesheet draws from the class and rectangle alone: a scrim is a dim sheet, a rule and underline are lines, a panel is a frame; their label, when they have one, is a title the frame already showed nothing of, so it goes in as text.
         case NYA_UI_WIDGET_PANEL:
         case NYA_UI_WIDGET_SCRIM:
         case NYA_UI_WIDGET_COLOR_PICKER:
@@ -545,11 +496,7 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     _nya_ui_html_put(html, "</div>\n");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 NYA_ConstCString _nya_ui_html_class(NYA_UIWidgetKind kind) {
     switch (kind) {
@@ -581,9 +528,7 @@ NYA_ConstCString _nya_ui_html_class(NYA_UIWidgetKind kind) {
 }
 
 NYA_Color _nya_ui_html_button_color(const NYA_UIStateColors* colors, const NYA_UIWidgetState* state) {
-    // The discrete pick the terminal and the skin selection make, rather than the GPU's eased mix: a static
-    // render has one state, not a frame mid-transition, so it reads the same order — disabled over held over
-    // focused over the resting colour.
+    // The discrete pick the terminal and skin selection make, rather than the GPU's eased mix: a static render has one state, not a frame mid-transition, so it reads the same order — disabled over held over focused over the resting colour.
     if (state->disabled) return colors->disabled;
     if (state->held) return colors->pressed;
     if (state->focused) return colors->focused;
@@ -592,8 +537,7 @@ NYA_Color _nya_ui_html_button_color(const NYA_UIStateColors* colors, const NYA_U
 }
 
 void _nya_ui_html_style_color(NYA_UIHtml* html, NYA_ConstCString prop, NYA_Color color) {
-    // Alpha zero is the style's "leave it to the default", so nothing is written and the stylesheet's colour
-    // stands — the GPU backend reads the same all-zero colour as "use the style" and draws nothing new either.
+    // Alpha zero is the style's "leave it to the default", so nothing is written and the stylesheet's colour stands — the GPU backend reads the same all-zero colour as "use the style" and draws nothing new either.
     if (color.a <= 0.0F) return;
 
     // `prop` is one of this file's own literals, never a caller's text, so it needs no escaping.
@@ -663,17 +607,12 @@ void _nya_ui_html_escape(NYA_UIHtml* html, NYA_ConstCString text) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PAGE METADATA — the tags a link unfurls with
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PAGE METADATA — the tags a link unfurls with
 
 void _nya_ui_html_meta_tag(NYA_UIHtml* scratch, NYA_ConstCString attr, NYA_ConstCString key, NYA_ConstCString value) {
     if (value == nullptr || value[0] == '\0') return;
 
-    // `attr` and `key` are literals from _nya_ui_html_meta_head; `value` is the caller's field, so only it
-    // goes through the escaper — which turns `"` into `&quot;`, so no value can close the attribute early.
+    // `attr` and `key` are literals from _nya_ui_html_meta_head; `value` is the caller's field, so only it goes through the escaper — which turns `"` into `&quot;`, so no value can close the attribute early.
     _nya_ui_html_put(scratch, "<meta ");
     _nya_ui_html_put(scratch, attr);
     _nya_ui_html_put(scratch, "=\"");
@@ -688,12 +627,10 @@ void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u32 capacity) {
 
     out[0] = '\0';
 
-    // The same escaper the body uses, into a scratch presenter, so the metadata and a label are escaped by
-    // one rule; the block is copied out of it below. A field left null simply skips its tag.
+    // The same escaper the body uses, into a scratch presenter, so the metadata and a label are escaped by one rule; the block is copied out of it below, and a field left null skips its tag.
     NYA_UIHtml scratch = { 0 };
 
-    // A URL only reaches the head once it is a well-formed http(s) URL, so a `javascript:` or `data:` URL
-    // never lands in an href. The three URL fields share the gate.
+    // A URL only reaches the head once it's a well-formed http(s) URL, so a `javascript:` or `data:` URL never lands in an href; the three URL fields share the gate.
     NYA_ConstCString url   = nya_ui_page_meta_url_ok(meta->canonical_url) ? meta->canonical_url : nullptr;
     NYA_ConstCString image = nya_ui_page_meta_url_ok(meta->image_url) ? meta->image_url : nullptr;
 
@@ -711,8 +648,7 @@ void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u32 capacity) {
     _nya_ui_html_meta_tag(&scratch, "property", "og:site_name", meta->site_name);
     _nya_ui_html_meta_tag(&scratch, "property", "og:locale", meta->locale);
 
-    // Twitter Card: only when a card is chosen, since the `twitter:card` tag is what turns the rest on. The
-    // title, description and image mirror the OpenGraph ones, so a page fills them once.
+    // Twitter Card: only when a card is chosen, since the `twitter:card` tag is what turns the rest on; title, description and image mirror the OpenGraph ones, so a page fills them once.
     if (meta->twitter_card != NYA_TWITTER_CARD_NONE) {
         NYA_ConstCString card = meta->twitter_card == NYA_TWITTER_CARD_SUMMARY_LARGE_IMAGE ? "summary_large_image" : "summary";
 
@@ -722,8 +658,7 @@ void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u32 capacity) {
         _nya_ui_html_meta_tag(&scratch, "name", "twitter:image", image);
     }
 
-    // The oEmbed discovery link a consumer follows to fetch structured metadata as JSON. Its href is a URL,
-    // so it passes the same gate and is escaped like every other value.
+    // The oEmbed discovery link a consumer follows to fetch structured metadata as JSON: its href is a URL, so it passes the same gate and is escaped like every other value.
     if (nya_ui_page_meta_url_ok(meta->oembed_url)) {
         _nya_ui_html_put(&scratch, "<link rel=\"alternate\" type=\"application/json+oembed\" href=\"");
         _nya_ui_html_escape(&scratch, meta->oembed_url);
@@ -742,9 +677,7 @@ void _nya_ui_html_meta_head(const NYA_PageMeta* meta, char* out, u32 capacity) {
 b8 nya_ui_page_meta_url_ok(NYA_ConstCString url) {
     if (url == nullptr || url[0] == '\0') return false;
 
-    // nya_url_parse only accepts the schemes this engine speaks — http, https, ws, wss — so `javascript:`
-    // and `data:` are refused for free; here we narrow that to the two an unfurled link may point a browser
-    // at. A `ws(s):` endpoint is a real URL but not one a preview image or a canonical page is served over.
+    // nya_url_parse only accepts the schemes this engine speaks (http, https, ws, wss), so `javascript:` and `data:` are refused for free; here we narrow that to the two an unfurled link may point a browser at, since a `ws(s):` endpoint is a real URL but not one a preview image or canonical page is served over.
     NYA_Url        parsed  = { 0 };
     NYA_UrlFailure failure = { 0 };
     if (!nya_url_parse(url, strlen(url), &parsed, &failure).ok) return false;
@@ -775,13 +708,11 @@ NYA_Error nya_ui_page_meta_oembed(NYA_Arena* arena, const NYA_PageMeta* meta, NY
     NYA_Object* object = nya_object_create(arena);
     if (object == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the oEmbed document");
 
-    // The two members every oEmbed 1.0 response carries. A generic page is a "link"; the richer types
-    // (photo, video, rich) carry a player this metadata does not describe.
+    // The two members every oEmbed 1.0 response carries: a generic page is a "link"; the richer types (photo, video, rich) carry a player this metadata doesn't describe.
     nya_object_add(object, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "1.0" });
     nya_object_add(object, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "link" });
 
-    // The rest are the fields the value actually holds, each bounded, each skipped when unset — the same
-    // "only when set" the head follows. The serializer JSON-escapes every value on the way out.
+    // The rest are the fields the value actually holds, each bounded, each skipped when unset — the same "only when set" the head follows; the serializer JSON-escapes every value on the way out.
     NYA_ConstCString title    = _nya_ui_page_meta_field(arena, meta->title);
     NYA_ConstCString provider = _nya_ui_page_meta_field(arena, meta->site_name);
     NYA_ConstCString author   = _nya_ui_page_meta_field(arena, meta->author_name);

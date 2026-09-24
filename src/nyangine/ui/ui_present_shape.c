@@ -14,11 +14,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** One depth of the style stack: what the layout reads back, and the faces only this file needs. */
 typedef struct {
@@ -38,21 +34,13 @@ typedef struct {
 } _NYA_UIShape;
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /* One window's UI is drawn at a time, as one pass is open at a time, so the presenter's scratch is one of these. */
 NYA_INTERNAL _NYA_UIShape _nya_ui_shape = { .opacity = 1.0F };
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL void  _nya_ui_shape_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
 NYA_INTERNAL void  _nya_ui_shape_look_use(void* state, u32 depth);
@@ -119,11 +107,7 @@ NYA_INTERNAL void _nya_ui_shape_picker(NYA_Window* window, const NYA_UIWidgetDra
 NYA_INTERNAL void _nya_ui_shape_chart(NYA_Window* window, const NYA_UIWidgetDraw* widget);
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE PRESENTER
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE PRESENTER
 
 NYA_INTERNAL const NYA_UIPresenter _nya_ui_shape_presenter = {
     .name          = "shape",
@@ -143,11 +127,7 @@ const NYA_UIPresenter* nya_ui_presenter_shape(void) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 void _nya_ui_shape_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out) {
     nya_assert(state == &_nya_ui_shape && style != nullptr && out != nullptr);
@@ -180,9 +160,7 @@ void _nya_ui_shape_look_build(void* state, u32 depth, const NYA_UIStyle* style, 
         built->look.line_heights[i] = nya_font_valid(built->fonts[i]) ? ceilf(nya_font_metrics(built->fonts[i]).line_height) : 0.0F;
     }
 
-    // the title's line height and half the padding: enough that the text is not touching both edges, and
-    // no more, because the bar is chrome rather than a row — a whole padding made it the thickest thing
-    // on screen at a large title size.
+    // the title's line height and half the padding: enough that the text isn't touching both edges and no more, because the bar is chrome not a row — a whole padding made it the thickest thing on screen at a large title size.
     f32 title_line = built->look.line_heights[NYA_UI_TEXT_TITLE];
 
     built->look.title_bar = title_line > 0.0F ? roundf(title_line + (built->look.padding * 0.5F)) : 0.0F;
@@ -336,13 +314,8 @@ void _nya_ui_shape_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw*
         } break;
 
         case NYA_UI_WIDGET_CHROME: {
-            // the fill only once it is worth seeing, so a quiet title bar is a title and three marks rather than a row
-            // of buttons, and the focus mark still lands because that is drawn whatever the fill does.
-            /*
-             * Inset from the bar rather than filling it. A chrome square is square to the title bar so
-             * that it is an easy target, and a fill that took the whole square turned the bar into a row
-             * of slabs; the target stays the square and only what is drawn is smaller.
-             */
+            // the fill only once it's worth seeing, so a quiet title bar is a title and three marks rather than a row of buttons, and the focus mark still lands because that's drawn whatever the fill does.
+            // Inset from the bar rather than filling it: a chrome square is square to the title bar so it's an easy target, and a fill that took the whole square turned the bar into a row of slabs — the target stays the square and only what's drawn is smaller.
             NYA_Rectf seat = nya_rect_expand(widget->rect, -roundf(widget->rect.height * 0.16F));
             NYA_Rectf body = widget->as_mark.body ? _nya_ui_shape_body(window, seat) : seat;
 
@@ -522,8 +495,7 @@ NYA_Rectf _nya_ui_shape_body(NYA_Window* window, NYA_Rectf rect) {
     f32 grow = 0.0F;
 
     if (look->look.pop > 0.0F) {
-        // grows at once and settles back, ease out; and once more, harder, on the click itself, out and back, so the
-        // press reads as landing rather than as focus. Both are one at rest, which is how a widget says neither runs.
+        // grows at once and settles back, ease out; and once more, harder, on the click itself, out and back, so the press reads as landing rather than as focus. Both are one at rest, which is how a widget says neither runs.
         f32 pop = 1.0F - state->pop;
 
         grow = nya_max(look->look.pop * pop * pop, look->look.pop * NYA_UI_BOUNCE * sinf(state->bounce * (f32)M_PI));
@@ -604,8 +576,7 @@ void _nya_ui_shape_mark(NYA_Window* window, NYA_UIMark mark, NYA_Rectf rect, NYA
             nya_render2d_line(window, (f32x2){ bottom_right.x, top_left.y }, (f32x2){ top_left.x, bottom_right.y }, thickness, faded);
         } break;
 
-        // a triangle rather than two lines: a chevron a cell tall in a terminal is one glyph either way, and a
-        // filled one survives being rounded to cells where a stroked one falls between them.
+        // a triangle rather than two lines: a chevron a cell tall in a terminal is one glyph either way, and a filled one survives being rounded to cells where a stroked one falls between them.
         case NYA_UI_MARK_EXPANDED: {
             nya_render2d_triangle(window, top_left, (f32x2){ bottom_right.x, top_left.y }, (f32x2){ center.x, bottom_right.y }, faded);
         } break;
@@ -691,12 +662,7 @@ void _nya_ui_shape_panel(NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     }
 
     if (widget->label[0] != '\0') {
-        /*
-         * Centred in what the chrome leaves rather than across the whole bar, and dropped to the largest
-         * size that fits in it. A title centred across the whole width slides under the close button as
-         * soon as it is long enough, which is the window that looks broken; shrinking is what a label
-         * with no room does here too, so a window behaves like the rest of the UI.
-         */
+        // Centred in what the chrome leaves rather than across the whole bar, and dropped to the largest size that fits: a title centred across the full width slides under the close button as soon as it's long enough (the window that looks broken), and shrinking is what a label with no room does here too, so a window behaves like the rest of the UI.
         f32 left  = bounds.x + widget->as_panel.inset.x + widget->as_panel.title_room.x;
         f32 right = bounds.x + bounds.width - widget->as_panel.inset.x - widget->as_panel.title_room.y;
         f32 room  = nya_max(right - left, 0.0F);

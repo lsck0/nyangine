@@ -11,11 +11,7 @@
 #include "nyangine/ui/ui_internal.h"
 #include "nyangine/ui/ui_present_dom.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL void  _nya_ui_dom_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
 NYA_INTERNAL void  _nya_ui_dom_look_use(void* state, u32 depth);
@@ -44,11 +40,7 @@ NYA_INTERNAL NYA_ConstCString _nya_ui_dom_class(NYA_UIWidgetKind kind) __attr_no
 /** Appends ` disabled`, ` data-focused="1"` and the like for the widget's state, common to every control. */
 NYA_INTERNAL void _nya_ui_dom_state_attrs(NYA_UIDom* dom, const NYA_UIWidgetState* state);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// LIFETIME
 
 void nya_ui_dom_init(NYA_UIDom* dom, f32x2 cell) {
     nya_assert(dom != nullptr);
@@ -127,11 +119,7 @@ b8 nya_ui_dom_widget_kind(const NYA_UIDom* dom, u32 id, NYA_UIWidgetKind* out_ki
     return true;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * MEASUREMENT AND LOOK — the recorder's, so structure agrees across backends
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// MEASUREMENT AND LOOK — the recorder's, so structure agrees across backends
 
 void _nya_ui_dom_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out) {
     NYA_UIDom* dom = state;
@@ -204,11 +192,7 @@ void _nya_ui_dom_layer_set(void* state, NYA_Window* window, s32 layer) {
     (void)layer;
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * DRAWING — one real control per widget
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// DRAWING — one real control per widget
 
 void _nya_ui_dom_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     NYA_UIDom* dom = state;
@@ -224,11 +208,7 @@ void _nya_ui_dom_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* w
     NYA_ConstCString kind = _nya_ui_dom_class(widget->kind);
 
     switch (widget->kind) {
-        // ── the button family: real <button>s, so they focus, click and read as buttons ──
-        //
-        // A plain button and the chrome/section headers are ordinary push buttons. A selectable is a button
-        // that stays pressed, which ARIA spells `aria-pressed`. A section is a disclosure, which is
-        // `aria-expanded` read off its mark.
+        // ── the button family: real <button>s, so they focus, click and read as buttons ── a plain button and the chrome/section headers are ordinary push buttons; a selectable stays pressed (ARIA's `aria-pressed`), and a section is a disclosure (`aria-expanded` off its mark).
         case NYA_UI_WIDGET_BUTTON:
         case NYA_UI_WIDGET_CHROME:
         case NYA_UI_WIDGET_SELECTABLE:
@@ -261,8 +241,7 @@ void _nya_ui_dom_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* w
             break;
         }
 
-        // ── a radio is a real radio input; the shared name makes a set mutually exclusive in the browser,
-        // and the server enforces it regardless since it owns the variable. See ui_present_dom.h on grouping. ──
+        // ── a radio is a real radio input; the shared name makes a set mutually exclusive in the browser, and the server enforces it regardless since it owns the variable. See ui_present_dom.h on grouping. ──
         case NYA_UI_WIDGET_RADIO: {
             _nya_ui_dom_put(dom, "<label class=\"nya-radio\"><input id=\"w");
             _nya_ui_dom_putf(dom, "%u\" type=\"radio\" name=\"nya-radio\" data-nya=\"click\"", id);
@@ -302,9 +281,7 @@ void _nya_ui_dom_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* w
             break;
         }
 
-        // ── a dropdown is a real <select>. The widget stream carries only the shown option, not the list
-        // (the open list arrives as separate SELECTABLE widgets), so the select holds the one selected
-        // option; the server swaps it as the choice changes. ──
+        // ── a dropdown is a real <select>: the widget stream carries only the shown option (the open list arrives as separate SELECTABLE widgets), so the select holds the one selected option and the server swaps it as the choice changes. ──
         case NYA_UI_WIDGET_DROPDOWN: {
             NYA_ConstCString shown = widget->as_dropdown.shown != nullptr ? widget->as_dropdown.shown : widget->label;
 
@@ -358,9 +335,7 @@ void _nya_ui_dom_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* w
             break;
         }
 
-        // ── the rest are chrome the layout draws but assistive tech should skip: a scrim, a rule, a
-        // scrollbar, an icon, a chart. They read as decorative, keeping the accessibility tree to the
-        // controls and text that carry meaning. Any words they hold still go in as escaped text. ──
+        // ── the rest are chrome the layout draws but assistive tech should skip (a scrim, a rule, a scrollbar, an icon, a chart): they read as decorative, keeping the accessibility tree to the controls and text that carry meaning, and any words they hold still go in as escaped text. ──
         case NYA_UI_WIDGET_SCRIM:
         case NYA_UI_WIDGET_CHART:
         case NYA_UI_WIDGET_ICON:
@@ -380,15 +355,10 @@ void _nya_ui_dom_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* w
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 void _nya_ui_dom_state_attrs(NYA_UIDom* dom, const NYA_UIWidgetState* state) {
-    // The native `disabled` attribute both greys the control and drops it out of the tab order, which is
-    // exactly what a keyboard and a screen-reader user expect — no `aria-disabled` or `tabindex` needed.
+    // The native `disabled` attribute both greys the control and drops it out of the tab order, exactly what a keyboard and screen-reader user expect — no `aria-disabled` or `tabindex` needed.
     if (state->disabled) _nya_ui_dom_put(dom, " disabled");
 
     // The eased focus and held flags a stylesheet can read, mirroring the html presenter's data attributes.
@@ -487,11 +457,7 @@ void _nya_ui_dom_escape(NYA_UIDom* dom, NYA_ConstCString text) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE DOCUMENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE DOCUMENT
 
 /**
  * The page around the controls: a doctype, a small stylesheet, the body's controls inside a `<form>` whose
@@ -526,10 +492,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_DOM_PAGE =
     "<script%s>\n"
     "(function(){\n"
     "  var surface=document.getElementById('nya-surface');\n"
-    // morph the surface to the new HTML by id, so a control that did not change keeps its focus, caret and
-    // selection across a redraw. New ids are added, gone ids removed, changed ones replaced — but never the
-    // element the person is in, so typing survives the round trip. The server holds the state and is
-    // stateless between requests, so the diff lives here, where the live DOM already is.
+    // morph the surface to the new HTML by id, so a control that didn't change keeps its focus, caret and selection across a redraw: new ids added, gone ids removed, changed ones replaced, but never the element the person is in, so typing survives the round trip. The server holds the state and is stateless between requests, so the diff lives here where the live DOM is.
     "  function morph(html){\n"
     "    var next=document.createElement('div');next.innerHTML=html;\n"
     "    var have={};for(var c=surface.firstElementChild;c;c=c.nextElementSibling)if(c.id)have[c.id]=c;\n"
@@ -546,8 +509,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_DOM_PAGE =
     "      body:JSON.stringify({id:id,event:event,value:value})}).then(function(r){return r.text()}).then(function(html){\n"
     "        if(html)morph(html);});\n"
     "  }\n"
-    // A click on a button carries its own id; a checkbox, radio, slider, field, select or colour input
-    // carries its host widget's id through data-host, since the control's id is `wN-i`.
+    // A click on a button carries its own id; a checkbox, radio, slider, field, select or colour input carries its host widget's id through data-host, since the control's id is `wN-i`.
     "  function host(t){return t.dataset.host||(t.closest('[id]')||{}).id;}\n"
     "  surface.addEventListener('click',function(e){var t=e.target.closest('[data-nya=\"click\"]');if(t)send(host(t),'click',(t.type==='checkbox'||t.type==='radio')?t.checked:null);});\n"
     "  surface.addEventListener('input',function(e){var t=e.target.closest('[data-nya]');if(!t)return;var k=t.dataset.nya;if(k!=='input'&&k!=='text'&&k!=='color')return;var v=t.value;if(v!=null&&v.length>4096)v=v.slice(0,4096);send(host(t),k,v);});\n"
@@ -558,13 +520,11 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_DOM_PAGE =
 u32 nya_ui_dom_document(const NYA_UIDom* dom, char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce) {
     nya_assert(dom != nullptr && out != nullptr && capacity > 0);
 
-    // The nonce as the attribute it becomes, or nothing. It is this server's own random value, not user
-    // data, so it needs no escaping; a caller that passes something else has misused it.
+    // The nonce as the attribute it becomes, or nothing: it's this server's own random value, not user data, so it needs no escaping; a caller that passes something else has misused it.
     char nonce_attr[96] = { 0 };
     if (script_nonce != nullptr && script_nonce[0] != '\0') (void)snprintf(nonce_attr, sizeof(nonce_attr), " nonce=\"%s\"", script_nonce);
 
-    // The title through the same escaping a label gets, since it is dropped into the format string where a
-    // raw `<` would break the page.
+    // The title through the same escaping a label gets, since it's dropped into the format string where a raw `<` would break the page.
     char safe_title[128] = { 0 };
     {
         NYA_UIDom scratch = { 0 };

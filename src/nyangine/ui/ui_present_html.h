@@ -77,11 +77,7 @@
 #include "nyangine/math/math_vector.h"
 #include "nyangine/ui/ui_present.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of HTML one pass may render to, terminator included. A menu is a few kilobytes; this is generous. */
 #ifndef NYA_UI_HTML_MAX
@@ -116,11 +112,7 @@
 #define NYA_PAGE_META_FIELD_MAX 1024
 #endif
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_UIHtml NYA_UIHtml;
 
@@ -243,11 +235,7 @@ struct NYA_PageMeta {
     NYA_ConstCString oembed_url;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Prepares `html` and its presenter. `cell` is the pixel metric text is measured in; zero for the default.

@@ -72,11 +72,7 @@
 #include "nyangine/math/math_vector.h"
 #include "nyangine/ui/ui_present.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of HTML one semantic pass may render to, terminator included. A form is a few kilobytes; this is generous. */
 #ifndef NYA_UI_DOM_MAX
@@ -91,11 +87,7 @@
 /** The default metric, in pixels: a monospace cell, so a measurement here matches the terminal's grid. */
 #define NYA_UI_DOM_CELL ((f32x2){ 8.0F, 18.0F })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_UIDom NYA_UIDom;
 
@@ -129,11 +121,7 @@ struct NYA_UIDom {
     u32        depth;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Prepares `dom` and its presenter. `cell` is the pixel metric text is measured in; zero for the default.

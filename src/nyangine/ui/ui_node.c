@@ -32,11 +32,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** Everything a node's rectangles are worked out from once, so its input pass and its draw pass agree to the pixel. */
 typedef struct {
@@ -50,11 +46,7 @@ typedef struct {
 } _NYA_UINodeMetrics;
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** The window point a graph point sits at, and the graph point a window point is over, through the pan and zoom. */
 NYA_INTERNAL f32x2 _nya_ui_node_to_screen(const NYA_UINodeEditor* editor, f32 scale, f32x2 graph) __attr_no_discard;
@@ -83,11 +75,7 @@ NYA_INTERNAL void _nya_ui_node_wire(NYA_UI* ui, s32 layer, s32 restore, f32x2 fr
 NYA_INTERNAL void _nya_ui_node_segment(NYA_UI* ui, NYA_Rectf rect, NYA_Color color);
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE CANVAS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE CANVAS
 
 b8 nya_ui_node_editor_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UINodeEditor* editor) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
@@ -102,8 +90,7 @@ b8 nya_ui_node_editor_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UINodeEditor* e
     editor->connected    = false;
     editor->disconnected = false;
 
-    // the canvas fills its container: a frameless panel whose children take no room, since a node is placed by the
-    // transform rather than stacked.
+    // the canvas fills its container: a frameless panel whose children take no room, since a node is placed by the transform rather than stacked.
     if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .width = nya_ui_grow(1), .height = nya_ui_grow(1), .frameless = true })) return false;
 
     _NYA_UILayout*    layout = &_nya_ui.layouts[_nya_ui.depth - 1];
@@ -121,8 +108,7 @@ b8 nya_ui_node_editor_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UINodeEditor* e
     if (ui->pass == NYA_UI_PASS_INPUT) {
         b8 over = !layout->covered && !_nya_ui_claimed(_nya_ui.pointer) && nya_rect_contains(canvas, _nya_ui.pointer);
 
-        // the wheel zooms about the pointer: the graph point under it is held while the zoom changes, so the canvas
-        // grows toward the cursor rather than the origin. The wheel is spent here so nothing behind also scrolls.
+        // the wheel zooms about the pointer: the graph point under it is held while the zoom changes, so the canvas grows toward the cursor rather than the origin; the wheel is spent here so nothing behind also scrolls.
         if (over && _nya_ui.wheel != 0.0F) {
             f32   before = _nya_ui_node_scale(ui, editor);
             f32x2 fixed  = _nya_ui_node_to_graph(editor, before, _nya_ui.pointer);
@@ -197,11 +183,7 @@ void nya_ui_node_editor_end(NYA_UI* ui, NYA_UINodeEditor* editor) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * A NODE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// A NODE
 
 b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor) {
     nya_assert(ui != nullptr && ui == _nya_ui.open && editor != nullptr);
@@ -234,9 +216,7 @@ b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor) {
             }
         }
 
-        // a fresh press on this node claims the node and clears what an earlier, lower node put here this pass, so
-        // the topmost node under the pointer is the one that acts. A prior press is already resolved by now. The
-        // reachable area is the box grown by half a stub, since a port straddles the edge it sits on.
+        // a fresh press on this node claims it and clears what an earlier, lower node put here this pass, so the topmost node under the pointer acts (a prior press is already resolved by now); the reachable area is the box grown by half a stub, since a port straddles the edge it sits on.
         NYA_Rectf reach = nya_rect_expand(metrics.box, roundf(metrics.marker * 0.5F));
 
         if (usable && _nya_ui.pointer_pressed && nya_rect_contains(reach, at)) {
@@ -246,8 +226,7 @@ b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor) {
 
             b8 on_port = false;
 
-            // an output stub starts a link the pointer drags out; the ports come before the title, so a stub on the
-            // bar's row is a port rather than a handle.
+            // an output stub starts a link the pointer drags out; the ports come before the title, so a stub on the bar's row is a port rather than a handle.
             for (u32 i = 0; i < node.outputs; i++) {
                 if (!nya_rect_contains(_nya_ui_node_port_rect(&metrics, true, i), at)) continue;
 
@@ -292,8 +271,7 @@ b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor) {
     for (u32 i = 0; i < node.inputs; i++) _nya_ui_node_port_record(editor, node.key, i, false, _nya_ui_node_port_anchor(&metrics, false, i));
 
     if (_nya_ui_drawn(metrics.box)) {
-        // the box is the theme's panel with no title of its own — the title is a label so it stays at the body size a
-        // node wants rather than the panel's title size — and a strip along the top marks the drag handle.
+        // the box is the theme's panel with no title of its own (the title is a label so it stays the body size a node wants, not the panel's title size), and a strip along the top marks the drag handle.
         NYA_UIPanel      frame = { 0 };
         NYA_UIWidgetDraw box   = { .kind = NYA_UI_WIDGET_PANEL, .rect = metrics.box, .label = "", .as_panel = { .options = &frame } };
         _nya_ui_draw(ui, &box);
@@ -315,8 +293,7 @@ b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor) {
             _nya_ui_draw(ui, &label);
         }
 
-        // the stubs, in the accent, and each port's label beside it: an input's to the right of its stub, an
-        // output's to the left, both in the dim text colour so the port name reads as a caption on the wire.
+        // the stubs, in the accent, and each port's label beside it: an input's to the right of its stub, an output's to the left, both in the dim text colour so the port name reads as a caption on the wire.
         f32 line = look->line_heights[layout->text];
 
         for (u32 i = 0; i < node.inputs; i++) {
@@ -378,11 +355,7 @@ void nya_ui_node_link(NYA_UI* ui, NYA_UINodeEditor* editor, NYA_UINodeLink link)
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 f32 _nya_ui_node_scale(const NYA_UI* ui, const NYA_UINodeEditor* editor) {
     nya_assert(ui != nullptr && editor != nullptr);
@@ -408,8 +381,7 @@ _NYA_UINodeMetrics _nya_ui_node_metrics(const NYA_UI* ui, const NYA_UINodeEditor
     f32 scale = _nya_ui_node_scale(ui, editor);
     f32 line  = look->line_heights[layout->text];
 
-    // the box and the rows scale with the zoom; the marker uses the full scale, so a stub keeps its shape as the
-    // canvas grows. Each is kept to at least a pixel so a node zoomed right out is still a node rather than nothing.
+    // the box and rows scale with the zoom; the marker uses the full scale, so a stub keeps its shape as the canvas grows, each kept to at least a pixel so a node zoomed right out is still a node rather than nothing.
     f32 pad     = nya_max(roundf(look->padding * zoom), 1.0F);
     f32 row     = nya_max(roundf(line * zoom), 1.0F);
     f32 title_h = nya_max(roundf((line + look->padding) * zoom), 1.0F);
@@ -439,8 +411,7 @@ NYA_Rectf _nya_ui_node_port_rect(const _NYA_UINodeMetrics* metrics, b8 output, u
 }
 
 f32x2 _nya_ui_node_port_anchor(const _NYA_UINodeMetrics* metrics, b8 output, u32 index) {
-    // down the edge, one row apart, centred in the row below the title bar; on the left for an input, the right for
-    // an output. The point is on the edge itself, which is where a wire meets the stub.
+    // down the edge, one row apart, centred in the row below the title bar; on the left for an input, the right for an output. The point is on the edge itself, where a wire meets the stub.
     f32 x = output ? metrics->box.x + metrics->box.width : metrics->box.x;
     f32 y = metrics->box.y + metrics->title_h + ((f32)index * metrics->row) + (metrics->row * 0.5F);
 
@@ -477,8 +448,7 @@ void _nya_ui_node_wire(NYA_UI* ui, s32 layer, s32 restore, f32x2 from, f32x2 to,
 
     _nya_ui_layer_set(ui, layer);
 
-    // an elbow: out from the source along x to the midpoint, down y to the target's row, then in to the target. Each
-    // segment is a thickness longer than the gap so the corners meet rather than leave a pixel of daylight.
+    // an elbow: out from the source along x to the midpoint, down y to the target's row, then in to the target. Each segment is a thickness longer than the gap so the corners meet rather than leave a pixel of daylight.
     f32 x0 = nya_min(from.x, mid);
     f32 x1 = nya_max(from.x, mid);
     _nya_ui_node_segment(ui, (NYA_Rectf){ x0, from.y - half, (x1 - x0) + thickness, thickness }, color);

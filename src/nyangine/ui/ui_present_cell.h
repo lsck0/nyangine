@@ -86,11 +86,7 @@
 #include "nyangine/ui/ui_present.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Columns the grid holds. The terminal's own bound, since that is the widest screen this can ever be shown on. */
 #ifndef NYA_UI_CELL_COLUMNS_MAX
@@ -106,11 +102,7 @@
 #define NYA_UI_CELL_SIZE ((f32x2){ (f32)NYA_TERMINAL_CELL_WIDTH_PX, (f32)NYA_TERMINAL_CELL_HEIGHT_PX })
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_UICells       NYA_UICells;
 typedef struct NYA_UICellOptions NYA_UICellOptions;
@@ -164,11 +156,7 @@ struct NYA_UICells {
 };
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
 /**
  * Prepares `cells` and the presenter inside it. The grid is cleared, so a pass drawn before the first reset still

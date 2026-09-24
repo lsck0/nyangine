@@ -9,11 +9,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** In _NYA_UIPress's order. The caret keys are raw keys, since a field has to tell the arrows from A and D. */
 NYA_INTERNAL const _NYA_UIPress _NYA_UI_PRESSES[_NYA_UI_PRESS_COUNT] = {
@@ -32,11 +28,7 @@ NYA_INTERNAL const _NYA_UIPress _NYA_UI_PRESSES[_NYA_UI_PRESS_COUNT] = {
 };
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 void _nya_ui_input_read(NYA_UI* ui) {
     _nya_ui.pointer      = nya_input_mouse_position();
@@ -45,8 +37,7 @@ void _nya_ui_input_read(NYA_UI* ui) {
 
     b8 input = ui->pass == NYA_UI_PASS_INPUT;
 
-    // Recomputed each input pass by the panels as they lay out; cleared here so a panel that closed stops
-    // swallowing world clicks the moment it is gone.
+    // Recomputed each input pass by the panels as they lay out; cleared here so a panel that closed stops swallowing world clicks the moment it's gone.
     if (input) _nya_ui.pointer_over_panel = false;
 
     f32x2 delta              = nya_input_mouse_position_delta();
@@ -58,8 +49,7 @@ void _nya_ui_input_read(NYA_UI* ui) {
     _nya_ui.wheel            = input ? nya_input_mouse_wheel_scroll().y : 0.0F;
     _nya_ui.wheel_x          = input ? nya_input_mouse_wheel_scroll().x : 0.0F;
 
-    // escape backs out one step: it closes an open list here, before any widget or layer can read it as a cancel,
-    // so the same key that leaves a dropdown does not also leave the menu the dropdown is in.
+    // escape backs out one step: it closes an open list here, before any widget or layer reads it as a cancel, so the key that leaves a dropdown doesn't also leave the menu the dropdown is in.
     if (_nya_ui.cancel && ui->open != 0) {
         ui->open       = 0;
         _nya_ui.cancel = false;
@@ -68,10 +58,7 @@ void _nya_ui_input_read(NYA_UI* ui) {
     nya_memset(_nya_ui.presses, 0, sizeof(_nya_ui.presses));
     if (!input) return;
 
-    /*
-     * Presses are worked out once per tick so two windows cannot repeat twice as fast. A program with no world has
-     * no tick, and a TUI is the case: its passes are the only clock there is, and it opens one input pass per frame.
-     */
+    // Presses are worked out once per tick so two windows can't repeat twice as fast; a program with no world has no tick, and a TUI is that case — its passes are the only clock, and it opens one input pass per frame.
     u64 tick = nya_world_exists() ? nya_world()->sim_system.tick + 1 : _nya_ui.pass_serial;
 
     if (tick != _nya_ui.press_tick) {
@@ -156,19 +143,11 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
     _NYA_UIWidget widget = { .id = id };
 
     if (ui->pass == NYA_UI_PASS_INPUT) {
-        /*
-         * Hover, the press and the release all read this one answer, and every one of them has to: a widget that
-         * took hover focus under another panel would activate on the next confirm without the pointer being
-         * involved at all. `covered` comes from where the panels over this one were last laid out, since the panel
-         * that will cover this widget has not been declared yet. Recording the presses and picking a winner at a
-         * barrier in nya_ui_end was the alternative: a press and its release arrive in the same tick, so a widget
-         * that only learned at the barrier could not report its own activation until a tick later.
-         */
+        // Hover, the press and the release all read this one answer, and must: a widget that took hover focus under another panel would activate on the next confirm with no pointer involved. `covered` comes from where the panels over this one were last laid out, since the panel that will cover this widget isn't declared yet; recording presses and picking a winner at a barrier in nya_ui_end was the alternative, but a press and its release arrive in the same tick, so a widget learning only at the barrier couldn't report its own activation until a tick later.
         b8 inside = !layout->covered && !_nya_ui_claimed(_nya_ui.pointer) && nya_rect_contains(rect, _nya_ui.pointer) &&
                     nya_rect_contains(layout->clip, _nya_ui.pointer);
 
-        // hover moves the same focus as the keys, so the two never disagree. only on movement, so a resting pointer
-        // does not take focus back from the keys, and not while typing, where confirm belongs to the field.
+        // hover moves the same focus as the keys, so the two never disagree: only on movement, so a resting pointer doesn't take focus back from the keys, and not while typing, where confirm belongs to the field.
         if (inside && (_nya_ui.pointer_pressed || (_nya_ui.pointer_moved && ui->editing == 0))) {
             _nya_ui_focus_set(ui, id);
             _nya_ui.focus_found = index;
@@ -180,8 +159,7 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
         if (inside && _nya_ui.pointer_pressed) {
             ui->active = id;
 
-            // a panel grabbed by its grip this pass lets go again: the chrome buttons of a window sit in its title
-            // bar, and pressing one has to be a press on the button rather than the start of a drag.
+            // a panel grabbed by its grip this pass lets go again: a window's chrome buttons sit in its title bar, and pressing one must be a press on the button rather than the start of a drag.
             if (_nya_ui.drag_started) {
                 ui->drag_panel       = 0;
                 _nya_ui.drag_started = false;
@@ -239,11 +217,7 @@ void _nya_ui_animate(_NYA_UIWidget* widget) {
 void _nya_ui_typing_start(NYA_UI* ui, u64 id, u32 caret, NYA_Rectf field) {
     nya_assert(ui != nullptr && id != 0 && ui->editing != id);
 
-    /*
-     * A click takes the keyboard from whichever field had it. A field declared above the one being typed in
-     * reads the click before the other can see it and let go, so the handover happens here. Only a click:
-     * typing swallows the keys, so nothing on the keyboard can reach a second field.
-     */
+    // A click takes the keyboard from whichever field had it; a field declared above the one being typed in reads the click before the other can see it and let go, so the handover happens here. Only a click: typing swallows the keys, so nothing on the keyboard can reach a second field.
     if (ui->editing != 0) {
         nya_assert(_nya_ui.pointer_pressed || _nya_ui.pointer_released, "a field started typing while another had the keyboard, and not by a click");
         _nya_ui_typing_stop(ui);

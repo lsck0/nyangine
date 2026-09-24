@@ -74,11 +74,7 @@
 typedef struct NYA_Window NYA_Window;
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Widgets one recorded pass keeps. A pass that declares more is refused the extra ones, as the widget table is. */
 #ifndef NYA_UI_RECORD_MAX
@@ -94,11 +90,7 @@ typedef struct NYA_Window NYA_Window;
 #define NYA_UI_RECORD_CELL ((f32x2){ 8.0F, 16.0F })
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_UILook       NYA_UILook;
 typedef struct NYA_UIFieldDraw  NYA_UIFieldDraw;
@@ -340,18 +332,12 @@ struct NYA_UIPresenter {
 
     void* state;
 
-    /*
-     * THE LOOK. The UI mirrors its style stack onto the presenter: `build` fills the numbers the layout adds up and
-     * the presenter keeps whatever else it needs at that depth, `use` says which depth the calls below now mean.
-     */
+    // THE LOOK. The UI mirrors its style stack onto the presenter: `build` fills the numbers the layout adds up and the presenter keeps whatever else it needs at that depth, `use` says which depth the calls below now mean.
 
     void (*look_build)(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
     void (*look_use)(void* state, u32 depth);
 
-    /*
-     * MEASUREMENT. In window pixels, at the current look. This is what a terminal answers in cells and a GPU in
-     * glyph advances, and the only reason the layout can be written once.
-     */
+    // MEASUREMENT. In window pixels at the current look: what a terminal answers in cells and a GPU in glyph advances, and the only reason the layout can be written once.
 
     /** `text` at role `role`, within `room` pixels and folded or shrunk by `overflow`. Height is one line unless it wrapped. */
     f32x2 (*measure)(void* state, NYA_UIText role, NYA_ConstCString text, f32 room, NYA_UIOverflow overflow);
@@ -359,9 +345,7 @@ struct NYA_UIPresenter {
     /** The first `bytes` of `text`, for a caret and a selection. Never past the string's own width. */
     f32 (*measure_bytes)(void* state, NYA_UIText role, NYA_ConstCString text, u32 bytes);
 
-    /*
-     * THE SURFACE. Clipping and ordering, which are the backend's and not the widget's.
-     */
+    // THE SURFACE. Clipping and ordering, which are the backend's and not the widget's.
 
     /** Cuts drawing to `clip`. `whole` when that is the entire window, which is the backend's chance to stop clipping. */
     void (*clip_set)(void* state, NYA_Window* window, NYA_Rectf clip, b8 whole);
@@ -370,9 +354,7 @@ struct NYA_UIPresenter {
     s32 (*layer_get)(void* state, NYA_Window* window);
     void (*layer_set)(void* state, NYA_Window* window, s32 layer);
 
-    /*
-     * DRAWING. One call, one widget. See the file header for why it is one call.
-     */
+    // DRAWING. One call, one widget. See the file header for why it is one call.
 
     void (*draw)(void* state, NYA_Window* window, const NYA_UIWidgetDraw* widget);
 };
@@ -408,17 +390,9 @@ struct NYA_UIRecorder {
 };
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * THE SEAM
- * ─────────────────────────────────────────────────────────
- */
+// THE SEAM
 
 /**
  * The presenter `window`'s passes go through, from the next one on. `presenter` outlives every pass that uses it;
@@ -444,11 +418,7 @@ NYA_API NYA_ConstCString nya_ui_widget_kind_name(NYA_UIWidgetKind kind) __attr_n
  * */
 NYA_API void nya_ui_look_scale(const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
 
-/*
- * ─────────────────────────────────────────────────────────
- * RECORDING
- * ─────────────────────────────────────────────────────────
- */
+// RECORDING
 
 /**
  * Prepares `recorder` and the presenter inside it. `cell` is what text is measured in, a zero cell taking

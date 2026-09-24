@@ -12,18 +12,9 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
-/*
- * The byte level helpers below the field are shared with the code editor and so are declared in ui_internal.h:
- * _nya_ui_field_previous and _next, _word_start and _word_end, _erase, _insert, _selection_erase and _caret_set.
- * What stays here is only the field's own, since a one-line field is the only thing that measures and clicks this
- * way.
- * */
+// The byte-level helpers below the field are shared with the code editor and so declared in ui_internal.h (_nya_ui_field_previous and _next, _word_start and _word_end, _erase, _insert, _selection_erase and _caret_set); what stays here is only the field's own, since a one-line field is the only thing that measures and clicks this way.
 
 /** Whether `byte` belongs to a word, for the word moves. Every byte of a multi-byte codepoint does. */
 NYA_INTERNAL b8 _nya_ui_field_word_byte(char byte) __attr_no_discard;
@@ -44,11 +35,7 @@ NYA_INTERNAL b8 _nya_ui_field_pointer(NYA_UI* ui, _NYA_UIWidget widget, NYA_Rect
 NYA_INTERNAL b8 _nya_ui_field_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length);
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * WIDGETS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// WIDGETS
 
 b8 nya_ui_text_input(NYA_UI* ui, NYA_ConstCString label, char* buffer, u32 capacity) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
@@ -91,11 +78,7 @@ b8 nya_ui_text_input(NYA_UI* ui, NYA_ConstCString label, char* buffer, u32 capac
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NYA_Rectf box, char* buffer, u32 capacity, NYA_UIFieldDraw* out) {
     nya_assert(ui != nullptr && buffer != nullptr && out != nullptr);

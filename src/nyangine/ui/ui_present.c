@@ -9,11 +9,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE SEAM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE SEAM
 
 void nya_ui_presenter_set(NYA_Window* window, const NYA_UIPresenter* presenter) {
     nya_assert(window != nullptr);
@@ -82,11 +78,7 @@ void nya_ui_look_scale(const NYA_UIStyle* style, f32 scale, NYA_UILook* out) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 const NYA_UIPresenter* _nya_ui_present(void) {
     nya_assert(_nya_ui.open != nullptr && _nya_ui.open->present != nullptr);

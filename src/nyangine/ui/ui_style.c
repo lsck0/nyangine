@@ -9,11 +9,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 #ifdef NYA_ASSET_HOT_RELOAD
 /** The asset system's current modification time for `handle`, or zero. Mirrors _nya_config_modification_time. */
@@ -24,11 +20,7 @@ NYA_INTERNAL void _nya_ui_theme_rearm(NYA_UI* context);
 #endif // NYA_ASSET_HOT_RELOAD
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STYLE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STYLE
 
 void nya_ui_style_set(NYA_Window* window, NYA_UIStyle style) {
     nya_assert(window != nullptr);
@@ -71,11 +63,7 @@ f32 nya_ui_scale(const NYA_Window* window) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THEME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THEME
 
 NYA_Error nya_ui_theme_load(NYA_Window* window, NYA_ConstCString path) {
     nya_assert(window != nullptr);
@@ -83,14 +71,11 @@ NYA_Error nya_ui_theme_load(NYA_Window* window, NYA_ConstCString path) {
 
     NYA_UI* context = _nya_ui_context(window);
 
-    // Applied first, so a file that cannot be read or parsed reports its error and leaves the style and,
-    // under hot reload, any watch already on this window untouched — the same order nya_config_watch uses.
+    // Applied first, so a file that can't be read or parsed reports its error and leaves the style and, under hot reload, any watch already on this window untouched — the same order nya_config_watch uses.
     NYA_TRY(_nya_ui_theme_apply(context, path));
 
 #ifdef NYA_ASSET_HOT_RELOAD
-    // The path is the asset handle, and it lives in the window's own storage rather than the caller's,
-    // which may be a game DLL's .rodata a code reload can unmap. Refused rather than truncated: a clipped
-    // path would name a different file the watch could never resolve.
+    // The path is the asset handle, and it lives in the window's own storage rather than the caller's, which may be a game DLL's .rodata a code reload can unmap; refused rather than truncated, since a clipped path would name a different file the watch could never resolve.
     u64 length = 0;
     while (path[length] != '\0') length++;
     if (length + 1 > NYA_UI_THEME_PATH_MAX) {
@@ -106,8 +91,7 @@ NYA_Error nya_ui_theme_load(NYA_Window* window, NYA_ConstCString path) {
     // Guarded so a program that loads themes for several windows adds one hook, not one per window.
     static b8 hook_registered = false;
     if (!hook_registered) {
-        // After the asset system's own frame-ended hooks, like _nya_config_watch_tick: by the time this
-        // runs a reload queued this frame has landed and the timestamp it compares against is settled.
+        // After the asset system's own frame-ended hooks, like _nya_config_watch_tick: by the time this runs a reload queued this frame has landed and the timestamp it compares against is settled.
         nya_event_hook_register((NYA_EventHook){
             .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
             .event_type = NYA_EVENT_FRAME_ENDED,
@@ -141,11 +125,7 @@ void nya_ui_theme_clear(NYA_Window* window) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style) {
     style.font[NYA_UI_FONT_NAME_MAX - 1]       = '\0';
@@ -211,11 +191,7 @@ NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style) {
     return style;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * THEME
- * ─────────────────────────────────────────────────────────
- */
+// THEME
 
 /** Where a theme validation warning names the file it came from. */
 typedef struct {
@@ -241,8 +217,7 @@ NYA_INTERNAL void _nya_ui_theme_report(NYA_ConstCString path, NYA_ConstCString f
  * core_settings.c, where the reflected read is followed by the setters that clamp.
  * */
 NYA_INTERNAL void _nya_ui_theme_validate(NYA_UIStyle* style, const NYA_UIStyle* fallback, NYA_ConstCString path) {
-    // Every size is a length, so a negative one is meaningless rather than merely unusual. A zero is left
-    // to _nya_ui_style_resolve, which reads it as "take the default", the documented behaviour of the type.
+    // Every size is a length, so a negative one is meaningless rather than merely unusual; a zero is left to _nya_ui_style_resolve, which reads it as "take the default", the documented behaviour of the type.
     struct {
         NYA_ConstCString name;
         f32*             value;
@@ -265,9 +240,7 @@ NYA_INTERNAL void _nya_ui_theme_validate(NYA_UIStyle* style, const NYA_UIStyle* 
         *sizes[i].value = sizes[i].fallback;
     }
 
-    // Every channel of every colour, alpha included, is a fraction in [0, 1]. A colour left at all zeroes
-    // is _nya_ui_style_resolve's to fill; one with a channel out of range is rejected whole, since a
-    // partly clamped colour is a colour nobody chose.
+    // Every channel of every colour, alpha included, is a fraction in [0, 1]: a colour left at all zeroes is _nya_ui_style_resolve's to fill, and one with a channel out of range is rejected whole, since a partly clamped colour is a colour nobody chose.
     struct {
         NYA_ConstCString name;
         NYA_Color*       color;
@@ -317,18 +290,14 @@ NYA_Error _nya_ui_theme_apply(NYA_UI* context, NYA_ConstCString path) {
 
     NYA_Object* object = nullptr;
 
-    // NO_CHECKSUM for the same reason nya_config_load uses it: a theme is meant to be hand edited while the
-    // program runs, so a mismatch from an in-progress edit is expected rather than corruption.
+    // NO_CHECKSUM for the same reason nya_config_load uses it: a theme is meant to be hand edited while the program runs, so a mismatch from an in-progress edit is expected rather than corruption.
     NYA_TRY(nya_deserialize(scratch, data, size, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &object));
 
-    // Reported before anything is written, so a key that names no field or a value of the wrong type is
-    // named rather than silently skipped. nya_reflect_from_object then drops exactly what this warned about.
+    // Reported before anything is written, so a key that names no field or a value of the wrong type is named rather than silently skipped; nya_reflect_from_object then drops exactly what this warned about.
     _NYA_UIThemeReport report = { .path = path };
     (void)nya_reflect_check(nya_reflect_of(NYA_UIStyle), object, _nya_ui_theme_report, &report);
 
-    // The built-in look, fully resolved, is both the seed and the fallback: a field the file omits keeps
-    // its default, a field of the wrong type is skipped and so keeps it, and a field out of range is put
-    // back to it by _nya_ui_theme_validate below.
+    // The built-in look, fully resolved, is both seed and fallback: a field the file omits keeps its default, a field of the wrong type is skipped and so keeps it, and a field out of range is put back to it by _nya_ui_theme_validate below.
     NYA_UIStyle fallback = _nya_ui_style_resolve((NYA_UIStyle){ 0 });
     NYA_UIStyle style    = fallback;
 
@@ -352,20 +321,16 @@ void _nya_ui_theme_tick(NYA_Event* event) {
         NYA_UI* context = &_nya_ui.windows[i];
         if (!context->claimed || !context->theme_active) continue;
 
-        // The point of this call, not the comparison below it: reload detection lives inside nya_asset_get,
-        // which stats the file at most once per interval and queues it when the timestamp moved. Same note
-        // as _nya_config_watch_tick.
+        // The point of this call, not the comparison below it: reload detection lives inside nya_asset_get, which stats the file at most once per interval and queues it when the timestamp moved. Same note as _nya_config_watch_tick.
         (void)nya_asset_get(context->theme_path);
 
-        // Before the comparison, because a dead asset reports no timestamp and would otherwise look like a
-        // file that simply had not changed.
+        // Before the comparison, because a dead asset reports no timestamp and would otherwise look like a file that simply hadn't changed.
         _nya_ui_theme_rearm(context);
 
         u64 now = _nya_ui_theme_modification_time(context->theme_path);
         if (now == context->theme_modification_time) continue;
 
-        // Not logged on failure: a file caught mid-write fails to parse, nothing changes, and the unmoved
-        // timestamp makes the next tick try again. Same as _nya_config_watch_tick.
+        // Not logged on failure: a file caught mid-write fails to parse, nothing changes, and the unmoved timestamp makes the next tick try again. Same as _nya_config_watch_tick.
         if (!_nya_ui_theme_apply(context, context->theme_path).ok) continue;
 
         context->theme_modification_time = now;
@@ -387,8 +352,7 @@ u64 _nya_ui_theme_modification_time(NYA_CString handle) {
 
     u64 modified = 0;
 
-    // A theme that is missing answers zero, which compares equal to itself and so reads as "nothing
-    // changed" rather than as a change that can never be resolved.
+    // A theme that's missing answers zero, which compares equal to itself and so reads as "nothing changed" rather than a change that can never be resolved.
     if (!nya_filesystem_last_modified(handle, &modified).ok) return 0;
 
     return modified;
@@ -397,8 +361,7 @@ u64 _nya_ui_theme_modification_time(NYA_CString handle) {
 void _nya_ui_theme_rearm(NYA_UI* context) {
     NYA_Asset* asset = nya_asset_get(context->theme_path);
 
-    // Both terminal states, as in _nya_config_rearm: UNLOADED is what a file briefly missing during an
-    // editor's save-and-rename produces, and it recovers no more on its own than FAILED does.
+    // Both terminal states, as in _nya_config_rearm: UNLOADED is what a file briefly missing during an editor's save-and-rename produces, and it recovers no more on its own than FAILED does.
     b8 stuck = asset == nullptr || asset->status == NYA_ASSET_STATUS_FAILED || asset->status == NYA_ASSET_STATUS_UNLOADED;
     if (!stuck) return;
 
@@ -412,8 +375,7 @@ void _nya_ui_theme_rearm(NYA_UI* context) {
     (void)nya_asset_unload(context->theme_path);
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = context->theme_path });
 
-    // Cleared so the file is re-resolved once it is back, rather than comparing against the last good
-    // load's timestamp and finding nothing changed.
+    // Cleared so the file is re-resolved once it's back, rather than comparing against the last good load's timestamp and finding nothing changed.
     context->theme_modification_time = 0;
 }
 #endif // NYA_ASSET_HOT_RELOAD
@@ -424,12 +386,7 @@ f32 _nya_ui_scale_derive(const NYA_Window* window, const NYA_UIStyle* style) {
 
     f32 scale = style->scale > 0.0F ? style->scale : 1.0F;
 
-    /*
-     * The window's size is deliberately not in here. Each distinct scale rasterises its own glyph atlas per point
-     * size, so a scale that follows a drag mints one per step and empties the atlas cache mid-resize. The display
-     * scale is opt in and snapped for the same reason: a 1.15 desktop scale would otherwise bake sizes nothing else
-     * shares.
-     */
+    // The window's size is deliberately not in here: each distinct scale rasterises its own glyph atlas per point size, so a scale that follows a drag mints one per step and empties the atlas cache mid-resize. The display scale is opt in and snapped for the same reason — a 1.15 desktop scale would otherwise bake sizes nothing else shares.
     if (style->follow_display_scale && window->sdl_window != nullptr) {
         scale *= roundf(nya_window_display_scale(window->handle) / NYA_UI_SCALE_STEP) * NYA_UI_SCALE_STEP;
     }

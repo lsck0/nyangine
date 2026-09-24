@@ -13,11 +13,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Bytes of one string this file will walk. A label longer than a screen is a caller mistake, not a measurement. */
 #define _NYA_UI_CELL_TEXT_MAX 1024
@@ -29,11 +25,7 @@
 #define _NYA_UI_CELL_HUE_SPAN 360.0F
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** A rectangle in cells: where a widget actually lands, once the pixels it was laid out in have been divided. */
 typedef struct {
@@ -98,11 +90,7 @@ typedef enum {
 } _NYA_UICellGlyph;
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /** The two columns of the table. Read through _nya_ui_cell_pick, which picks the one the grid was opened with. */
 NYA_INTERNAL const u32 _NYA_UI_CELL_GLYPHS[_NYA_UI_CELL_GLYPH_COUNT][2] = {
@@ -151,11 +139,7 @@ NYA_INTERNAL const u32 _NYA_UI_CELL_GLYPHS[_NYA_UI_CELL_GLYPH_COUNT][2] = {
 };
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL void  _nya_ui_cell_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
 NYA_INTERNAL void  _nya_ui_cell_look_use(void* state, u32 depth);
@@ -235,11 +219,7 @@ NYA_INTERNAL void _nya_ui_cell_chart(NYA_UICells* cells, const NYA_UIWidgetDraw*
 NYA_INTERNAL void _nya_ui_cell_mark_glyph(NYA_UICells* cells, NYA_UIMark mark, s32 column, s32 row, NYA_Color ink, u8 attributes);
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// LIFETIME
 
 void nya_ui_cells_init(NYA_UICells* cells, NYA_UICellOptions options) {
     nya_assert(cells != nullptr);
@@ -247,13 +227,11 @@ void nya_ui_cells_init(NYA_UICells* cells, NYA_UICellOptions options) {
 
     if (options.cell.x <= 0.0F || options.cell.y <= 0.0F) options.cell = NYA_UI_CELL_SIZE;
 
-    // padding is one number the layout uses on both axes, so it is only ever a whole cell in both when a cell is a
-    // whole number of its own widths tall. Anything else would leave a widget half a column wide somewhere.
+    // padding is one number the layout uses on both axes, so it's only ever a whole cell in both when a cell is a whole number of its own widths tall; anything else would leave a widget half a column wide somewhere.
     nya_assert(fmodf(options.cell.y, options.cell.x) == 0.0F, "a cell %f wide and %f tall cannot hold a padding that is whole in both axes",
                (f64)options.cell.x, (f64)options.cell.y);
 
-    // cleared in place rather than assigned from a literal: the grid is most of a megabyte, and a compound literal
-    // of it is that megabyte on the stack before the copy.
+    // cleared in place rather than assigned from a literal: the grid is most of a megabyte, and a compound literal of it is that megabyte on the stack before the copy.
     nya_memset(cells, 0, sizeof(*cells));
 
     cells->options   = options;
@@ -297,11 +275,7 @@ void nya_ui_cells_reset(NYA_UICells* cells) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE GRID
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE GRID
 
 const NYA_UIPresenter* nya_ui_cells_presenter(NYA_UICells* cells) {
     nya_assert(cells != nullptr);
@@ -375,11 +349,7 @@ u32 nya_ui_cells_write(const NYA_UICells* cells, char* out, u32 capacity) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL: THE GRID
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL: THE GRID
 
 u32 _nya_ui_cell_length(NYA_ConstCString text, u64 bytes) {
     nya_assert(text != nullptr);
@@ -478,8 +448,7 @@ NYA_TerminalCell* _nya_ui_cell_claim(NYA_UICells* cells, s32 column, s32 row) {
     if (column < cells->clip_column || row < cells->clip_row) return nullptr;
     if (column >= cells->clip_column + cells->clip_columns || row >= cells->clip_row + cells->clip_rows) return nullptr;
 
-    // at least, not greater than: a widget lays down its fill and then writes its label on it at the same layer.
-    // Biased by one so that zero is a cell this pass has not written at all, which is what present skips.
+    // at least, not greater than: a widget lays down its fill and then writes its label on it at the same layer, biased by one so zero is a cell this pass hasn't written at all, which is what present skips.
     u8 wanted = (u8)nya_clamp(cells->layer, 0, U8_MAX - 1) + 1U;
 
     if (wanted < cells->layers[row][column]) return nullptr;
@@ -504,8 +473,7 @@ void _nya_ui_cell_fill(NYA_UICells* cells, _NYA_UICellRect rect, NYA_Color paper
 
             cell->background = _nya_ui_cell_blend(cell->background, paper);
 
-            // an opaque fill erases what was under it, as a panel drawn over a label has to. A translucent one keeps
-            // the character and dims both its ink and its paper, which is what makes a scrim read as a scrim.
+            // an opaque fill erases what was under it, as a panel drawn over a label must; a translucent one keeps the character and dims both its ink and paper, which is what makes a scrim read as a scrim.
             if (paper.a >= 1.0F) {
                 cell->codepoint  = ' ';
                 cell->foreground = nya_terminal_ink(ink.r, ink.g, ink.b);
@@ -588,11 +556,7 @@ void _nya_ui_cell_wrap(NYA_UICells* cells, _NYA_UICellRect rect, NYA_ConstCStrin
     u64 size = strnlen(text, _NYA_UI_CELL_TEXT_MAX);
     u64 at   = 0;
 
-    /*
-     * Broken on the cell, not on the word, which is what render2d's terminal backend does with a wrap width: this
-     * walks code points and has no dictionary of where a word ends. A caller that wants word wrapping splits the
-     * string itself.
-     */
+    // Broken on the cell, not the word, as render2d's terminal backend does with a wrap width: this walks code points and has no dictionary of where a word ends, so a caller that wants word wrapping splits the string itself.
     for (s32 row = rect.row; row < rect.row + rect.rows && at < size; row++) {
         char piece[_NYA_UI_CELL_TEXT_MAX];
         u64  used   = 0;
@@ -668,11 +632,7 @@ u32 _nya_ui_cell_encode(u32 codepoint, OUT u8* out) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL: THE SEAM
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL: THE SEAM
 
 void _nya_ui_cell_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out) {
     NYA_UICells* cells = state;
@@ -684,24 +644,18 @@ void _nya_ui_cell_look_build(void* state, u32 depth, const NYA_UIStyle* style, f
 
     f32x2 cell = cells->options.cell;
 
-    /*
-     * Every size the layout adds up, rounded to a whole cell before the layout ever sees one of them. A row is one
-     * cell tall and the gaps between rows are whole rows, so a column of widgets adds up to whole rows however many
-     * there are; anything else accumulates a half cell per widget and the bottom of a panel lands between two rows.
-     */
+    // Every size the layout adds up, rounded to a whole cell before the layout ever sees one: a row is one cell tall and the gaps between rows are whole rows, so a column of widgets adds up to whole rows however many there are — anything else accumulates a half cell per widget and the bottom of a panel lands between two rows.
     out->margin  = _nya_ui_cell_quantise(out->margin, cell.y);
     out->padding = _nya_ui_cell_quantise(out->padding, cell.y);
     out->spacing = _nya_ui_cell_quantise(out->spacing, cell.y);
 
-    // there is no half cell for a corner to be round in, nothing under a cell to drop a shadow onto, and a widget
-    // that grew a cell on focus and settled back would make its whole row jump. All three are off, not rounded.
+    // there's no half cell for a corner to be round in, nothing under a cell to drop a shadow onto, and a widget that grew a cell on focus and settled back would make its whole row jump; all three are off, not rounded.
     out->radius  = 0.0F;
     out->outline = 0.0F;
     out->depth   = 0.0F;
     out->pop     = 0.0F;
 
-    // kept at one column so the layout's arithmetic is whole, though nothing here draws a bar: focus is reverse
-    // video and the angle delimiters, neither of which takes a column the widget did not already have.
+    // kept at one column so the layout's arithmetic is whole, though nothing here draws a bar: focus is reverse video and the angle delimiters, neither of which takes a column the widget didn't already have.
     out->focus_bar = cell.x;
 
     out->item_height = nya_max(_nya_ui_cell_quantise(out->item_height, cell.y), cell.y);
@@ -731,8 +685,7 @@ f32x2 _nya_ui_cell_measure(void* state, NYA_UIText role, NYA_ConstCString text, 
     f32x2 cell  = cells->options.cell;
     f32   width = (f32)_nya_ui_cell_length(text, strnlen(text, _NYA_UI_CELL_TEXT_MAX)) * cell.x;
 
-    // a terminal has one size, so there is nothing to shrink to: SHRINK measures what VISIBLE does and the drawing
-    // cuts the line with an ellipsis instead. That is the one place this presenter cannot do what the style asked.
+    // a terminal has one size, so there's nothing to shrink to: SHRINK measures what VISIBLE does and the drawing cuts the line with an ellipsis instead — the one place this presenter can't do what the style asked.
     if (overflow != NYA_UI_OVERFLOW_WRAP || room <= 0.0F || width <= room) return (f32x2){ width, cell.y };
 
     // whole cells across, so a wrapped line lands on the grid rather than between two columns of it.
@@ -793,11 +746,7 @@ void _nya_ui_cell_layer_set(void* state, NYA_Window* window, s32 layer) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL: THE WIDGETS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL: THE WIDGETS
 
 void _nya_ui_cell_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     NYA_UICells* cells = state;
@@ -813,11 +762,7 @@ void _nya_ui_cell_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     _NYA_UICellRect rect = _nya_ui_cell_rect(cells, widget->rect);
     NYA_Color       ink  = _nya_ui_cell_color(&style->text, &widget->state);
 
-    /*
-     * The attributes every write of this widget carries, which is where focus, press and fading are decided once
-     * rather than at twenty call sites. Reverse video is the focus mark that needs no colour and no column; the
-     * second mark, the angle delimiters, is inside the widgets that have delimiters.
-     */
+    // The attributes every write of this widget carries, where focus, press and fading are decided once rather than at twenty call sites: reverse video is the focus mark that needs no colour and no column, and the second mark, the angle delimiters, is inside the widgets that have delimiters.
     u8 attributes = 0;
 
     if (widget->state.focused) attributes |= NYA_TERMINAL_ATTRIBUTE_REVERSE;
@@ -841,12 +786,7 @@ void _nya_ui_cell_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
         case NYA_UI_WIDGET_PANEL: _nya_ui_cell_panel(cells, widget, rect, attributes); break;
         case NYA_UI_WIDGET_LABEL: _nya_ui_cell_label(cells, widget, rect, attributes); break;
 
-        /*
-         * `[ label ]`, delimiters and all, centred in whatever row the layout gave it. Around the label rather
-         * than at the two ends of the row: a button a container stretched to its full width would otherwise be a
-         * bracket at each edge of the screen with a word floating between them, which reads as a rule and not as
-         * something to press. What was stretched is still the row, and the row is still what a click lands on.
-         */
+        // `[ label ]`, delimiters and all, centred in whatever row the layout gave it — around the label rather than at the row's two ends: a button a container stretched to full width would otherwise be a bracket at each screen edge with a word floating between them, which reads as a rule not something to press. What was stretched is still the row, and the row is still what a click lands on.
         case NYA_UI_WIDGET_BUTTON: {
             _nya_ui_cell_fill(cells, rect, paper, ink, attributes);
 
@@ -877,11 +817,7 @@ void _nya_ui_cell_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
         case NYA_UI_WIDGET_COLOR_PICKER: _nya_ui_cell_picker(cells, widget, rect, ink, attributes); break;
         case NYA_UI_WIDGET_CHART:        _nya_ui_cell_chart(cells, widget, rect, attributes); break;
 
-        /*
-         * A terminal has no sampler and no sheet to cut from, so an icon is one mark that says a picture belongs
-         * here. This is the one widget that cannot be drawn in cells at all; a TUI that needs pictures sends them
-         * through the kitty protocol, which is render2d_terminal's nya_render2d_terminal_image and not the UI's.
-         */
+        // A terminal has no sampler and no sheet to cut from, so an icon is one mark that says a picture belongs here — the one widget that can't be drawn in cells at all; a TUI that needs pictures sends them through the kitty protocol (render2d_terminal's nya_render2d_terminal_image), not the UI's.
         case NYA_UI_WIDGET_ICON: {
             _nya_ui_cell_glyph(cells, rect.column + (rect.columns / 2), rect.row + (rect.rows / 2), _nya_ui_cell_pick(cells, _NYA_UI_CELL_GLYPH_ICON),
                                style->text_dim, attributes);
@@ -965,11 +901,7 @@ void _nya_ui_cell_panel(NYA_UICells* cells, const NYA_UIWidgetDraw* widget, _NYA
 
     if (widget->label[0] == '\0') return;
 
-    /*
-     * In the top edge with a space either side, between whatever chrome the caller put at each end of the bar. A
-     * title written across the whole width slides under the close mark as soon as it is long enough, and a frame
-     * with a hole in it is the window that looks broken.
-     */
+    // In the top edge with a space either side, between whatever chrome the caller put at each end of the bar: a title written across the whole width slides under the close mark as soon as it's long enough, and a frame with a hole in it is the window that looks broken.
     s32 left  = rect.column + 1 + _nya_ui_cell_span(widget->as_panel.title_room.x, cells->options.cell.x) - 1;
     s32 right = rect.column + rect.columns - 1 - _nya_ui_cell_span(widget->as_panel.title_room.y, cells->options.cell.x) + 1;
     s32 room  = nya_max(right - left - 2, 0);
@@ -1002,11 +934,7 @@ void _nya_ui_cell_choice(NYA_UICells* cells, const NYA_UIWidgetDraw* widget, _NY
     b8  on   = widget->as_choice.on;
     s32 mark = rect.column + padding;
 
-    /*
-     * A selectable is a row of a list, so it is marked and not boxed: a box in front of every row of a list is
-     * three columns of noise. A toggle and a radio are a state, so they are the box and the ring every terminal
-     * program has drawn them as, and the two differ by their delimiters so that neither ever reads as the other.
-     */
+    // A selectable is a row of a list, so it's marked not boxed (a box before every row is three columns of noise); a toggle and a radio are a state, so they're the box and the ring every terminal program has drawn them as, and the two differ by their delimiters so neither ever reads as the other.
     if (widget->kind == NYA_UI_WIDGET_SELECTABLE) {
         u32 glyph = _nya_ui_cell_pick(cells, on ? _NYA_UI_CELL_GLYPH_CHOSEN : _NYA_UI_CELL_GLYPH_OFF);
 
@@ -1066,8 +994,7 @@ void _nya_ui_cell_dropdown(NYA_UICells* cells, const NYA_UIWidgetDraw* widget, _
     _nya_ui_cell_fill(cells, rect, paper, ink, attributes);
     (void)_nya_ui_cell_text(cells, rect.column + padding, rect.row, widget->label, rect.columns - padding, ink, attributes);
 
-    // the chosen option against the right edge, with the caret past it: pointing down when closed and up when the
-    // list is showing, which is the one thing that says a row is a dropdown and not a label with a value on it.
+    // the chosen option against the right edge, with the caret past it: pointing down when closed and up when the list is showing, the one thing that says a row is a dropdown and not a label with a value on it.
     s32 arrow = rect.column + rect.columns - padding - 1;
     s32 width = (s32)_nya_ui_cell_length(widget->as_dropdown.shown, strnlen(widget->as_dropdown.shown, _NYA_UI_CELL_TEXT_MAX));
     s32 value = nya_max(arrow - 1 - width, rect.column + padding);
@@ -1108,8 +1035,7 @@ void _nya_ui_cell_field(NYA_UICells* cells, const NYA_UIFieldDraw* field, NYA_Re
 
         if (column < 0) continue;
 
-        // the selection is the terminal's own emphasis, flipped against whatever the row already carries: a focused
-        // row is reversed, so a selection inside it is the part that is not.
+        // the selection is the terminal's own emphasis, flipped against whatever the row already carries: a focused row is reversed, so a selection inside it is the part that isn't.
         u32 from  = nya_min(field->caret, field->select);
         u32 to    = nya_max(field->caret, field->select);
         u8  marks = attributes;
@@ -1121,8 +1047,7 @@ void _nya_ui_cell_field(NYA_UICells* cells, const NYA_UIFieldDraw* field, NYA_Re
 
     if (!field->editing) return;
 
-    // the caret is a cell in reverse, which is what a terminal's own cursor is, and it sits after the composition
-    // when the IME has one: that text is not in the buffer yet, so it is drawn dim and underlined ahead of it.
+    // the caret is a cell in reverse, which is what a terminal's own cursor is, and it sits after the composition when the IME has one: that text isn't in the buffer yet, so it's drawn dim and underlined ahead of it.
     s32 caret = (s32)_nya_ui_cell_length(field->buffer, nya_min((u64)field->caret, size)) - shift;
 
     if (field->composing[0] != '\0') {
@@ -1150,11 +1075,7 @@ void _nya_ui_cell_picker(NYA_UICells* cells, const NYA_UIWidgetDraw* widget, _NY
 
     (void)_nya_ui_cell_text(cells, rect.column + padding, rect.row, widget->label, rect.columns - padding, ink, attributes);
 
-    /*
-     * The plane really is a plane: one cell of paper per step of saturation across and of value down. A terminal
-     * that quantises to 256 colours or to 16 shows bands instead of a gradient, and one with no colour at all shows
-     * a blank field with the cursor in it — which is why the cursor is a character and not a colour.
-     */
+    // The plane really is a plane: one cell of paper per step of saturation across and of value down. A terminal that quantises to 256 or 16 colours shows bands instead of a gradient, and one with no colour shows a blank field with the cursor in it — which is why the cursor is a character and not a colour.
     for (s32 row = 0; row < plane.rows; row++) {
         for (s32 column = 0; column < plane.columns; column++) {
             f32 saturation = plane.columns > 1 ? (f32)column / (f32)(plane.columns - 1) : 1.0F;
@@ -1233,11 +1154,7 @@ void _nya_ui_cell_chart(NYA_UICells* cells, const NYA_UIWidgetDraw* widget, _NYA
         u32 index = (u32)((f32)column / (f32)rect.columns * (f32)count);
         f32 share = nya_clamp((values[nya_min(index, count - 1)] - low) / span, 0.0F, 1.0F);
 
-        /*
-         * The eighths, so a plot in cells has eight times the resolution of the rows it is drawn in: a bar is whole
-         * blocks up to its last row and the fraction of one at the top. A line is one mark at that height instead,
-         * because a line drawn as filled columns is a bar chart with a different name on it.
-         */
+        // The eighths, so a plot in cells has eight times the resolution of the rows it's drawn in: a bar is whole blocks up to its last row and the fraction of one at the top; a line is one mark at that height instead, because a line drawn as filled columns is a bar chart with a different name.
         s32 eighths = (s32)roundf(share * (f32)(rect.rows * _NYA_UI_CELL_EIGHTHS));
         s32 top     = rect.row + rect.rows - 1 - (eighths / _NYA_UI_CELL_EIGHTHS);
 

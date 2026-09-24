@@ -9,11 +9,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * WINDOWS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// WINDOWS
 
 b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA_UIWindowState* state) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
@@ -50,15 +46,7 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
 
     NYA_Rectf bounds = layout->bounds;
 
-    /*
-     * A fold, measured. Both heights are known here and nowhere earlier: the one the last pass laid out
-     * and the one this pass just did. The origin has already moved by the anchor's share of the
-     * difference, and this puts it back, by the same rule the corner grip corrects a resize with. A
-     * person folding a window is looking at its title bar, so the title bar is what holds still.
-     *
-     * Keyed off the flag rather than off the chevron, so a program that folds a window itself gets the
-     * same window back.
-     */
+    // A fold, measured: both heights are known here and nowhere earlier (the one the last pass laid out and the one this pass just did). The origin has already moved by the anchor's share of the difference, and this puts it back, by the same rule the corner grip corrects a resize with — a person folding a window is looking at its title bar, so the title bar holds still. Keyed off the flag rather than the chevron, so a program that folds a window itself gets the same window back.
     _NYA_UIPanelState* folding = &_nya_ui.panels[layout->root_panel];
 
     if (folding->folded != state->collapsed) {
@@ -80,19 +68,14 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
     // square to the bar, so a chrome button is a button in it rather than a tile filling it.
     f32 side = look->title_bar;
 
-    /*
-     * The bar and the corner grip are chrome, outside the view a scrolling window clips its contents to, so the
-     * clip comes off for as long as they are declared and goes back on for the body. Without this a window whose
-     * contents are longer than it is has a close button that is neither drawn nor reachable.
-     */
+    // The bar and corner grip are chrome, outside the view a scrolling window clips its contents to, so the clip comes off while they're declared and goes back on for the body; without this a window whose contents are longer than it is has a close button neither drawn nor reachable.
     NYA_Rectf inner   = layout->clip;
     b8        clipped = layout->clipping;
 
     layout->clip = _nya_ui.layouts[0].clip;
     if (clipped && ui->pass == NYA_UI_PASS_DRAW) _nya_ui_scissor(ui, layout->clip);
 
-    // the title strip the panel reserved, which is also the strip the panel drag grips; the buttons sit in it and
-    // call that grab off when one of them takes the press. See _nya_ui_widget.
+    // the title strip the panel reserved, which is also the strip the panel drag grips; the buttons sit in it and call that grab off when one takes the press. See _nya_ui_widget.
     NYA_Rectf bar = { bounds.x + layout->before.x, bounds.y + layout->before.y, nya_max(bounds.width - layout->before.x - layout->after.x, 0.0F), side };
 
     // placed right to left and declared left to right, so tab walks the bar the way it reads.
@@ -113,8 +96,7 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
     if (window.menu_count > 0) {
         NYA_Rectf button = { bar.x, bar.y, side, side };
 
-        // the module's one open list, so a window's menu and a dropdown cannot both be showing and escape closes
-        // whichever is. The id is the button's, which is what nya_ui_dropdown holds too.
+        // the module's one open list, so a window's menu and a dropdown can't both be showing and escape closes whichever is; the id is the button's, which is what nya_ui_dropdown holds too.
         u64 menu = _nya_ui_id(layout->scope, "menu");
         b8  open = ui->open == menu;
 
@@ -163,8 +145,7 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
     layout->clip = inner;
     if (clipped && ui->pass == NYA_UI_PASS_DRAW) _nya_ui_scissor(ui, inner);
 
-    // the pass that closed or folded it is already past the title bar, so the body is what stops here rather than
-    // running once more and leaving a window on screen for a pass after the button said otherwise.
+    // the pass that closed or folded it is already past the title bar, so the body is what stops here rather than running once more and leaving a window on screen for a pass after the button said otherwise.
     if (!state->open || state->collapsed) {
         nya_ui_panel_end(ui);
         return false;
@@ -212,8 +193,7 @@ b8 nya_ui_section_begin(NYA_UI* ui, NYA_ConstCString label, b8* open) {
 
     if (!*open) return false;
 
-    // named by its label, so two sections in one panel keep their own children's ids, and indented by the padding
-    // so the fold reads as holding what is under it.
+    // named by its label, so two sections in one panel keep their own children's ids, and indented by the padding so the fold reads as holding what's under it.
     return nya_ui_panel_begin(ui, label, (NYA_UIPanel){ .padding = look->style.padding, .frameless = true });
 }
 
@@ -234,12 +214,7 @@ b8 nya_ui_card_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, NY
 
     const NYA_UILook* look = _nya_ui_look();
 
-    /*
-     * The heading, at the title size and left aligned rather than centred the way a window's title bar is:
-     * a card reads down the page, not across a bar. The size comes from a nested frameless panel that
-     * lifts the text role to TITLE, so the label follows the theme's title face and colour with nothing
-     * hardcoded. The subtitle is the same trick at the small size in the dim colour.
-     */
+    // The heading, at the title size and left aligned rather than centred the way a window's title bar is (a card reads down the page, not across a bar): the size comes from a nested frameless panel that lifts the text role to TITLE, so the label follows the theme's title face and colour with nothing hardcoded, and the subtitle is the same trick at the small size in the dim colour.
     if (title[0] != '\0' && nya_ui_panel_begin(ui, "title", (NYA_UIPanel){ .text = NYA_UI_TEXT_TITLE, .frameless = true })) {
         nya_ui_label(ui, title);
         nya_ui_panel_end(ui);
@@ -270,11 +245,7 @@ void nya_ui_card_end(NYA_UI* ui) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 void _nya_ui_window_resize(NYA_UI* ui, u64 key, NYA_UIWindowState* state, NYA_Rectf bounds, NYA_Rectf grip) {
     nya_assert(ui != nullptr && state != nullptr && key != 0);
@@ -304,11 +275,7 @@ void _nya_ui_window_resize(NYA_UI* ui, u64 key, NYA_UIWindowState* state, NYA_Re
         return;
     }
 
-    /*
-     * Moved by how far the pointer moved rather than set to where it is. An anchor that pins the right or bottom
-     * edge moves the window's origin as it grows, so a size measured from that origin feeds its own change back in
-     * and the window runs away to its minimum in a handful of passes. A delta cannot: it does not read the origin.
-     */
+    // Moved by how far the pointer moved rather than set to where it is: an anchor that pins the right or bottom edge moves the window's origin as it grows, so a size measured from that origin feeds its own change back in and the window runs away to its minimum in a handful of passes — a delta can't, since it doesn't read the origin.
     f32x2 moved     = { _nya_ui.pointer.x - ui->resize_grip.x, _nya_ui.pointer.y - ui->resize_grip.y };
     f32x2 delta     = { moved.x / ui->scale, moved.y / ui->scale };
     f32x2 least     = NYA_UI_WINDOW_MIN;
@@ -318,18 +285,7 @@ void _nya_ui_window_resize(NYA_UI* ui, u64 key, NYA_UIWindowState* state, NYA_Re
 
     state->size = (f32x2){ nya_max(state->size.x + delta.x, least.x), nya_max(state->size.y + delta.y, least.y) };
 
-    /*
-     * A window grows away from the corner that is being pulled, and stops at the screen rather than at
-     * its anchor.
-     *
-     * An anchor is a fraction of the room left over — 0 at the left edge, 0.5 centred, 1 at the right —
-     * so the origin moves by that fraction of every change in size. Left alone, a window anchored
-     * bottom right grows up and left while the pointer pulls down and right: the corner being dragged
-     * runs away from the hand dragging it. So the drag offset is corrected by exactly what the anchor
-     * moved, and the top left stays where it is. A window already against the edge it is anchored to
-     * has nowhere to put the growth and does grow inwards — there is no room to do anything else — but
-     * one with any space keeps its grabbed corner under the pointer.
-     */
+    // A window grows away from the corner being pulled and stops at the screen rather than at its anchor. An anchor is a fraction of the room left over (0 at the left edge, 0.5 centred, 1 at the right), so the origin moves by that fraction of every change in size; left alone, a window anchored bottom-right grows up and left while the pointer pulls down and right, so the corner being dragged runs from the hand. The drag offset is corrected by exactly what the anchor moved, keeping the top-left where it is — a window already against the edge it's anchored to grows inwards for lack of room, but one with any space keeps its grabbed corner under the pointer.
     f32x2 grew   = { (state->size.x - before.x) * ui->scale, (state->size.y - before.y) * ui->scale };
     // the anchor's column and row, the same 0 / 0.5 / 1 the layout places it by.
     u32 column = (u32)layout->options.anchor % 3;
@@ -354,8 +310,7 @@ b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, NYA
     if (widget.refused) return false;
 
     if (_nya_ui_drawn(rect)) {
-        // the fill only once it is worth seeing, so a quiet title bar is a title and three marks rather than a row
-        // of buttons, and the focus mark still lands because that is drawn whatever the fill does.
+        // the fill only once it's worth seeing, so a quiet title bar is a title and three marks rather than a row of buttons, and the focus mark still lands because that's drawn whatever the fill does.
         NYA_UIWidgetDraw draw = {
             .kind    = NYA_UI_WIDGET_CHROME,
             .rect    = rect,

@@ -33,11 +33,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 /** How many lines `buffer` holds: one more than the newlines in its first `length` bytes. */
 NYA_INTERNAL u32 _nya_ui_code_lines(NYA_ConstCString buffer, u32 length) __attr_no_discard;
@@ -61,11 +57,7 @@ NYA_INTERNAL b8 _nya_ui_code_copy(const NYA_UI* ui, char* buffer, u32 length) __
 NYA_INTERNAL b8 _nya_ui_code_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length, u32 lines, NYA_UICodeEditor* editor);
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * THE WIDGET
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// THE WIDGET
 
 b8 nya_ui_code_editor(NYA_UI* ui, NYA_ConstCString id, char* buffer, u32 capacity, NYA_UICodeEditor* editor) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
@@ -144,8 +136,7 @@ b8 nya_ui_code_editor(NYA_UI* ui, NYA_ConstCString id, char* buffer, u32 capacit
                  nya_input_key_just_pressed(NYA_KEY_UP) || nya_input_key_just_pressed(NYA_KEY_DOWN) ||
                  nya_input_key_just_pressed(NYA_KEY_HOME) || nya_input_key_just_pressed(NYA_KEY_END);
 
-        // the pointer, when the editor already has the keyboard: a press sets the caret, a drag selects, a second
-        // press on the same spot takes the word under it.
+        // the pointer, when the editor already has the keyboard: a press sets the caret, a drag selects, a second press on the same spot takes the word under it.
         if (_nya_ui.pointer_pressed && !layout->covered && nya_rect_contains(text, _nya_ui.pointer)) {
             u32 li = (u32)nya_clamp(floorf((_nya_ui.pointer.y - rect.y + editor->scroll.y) / line), 0.0F, (f32)(lines - 1));
 
@@ -216,8 +207,7 @@ b8 nya_ui_code_editor(NYA_UI* ui, NYA_ConstCString id, char* buffer, u32 capacit
     u32 caret_line = 0, caret_column = 0;
     if (editing) _nya_ui_code_locate(buffer, ui->caret, &caret_line, &caret_column);
 
-    // the view: the wheel scrolls it, and an edit or a move keeps the caret inside it. Bounds are clamped last, so
-    // neither the wheel nor a reveal can leave the content.
+    // the view: the wheel scrolls it, and an edit or move keeps the caret inside it; bounds are clamped last, so neither the wheel nor a reveal can leave the content.
     f32 max_y = nya_max(((f32)lines * line) - text.height, 0.0F);
 
     if (ui->pass == NYA_UI_PASS_INPUT && !layout->covered && nya_rect_contains(rect, _nya_ui.pointer)) {
@@ -357,11 +347,7 @@ b8 nya_ui_code_editor(NYA_UI* ui, NYA_ConstCString id, char* buffer, u32 capacit
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 b8 _nya_ui_code_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length, u32 lines, NYA_UICodeEditor* editor) {
     nya_assert(ui != nullptr && buffer != nullptr && length != nullptr && editor != nullptr);
@@ -437,8 +423,7 @@ b8 _nya_ui_code_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length, u32 li
     u32 previous = control ? _nya_ui_field_word_start(buffer, caret) : _nya_ui_field_previous(buffer, caret);
     u32 next     = control ? _nya_ui_field_word_end(buffer, *length, caret) : _nya_ui_field_next(buffer, *length, caret);
 
-    // erasing: a selection first, else the character or word to one side. Backspace over a line's start takes the
-    // newline before it, which joins the line to the one above with no special case.
+    // erasing: a selection first, else the character or word to one side; backspace over a line's start takes the newline before it, joining the line to the one above with no special case.
     if (press[_NYA_UI_BACKSPACE]) {
         if (selected) {
             *length = _nya_ui_field_selection_erase(ui, buffer, *length);
@@ -501,8 +486,7 @@ b8 _nya_ui_code_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length, u32 li
         return removed || grown != dropped;
     }
 
-    // horizontal moves, the same as a field's: a character or, with control, a word; a plain move over a selection
-    // collapses to its near edge.
+    // horizontal moves, the same as a field's: a character or, with control, a word; a plain move over a selection collapses to its near edge.
     if (press[_NYA_UI_CARET_LEFT]) {
         _nya_ui_field_caret_set(ui, selected && !shift ? nya_min(ui->select, caret) : previous, shift);
         editor->_goal_set = false;
@@ -511,9 +495,7 @@ b8 _nya_ui_code_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length, u32 li
         editor->_goal_set = false;
     }
 
-    // vertical moves keep the column: the x the run started at is aimed for on every line it crosses, so a short
-    // line in the middle does not drag the caret in. Read from the raw arrows, since the menu directions the press
-    // table carries are cleared while a keyboard belongs to an editor.
+    // vertical moves keep the column: the x the run started at is aimed for on every line it crosses, so a short line in the middle doesn't drag the caret in; read from the raw arrows, since the press table's menu directions are cleared while a keyboard belongs to an editor.
     b8 up   = nya_input_key_just_pressed(NYA_KEY_UP);
     b8 down = nya_input_key_just_pressed(NYA_KEY_DOWN);
 
@@ -619,8 +601,7 @@ f32 _nya_ui_code_prefix(NYA_UIText role, char* buffer, u32 start, u32 upto) {
 
     if (upto == start) return 0.0F;
 
-    // measured by terminating the run in place, so a line longer than a field's cap is measured whole and no copy
-    // is made. The byte is put straight back, so nothing downstream sees the buffer cut.
+    // measured by terminating the run in place, so a line longer than a field's cap is measured whole with no copy; the byte is put straight back, so nothing downstream sees the buffer cut.
     char saved   = buffer[upto];
     buffer[upto] = '\0';
 

@@ -158,11 +158,7 @@
 
 typedef struct NYA_Window NYA_Window;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// CONSTANTS
 
 /** Focusable widgets in one pass. Past this a widget is refused: it draws nothing and returns false. */
 #ifndef NYA_UI_WIDGETS_MAX
@@ -342,11 +338,7 @@ typedef struct NYA_Window NYA_Window;
 #define NYA_UI_TEXT_PRESSED     ((NYA_Color){ 0.82F, 0.86F, 0.94F, 1.0F })
 #define NYA_UI_TEXT_DISABLED    ((NYA_Color){ 0.44F, 0.45F, 0.48F, 1.0F })
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 typedef struct NYA_UI            NYA_UI;
 typedef struct NYA_UISize        NYA_UISize;
@@ -913,17 +905,9 @@ struct NYA_UICodeEditor {
     b8  _goal_set;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// FUNCTIONS
 
-/*
- * ─────────────────────────────────────────────────────────
- * PASSES
- * ─────────────────────────────────────────────────────────
- */
+// PASSES
 
 /**
  * Starts a pass over `window`'s UI. One pass is open at a time; end it before beginning another.
@@ -933,11 +917,7 @@ NYA_API NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) __attr_no_disc
 /** Closes the pass. An input pass moves focus here, so a confirm and a direction in one tick act on the old focus. */
 NYA_API void nya_ui_end(NYA_UI* ui);
 
-/*
- * ─────────────────────────────────────────────────────────
- * LAYOUT
- * ─────────────────────────────────────────────────────────
- */
+// LAYOUT
 
 /**
  * Opens a container. `id` names it and scopes the ids of what is inside; null leaves it unnamed, remembered by its
@@ -1032,11 +1012,7 @@ NYA_API void nya_ui_scrim(NYA_UI* ui);
 NYA_API void nya_ui_opacity_begin(NYA_UI* ui, f32 opacity);
 NYA_API void nya_ui_opacity_end(NYA_UI* ui);
 
-/*
- * ─────────────────────────────────────────────────────────
- * TABLES
- * ─────────────────────────────────────────────────────────
- */
+// TABLES
 
 /**
  * A column of rows whose cells line up. `widths` holds `columns` widths in pixels at scale 1; a zero width grows
@@ -1083,11 +1059,7 @@ NYA_API void nya_ui_table_end(NYA_UI* ui);
 NYA_API b8   nya_ui_table_row_begin(NYA_UI* ui) __attr_no_discard;
 NYA_API void nya_ui_table_row_end(NYA_UI* ui);
 
-/*
- * ─────────────────────────────────────────────────────────
- * WIDGETS
- * ─────────────────────────────────────────────────────────
- */
+// WIDGETS
 
 /** Text at the container's size, in the style's text colour or in `color`. See NYA_UIOverflow for text too wide. */
 NYA_API void nya_ui_label(NYA_UI* ui, NYA_ConstCString text) __attr_overloaded;
@@ -1224,11 +1196,7 @@ NYA_API b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCSt
  * */
 NYA_API b8 nya_ui_color_picker(NYA_UI* ui, NYA_ConstCString label, NYA_Color* color);
 
-/*
- * ─────────────────────────────────────────────────────────
- * NODE EDITOR
- * ─────────────────────────────────────────────────────────
- */
+// NODE EDITOR
 
 /**
  * A pannable, zoomable canvas for a node graph. It fills its container — give that container a definite size — and
@@ -1287,11 +1255,7 @@ NYA_API b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor);
  * */
 NYA_API void nya_ui_node_link(NYA_UI* ui, NYA_UINodeEditor* editor, NYA_UINodeLink link);
 
-/*
- * ─────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────
- */
+// STATE
 
 /** Widgets until the matching end draw in their disabled colours, take no focus and never act. Nests. */
 NYA_API void nya_ui_disabled_begin(NYA_UI* ui);
@@ -1325,11 +1289,7 @@ NYA_API void nya_ui_focus_reset(NYA_Window* window);
  * */
 NYA_API b8 nya_ui_modal_event(NYA_Event* event);
 
-/*
- * ─────────────────────────────────────────────────────────
- * STYLE
- * ─────────────────────────────────────────────────────────
- */
+// STYLE
 
 /** Replaces `window`'s style. Cheap, so a game can hand it a hot reloaded config every frame. */
 NYA_API void nya_ui_style_set(NYA_Window* window, NYA_UIStyle style);
@@ -1347,32 +1307,7 @@ NYA_API void nya_ui_style_pop(NYA_UI* ui);
 /** What sizes were multiplied by in `window`'s last pass, for drawing custom content at the same scale. */
 NYA_API f32 nya_ui_scale(const NYA_Window* window) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * THEME FILES
- * ─────────────────────────────────────────────────────────
- *
- * A theme is a NYA_UIStyle in a `.nya` file, loaded through reflection and validated like a settings
- * file: every key that names no field, every value of the wrong type, and every number outside its
- * range is reported by name and dropped, and the built-in NYA_UI_* default is kept in its place. So a
- * hand edited theme can never leave the UI in a half-broken state; the worst a bad line costs is that
- * one field.
- *
- * The feature is opt in. A program that never calls nya_ui_theme_load has exactly the built-in style it
- * always had; nothing here runs on its own.
- *
- * The engine ships its default theme at NYA_UI_THEME_DEFAULT_FILE. To let a player restyle the UI, copy
- * that file under the writable `data/` directory and point nya_ui_theme_load at the copy:
- *
- * ```c
- * // once, after the window exists
- * (void)nya_ui_theme_load(window, "./data/theme.nya");
- * ```
- *
- * Under a hot reload build the file is then watched: an edit saved to it re-applies to the window within
- * one asset stat interval, the same way nya_config_watch follows engine.nya. Without hot reload compiled
- * in this loads once and does not watch, exactly as the config and i18n paths degrade.
- */
+// THEME FILES — an opt-in NYA_UIStyle in a `.nya` file (default at NYA_UI_THEME_DEFAULT_FILE), loaded via reflection, validated like settings (bad keys/values dropped), and watched under NYA_ASSET_HOT_RELOAD.
 
 /**
  * Loads `path` as a NYA_UIStyle theme and applies it to `window`, then — under NYA_ASSET_HOT_RELOAD —

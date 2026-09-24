@@ -10,21 +10,13 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
 /* Zeroed, so the tables cost the binary nothing. Every ui_*.c file included after this one reaches it. */
 NYA_INTERNAL _NYA_UISystem _nya_ui = { 0 };
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PASSES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PASSES
 
 NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     nya_assert(window != nullptr);
@@ -64,8 +56,7 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
 
     _nya_ui.layer_base = _nya_ui_layer_get(ui);
 
-    // a panel opened in either of this window's last two passes is still standing; one older is a slot the table
-    // has not reused yet, and a stale rectangle must not occlude anything.
+    // a panel opened in either of this window's last two passes is still standing; one older is a slot the table hasn't reused, and a stale rectangle must not occlude anything.
     ui->pass_previous = ui->pass_current;
     ui->pass_current  = _nya_ui.pass_serial;
 
@@ -145,8 +136,7 @@ void nya_ui_end(NYA_UI* ui) {
         } else if (press[_NYA_UI_RIGHT] && !_nya_ui.widget_horizontal[index] && index + 1 < count && groups[index + 1] == first) {
             index += 1;
         } else if (press[_NYA_UI_TAB]) {
-            // every widget in declaration order, lines and panels alike: the one move that reaches a whole UI, and
-            // the only one a terminal has. adding count - 1 wraps backward without an unsigned 0 - 1.
+            // every widget in declaration order, lines and panels alike: the one move that reaches a whole UI and the only one a terminal has; adding count - 1 wraps backward without an unsigned 0 - 1.
             b8 backward = (nya_input_modifiers() & NYA_KEYMOD_SHIFT) != 0;
             index       = (index + (backward ? count - 1 : 1)) % count;
         }
@@ -157,8 +147,7 @@ void nya_ui_end(NYA_UI* ui) {
         if (index != before) {
             ui->reveal = true;
 
-            // the panel focus moved into comes forward, so the keyboard and the pointer never disagree about which
-            // of two overlapping windows is the one in front.
+            // the panel focus moved into comes forward, so the keyboard and the pointer never disagree about which of two overlapping windows is in front.
             u32 panel = _nya_ui.widget_panels[index];
             if (ui->pass == NYA_UI_PASS_INPUT && panel != U32_MAX) _nya_ui_panel_raise(ui, panel);
         }
@@ -188,11 +177,7 @@ void nya_ui_end(NYA_UI* ui) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE QUERIES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE QUERIES
 
 void nya_ui_disabled_begin(NYA_UI* ui) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
@@ -265,11 +250,7 @@ b8 nya_ui_modal_event(NYA_Event* event) {
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 NYA_UI* _nya_ui_context(const NYA_Window* window) {
     nya_assert(window->handle.index < NYA_WINDOW_MAX);

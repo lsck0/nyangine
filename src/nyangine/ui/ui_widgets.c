@@ -8,11 +8,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * WIDGETS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// WIDGETS
 
 void nya_ui_label(NYA_UI* ui, NYA_ConstCString text) __attr_overloaded {
     nya_assert(ui != nullptr);
@@ -277,8 +273,7 @@ b8 nya_ui_color_picker(NYA_UI* ui, NYA_ConstCString label, NYA_Color* color) {
 
     char* text = ui->editing == widget.id || start ? ui->hex : shown;
 
-    // the hex field reads the pointer against the rectangle the layout put it at; where the body sinks to is the
-    // presenter's business, and it moves the box with it.
+    // the hex field reads the pointer against the rectangle the layout put it at; where the body sinks to is the presenter's business, and it moves the box with it.
     NYA_UIFieldDraw box   = { 0 };
     b8              typed = _nya_ui_field(ui, widget, start, hex, hex, text, sizeof(ui->hex), &box);
 
@@ -395,8 +390,7 @@ b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* o
     f32x2 at      = { rect.x, rect.y + rect.height };
     b8    changed = _nya_ui_choice_list(ui, label, options, count, &picked, at, rect.width);
 
-    // a press anywhere but the row and the list closes it, which is what every other menu does. The list claimed its
-    // own rectangle as it closed, so this reads that rather than guessing where it went.
+    // a press anywhere but the row and the list closes it, as every other menu does; the list claimed its own rectangle as it closed, so this reads that rather than guessing where it went.
     if (_nya_ui.pointer_pressed && !nya_rect_contains(rect, _nya_ui.pointer) && !_nya_ui_claimed(_nya_ui.pointer)) ui->open = 0;
 
     if (!changed) return false;
@@ -466,12 +460,7 @@ void nya_ui_badge(NYA_UI* ui, NYA_ConstCString label) {
 
     const NYA_UILook* look = _nya_ui_look();
 
-    /*
-     * A chip that fits its own text rather than filling the row, so a handful sit in a line. It is a
-     * framed panel — the frame carries the theme's panel fill and rounding on every backend — sized to
-     * the small text inside it and padded tight, which is all a tag is. Nothing here names a colour: the
-     * panel and the label each read the style, so a badge follows the theme like everything else.
-     */
+    // A chip that fits its own text rather than filling the row, so a handful sit in a line: a framed panel (the frame carries the theme's panel fill and rounding on every backend) sized to the small text inside it and padded tight, which is all a tag is. Nothing here names a colour — the panel and label each read the style, so a badge follows the theme like everything else.
     if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){
             .width   = nya_ui_fit(),
             .text    = NYA_UI_TEXT_SMALL,
@@ -494,8 +483,7 @@ void nya_ui_progress(NYA_UI* ui, f32 fraction) {
 
     f32 t = nya_clamp(fraction, 0.0F, 1.0F);
 
-    // the empty track first and the filled part over it, the two fill kinds every presenter already draws: the track
-    // in the style's track colour, the fill in its accent, so the bar is the theme's and not this widget's.
+    // the empty track first and the filled part over it, the two fill kinds every presenter already draws: the track in the style's track colour, the fill in its accent, so the bar is the theme's and not this widget's.
     NYA_UIWidgetDraw track = { .kind = NYA_UI_WIDGET_STRIPE, .rect = rect, .color = look->style.track };
     _nya_ui_draw(ui, &track);
 
@@ -526,11 +514,7 @@ b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* it
         // a separator between crumbs, a plain dim mark that takes no focus and no click.
         if (i > 0) nya_ui_label(ui, "/", look->style.text_dim);
 
-        /*
-         * The crumb the trail is at is the page in view, so it is a label rather than a link: nothing to
-         * click, nothing to focus. Every crumb before or after it is a button, which is what carries the
-         * focus, the keyboard and the click for free. Activating one navigates there.
-         */
+        // The crumb the trail is at is the page in view, so it's a label rather than a link: nothing to click, nothing to focus. Every crumb before or after it is a button, which carries the focus, keyboard and click for free; activating one navigates there.
         if (i == here) {
             nya_ui_label(ui, items[i]);
         } else if (nya_ui_button(ui, items[i])) {
@@ -545,11 +529,7 @@ b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* it
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width) {
     nya_assert(ui != nullptr && id != nullptr && labels != nullptr && selected != nullptr);

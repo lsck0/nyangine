@@ -17,11 +17,7 @@
 #include "nyangine/ui/ui_present.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// TYPES
 
 /** One open container. Axis 0 is across the window and 1 down it. */
 typedef struct {
@@ -412,24 +408,12 @@ typedef struct {
 } _NYA_UISystem;
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * STATE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// STATE
 
-/*
- * The one system is `_nya_ui`, defined in ui.c. It is not declared here: the module is internal to one translation
- * unit, so the definition is static, and nyangine.c includes ui.c ahead of the other ui_*.c files for that reason.
- * A declaration here would be a second static object the day a second translation unit includes this header.
- */
+// The one system is `_nya_ui`, defined in ui.c and not declared here: the module is internal to one translation unit, so the definition is static, and nyangine.c includes ui.c ahead of the other ui_*.c files for that reason — a declaration here would be a second static object the day a second TU includes this header.
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 /** The window's persistent state, reset when its slot now holds a different window. */
 NYA_INTERNAL NYA_UI* _nya_ui_context(const NYA_Window* window);
@@ -460,9 +444,7 @@ NYA_INTERNAL void              _nya_ui_look_build(const NYA_UI* ui, u32 depth);
 NYA_INTERNAL void              _nya_ui_look_build_at(const NYA_UI* ui, u32 depth, const NYA_UIStyle* style);
 NYA_INTERNAL const NYA_UILook* _nya_ui_look(void);
 
-/*
- * THE PRESENTER. Everything the module asks of its backend goes through these; see ui_present.h for the shape of it.
- */
+// THE PRESENTER. Everything the module asks of its backend goes through these; see ui_present.h for the shape of it.
 
 /** The open pass's presenter. */
 NYA_INTERNAL const NYA_UIPresenter* _nya_ui_present(void) __attr_no_discard;
@@ -580,12 +562,7 @@ NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* sta
  * */
 NYA_INTERNAL b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NYA_Rectf box, char* buffer, u32 capacity, NYA_UIFieldDraw* out);
 
-/*
- * The byte level editing a field is built from, shared so the code editor edits the same way rather than growing a
- * second copy of it. Every one works on the flat buffer and knows nothing of lines, so a newline is a byte like any
- * other: this is exactly why backspace at the start of a line joins it to the one above without a special case. See
- * ui_text.c for the definitions.
- * */
+// The byte-level editing a field is built from, shared so the code editor edits the same way rather than growing a second copy: every one works on the flat buffer and knows nothing of lines, so a newline is a byte like any other (why backspace at a line's start joins it to the one above without a special case). See ui_text.c for the definitions.
 
 /** The codepoint boundary before `offset`, and the one after it. Both stay inside [0, `length`]. */
 NYA_INTERNAL u32 _nya_ui_field_previous(NYA_ConstCString text, u32 offset) __attr_no_discard;

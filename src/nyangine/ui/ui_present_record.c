@@ -14,11 +14,7 @@
 #include "nyangine/ui/ui_internal.h"
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// PRIVATE API DECLARATION
 
 NYA_INTERNAL void  _nya_ui_record_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out);
 NYA_INTERNAL void  _nya_ui_record_look_use(void* state, u32 depth);
@@ -39,11 +35,7 @@ NYA_INTERNAL NYA_ConstCString _nya_ui_record_keep(NYA_UIRecorder* recorder, NYA_
 NYA_INTERNAL void _nya_ui_record_keep_field(NYA_UIRecorder* recorder, NYA_UIFieldDraw* field);
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * RECORDING
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// RECORDING
 
 void nya_ui_recorder_init(NYA_UIRecorder* recorder, f32x2 cell) {
     nya_assert(recorder != nullptr);
@@ -150,11 +142,7 @@ u32 nya_ui_recorder_write(const NYA_UIRecorder* recorder, char* out, u32 capacit
 }
 
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// INTERNAL
 
 void _nya_ui_record_look_build(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out) {
     NYA_UIRecorder* recorder = state;
