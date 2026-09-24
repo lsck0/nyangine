@@ -18,6 +18,8 @@
 #include "nyangine/os/os_socket_linux.c"
 #include "nyangine/os/os_thread_linux.c"
 #include "nyangine/os/os_time_linux.c"
+// Last: a weak fill for a libc symbol the vendored deps may reference but an older glibc lacks.
+#include "nyangine/os/os_libc_linux.c"
 #else
 #error "Unsupported OS"
 #endif
