@@ -357,8 +357,14 @@ NYA_INTERNAL const NYA_HttpWebSocketRoute NOTES_STREAM = {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Every note, or with `?contains=text` only the ones whose text contains it. */
-NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
+/**
+ * Every note, or with `?contains=text` only the ones whose text contains it.
+ *
+ * NYA_INTERNAL_CALLBACK, not NYA_INTERNAL, because its route carries it as a `nya_callback` token
+ * rather than a raw pointer: the name has to stay findable so a code reload can re-resolve it. See the
+ * token wired onto the QUERY route in main() and nya_http_router_reloadable in core_http_reload.h.
+ * */
+NYA_INTERNAL_CALLBACK NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
     NYA_Object* body  = nya_object_create(exchange->arena);
     NYA_ArrayᐸNYA_Valueᐳ* notes = nya_array_create(exchange->arena, NYA_Value);
 
@@ -718,13 +724,18 @@ NYA_INTERNAL NYA_HttpStatus otp_recover(NYA_HttpExchange* exchange) {
  * them a worker's would mean a lock around every touch of NOTES, which is a bigger decision than an
  * example should make quietly; the affinity is that decision, written down.
  */
-NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
+// Not const: the QUERY route below carries its handler as a `nya_callback` token rather than a raw
+// pointer, and that token is only known once the callback registry is up, so main() writes it in
+// before the router is merged. See nya_http_router_reloadable and the assignment in main().
+NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
     {
      .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NOTES_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
      .affinity      = NYA_HTTP_AFFINITY_MAIN,
-     .handler       = notes_query,
+     // .handler_callback is set in main() to nya_callback(notes_query): a reload-safe stand-in for
+     // `.handler = notes_query` that the router re-resolves each dispatch, so a code reload never
+     // leaves this route pointing into the old image.
      .summary       = "Every note",
      .description   = "A read, and therefore a QUERY rather than a GET. `?contains=text` keeps the notes containing it.",
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_INTERNAL_ERROR },
@@ -1112,6 +1123,19 @@ s32 main(s32 argc, char** argv) {
     }
 
     defer nya_system_http_deinit();
+
+    /*
+     * Reload-safe handlers, in one call: it installs the resolvers that turn a route's
+     * `handler_callback` token back into a function on every dispatch, so a handler carried as a token
+     * survives a code hot reload where a raw pointer baked into the table would dangle. See
+     * core_http_reload.h. With it installed, the notes QUERY route below carries its handler as a token.
+     */
+    nya_http_router_reloadable();
+
+    // The reload-safe stand-in for `.handler = notes_query`: a token the router re-resolves each
+    // dispatch. Written here rather than in the table because nya_callback needs the registry, which
+    // is only up now, and because in a hot-reloading build the macro expands to a call, not a constant.
+    NOTE_ROUTES[0].handler_callback = nya_callback(notes_query);
 
     // Merged at the root.
     NYA_EXPECT(nya_http_server_merge(&NOTE_ROUTER), "while merging the notes resource");

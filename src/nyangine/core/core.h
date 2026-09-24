@@ -10,6 +10,7 @@
 #include "nyangine/core/core_callback.h"
 #include "nyangine/core/core_config.h"
 #include "nyangine/core/core_control.h"
+#include "nyangine/core/core_http_reload.h"
 #include "nyangine/core/core_entity.h"
 #include "nyangine/core/core_event.h"
 #include "nyangine/core/core_i18n.h"

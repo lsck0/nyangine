@@ -10,6 +10,8 @@
 #include "nyangine/core/core_audio.c"
 #include "nyangine/core/core_audio_propagation.c"
 #include "nyangine/core/core_callback.c"
+// After core_callback.c: its resolvers hand the http router a callback token back as a function.
+#include "nyangine/core/core_http_reload.c"
 #include "nyangine/core/core_control.c"
 #include "nyangine/core/core_entity.c"
 #include "nyangine/core/core_event.c"
