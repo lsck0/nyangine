@@ -258,6 +258,9 @@
 // The one C symbol the page calls. Named here so the -sEXPORTED_FUNCTIONS below and the verifier that
 // greps the loader for it cannot drift apart.
 #define WASM_EXPORTED_SYMBOL   "nyangine_demo"
+// The platform/web seam's proof-of-life export, beside the serde demo: it drives the clock, CSPRNG,
+// storage and the fetch/WebSocket seams and hands their results back. See nyangine_web_probe.
+#define WASM_WEB_PROBE_SYMBOL  "nyangine_web_probe"
 
 // MODULARIZE so the loader is a factory the page instantiates when it chooses, and ENVIRONMENT=web,node
 // so the same .js both loads in a browser and runs under node, which is how `./build wasm` verifies it.
@@ -281,7 +284,7 @@
     /* paired with a u64 in an engine format string is exact natively but mismatched here. The call */ \
     /* sites are vetted on the native -Werror build; the difference is ABI, not a bug, so silence it. */ \
     "-Wno-format",                                                    \
-    "-sEXPORTED_FUNCTIONS=_" WASM_EXPORTED_SYMBOL,                     \
+    "-sEXPORTED_FUNCTIONS=_" WASM_EXPORTED_SYMBOL ",_" WASM_WEB_PROBE_SYMBOL, \
     "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
     "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineModule",            \
     "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"

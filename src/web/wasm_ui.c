@@ -43,6 +43,12 @@
 // The os backend first, exactly as wasm_demo.c does: page/time/random for a module with no OS under it.
 #include "nyangine/os/os_wasm.c"
 
+// The web platform primitives beside os_wasm.c: the clock, CSPRNG, storage and the fetch/WebSocket
+// seams the client path stands on. Included here too so the CSR bridge builds against the same seam the
+// headless demo does; the UI does not drive them yet, but a client-side component that persists state or
+// talks to a server reaches for exactly these.
+#include "nyangine/platform/web/web.c"
+
 // ── base: the arena → string → object → reflection leaves the UI and its systems reach ──
 #include "nyangine/base/base_arena.c"
 #include "nyangine/base/base_backtrace.c"

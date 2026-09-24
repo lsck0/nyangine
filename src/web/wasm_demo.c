@@ -156,6 +156,11 @@ const char* nyangine_demo(void) {
 
 #include "nyangine/os/os_wasm.c"
 
+// The web platform primitives, beside os_wasm.c: the clock, CSPRNG, storage and the fetch/WebSocket
+// seams the client path stands on. Each is behind OS_WASM and takes its browser backend here, the same
+// way os_wasm.c is the wasm page/time/random. nyangine_web_probe below drives every one of them.
+#include "nyangine/platform/web/web.c"
+
 #include "nyangine/base/base_arena.c"
 // NYA_BACKTRACE_SUPPORTED is 0 here (it needs OS_LINUX or OS_WINDOWS), so this compiles to the same
 // no-op capture/format the build tool itself links against — no libbacktrace, which wasm has none of.
@@ -205,6 +210,72 @@ const char* nyangine_demo(void) {
 
     NYA_String* json = nya_serialize(arena, object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
 
+    return nya_string_to_cstring(arena, json);
+}
+
+/**
+ * Exercises every platform/web primitive and returns what each one did as a JSON string, the same
+ * `string` cwrap contract as nyangine_demo. This is the seam's proof-of-life: the clock returns two
+ * browser times, the CSPRNG fills a buffer, the store round-trips a value, and the two async seams —
+ * fetch and a client WebSocket — are kicked off and polled.
+ *
+ * It is stateful across calls on purpose. The fetch and the socket are async, so a single call only ever
+ * catches them mid-flight; the handles are static, so calling this again after the JS event loop has
+ * turned shows them settle — the fetch reaching DONE with a status and a body, the socket reaching its
+ * next phase. The node harness in `./build wasm` calls it twice with a tick between for exactly that.
+ */
+EMSCRIPTEN_KEEPALIVE
+const char* nyangine_web_probe(void) {
+    static NYA_Arena*        arena  = nullptr;
+    static NYA_WebFetch*     fetch  = nullptr;
+    static NYA_WebSocketLink* socket = nullptr;
+    if (arena == nullptr) arena = nya_arena_create(.name = "wasm_web_probe");
+
+    // The synchronous three, done fresh each call. The clock is two reads; the CSPRNG fills a key and we
+    // report only whether it came back non-zero, never the bytes; the store round-trips one value.
+    u64 monotonic_ms = nya_web_clock_monotonic_ms();
+    u64 wall_ms      = nya_web_clock_wall_ms();
+
+    u8 entropy[32] = { 0 };
+    b8 random_ok   = nya_web_random_bytes(entropy, sizeof(entropy));
+    if (random_ok) {
+        b8 nonzero = false;
+        for (u32 i = 0; i < sizeof(entropy); i++) nonzero = nonzero || entropy[i] != 0;
+        random_ok = nonzero;
+    }
+
+    const u8 stored[5] = { 'n', 'y', 'a', '0', '1' };
+    u8       read[8]   = { 0 };
+    b8       storage_ok =
+        nya_web_storage_set("probe", stored, sizeof(stored)) && nya_web_storage_get("probe", read, sizeof(read)) == (s64)sizeof(stored) &&
+        read[0] == 'n' && read[4] == '1' && nya_web_storage_delete("probe") && nya_web_storage_get("probe", read, sizeof(read)) == -1;
+
+    // The async two: create once, poll every call. A data: URL lets the fetch actually complete under
+    // node with no server; the socket dials a dead port so it moves connecting → closed, which still
+    // proves the event wiring. Both handles outlive the call on the static arena.
+    if (fetch == nullptr) fetch = nya_web_fetch_create(arena, "GET", "data:text/plain,hello", nullptr, 0, nullptr);
+    if (socket == nullptr) socket = nya_web_socket_open(arena, "ws://127.0.0.1:9/");
+
+    NYA_WebFetchStatus fetch_status = nya_web_fetch_poll(fetch);
+    s64                fetch_body   = -1;
+    if (fetch_status == NYA_WEB_FETCH_DONE) {
+        u8 body[64] = { 0 };
+        fetch_body  = nya_web_fetch_body(fetch, body, sizeof(body));
+    }
+
+    NYA_Object* object = nya_object_create(arena);
+    nya_object_add(object, "clock_monotonic_ms", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = monotonic_ms });
+    nya_object_add(object, "clock_wall_ms", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = wall_ms });
+    nya_object_add(object, "random_ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = random_ok });
+    nya_object_add(object, "storage_ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = storage_ok });
+    nya_object_add(object, "fetch_created", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = fetch != nullptr });
+    nya_object_add(object, "fetch_status", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)fetch_status });
+    nya_object_add(object, "fetch_code", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_web_fetch_status_code(fetch) });
+    nya_object_add(object, "fetch_body_length", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = fetch_body });
+    nya_object_add(object, "socket_created", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = socket != nullptr });
+    nya_object_add(object, "socket_phase", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)nya_web_socket_phase(socket) });
+
+    NYA_String* json = nya_serialize(arena, object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
     return nya_string_to_cstring(arena, json);
 }
 
