@@ -89,16 +89,11 @@
 #include "nyangine/base/base_object.h"
 #include "nyangine/base/base_reconnect.h"
 #include "nyangine/base/base_types.h"
-// The protocol both ends share. A plugin depending on a module is the direction the layering allows;
-// http names nothing here.
+// The protocol both ends share. A plugin depending on a module is the direction the layering allows; http names nothing here.
 #include "nyangine/http/http_websocket.h"
 #include "nyangine/plugins/curl/request.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /**
  * Bytes of upgrade response headers read before the connection is given up on.
@@ -132,14 +127,9 @@
 /** What the whole connect, TLS and upgrade are given before the socket gives up. */
 #define NYA_WEBSOCKET_DEFAULT_TIMEOUT_MS 30000
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
-// The opcodes, the close codes, the events and the frame are http_websocket.h's; what a connection is
-// made of is not this end's to define.
+// The opcodes, close codes, events and frame are http_websocket.h's; what a connection is made of is not this end's to define.
 typedef enum NYA_WebSocketState     NYA_WebSocketState;
 typedef struct NYA_WebSocketOptions NYA_WebSocketOptions;
 typedef struct NYA_WebSocket        NYA_WebSocket;
@@ -212,17 +202,9 @@ struct NYA_WebSocketOptions {
     NYA_ReconnectPolicy reconnect;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * LIFETIME
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── LIFETIME ─────────────────────────────────────
 
 /**
  * Parses the options, allocates the socket's buffers from `arena`, and starts connecting.
@@ -242,11 +224,7 @@ NYA_API NYA_Error nya_websocket_create(NYA_Arena* arena, NYA_WebSocketOptions op
  * */
 NYA_API void nya_websocket_destroy(NYA_WebSocket* socket);
 
-/*
- * ─────────────────────────────────────────────────────────
- * OPERATIONS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── OPERATIONS ─────────────────────────────────────
 
 /**
  * Advances the connection and hands out one event, or returns false when there is nothing to report.

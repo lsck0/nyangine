@@ -2,11 +2,7 @@
 
 #include <curl/curl.h>
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** Where a transfer accumulates, since curl hands bytes over in arbitrary sized chunks. */
 typedef struct {
@@ -34,9 +30,7 @@ NYA_INTERNAL NYA_ErrorKind _nya_request_kind_from_curl(CURLcode code);
 /** Maps a non-2xx HTTP status onto the closest NYA_ErrorKind. */
 NYA_INTERNAL NYA_ErrorKind _nya_request_kind_from_status(u32 status);
 
-/*
- * curl_global_init exactly once per process, before any handle exists.
- */
+// curl_global_init exactly once per process, before any handle exists.
 NYA_INTERNAL b8 _nya_request_global_ready = false;
 
 __attr_constructor NYA_INTERNAL void _nya_request_global_init(void) {
@@ -50,11 +44,7 @@ __attr_destructor NYA_INTERNAL void _nya_request_global_shutdown(void) {
     if (_nya_request_global_ready) curl_global_cleanup();
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_ConstCString nya_request_method_name(NYA_RequestMethod method) {
     switch (method) {
@@ -76,9 +66,7 @@ NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request r
     nya_assert(arena != nullptr);
     nya_assert(out_response != nullptr);
 
-    // Malformed before anything is attempted. out_response is deliberately left alone here: there
-    // was never a response to describe, and zeroing it would be indistinguishable from a real
-    // transfer that returned nothing.
+    // Malformed before anything is attempted; out_response is left alone, since zeroing it would look like a real transfer that returned nothing.
     if (request.url == nullptr || request.url[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "request url is empty");
 
     NYA_ConstCString method_name = nya_request_method_name(request.method);
@@ -107,30 +95,25 @@ NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request r
     curl_easy_setopt(handle, CURLOPT_TIMEOUT_MS, (long)(request.timeout_ms > 0 ? request.timeout_ms : NYA_REQUEST_DEFAULT_TIMEOUT_MS));
     curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);
 
-    // http and https only. Otherwise a redirect or a configured url could reach file:// or scp:// and read
-    // local files.
+    // http and https only, so a redirect or a configured url cannot reach file:// or scp:// and read local files.
     curl_easy_setopt(handle, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(handle, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
 
     if (request.follow_redirects) {
         curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 8L);
-        // Drops Authorization when a redirect crosses to another host, which is how a bearer token
-        // ends up at a server that was never supposed to see it.
+        // Drops Authorization when a redirect crosses to another host, so a bearer token never reaches a server it was not meant for.
         curl_easy_setopt(handle, CURLOPT_UNRESTRICTED_AUTH, 0L);
     }
 
     if (request.insecure_skip_tls_verify) {
-        // Loud on purpose. This is the one option here that can turn a working request into a
-        // silent interception, so it does not get to happen quietly.
+        // Loud on purpose: this is the one option here that can turn a working request into a silent interception.
         nya_log_warn("TLS verification disabled for '%s'. Never do this outside a local test.", request.url);
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0L);
     }
 
-    /*
-     * The body, serialized compactly.
-     */
+    // The body, serialized compactly.
     NYA_CString payload      = nullptr;
     b8          payload_form = request.body_kind == NYA_REQUEST_BODY_FORM;
 
@@ -149,8 +132,7 @@ NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request r
         curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, (long)serialized->length);
     } else if (request.method == NYA_REQUEST_METHOD_POST || request.method == NYA_REQUEST_METHOD_PUT ||
                request.method == NYA_REQUEST_METHOD_PATCH) {
-        // A write method with nothing to write still needs a length, or curl waits for a body that
-        // is never coming and the server times out the request.
+        // A write method with nothing to write still needs a length, or curl waits for a body that never comes and the server times out.
         curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, 0L);
     }
 
@@ -160,8 +142,7 @@ NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request r
     headers = curl_slist_append(headers, "Accept: application/json");
     if (payload != nullptr) headers = curl_slist_append(headers, payload_form ? "Content-Type: application/x-www-form-urlencoded" : "Content-Type: application/json");
 
-    // Bearer wins over basic when both are set, rather than sending two Authorization headers and
-    // letting the server pick.
+    // Bearer wins over basic when both are set, rather than sending two Authorization headers.
     if (request.bearer_token != nullptr && request.bearer_token[0] != '\0') {
         NYA_String* auth = nya_string_sprintf(arena, "Authorization: Bearer %s", request.bearer_token);
         headers          = curl_slist_append(headers, nya_string_to_cstring(arena, auth));
@@ -198,9 +179,7 @@ NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request r
         return nya_error(_nya_request_kind_from_curl(code), "%s %s failed: %s", method_name, request.url, curl_easy_strerror(code));
     }
 
-    /*
-     * Parsed only when it looks like JSON, and a parse failure is not fatal on its own.
-     */
+    // Parsed only when it looks like JSON, and a parse failure is not fatal on its own.
     if (out_response->raw_body->length > 0) {
         b8 looks_like_json = out_response->content_type == nullptr ||
                              nya_string_contains(out_response->content_type, "json") ||
@@ -271,8 +250,7 @@ b8 nya_response_header(const NYA_Response* response, NYA_ConstCString name, char
         u64 stop = line_end;
         while (stop > start && (text[stop - 1] == ' ' || text[stop - 1] == '\t' || text[stop - 1] == '\r')) stop--;
 
-        // Refused rather than truncated: a caller parses these into numbers, and half of a number is a
-        // wrong answer where a missing one is a known unknown.
+        // Refused rather than truncated: a caller parses these into numbers, and half a number is a wrong answer where a missing one is a known unknown.
         if (stop - start + 1 > capacity) return false;
 
         nya_memcpy(out_value, text + start, stop - start);
@@ -292,11 +270,7 @@ NYA_Error nya_request_post(NYA_Arena* arena, NYA_ConstCString url, const NYA_Obj
     return nya_request_perform(arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_POST, .url = url, .body = body }, out_response);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error _nya_request_form_encode(NYA_Arena* arena, const NYA_Object* body, NYA_String** out_encoded) {
     *out_encoded = nya_string_create(arena);
@@ -338,9 +312,7 @@ void _nya_request_form_append(NYA_String* out, NYA_ConstCString text) {
     for (u64 index = 0; text[index] != '\0'; index++) {
         char character = text[index];
 
-        // RFC 3986's unreserved set, which is what may stand for itself. Everything else is encoded,
-        // including the `+ / =` that a base64 value carries and that a server would otherwise read as
-        // structure: a code_verifier or a token is exactly the value this is usually carrying.
+        // RFC 3986's unreserved set stands for itself; everything else is encoded, including the `+ / =` a base64 code_verifier or token carries and a server would misread as structure.
         b8 unreserved = (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
                         (character >= '0' && character <= '9') || character == '-' || character == '.' || character == '_' || character == '~';
 
@@ -361,8 +333,7 @@ u64 _nya_request_write_callback(char* data, u64 size, u64 count, void* user_data
     _NYA_RequestSink* sink  = (_NYA_RequestSink*)user_data;
     u64               bytes = size * count;
 
-    // Reserved up front rather than grown per byte: curl hands over 16 KiB at a time by default,
-    // and push_back alone would reallocate its way through every chunk.
+    // Reserved up front rather than grown per byte: curl hands over 16 KiB at a time, and push_back alone would reallocate through every chunk.
     nya_string_reserve(sink->string, sink->string->length + bytes);
     for (u64 i = 0; i < bytes; i++) nya_string_push_back(sink->string, (u8)data[i]);
 
@@ -374,11 +345,7 @@ u64 _nya_request_header_callback(char* data, u64 size, u64 count, void* user_dat
     _NYA_RequestSink* sink  = (_NYA_RequestSink*)user_data;
     u64               bytes = size * count;
 
-    /*
-     * A status line starts a new response, so anything collected so far belonged to a previous one: a
-     * redirect chain and a 100-continue both arrive this way, and only the last reply's headers describe
-     * the body the caller gets.
-     */
+    // A status line starts a new response, so anything collected so far belonged to a previous one (a redirect chain, a 100-continue); only the last reply's headers describe the body.
     if (bytes >= 5 && strncmp(data, "HTTP/", 5) == 0) {
         nya_string_clear(sink->string);
         return bytes;
@@ -389,8 +356,7 @@ u64 _nya_request_header_callback(char* data, u64 size, u64 count, void* user_dat
     while (end > 0 && (data[end - 1] == '\r' || data[end - 1] == '\n')) end--;
     if (end == 0) return bytes;
 
-    // Dropped rather than refused: a reply whose headers run past the bound still has a body worth
-    // reading, and aborting the transfer over a verbose server would be worse than not seeing the rest.
+    // Dropped rather than refused: a reply whose headers overrun the bound still has a body worth reading, so aborting over a verbose server would be worse.
     if (sink->string->length + end + 1 > NYA_RESPONSE_MAX_HEADER_BYTES) return bytes;
 
     nya_string_reserve(sink->string, sink->string->length + end + 1);
@@ -415,8 +381,7 @@ NYA_ErrorKind _nya_request_kind_from_curl(CURLcode code) {
 
         case CURLE_URL_MALFORMAT:       return NYA_ERROR_INVALID_ARGUMENT;
 
-        // A failed certificate check is a permission problem rather than a transport one: the peer
-        // answered, it just is not who it claimed to be.
+        // A failed certificate check is a permission problem, not a transport one: the peer answered, it just is not who it claimed to be.
         case CURLE_PEER_FAILED_VERIFICATION:
         case CURLE_SSL_CACERT_BADFILE:
         case CURLE_SSL_CONNECT_ERROR:   return NYA_ERROR_PERMISSION_DENIED;
@@ -440,11 +405,7 @@ NYA_ErrorKind _nya_request_kind_from_status(u32 status) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * BEING A GOOD CLIENT
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── BEING A GOOD CLIENT ─────────────────────────────────────
 
 /** The bucket a request spends from: what it named, or the host it is going to. */
 NYA_INTERNAL void _nya_request_rate_key(NYA_Arena* arena, const NYA_Request* request, OUT char* out_key, u64 capacity) {
@@ -458,8 +419,7 @@ NYA_INTERNAL void _nya_request_rate_key(NYA_Arena* arena, const NYA_Request* req
     NYA_Url        url     = { 0 };
     NYA_UrlFailure failure = { 0 };
 
-    // A url this cannot parse is one curl is about to refuse anyway; the whole string as a key is a
-    // bucket of its own, which is the safe way to be wrong here.
+    // A url this cannot parse is one curl will refuse anyway; the whole string as a key is a bucket of its own, the safe way to be wrong here.
     if (!nya_url_parse(request->url, strlen(request->url), &url, &failure).ok) {
         (void)snprintf(out_key, capacity, "%s", request->url);
         return;
@@ -479,8 +439,7 @@ NYA_INTERNAL b8 _nya_request_header_seconds(const NYA_Response* response, NYA_Co
     char* end     = nullptr;
     f64   seconds = strtod(value, &end);
 
-    // A Retry-After may also be an HTTP date, which this does not read: a date needs a clock this
-    // program trusts against a clock it does not, and every API that matters sends the seconds form.
+    // A Retry-After may also be an HTTP date, which this does not read: that needs a trusted clock, and every API that matters sends the seconds form.
     if (end == value || seconds < 0.0 || isnan(seconds)) return false;
 
     *out_seconds = seconds;
@@ -501,17 +460,12 @@ NYA_INTERNAL void _nya_request_rate_learn(NYA_RateLimiter* limiter, NYA_ConstCSt
     }
 
     if (response->status == 429) {
-        // Refused with no number on it. A second is a guess, and the alternative is sending again at
-        // once, which is what gets an address blocked rather than a request refused.
+        // Refused with no number on it: a second is a guess, but sending again at once is what gets an address blocked.
         nya_rate_told(limiter, key, 1000);
         return;
     }
 
-    /*
-     * The headers an API publishes on every reply, not just a refused one. Discord and GitHub both
-     * write these; reading them is what keeps the local bucket level with the server's without ever
-     * having to be refused first.
-     */
+    // Headers an API publishes on every reply, not just a refused one (Discord, GitHub): reading them keeps the local bucket level with the server's without being refused first.
     char remaining_text[32] = { 0 };
 
     if (!nya_response_header(response, "x-ratelimit-remaining", remaining_text, sizeof(remaining_text))) return;
@@ -552,12 +506,10 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     NYA_Error answer = NYA_OK;
 
     for (u32 attempt = 0; ; attempt++) {
-        // The budget first, every attempt: a retry that ignored the limiter would be the one call most
-        // likely to be refused going out fastest.
+        // The budget first, every attempt: a retry that ignored the limiter is the one call most likely to be refused going out fastest.
         if (request.limiter != nullptr) (void)nya_rate_wait(request.limiter, key);
 
-        // The breaker second: if the dependency is known-down, fail fast without a socket. A status of
-        // zero, the same shape a transport failure leaves, so a caller that only reads status is right.
+        // The breaker second: a known-down dependency fails fast with status zero (the shape a transport failure leaves) and no socket.
         if (request.breaker != nullptr && !nya_circuit_allow(request.breaker, key)) {
             nya_memset(out_response, 0, sizeof(*out_response));
             return nya_error(NYA_ERROR_TIMEOUT, "circuit breaker open for '%s'", key);
@@ -567,19 +519,14 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
 
         if (request.limiter != nullptr) _nya_request_rate_learn(request.limiter, key, out_response);
 
-        // Train the breaker on the outcome: an answered status (a 4xx included — the dependency is up)
-        // is a success, a 5xx or a transport failure (status zero) is not.
+        // Train the breaker: an answered status (4xx included — the dependency is up) is a success, a 5xx or transport failure (status zero) is not.
         if (request.breaker != nullptr) nya_circuit_record(request.breaker, key, out_response->status >= 100 && out_response->status < 500);
 
         if (answer.ok) return answer;
         if (attempt >= request.retries) return answer;
         if (!nya_retry_is_worthwhile(out_response->status)) return answer;
 
-        /*
-         * A 429 is the server saying it did not do the thing, so it is safe to send again whatever the
-         * method is. Everything else — a 5xx, a timeout, a reset — means the answer was lost, never
-         * that the request was, and sending a POST again may well charge somebody twice.
-         */
+        // A 429 means the server did not do the thing, so any method is safe to resend; everything else lost the answer, not the request, so resending a POST may charge twice.
         b8 safe = out_response->status == 429 || _nya_request_is_idempotent(request.method) || request.retry_unsafe_methods;
 
         if (!safe) return answer;

@@ -32,11 +32,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef enum NYA_RequestMethod  NYA_RequestMethod;
 typedef enum NYA_RequestBody    NYA_RequestBody;
@@ -128,11 +124,7 @@ struct NYA_Request {
     /** Accept any TLS certificate. Only for tests against a local server. */
     b8 insecure_skip_tls_verify;
 
-    /*
-     * ─────────────────────────────────────────────────────────
-     * BEING A GOOD CLIENT
-     * ─────────────────────────────────────────────────────────
-     */
+    // ───────────────────────────────────── BEING A GOOD CLIENT ─────────────────────────────────────
 
     /**
      * How many *extra* attempts a failure is worth. Zero, the default, is one try and no retry.
@@ -218,11 +210,7 @@ struct NYA_Response {
     NYA_String* raw_headers;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Performs `request` and fills `out_response`. Blocks until the server answers or the timeout runs out.
