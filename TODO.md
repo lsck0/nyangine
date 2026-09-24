@@ -351,8 +351,11 @@ browser, from the same `component()` function.
        `nya_render2d_flush`; node selfcheck asserts the exact 23-call real-render2d frame sequence + 1 draw/4
        verts/6 indices (PASS). Leaves pulled under emcc: render2d, render_sort, render_camera, math_matrix,
        math_shapes, render_glyph_atlas (dead-code-dropped text/TTF/cache). Only a browser confirms pixels.
-       Remaining: 3D (depth FBOs, MSAA resolve, the textureGather web variant, the 5 plain-uniform shaders),
-       asset loading (SDL_image/ttf) in wasm, and canvas input.
+       `[x]` **textureGather web variant landed (`f4d22bf`)**: the 4 lit mesh3d frags now emit valid ESSL 300
+       via a `#ifdef NYA_WEB_SHADER` 4-tap PCF path + a `-DNYA_WEB_SHADER` web SPIR-V the build cross-compiles;
+       native byte-identical. So the full 3D lit shader path cross-compiles to WebGL2 now. Remaining for 3D-on-web:
+       depth FBOs + MSAA resolve in the gpu_gles shim, the 5 plain-uniform shaders, asset loading (SDL_image/ttf)
+       in wasm, and canvas input.
     3. App loop under `emscripten_set_main_loop`; canvas input via emscripten html5 events → `NYA_Event`.
     4. A game example building to a canvas; the `web_frontend` caller. Verify a frame draws under node/headless
        where possible, then in-browser.
