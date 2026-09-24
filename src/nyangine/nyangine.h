@@ -21,6 +21,9 @@
 #endif
 #include "nyangine/plugins/plugins.h"
 #include "nyangine/serde/serde.h"
+// Beside serde: both turn a NYA_Object into text, and neither includes the other. It only needs base,
+// so it sits low and everything above it — http bodies, emails, LaTeX reports — can render through it.
+#include "nyangine/template/template.h"
 
 // Above os and base and below http, which is the only thing here that wants a socket with a library
 // on it. Its own header answers when the build has no TLS library at all.

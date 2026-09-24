@@ -6,6 +6,8 @@
 #include "nyangine/nn/nn.c"
 #include "nyangine/platform/platform.c"
 #include "nyangine/serde/serde.c"
+// Beside serde and above nothing but base: renders a NYA_Object to text. See nyangine.h.
+#include "nyangine/template/template.c"
 // Guarded: monocypher is on the project's include line and not the build tool's, which hashes nothing.
 // Before the plugins, whose websocket handshake is SHA-1, and before net and http, which it serves.
 #ifndef NYA_NO_SDL

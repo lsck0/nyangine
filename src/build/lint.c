@@ -90,6 +90,9 @@ NYA_INTERNAL const _LintBannedCall _LINT_BANNED_CALLS[] = {
 NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     { "os",       0 }, { "base",     1 }, { "platform", 2 }, { "math",    2 }, { "serde",   3 }, { "nn",      3 }, { "crypto",  3 },
     { "permission", 3 },
+    // template renders a NYA_Object to text and includes only base, so it sits beside serde: a sibling
+    // that turns an object into a document rather than a wire format, and neither includes the other.
+    { "template", 3 },
     // db is above crypto and base and below everything that stores anything, which is why it shares
     // net's rank rather than sitting under it: neither includes the other and neither ever should.
     { "db",       4 },
