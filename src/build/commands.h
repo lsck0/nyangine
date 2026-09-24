@@ -12,6 +12,7 @@
  *   changelog.c  `./build version` and `./build changelog`
  *   sbom.c       `./build sbom`
  *   check.c      `./build check`
+ *   typos.c      `./build typos`
  *   lint.c       the rules `./build check` runs before clang-tidy
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
@@ -95,6 +96,12 @@ void bench_runner(NYA_ArgCommand* command);
  * Runs clang-tidy over the translation units, optionally filtered.
  * */
 void check_runner(NYA_ArgCommand* command);
+
+/**
+ * Spell-checks the prose and code under src/, tests/, examples/ and docs/ with the `typos` tool,
+ * configured by .typos.toml. Skips with a notice when `typos` is not installed. See typos.c.
+ * */
+void typos_runner(NYA_ArgCommand* command);
 
 /**
  * The project's own rules, run by `./build check` before clang-tidy: banned calls, the module order, verb pairs,

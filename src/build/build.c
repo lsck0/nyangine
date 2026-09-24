@@ -16,6 +16,9 @@
 #include "build/lint.c"
 // After lint.c, whose lint_run it calls before clang-tidy.
 #include "build/check.c"
+// A sibling gate: spell-checks the prose and code. Independent of the above; here beside check.c
+// because it is the other read-only quality gate.
+#include "build/typos.c"
 // Before dist.c: it defines build_capture, and writes the CHANGELOG.md every distribution ships.
 #include "build/changelog.c"
 // After changelog.c: it calls build_capture, which changelog.c defines.

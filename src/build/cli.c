@@ -642,6 +642,12 @@ NYA_INTERNAL NYA_ArgCommand check = {
     .parameters  = { &check_sources, &check_strict_flag, },
 };
 
+NYA_INTERNAL NYA_ArgCommand typos = {
+    .name        = "typos",
+    .description = "Spell-check the prose and code under src/, tests/, examples/ and docs/. Needs the `typos` tool; skips with a notice if absent.",
+    .handler     = &typos_runner,
+};
+
 NYA_INTERNAL NYA_ArgCommand dist = {
     .name        = "dist",
     .description = "Stage the distributions under dist/: one directory per target, plus the archives a release publishes.",
@@ -759,6 +765,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &build,
             &dist,
             &check,
+            &typos,
             &changelog,
             &sbom,
             &version,
