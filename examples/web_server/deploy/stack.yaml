@@ -1,0 +1,40 @@
+# A Docker Swarm stack for the web_server image, in the shape homelab's `webService` helper produces
+# (src/instances/209-external-hello.nix): one service on :8000, a healthcheck, and a start-first
+# rollout that rolls back if the new task never turns healthy. Drop it into a homelab
+# `homelab.swarm.stacks` entry — see this directory's README for the nix.
+#
+# The one deviation from that helper is the healthcheck. homelab's runs `curl -f http://localhost:8000/`
+# *inside* the container, and this image is built FROM scratch — no curl, no shell, nothing but the
+# server. So the server probes itself instead (`--healthcheck` GETs / on the loopback port and exits
+# zero only on a 200), which is the same question homelab's curl asks, answered by the one binary the
+# image has. An operator who would rather keep the curl form should build the image on a base that
+# carries curl and use homelab's helper unchanged.
+
+services:
+  web:
+    image: registry.lsck0.dev/web_server:latest
+    ports:
+      - "80:8000"
+    healthcheck:
+      test: ["CMD", "/web_server.example", "--healthcheck", "--port", "8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: start-first
+      restart_policy:
+        condition: any
+    # The notes database lives here; a named volume keeps it across a redeploy. Drop this block and the
+    # notes reset each rollout, which for the example is a fine default — say so by leaving it out.
+    volumes:
+      - web_server_data:/data
+
+volumes:
+  web_server_data:
