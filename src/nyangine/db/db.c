@@ -9,3 +9,6 @@
 #include "nyangine/db/db_orm.c"
 // After db_orm.c, whose statement builder, name parser and table reader it derives a plan with.
 #include "nyangine/db/db_migrate.c"
+// After db_sql.c, whose connection and bound values it stores objects through, and above nothing: a
+// content-addressed store keyed by the SHA-256 of an object's bytes.
+#include "nyangine/db/db_blob.c"

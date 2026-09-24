@@ -9,6 +9,7 @@
  *   db_backup.h     a hot snapshot of a live database, a WAL checkpoint, and a defragmenting copy
  *   db_orm.h        a described type bound to a table: insert, update, delete, find, select
  *   db_migrate.h    what two schemas differ by, what of that is derivable, and what is refused
+ *   db_blob.h       a content-addressed blob store: an object keyed by the SHA-256 of its own bytes
  *
  * It sits below `http` and `accounts` and above `base` and `crypto`: everything that has to survive a
  * restart — sessions, accounts, the permission cache, a bot's state — is a table here, and nothing in
@@ -59,3 +60,5 @@
 #include "nyangine/db/db_orm.h"
 // After db_orm.h: a plan is derived from a table's columns and the schema the database has.
 #include "nyangine/db/db_migrate.h"
+// After db_sql.h, which it stores objects through: a content-addressed blob store, one SQLite table.
+#include "nyangine/db/db_blob.h"
