@@ -35,7 +35,7 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 ## In flight (2026-09-24)
 
-Agents running (DONE: shipping-hardening `2c758ee8`, UI theme files `14e26f05`, planar water reflection `03999130`): the `web_frontend` example (nya_ui app against http_server, SSR + CSR); signed plugins (Ed25519 over the plugin, pinned publisher keys, refuse-unsigned by default). Marked done in place as each lands.
+Agents running (DONE: shipping-hardening `2c758ee8`, UI theme files `14e26f05`, planar water reflection `03999130`, web_frontend example `73368828`): signed plugins (Ed25519 over the plugin, pinned publisher keys, refuse-unsigned by default). Marked done in place as each lands.
 
 ## Standing decisions
 
@@ -265,7 +265,7 @@ start a new project on nyangine", so each builds from `./build run example <name
 | `multiplayer_2d` | authority, prediction, encryption, lobby             | `pong_multiplayer`; `net_echo` folds into it                  |
 | `game_3d`      | 3D rendering, physics, audio propagation, post chain    | `pinball3d`                                                  |
 | `http_server`  | TLS, routes, DTOs, OpenAPI, accounts, roles, db, jobs, uploads, WebSocket | `web_server`; `[ ]` all but routes and OpenAPI missing |
-| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[~]` SSR proven (`ui_ssr`) and CSR proven (`./build wasm-ui`, `web/ui.html`); the named caller against `http_server` is what remains |
+| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[x]` `examples/web_frontend` (`73368828`): a nya_ui todo app served SSR against an http_server db store; CSR build path via `./build wasm-ui` documented |
 
 `plugin_scripting` stops being an example of its own: plugins are a feature of a program, so the 2D game or the
 TUI loads one. `net_echo` and `plugin_scripting` are deleted once their callers have moved.
