@@ -2451,14 +2451,20 @@ void _nya_asset_unloading_process(NYA_Event* event) {
 
             case NYA_ASSET_TYPE_SHADER_VERTEX:
             case NYA_ASSET_TYPE_SHADER_FRAGMENT: {
-                SDL_ReleaseGPUShader(render_system->gpu_device, asset->as_shader.shader);
-                asset->as_shader.shader = nullptr;
+                // A shader that failed to load — a missing or corrupt .spv rejected by SDL_CreateGPUShader — set
+                // its status to FAILED before it ever reached line 2296, so its GPU handle and its compiled handle
+                // are still null. deinit queues everything that is not UNLOADED, FAILED included, so guard here:
+                // without it strlen dereferences the null compiled handle and the process crashes on the way out.
+                if (asset->as_shader.compiled_handle != nullptr) {
+                    SDL_ReleaseGPUShader(render_system->gpu_device, asset->as_shader.shader);
+                    asset->as_shader.shader = nullptr;
 
-                // +1 for the terminator reserved in _nya_asset_pick_correct_compiled_shader.
-                nya_arena_free(system->allocator, (void*)asset->as_shader.compiled_handle, strlen(asset->as_shader.compiled_handle) + 1);
+                    // +1 for the terminator reserved in _nya_asset_pick_correct_compiled_shader.
+                    nya_arena_free(system->allocator, (void*)asset->as_shader.compiled_handle, strlen(asset->as_shader.compiled_handle) + 1);
 
-                // cleared so nothing reads the freed handle before a reload picks a new one.
-                asset->as_shader.compiled_handle = nullptr;
+                    // cleared so nothing reads the freed handle before a reload picks a new one.
+                    asset->as_shader.compiled_handle = nullptr;
+                }
 
                 asset->status = NYA_ASSET_STATUS_UNLOADED;
             } break;
