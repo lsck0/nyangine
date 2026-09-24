@@ -1199,8 +1199,12 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   `http_health`: `GET /healthz` (liveness, always 200) + `GET /readyz` (readiness, 200/503) over a bounded
   registry of named checks, with a `base_circuit` tie-in (OPEN ⇒ not-ready); `web_server` wires a real db check.
   Tests `test_reconnect`, `test_health`.
-- `[ ]` **Self-healing beyond fail-fast** — optional supervised restart/re-exec on a fatal (the crash reporter
-  currently reports but does not relaunch), behind an opt-in so a crash loop cannot hide.
+- `[x]` **Self-healing beyond fail-fast** — `base_supervisor` re-execs the process on a fatal after the crash
+  report is written, behind `NYA_SUPERVISE=1` (default off). `nya_supervisor_should_restart` is the pure,
+  tested decision — at most N restarts in a rolling window, give up past that so the crash surfaces, reset after
+  a quiet window — spacing them with `nya_backoff_ms`. The re-exec is `execve("/proc/self/exe", …)` with the
+  restart count carried across in `NYA_SUPERVISE_STATE`, async-signal-safe so it runs from the fault handler
+  too. Test `test_supervisor`.
 - `[x]` **Callback-backed HTTP route handlers (landed `4a2f5fa`)** — `NYA_HttpRoute.handler_callback` /
   `handler_identified_callback` carry a `nya_callback` token; the router resolves it every dispatch through a
   resolver a program installs with `nya_http_router_resolvers_set`, so a reloaded DLL's handler runs live and a

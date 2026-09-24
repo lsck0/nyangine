@@ -18,6 +18,10 @@ s32 main(s32 argc, NYA_CString* argv) {
     // fault is captured with a stack trace and routed through the central crash sink.
     nya_backtrace_init();
 
+    // Opt-in, and a no-op unless NYA_SUPERVISE is set: lets the crash sink re-exec this process on a
+    // fatal rather than let it die. Armed here so a crash during init is already covered.
+    nya_supervisor_arm(argc, argv);
+
     // False is a command line that said its piece and is done: `--help`, or one that could not be
     // understood. Nothing was brought up, so there is nothing to take down either.
     if (gnyame_init(argc, argv)) {
@@ -133,6 +137,10 @@ s32 main(s32 argc, NYA_CString* argv) {
     // First thing in the process, and before any thread is spawned: libbacktrace wants its state
     // created up front, and the fault handlers should be live for the DLL loading below too.
     nya_backtrace_init();
+
+    // Opt-in, and a no-op unless NYA_SUPERVISE is set: lets the crash sink re-exec this process on a
+    // fatal rather than let it die. Armed before any thread, so the environment snapshot is single-threaded.
+    nya_supervisor_arm(argc, argv);
 
     nya_symbols = dlopen(nullptr, RTLD_NOW | RTLD_GLOBAL);
     nya_assert(nya_symbols, "Failed to open handle to main executable: %s.", dlerror());
@@ -330,6 +338,10 @@ NYA_INTERNAL void         update_callback_pointers(void);
 s32 main(s32 argc, NYA_CString* argv) {
     // First thing in the process, and before any thread is spawned.
     nya_backtrace_init();
+
+    // Opt-in, and a no-op off Linux and unless NYA_SUPERVISE is set: lets the crash sink re-exec this
+    // process on a fatal rather than let it die.
+    nya_supervisor_arm(argc, argv);
 
     // The game DLL resolves engine symbols out of this executable, which exports them via NYA_API.
     nya_symbols = GetModuleHandleA(nullptr);

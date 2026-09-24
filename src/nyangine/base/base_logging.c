@@ -719,6 +719,13 @@ NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) {
 
     if (NYA_EXECUTION_MODE_CURRENT == NYA_EXECUTION_MODE_DEBUG) __builtin_debugtrap();
 
+    // Opt-in supervised restart, after the report is written and the log flushed: a supervisor armed
+    // through NYA_SUPERVISE re-execs this process here rather than letting it die. It returns only when
+    // it decides not to — off by default, out of restart budget, or the exec itself failed — and then
+    // the crash surfaces through the exit below, exactly as it did before this existed. Safe on the
+    // fault path: the re-exec uses only async-signal-safe calls. See base_supervisor.h.
+    _nya_supervisor_on_fatal(info->fault_path);
+
     // _exit on the fault path: atexit handlers and stdio flushing are not async signal safe, and
     // everything we had to say has already gone out through write(2).
     if (info->fault_path) _exit(EXIT_FAILURE);
