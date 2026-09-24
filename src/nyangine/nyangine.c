@@ -42,6 +42,9 @@
 // before either renderer: the wind field is analytic CPU math a headless test samples, and foliage in
 // render3d.c reads a vector taken from it. See render_wind.h.
 #include "nyangine/renderer/render_wind.c"
+// beside the wind: the general force field is analytic CPU math a headless test samples, and the particle and
+// fluid updates read it. Pure arithmetic plus the shared Perlin noise, so it belongs with the other CPU fields.
+#include "nyangine/renderer/render_force.c"
 // before either renderer, like the wind: the flow-map and wave math a water surface rests on is pure CPU
 // arithmetic a headless test samples, and render3d.c pads a water cull radius by it. See render_water.h.
 #include "nyangine/renderer/render_water.c"
