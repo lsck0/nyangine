@@ -142,7 +142,10 @@ void nya_cheatsheet_generate(void) {
                       "Attributes (`__attr_no_discard`, `__attr_overloaded`, ...) are stripped; nothing else is.\n"
                       "The prose after `//` is the first sentence of the declaration's doc comment, kept only when it\n"
                       "fits whole. The header is the manual: this file is the index into it.\n\n"
-                      "Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and not listed.\n\n");
+                      "Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and not listed.\n\n"
+                      "See also the [prose](README.md) for why things are shaped the way they are, and the "
+                      "[doxygen reference](doxygen/html/index.html) for what each declaration does. All three are "
+                      "assembled into one deployable tree by `./build docs`.\n\n");
 
     u32 module_count = (u32)(sizeof(_NYA_CHEATSHEET_MODULES) / sizeof(_NYA_CHEATSHEET_MODULES[0]));
 

@@ -55,8 +55,11 @@ vendor/steamrt/
 # debug data
 perf*
 
-# doxygen
+# doxygen, and the assembled docs site `./build docs` stages. Both are generated: the site is a fresh
+# copy of the hand-written docs/ tree with the generated cheatsheet and the doxygen HTML dropped in, so
+# only the sources under docs/ are committed and the deploy pipeline runs `./build docs` to rebuild it.
 docs/doxygen/
+/site/
 
 # keep
 !src/build/

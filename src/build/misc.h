@@ -36,14 +36,28 @@ NYA_INTERNAL NYA_BuildRule build_project_release = {
     },
 };
 
-NYA_INTERNAL NYA_BuildRule build_docs = {
-    .name    = "build_docs",
+/**
+ * Assembles the whole documentation site into one deployable tree under ./site: the hand-written
+ * GitBook prose and its SUMMARY.md, the cheatsheet generated from the headers, and the doxygen HTML
+ * generated from the source. Landing there together is the point — the three tiers cross-link with
+ * relative paths, so wherever ./site is served they reach one another.
+ *
+ * The order is load-bearing. generate_cheatsheet (a dependency) rewrites docs/CHEATSHEET.md; then
+ * hook_assemble_docs stages docs/ (prose plus that cheatsheet) into ./site; then this rule's own
+ * command runs doxygen over docs/doxygen.config, whose OUTPUT_DIRECTORY is ./site/doxygen, so the
+ * generated reference lands inside the already-staged tree.
+ * */
+NYA_INTERNAL NYA_BuildRule assemble_docs = {
+    .name    = "assemble_docs",
     .policy  = NYA_BUILD_ALWAYS,
 
     .command = {
         .program   = "doxygen",
         .arguments = { "./docs/doxygen.config", },
     },
+
+    .dependencies    = { &generate_cheatsheet, },
+    .pre_build_hooks = { &hook_assemble_docs, },
 };
 
 /*
@@ -151,18 +165,6 @@ NYA_INTERNAL NYA_BuildRule open_perf_report = {
             },
         },
     },
-};
-
-NYA_INTERNAL NYA_BuildRule open_docs = {
-    .name   = "open_docs",
-    .policy = NYA_BUILD_ALWAYS,
-
-    .command = {
-        .program   = "xdg-open",
-        .arguments = { "./docs/doxygen/html/index.html", },
-    },
-
-    .dependencies = { &build_docs, },
 };
 
 /*

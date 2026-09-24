@@ -724,3 +724,43 @@ void hook_stamp_output_file(NYA_BuildRule* rule) {
     NYA_Error written = nya_file_write(rule->output_file, rule->name);
     if (!written.ok) nya_log_warn("could not stamp '%s' for rule '%s'; it will run again", rule->output_file, rule->name);
 }
+
+void hook_assemble_docs(NYA_BuildRule* rule) {
+    nya_unused(rule);
+
+    NYA_ConstCString site = "./site";
+
+    /*
+     * A fresh tree every time: a page deleted from docs/ must not linger in the deployed site, and a
+     * doxygen run left over from a previous build must not shadow this one.
+     */
+    if (nya_filesystem_exists(site)) {
+        NYA_EXPECT(nya_filesystem_delete_recursive(site), "while clearing the staged docs site");
+    }
+
+    /*
+     * The hand-written GitBook tree, and with it the cheatsheet that the generate_cheatsheet
+     * dependency wrote into docs/ just before this hook ran. doxygen writes its HTML into
+     * ./site/doxygen once this hook returns (its OUTPUT_DIRECTORY in docs/doxygen.config), so the
+     * three tiers — prose, cheatsheet, generated reference — share one directory and their relative
+     * links resolve wherever the tree is deployed.
+     */
+    NYA_EXPECT(nya_filesystem_copy_recursive("./docs", site), "while staging the GitBook prose");
+
+    /*
+     * The staged tree is its own deploy root, so its .gitbook.yaml points at itself rather than at
+     * ./docs the way the committed one at the repository root does.
+     */
+    NYA_EXPECT(nya_file_write("./site/.gitbook.yaml",
+                              "root: ./\n"
+                              "\n"
+                              "structure:\n"
+                              "  readme: README.md\n"
+                              "  summary: SUMMARY.md\n"
+                              "\n"
+                              "redirects:\n"
+                              "  cheatsheet: CHEATSHEET.md\n"),
+               "while writing the staged .gitbook.yaml");
+
+    nya_log_info("Staged the docs site under %s; doxygen HTML lands in %s/doxygen next.", site, site);
+}

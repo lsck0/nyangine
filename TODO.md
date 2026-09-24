@@ -1215,10 +1215,13 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
 
 ### Docs deployment (user, 2026-09-24)
 
-- `[ ]` **One deployed docs site** — the GitBook carries all the hand-written prose markdown, and links across to
-  the generated **doxygen** (what the code does) and the **cheatsheet** (signatures) served from the SAME
-  deployment, so the three tiers are one site with working cross-links rather than three separate places. Wire
-  the doxygen + cheatsheet build output into the GitBook deploy so `SUMMARY.md`/nav reaches them.
+- `[x]` **One deployed docs site** — `./build docs` (the `assemble_docs` rule) stages one deployable tree under
+  `./site`: it regenerates the cheatsheet, copies the hand-written GitBook prose and `SUMMARY.md` in beside it,
+  writes a `.gitbook.yaml` rooted at the tree, then runs doxygen with `OUTPUT_DIRECTORY = ./site/doxygen`. The
+  landing page and `SUMMARY.md` link across to the cheatsheet and the doxygen index, and the generated cheatsheet
+  links back to the prose and doxygen — all relative, so the three tiers resolve as one site from the same deploy.
+  `./site` and `docs/doxygen/` are gitignored; only the sources (prose, `doxygen.config`, `.gitbook.yaml`,
+  `SUMMARY.md`, the build rule) are committed. Follow-up: a CI step that runs `./build docs` and publishes `./site`.
 
 - `[ ]` Shipping flags: `_FORTIFY_SOURCE=3`, `-fstack-clash-protection`, full RELRO and `-z now`, checked on the
   produced binary rather than trusted from the flag list.

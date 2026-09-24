@@ -18,3 +18,4 @@
 ## Reference
 
 - [Cheatsheet](CHEATSHEET.md)
+- [Doxygen reference](doxygen/html/index.html)

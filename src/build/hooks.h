@@ -157,3 +157,10 @@ void hook_generate_watches(NYA_BuildRule* rule);
 
 /** Wrapper around nya_asset_bundle. */
 void hook_bundle_assets(NYA_BuildRule* rule);
+
+/**
+ * Stages the deployable docs site under ./site: the hand-written GitBook prose and SUMMARY.md, the
+ * generated cheatsheet, and a .gitbook.yaml rooted at the staged tree. Runs before doxygen writes its
+ * HTML into ./site/doxygen, so all three tiers end up under one directory with relative links intact.
+ * */
+void hook_assemble_docs(NYA_BuildRule* rule);

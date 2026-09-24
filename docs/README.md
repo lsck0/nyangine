@@ -15,14 +15,15 @@ They answer different questions, and none of them is a substitute for another.
 | :--- | :--- | :--- |
 | **These pages** | Why a thing is shaped the way it is, and how to do something end to end | By hand |
 | [**Cheatsheet**](CHEATSHEET.md) | What is this function called, what does it take | Generated from the headers |
-| **Doxygen** | What does this actually do | Generated from the source |
+| [**Doxygen**](doxygen/html/index.html) | What does this actually do | Generated from the source |
 
 Start here when you are new or when you want the reasoning. Use the cheatsheet when you know what
 you want and need the signature. Read the doxygen output, or the header itself, when you need the
 truth — the headers are the manual, and every public one opens with a block covering what the module
 is for, every function in it, a copy-pasteable example, and what was tried and rejected.
 
-Build the doxygen output with `./build docs`.
+`./build docs` assembles all three into one deployable tree under `./site`: this prose, the
+cheatsheet, and the doxygen output, cross-linked so they reach one another wherever the tree is served.
 
 ## Where everything else lives
 

@@ -626,8 +626,8 @@ NYA_INTERNAL NYA_ArgCommand perf = {
 
 NYA_INTERNAL NYA_ArgCommand docs = {
     .name        = "docs",
-    .description = "Open doxygen generated documentation.",
-    .build_rule  = &open_docs,
+    .description = "Assemble the deployable docs site under ./site: prose, cheatsheet, and doxygen HTML.",
+    .build_rule  = &assemble_docs,
 };
 
 NYA_INTERNAL NYA_ArgCommand stats = {
