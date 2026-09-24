@@ -114,10 +114,7 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
         return true;
     }
 
-    /*
-     * A null engine. The engine only draws; shaping, kerning and line breaking run anyway and
-     * `internal->ops` has the result, so this needs no device and matches headless.
-     */
+    // A null engine: shaping, kerning and line breaking run without a device (in `internal->ops`), matching headless.
     TTF_Text* shaped = TTF_CreateText(nullptr, font, text, (size_t)length);
     if (shaped == nullptr) {
         nya_log_warn("TTF_CreateText() failed while shaping: %s", SDL_GetError());
@@ -139,10 +136,7 @@ f32x2 nya_text_measure_font(TTF_Font* font, NYA_ConstCString text, s32 wrap_widt
 
     if (text[0] == '\0') return (f32x2){ 0.0F, nya_text_line_height(font) };
 
-    /*
-     * Measured through the same layout the draw uses, so measure and draw cannot disagree.
-     * TTF_GetTextSize reports the box the ops were positioned in.
-     */
+    // Measured through the same layout the draw uses, so measure and draw cannot disagree.
     TTF_Text* shaped = TTF_CreateText(nullptr, font, text, 0);
     if (shaped == nullptr) return f32x2_zero;
 
@@ -177,10 +171,7 @@ void nya_text_font_handle(NYA_ConstCString path, f32 point_size, OUT char* out_h
         return;
     }
 
-    /*
-     * By hand for the common case: every draw and measure builds a handle, and "%.0f" alone cost more than a
-     * cached shape. nearbyint rounds half to even, as %.0f does, so both spell a size the same.
-     */
+    // By hand for the common case: %.0f alone cost more than a cached shape; nearbyint rounds half to even like %.0f.
     f64 rounded     = nearbyint((f64)point_size);
     u64 path_length = strlen(path);
 
@@ -373,9 +364,7 @@ b8 _nya_text_run_fill(TTF_Text* shaped, OUT NYA_TextRun* out_run) {
         if (out_run->glyph_count > _nya_text_run_glyph_count_worst) _nya_text_run_glyph_count_worst = out_run->glyph_count;
     }
 
-    /*
-     * The per-line glyph ranges, in a second pass.
-     */
+    // The per-line glyph ranges, in a second pass.
     for (u32 line = 0; line < out_run->line_count; line++) {
         out_run->lines[line].first_glyph = out_run->glyph_count;
         out_run->lines[line].glyph_count = 0;
@@ -437,8 +426,7 @@ TTF_Text* _nya_text_run_resolve(NYA_ConstCString path, f32 point_size, NYA_Const
         );
     }
 
-    // the wrap width, the handle with its terminator, then the text. the terminator keeps "a@1" + "2x" from
-    // matching "a@12" + "x".
+    // The wrap width, the handle with its terminator, then the text; the terminator keeps "a@1"+"2x" from matching "a@12"+"x".
     u64 handle_size = strlen(handle) + 1;
     u64 text_size   = strlen(text);
     u64 key_size    = sizeof(wrap_width) + handle_size + text_size;

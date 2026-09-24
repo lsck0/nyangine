@@ -15,9 +15,7 @@ NYA_INTERNAL b8 _nya_sprite_texture_size(NYA_ConstCString texture, OUT u32* out_
  * */
 NYA_INTERNAL void _nya_sprite_atlas_grid_size(const NYA_SpriteAtlas* atlas, OUT u32* out_columns, OUT u32* out_rows);
 
-/*
- * Compiled in both the real and the headless build, unlike render_draw.
- */
+// Compiled in both the real and the headless build, unlike render_draw.
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -71,8 +69,7 @@ void nya_sprite_atlas_frame_rect(const NYA_SpriteAtlas* atlas, u32 frame, OUT f3
     *out_width  = 0.0F;
     *out_height = 0.0F;
 
-    // out of range, or the atlas texture has not loaded so there is no grid. A zeroed rectangle draws the
-    // whole texture, a visibly wrong frame rather than nothing.
+    // Out of range or no grid yet; a zeroed rectangle draws the whole texture, a visibly wrong frame rather than nothing.
     u32 columns, rows;
     _nya_sprite_atlas_grid_size(atlas, &columns, &rows);
 
@@ -109,8 +106,7 @@ NYA_Sprite nya_sprite_from_list(const NYA_SpriteList* list, u32 frame) {
     nya_assert(list != nullptr);
 
     NYA_Sprite sprite = {
-        // Centred, like a sprite from an atlas and for the same reason: a frame of animation is a
-        // character or an object, and both turn about their middle.
+        // Centred, like an atlas sprite: a frame is a character or object, which turns about its middle.
         .origin = { 0.5F, 0.5F },
         .scale  = { 1.0F, 1.0F },
         .tint   = NYA_COLOR_WHITE,
@@ -125,13 +121,10 @@ void nya_sprite_set_frame_from_list(OUT NYA_Sprite* sprite, const NYA_SpriteList
     nya_assert(sprite != nullptr);
     nya_assert(list != nullptr);
 
-    // Out of range points at nothing, which draws nothing. Clamping to the last frame instead would
-    // hide an animation that has run off the end of its own table.
+    // Out of range points at nothing, which draws nothing; clamping to the last frame would hide an animation past its end.
     sprite->texture = frame < list->count ? list->textures[frame] : nullptr;
 
-    /*
-     * Zeroed, which the drawing path reads as "the whole texture".
-     */
+    // Zeroed, which the drawing path reads as "the whole texture".
     sprite->source_x      = 0.0F;
     sprite->source_y      = 0.0F;
     sprite->source_width  = 0.0F;
@@ -150,9 +143,7 @@ NYA_Sprite nya_sprite_from_atlas(const NYA_SpriteAtlas* atlas, u32 frame) {
     NYA_Sprite sprite = {
         .texture = atlas->texture,
 
-        // Centred, because a sprite from a sheet is a character or an object and both turn about
-        // their middle. A sprite built from a raw rectangle keeps the top left, matching every other
-        // draw call.
+        // Centred, since a sheet sprite is a character or object; a raw-rectangle sprite keeps the top left like every other draw.
         .origin = { 0.5F, 0.5F },
         .scale  = { 1.0F, 1.0F },
         .tint   = NYA_COLOR_WHITE,
@@ -181,8 +172,7 @@ void nya_sprite_set_frame(OUT NYA_Sprite* sprite, const NYA_SpriteAtlas* atlas, 
     nya_assert(sprite != nullptr);
     nya_assert(atlas != nullptr);
 
-    // The texture comes along with the frame, so one sprite can be pointed at a different sheet
-    // without the caller having to remember to update both.
+    // The texture comes along with the frame, so a sprite can be repointed at another sheet without updating both.
     sprite->texture = atlas->texture;
 
     nya_sprite_atlas_frame_rect(atlas, frame, &sprite->source_x, &sprite->source_y, &sprite->source_width, &sprite->source_height);
@@ -215,8 +205,7 @@ void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 pos
 
     f32x2 size = nya_sprite_size(sprite);
 
-    // Nothing to draw, which is a texture that is missing or still loading. nya_render2d_texture_ex would
-    // reach the same conclusion; returning here saves working out an origin for a size of zero.
+    // Nothing to draw when the texture is missing or loading; returning saves computing an origin for a zero size.
     if (size.x <= 0.0F || size.y <= 0.0F) return;
 
     nya_render2d_texture_ex(
@@ -236,8 +225,7 @@ void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 pos
 
             .rotation = sprite->rotation,
 
-            // the pivot is a fraction here and pixels there. A fraction survives redrawing the sheet at another
-            // cell size.
+            // The pivot is a fraction here, pixels there; a fraction survives redrawing the sheet at another cell size.
             .origin = { sprite->origin.x * size.x, sprite->origin.y * size.y },
 
             .flip_x = sprite->flip_x,
@@ -273,8 +261,7 @@ void _nya_sprite_atlas_grid_size(const NYA_SpriteAtlas* atlas, OUT u32* out_colu
 b8 _nya_sprite_texture_size(NYA_ConstCString texture, OUT u32* out_width, OUT u32* out_height) {
     if (texture == nullptr) return false;
 
-    // Cast because nya_asset_get takes a mutable handle while only reading it; every caller here
-    // passes a literal.
+    // Cast because nya_asset_get takes a mutable handle while only reading it; every caller passes a literal.
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture);
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return false;
 
@@ -306,8 +293,7 @@ NYA_INTERNAL void _nya_sprite_events_for_frame(const NYA_SpriteAnimation* animat
 
     u32 event_count = nya_min(animation->event_count, (u32)NYA_SPRITE_ANIMATION_MAX_EVENTS);
 
-    // Every marker on the frame, not the first: two things can happen on one frame, and a hit that
-    // also spawns a puff of dust is the ordinary case rather than a mistake.
+    // Every marker on the frame, not the first: two things can happen on one frame (a hit that also spawns dust).
     for (u32 i = 0; i < event_count; i++) {
         if (animation->events[i].frame == frame) {
             _nya_sprite_signal(signals, capacity, count, NYA_SPRITE_ANIMATION_EVENT, frame, animation->events[i].id);
@@ -322,8 +308,7 @@ void nya_sprite_animator_play(OUT NYA_SpriteAnimator* animator, const NYA_Sprite
         .animation = animation,
         .speed     = 1.0F,
         .playing   = animation != nullptr,
-        // Consumed by the first advance, which is what makes STARTED fire exactly once and fire
-        // *before* any frame event on frame zero.
+        // Consumed by the first advance, so STARTED fires once and before any frame-zero event.
         .pending_start = animation != nullptr,
     };
 }
@@ -337,8 +322,7 @@ void nya_sprite_animator_pause(OUT NYA_SpriteAnimator* animator) {
 void nya_sprite_animator_resume(OUT NYA_SpriteAnimator* animator) {
     nya_assert(animator != nullptr);
 
-    // Not for an animation that has already ended: resuming a finished one would advance past its
-    // last frame and emit a second FINISHED. Replaying is nya_sprite_animator_play.
+    // Not for an animation that has ended: resuming would advance past the last frame and emit a second FINISHED (replay is nya_sprite_animator_play).
     if (animator->animation == nullptr || animator->finished) return;
 
     animator->playing = true;
@@ -363,9 +347,7 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
 
         _nya_sprite_signal(out_signals, capacity, &count, NYA_SPRITE_ANIMATION_STARTED, 0, 0);
 
-        // Frame zero is *showing* from this moment, so a marker on it fires now rather than when the
-        // animation leaves it. An attack whose windup sound is on frame zero would otherwise play a
-        // frame late, every time.
+        // Frame zero is showing now, so a marker on it fires now rather than when the animation leaves it.
         _nya_sprite_events_for_frame(animation, 0, out_signals, capacity, &count);
     }
 
@@ -385,8 +367,7 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
 
     animator->frame_elapsed_s -= (f32)pending * seconds_per_frame;
 
-    // capped, so a huge delta from a breakpoint or stalled window cannot walk millions of frames. The
-    // remainder is already dropped.
+    // Capped, so a huge delta from a breakpoint cannot walk millions of frames; the remainder is already dropped.
     if (pending > NYA_SPRITE_ANIMATION_MAX_SIGNALS) pending = NYA_SPRITE_ANIMATION_MAX_SIGNALS;
 
     for (u32 steps = 0; steps < pending; steps++) {
@@ -396,8 +377,7 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
                 if (animator->frame == 0) {
                     animator->reversing = false;
 
-                    // a completed there-and-back is one loop, so a non looping ping-pong stops here. The far end is
-                    // halfway.
+                    // A completed there-and-back is one loop, so a non-looping ping-pong stops here; the far end is halfway.
                     animator->loops++;
 
                     if (!animation->looping) {
@@ -414,8 +394,7 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
             } else if (animator->frame + 1 >= animation->frame_count) {
                 animator->reversing = true;
 
-                // Turning around at the end rather than showing the last frame twice: the last
-                // frame is already on screen, and repeating it reads as a stutter.
+                // Turn around at the end rather than show the last frame twice, which reads as a stutter.
                 if (animator->frame > 0) animator->frame--;
             } else {
                 animator->frame++;
