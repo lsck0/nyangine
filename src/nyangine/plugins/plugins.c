@@ -14,8 +14,7 @@
 
 #include "nyangine/plugins/pgp/pgp.c"
 
-// Always, for the reason in plugins.h. steam.c includes steam_steamworks.c itself, under
-// NYA_PLUGIN_STEAM, so the flat API symbols are named only in a build that links the library.
+// Always, per plugins.h. steam.c includes steam_steamworks.c itself under NYA_PLUGIN_STEAM, so the flat API symbols are named only in a build that links the library.
 #include "nyangine/plugins/steam/steam.c"
 
 #ifdef NYA_PLUGIN_DISCORD
@@ -24,8 +23,7 @@
 
 #ifdef NYA_PLUGIN_LUA
 #include "nyangine/plugins/lua/lua.c"
-// After lua.c: the engine table is registered through nya_lua_register, and it reaches core and
-// entity APIs that a host tool build does not have. Gated with the rest of the plugin.
+// After lua.c: the engine table reaches core and entity APIs a host tool build lacks, so it is gated with the rest of the plugin.
 #ifndef NYA_NO_SDL
 #include "nyangine/plugins/lua/lua_engine.c"
 #endif
