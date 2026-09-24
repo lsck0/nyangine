@@ -221,8 +221,7 @@ NYA_INTERNAL void _nya_render2d_terminal_scan(NYA_Rectf bounds, NYA_Color color,
 /** The switches a terminal has no pass to run, so the overlay and a caller both see the truth. */
 NYA_INTERNAL NYA_RenderFeatures _nya_render2d_terminal_features(void) {
     return (NYA_RenderFeatures){
-        // there is no depth buffer, no sort, and nothing to cull against: everything is painted in
-        // the order it was recorded, which is what a cell grid is.
+        // No depth, sort or cull: everything is painted in record order, which is what a cell grid is.
         .frustum_culling   = NYA_RENDER_TOGGLE_OFF,
         .occlusion_culling = NYA_RENDER_TOGGLE_OFF,
         .backface_culling  = NYA_RENDER_TOGGLE_OFF,
@@ -237,8 +236,7 @@ NYA_INTERNAL NYA_RenderFeatures _nya_render2d_terminal_features(void) {
         .point_lights = NYA_RENDER_TOGGLE_OFF,
         .reflections  = NYA_RENDER_TOGGLE_OFF,
 
-        // no sampler, no texture. Pictures go out through the kitty protocol instead; see
-        // nya_render2d_terminal_image.
+        // No sampler, no texture; pictures go out through the kitty protocol (see nya_render2d_terminal_image).
         .textures = NYA_RENDER_TOGGLE_OFF,
 
         .fog       = NYA_RENDER_TOGGLE_OFF,
@@ -282,12 +280,7 @@ NYA_Error nya_render2d_terminal_open(NYA_TerminalOptions options) {
 
     NYA_RenderFeatures features = _nya_render2d_terminal_features();
 
-    /*
-     * Every switch answered, and none left at DEFAULT. A feature added to render_features.h would
-     * otherwise pass through this backend as "whatever its own options say", which for a pass that
-     * cannot run here is the pretending the header asks backends not to do. The struct is an array
-     * of switches in NYA_RenderFeature's order, which render_features.h states and asserts.
-     */
+    // Every switch answered, none left at DEFAULT: a new feature would otherwise pass through as "whatever its options say", the pretending the header forbids; the struct is an array in NYA_RenderFeature's order.
     const NYA_RenderToggle* switches = (const NYA_RenderToggle*)&features;
     for (u32 i = 0; i < NYA_RENDER_FEATURE_COUNT; i++) {
         nya_assert(switches[i] != NYA_RENDER_TOGGLE_DEFAULT, "the terminal backend has no answer for '%s'; a feature was added and this was not",
@@ -301,12 +294,7 @@ NYA_Error nya_render2d_terminal_open(NYA_TerminalOptions options) {
         nya_log_info("Terminal renderer: %s are off; a terminal has no pass to run them in.", disabled);
     }
 
-    /*
-     * The terminal is one face at one size, so it is registered as one and becomes the default unless a caller
-     * already chose. Nothing opens the path: every measurement of it is cells. Without a valid default face
-     * nya_font_metrics answers zero, and the UI lays a zero line height out without ever drawing it, which is what
-     * a TUI built on nya_ui_* hit before this.
-     */
+    // The terminal is one face at one size, registered and made default unless a caller chose; without a valid default face nya_font_metrics answers zero and the UI lays out a zero line height.
     NYA_Font face = nya_font(NYA_RENDER2D_TERMINAL_FONT, (f32)NYA_TERMINAL_CELL_HEIGHT_PX);
 
     (void)nya_font_register(NYA_RENDER2D_TERMINAL_FONT, face.path, face.point_size);
@@ -352,15 +340,13 @@ void nya_render2d_terminal_frame_end(NYA_Window* window) {
  */
 
 void nya_render2d_shutdown(void) {
-    // the terminal is closed by nya_render2d_terminal_close, which is the partner of the open that
-    // took it. Nothing here owns anything else.
+    // The terminal is closed by nya_render2d_terminal_close; nothing here owns anything else.
 }
 
 void nya_render2d_flush(NYA_Window* window) {
     nya_assert(window != nullptr);
 
-    // cells are written where they are drawn, so there is no batch to hand over. A caller that
-    // flushes between two draws still sees them in order.
+    // Cells are written where they are drawn, so there is no batch to hand over.
 }
 
 void nya_render2d_layer_set(NYA_Window* window, s32 layer) {
@@ -439,8 +425,7 @@ void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 
 void nya_render2d_rect_rounded(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, NYA_Color color) {
     nya_assert(window != nullptr);
 
-    // square. A radius is a fraction of a cell at every size a TUI uses, and rounding it would only
-    // knock the corner cells out of a box that is meant to read as solid.
+    // Square: a radius is a fraction of a cell at TUI sizes, and rounding it would only knock the corners out of a solid box.
     nya_unused(radius);
     _nya_render2d_terminal_fill(x, y, width, height, color);
 }
@@ -514,8 +499,7 @@ void nya_render2d_rect_rotated(NYA_Window* window, f32x2 center, f32x2 size, f32
 void nya_render2d_rect_rotated_outline(NYA_Window* window, f32x2 center, f32x2 size, f32 rotation, f32 thickness, NYA_Color color) {
     nya_assert(window != nullptr);
 
-    // the filled one minus a smaller filled one would need two passes over the same cells with no
-    // way to undo the first, so the four sides are drawn as four thin rotated rectangles instead.
+    // A filled minus a smaller filled would need two undoable passes, so the four sides are drawn as four thin rotated rectangles.
     f32 edge = nya_max(thickness, (f32)NYA_TERMINAL_CELL_WIDTH_PX);
 
     f32 cosine = cosf(rotation);
@@ -783,8 +767,7 @@ NYA_INTERNAL u32 _nya_render2d_terminal_write(f32 x, f32 y, NYA_ConstCString tex
 }
 
 void nya_render2d_font_set(NYA_ConstCString font_path, f32 point_size) {
-    // recorded so nya_render2d_font_get answers, and otherwise ignored: a terminal has one font and
-    // it belongs to whoever configured the terminal.
+    // Recorded so nya_render2d_font_get answers, otherwise ignored: a terminal has one font, set at configure time.
     _nya_render2d_terminal.font_path       = font_path;
     _nya_render2d_terminal.font_point_size = point_size;
 }
@@ -890,11 +873,7 @@ NYA_INTERNAL f32x2 _nya_render2d_terminal_box(NYA_ConstCString text, NYA_Render2
         return (f32x2){ (f32)length * (f32)NYA_TERMINAL_CELL_WIDTH_PX, line_height };
     }
 
-    /*
-     * Wrapped on the cell, not on the word: this walks bytes and has no dictionary of where a word
-     * ends. A caller that wants word wrapping splits the string itself, which is the same thing the
-     * headless backend's measurement leaves to render_text.c.
-     */
+    // Wrapped on the cell, not the word: this walks bytes with no word dictionary, so a caller wanting word wrap splits the string itself.
     u32 lines = (length + columns - 1) / columns;
     if (params.max_lines > 0 && lines > params.max_lines) lines = params.max_lines;
 
@@ -960,8 +939,7 @@ void nya_render2d_terminal_glyph(NYA_Window* window, f32 x, f32 y, u32 codepoint
 
     u8 utf8[5] = { 0 };
 
-    // encoded rather than written straight into the cell, so this goes through the same write every
-    // other text call does and a clipped glyph is clipped once, in one place.
+    // Encoded rather than written straight into the cell, so it goes through the same write and is clipped once, in one place.
     if (codepoint < 0x80U) {
         utf8[0] = (u8)codepoint;
     } else if (codepoint < 0x800U) {
@@ -987,12 +965,7 @@ void nya_render2d_terminal_glyph(NYA_Window* window, f32 x, f32 y, u32 codepoint
  * ─────────────────────────────────────────────────────────
  */
 
-/*
- * Stubbed as a block, the way render2d_headless.c stubs itself: there is no sampler, no render pass,
- * no pipeline and no render texture behind any of these. A call succeeds and draws nothing, so a
- * program written against a window still runs under -DNYA_TERMINAL rather than failing to link.
- * The features these belong to are reported off; see _nya_render2d_terminal_features.
- */
+// Stubbed as a block, like render2d_headless.c: no sampler, pass, pipeline or render texture, so a call succeeds and draws nothing and a window program still links under -DNYA_TERMINAL.
 
 /**
  * The asset behind `handle`, when it is a texture with pixels to read. Null otherwise.
@@ -1044,12 +1017,7 @@ void nya_render2d_texture_ex(NYA_Window* window, NYA_ConstCString texture_handle
     NYA_Color tint = params.tint;
     if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = NYA_COLOR_WHITE;
 
-    /*
-     * Rotation and flipping are dropped. A cell grid cannot turn a picture without resampling it into
-     * something that reads as noise at this resolution, and a quietly unrotated sprite is a better
-     * answer than a smear. The scale and the source rectangle are honoured, which is what a sprite
-     * sheet actually needs.
-     */
+    // Rotation and flipping are dropped: a cell grid cannot turn a picture without resampling to noise; scale and source rectangle are honoured, which a sprite sheet needs.
     nya_render2d_texture_rect(window, texture_handle, params.source_x, params.source_y, source_width, source_height, params.x, params.y, width,
                               height, tint);
 }
@@ -1088,13 +1056,7 @@ void nya_render2d_texture_rect(
         return;
     }
 
-    /*
-     * One texel per cell, taken from the cell's centre, rather than an average of the texels it covers.
-     *
-     * A cell is roughly 10 by 18 pixels, so averaging turns a sprite into porridge: every cell lands
-     * near the mean of the image and the shape disappears. Point sampling keeps edges, which is the
-     * only thing legible at this size, and it is what a pixel art sprite wants anyway.
-     */
+    // One texel per cell from its centre, not an average: averaging turns a sprite into porridge, while point sampling keeps the edges legible at this size.
     for (u16 row = first_row; row <= last_row; row++) {
         for (u16 column = first_column; column <= last_column; column++) {
             const f32 centre_x = ((f32)column + 0.5F) * (f32)NYA_TERMINAL_CELL_WIDTH_PX;
