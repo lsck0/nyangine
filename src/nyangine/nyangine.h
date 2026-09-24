@@ -34,16 +34,23 @@
 // (the CSR) answers NYA_ERROR_NOT_SUPPORTED where there is no OpenSSL, the same as tls.
 #include "nyangine/acme/acme.h"
 
+// net and http carry no include of core, the renderer or SDL (grep proves it), so a headless server
+// takes them without the SDL half of the engine: NYA_SERVER is that build. Every existing build is
+// unchanged — a full build (no NYA_NO_SDL) still gets them, a host tool (NYA_NO_SDL, no NYA_SERVER)
+// still gets neither. See docs/layering-core-split.md; the socket transports are why a host tool that
+// never opens one leaves them out.
+#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)
+#include "nyangine/net/net.h"
+// Before core, which registers the drain as a frame system and whose metrics resource moved to debug:
+// nothing under http names the app loop any more, which is what lets it come in without core here.
+#include "nyangine/http/http.h"
+#endif
+
 #ifndef NYA_NO_SDL
 // Before core, which names a body and a physics system in core_app.h, core_entity.h and
 // core_world.h. Guarded with core rather than beside math because box2d and box3d are on the
 // project include line and not on a host tool's; see physics.h.
 #include "nyangine/physics/physics.h"
-// Guarded for the same reason: the transports open sockets, which a host tool has no use for.
-#include "nyangine/net/net.h"
-// Before core, which registers the drain as a frame system and whose metrics resource moved to debug:
-// nothing under http names the app loop any more.
-#include "nyangine/http/http.h"
 /**/
 #include "nyangine/core/core.h"
 // after core: a snapshot is captured out of the entity table and applied back into it, and the two
