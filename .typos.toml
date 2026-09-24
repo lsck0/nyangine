@@ -1,5 +1,69 @@
-# format: wrong = "correct"
+# Configuration for the `typos` spell checker (github.com/crate-ci/typos), driven by `./build typos`.
+#
+# The gate reads the prose *and* the code under src/, tests/, examples/ and docs/, where the engine's
+# dense literate comments live. Everything below is either a path that holds generated or third-party
+# text nobody wrote by hand, or a word that looks misspelled to a general dictionary but is deliberate
+# here — a domain term, an identifier, or a piece of test data. Nothing here silences a real typo; each
+# entry is a false positive the checker would otherwise raise on text that is correct as written.
+#
+# Format of the word list: `wrong = "right"`. To allowlist a word, map it to itself.
+
+[files]
+# Paths whose text is generated, vendored, or otherwise not hand-written prose. Globs are
+# gitignore-style and relative to this file at the repo root, so a nested directory (src/genyarated,
+# docs/doxygen) is excluded even when its parent is scanned.
+extend-exclude = [
+    "vendor/",                   # third-party submodules; never ours to correct.
+    "assets/shader/compiled/",   # compiled shader artifacts, regenerated from assets/shader/source.
+    "src/genyarated/",           # generated reflection, asset and CLI sources.
+    "docs/doxygen/",             # generated API HTML.
+    "docs/CHEATSHEET.md",        # generated from the headers by `./build docs`.
+    "sbom/",                     # generated software bill of materials.
+    ".claude/",                  # agent scratch and worktrees, not part of the engine.
+    "tests/fuzz/corpus/",        # fuzz seeds: encoded and random bytes, not prose.
+    "tests/fuzz/crashes/",       # kept fuzz crashes: the same.
+]
 
 [default.extend-words]
-gnyame = "gnyame"
-nyangine = "nyangine"
+# ── The project's coined names. See MEMORY / the engine's own naming.
+nyangine   = "nyangine"   # the engine.
+gnyame     = "gnyame"     # the bundled game.
+genyarated = "genyarated" # the generated-sources directory and the pun it is named for.
+nya        = "nya"        # the engine's identifier prefix (nya_, NYA_).
+gny        = "gny"        # the game's identifier prefix (gny_, GNY_).
+
+# ── Domain vocabulary and abbreviations the code uses as identifiers or standard terms.
+lod    = "lod"    # level of detail (rendering): NYA_Render3DLodLevel, nya_render3d_lod_register, .lod_distance.
+cose   = "cose"   # CBOR Object Signing and Encryption (RFC 8152): the WebAuthn/passkey public-key format.
+fpr    = "fpr"    # GnuPG colon-listing field name carrying a key fingerprint (see plugins/pgp).
+sav    = "sav"    # the ".sav" save-file extension.
+ba     = "ba"     # a bilinear-corner sample in the value-noise lattice (aa/ab/ba/bb).
+mis    = "mis"    # the hyphenated prefix in "mis-read", "mis-parsed", "mis-ordering".
+entit  = "entit"  # the printf stem in "entit%s" -> entity / entities.
+datas  = "datas"  # a websocket-transport counter field: how many data frames arrived.
+alikes = "alikes" # the tail of "look-alikes", split on the hyphen.
+
+# ── Deliberate word choices the general dictionary would "correct".
+unparseable = "unparseable" # the spelling this codebase uses.
+unparented  = "unparented"  # an entity with no parent, in the testing actions.
+driveable   = "driveable"   # a terminal still driveable from the keyboard when its output is piped.
+failer      = "failer"      # a task that fails, in a task-group test.
+shepperd    = "shepperd"    # S. W. Shepperd, whose method converts a rotation matrix to a quaternion.
+feild       = "feild"       # a deliberately misspelled key a settings test feeds the loader to prove it is ignored.
+
+# ── Fragments the word splitter carves out of correct text. Not typos, artifacts of tokenisation.
+connec = "connec" # from pluralising the acronym in "CONNECTs".
+expec  = "expec"  # from "NYA_EXPECTing".
+ther   = "ther"   # the "therXe" a text-editing test expects after an edit sequence.
+caf    = "caf"    # the "caf" of a UTF-8 "café" split before its encoded bytes, in a cookie test.
+ohter  = "ohter"  # a deliberate misspelling an i18n test feeds its key validator.
+
+# ── Base64/JWT test fixtures: letter runs inside encoded blobs, mostly in the OIDC token fixtures.
+fo  = "fo"  # the canonical two-byte base64 vector "fo" -> "Zm8=".
+ot  = "ot"  # inside base64url JWT/JWKS fixtures.
+nd  = "nd"  # the same.
+iz  = "iz"  # the same, and a fuzz-shape token.
+bse = "bse" # the same.
+fre = "fre" # the same.
+hge = "hge" # the same.
+jod = "jod" # the same.
