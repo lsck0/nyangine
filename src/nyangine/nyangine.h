@@ -55,6 +55,12 @@
 // Before core, which registers the drain as a frame system and whose metrics resource moved to debug:
 // nothing under http names the app loop any more, which is what lets it come in without core here.
 #include "nyangine/http/http.h"
+#ifdef NYA_MODULE_DB
+// After http and accounts both: the login flow as a mountable router. It is in http rather than accounts
+// because it depends on both and http is the layer that may — accounts sits below it. Behind db's flag
+// like accounts, whose primitives it wires; a server built without the db module leaves it out.
+#include "nyangine/http/http_accounts.h"
+#endif
 #endif
 
 #ifndef NYA_NO_SDL

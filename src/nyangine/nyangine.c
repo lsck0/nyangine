@@ -48,6 +48,11 @@
 // wires, so one binary renews its own certificate. Below http, whose route serves the challenge.
 #include "nyangine/acme/acme.c"
 #include "nyangine/http/http.c"
+#ifdef NYA_MODULE_DB
+// after http and accounts both: the login flow wired to HTTP. Not part of http's own umbrella, so plain
+// http still builds without accounts; included here where both are present, headless server included.
+#include "nyangine/http/http_accounts.c"
+#endif
 // After the server modules whose types it describes: the builtins and the reflection tables for every
 // server-safe engine type (base, math, serde, net, http, and — behind NYA_MODULE_DB — db and accounts).
 // The SDL-bound half is reflection_engine.c, in the block below; this is the half a headless build gets,
