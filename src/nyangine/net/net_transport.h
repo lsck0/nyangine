@@ -30,6 +30,9 @@ enum NYA_NetTransportKind {
     NYA_NET_TRANSPORT_UDP,
     NYA_NET_TRANSPORT_STEAM,
 
+    /** A WebSocket a browser dials into. Built on http_websocket_server; see http_net_websocket.h. */
+    NYA_NET_TRANSPORT_WEBSOCKET,
+
     NYA_NET_TRANSPORT_KIND_COUNT,
 };
 

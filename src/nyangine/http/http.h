@@ -75,5 +75,6 @@
 #include "nyangine/http/http_totp.h"
 #include "nyangine/http/http_types.h"
 #include "nyangine/http/http_webhook.h"
+#include "nyangine/http/http_net_websocket.h"
 #include "nyangine/http/http_websocket.h"
 #include "nyangine/http/http_websocket_server.h"

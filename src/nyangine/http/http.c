@@ -32,6 +32,9 @@
 #include "nyangine/http/http_webhook.c"
 #include "nyangine/http/http_websocket.c"
 #include "nyangine/http/http_websocket_server.c"
+// after the websocket server, whose framing and connection table it wraps as a net transport, and over
+// net, which is compiled before http: a browser peer of a native server.
+#include "nyangine/http/http_net_websocket.c"
 /**/
 // after the router, which it dispatches through, and before openapi, which reads its mount table.
 #include "nyangine/http/http_server.c"

@@ -105,6 +105,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_net_transport_loopback_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_net_transport_steam_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_net_transport_udp_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
+    { "nya_net_transport_ws_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_nn_add", "arithmetic, not the add/remove verb" },
     { "nya_quaternion_add", "arithmetic, not the add/remove verb" },
     { "nya_offsetof_end", "a noun, the offset where a field ends" },
