@@ -5,17 +5,17 @@
 
 #if OS_WASM
 /*
- * A wasm build is single-threaded and links no SDL: the event queue is only ever touched from the one
- * thread the module runs on, so its mutex has nothing to lock against and is a no-op, exactly as
- * os_wasm's sleep is. Shadowing SDL's four mutex calls here keeps the queue machinery below
- * byte-identical to the native code without an SDL dependency a wasm module cannot satisfy; the DOM
- * event source that feeds this queue on the web synthesises NYA_Events directly (see wasm_ui.c), so the
- * SDL-event translation further down is compiled out entirely rather than shimmed.
+ * A wasm build is single-threaded and links no os_thread implementation: the event queue is only ever
+ * touched from the one thread the module runs on, so its mutex has nothing to lock against and is a
+ * no-op, exactly as os_wasm's sleep is. Shadowing the four os-mutex calls here keeps the queue
+ * machinery below byte-identical to the native code without a threading dependency a wasm module cannot
+ * satisfy; the DOM event source that feeds this queue on the web synthesises NYA_Events directly (see
+ * wasm_ui.c), so the SDL-event translation further down is compiled out entirely rather than shimmed.
  */
-#define SDL_CreateMutex()   ((void*)1) // non-null, since nya_system_events_init checks for failure
-#define SDL_DestroyMutex(m) ((void)(m))
-#define SDL_LockMutex(m)    ((void)(m))
-#define SDL_UnlockMutex(m)  ((void)(m))
+#define nya_os_mutex_init(m)   (NYA_OS_THREAD_OK) // never an error, since nya_system_events_init checks it
+#define nya_os_mutex_deinit(m) ((void)(m))
+#define nya_os_mutex_lock(m)   ((void)(m))
+#define nya_os_mutex_unlock(m) ((void)(m))
 #endif
 
 /*
@@ -52,16 +52,18 @@ NYA_INTERNAL void             _nya_event_notify_immediate_listeners(NYA_Event* e
 NYA_Error nya_system_events_init(void) {
     NYA_App* app = nya_app_get();
 
-    // Was unchecked. A null mutex makes every SDL_LockMutex on the event queue a no-op, which turns
-    // a clean failure here into a data race that only shows up under load.
-    SDL_Mutex* event_queue_mutex = SDL_CreateMutex();
-    if (event_queue_mutex == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateMutex() failed for the event queue: %s", SDL_GetError());
-
     app->event_system = (NYA_EventSystem){
         .allocator              = nya_arena_create(.name = "event_system_allocator"),
-        .event_queue_mutex      = event_queue_mutex,
         .event_queue_read_index = 0,
     };
+
+    // The queue is filled from callbacks on other threads and drained here, so the mutex is what keeps
+    // that safe. Initialize it in place — a mutex lives where it was made — and treat a failure as a
+    // clean error rather than a no-op lock that becomes a data race only under load.
+    if (nya_os_mutex_init(&app->event_system.event_queue_mutex) != NYA_OS_THREAD_OK) {
+        nya_arena_destroy(app->event_system.allocator);
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the event queue mutex failed to initialize");
+    }
 
     app->event_system.event_queue           = nya_array_create(app->event_system.allocator, NYA_Event);
     app->event_system.deferred_event_hooks  = nya_hmap_create(app->event_system.allocator, NYA_EventType, NYA_ArrayᐸNYA_EventHookᐳ);
@@ -74,7 +76,7 @@ NYA_Error nya_system_events_init(void) {
 void nya_system_events_deinit(void) {
     NYA_App* app = nya_app_get();
 
-    SDL_DestroyMutex(app->event_system.event_queue_mutex);
+    nya_os_mutex_deinit(&app->event_system.event_queue_mutex);
     nya_array_destroy(app->event_system.event_queue);
     nya_hmap_destroy(app->event_system.deferred_event_hooks);
     nya_hmap_destroy(app->event_system.immediate_event_hooks);
@@ -106,19 +108,19 @@ b8 nya_system_event_poll(OUT NYA_Event* out_event) {
 
     NYA_App* app = nya_app_get();
 
-    SDL_LockMutex(app->event_system.event_queue_mutex);
+    nya_os_mutex_lock(&app->event_system.event_queue_mutex);
     NYA_ArrayᐸNYA_Eventᐳ* nya_array = app->event_system.event_queue;
 
     if (app->event_system.event_queue_read_index >= nya_array->length) {
         nya_array_clear(nya_array);
         app->event_system.event_queue_read_index = 0;
-        SDL_UnlockMutex(app->event_system.event_queue_mutex);
+        nya_os_mutex_unlock(&app->event_system.event_queue_mutex);
         return false;
     }
 
     *out_event = *nya_array_get(nya_array, app->event_system.event_queue_read_index);
     app->event_system.event_queue_read_index++;
-    SDL_UnlockMutex(app->event_system.event_queue_mutex);
+    nya_os_mutex_unlock(&app->event_system.event_queue_mutex);
 
     if (!out_event->was_handled) _nya_event_notify_deferred_listeners(out_event);
 
@@ -136,10 +138,10 @@ void nya_event_dispatch(NYA_Event event) {
 
     event.timestamp = nya_clock_get_timestamp_ms();
 
-    SDL_LockMutex(app->event_system.event_queue_mutex);
+    nya_os_mutex_lock(&app->event_system.event_queue_mutex);
     nya_array_push_back(app->event_system.event_queue, event);
     _nya_event_notify_immediate_listeners(&event);
-    SDL_UnlockMutex(app->event_system.event_queue_mutex);
+    nya_os_mutex_unlock(&app->event_system.event_queue_mutex);
 
     if (NYA_EVENT_LIFECYCLE_EVENTS_BEGIN <= event.type && event.type <= NYA_EVENT_LIFECYCLE_EVENTS_END) return;
     nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);

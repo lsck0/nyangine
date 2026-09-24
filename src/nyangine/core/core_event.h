@@ -1,9 +1,5 @@
 #pragma once
 
-#include "SDL3/SDL_events.h"
-#include "SDL3/SDL_init.h"
-#include "SDL3/SDL_mutex.h"
-
 #include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_array.h"
 #include "nyangine/base/base_attributes.h"
@@ -15,6 +11,10 @@
 #include "nyangine/core/core_keys.h"
 #include "nyangine/core/core_mouse.h"
 #include "nyangine/core/core_types.h"
+// The event queue's mutex, by value in the event system. os_thread.h is SDL-free, which is the whole
+// point of naming it here rather than SDL_mutex.h: this header is on the runtime-core floor that a
+// headless server links, so it must not drag SDL in for one mutex. See docs/layering-core-split.md.
+#include "nyangine/os/os_thread.h"
 // Names NYA_IpcPeerId, which NYA_ControlMessageEvent carries so a handler can answer the sender.
 #include "nyangine/platform/ipc/ipc.h"
 
@@ -163,7 +163,7 @@ typedef b8 (*NYA_EventHookConditionFn)(NYA_Event*);
 struct NYA_EventSystem {
     NYA_Arena* allocator;
 
-    SDL_Mutex*            event_queue_mutex;
+    NYA_OsMutex           event_queue_mutex;
     NYA_ArrayᐸNYA_Eventᐳ* event_queue;
     u64                   event_queue_read_index;
 
