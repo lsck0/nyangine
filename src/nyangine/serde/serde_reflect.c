@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** Turns one finding from nya_reflect_check into a warning. `user_data` is the path being read. */
 NYA_INTERNAL void _nya_serde_reflect_report(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data);
@@ -33,11 +29,7 @@ NYA_INTERNAL NYA_Error _nya_serde_reflect_seal_value(NYA_Arena* arena, NYA_Const
 /** Opens one sealed field: `secret->unseal`, then the binary `.nya` decode back into the value. */
 NYA_INTERNAL NYA_Error _nya_serde_reflect_unseal_value(NYA_Arena* arena, NYA_ConstCString field, NYA_Value* value, const NYA_SerdeSecret* secret);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_reflect_save_file(const NYA_TypeReflection* type, const void* instance, NYA_ConstCString path, NYA_SerdeFlags flags) {
     return _nya_serde_reflect_save(type, instance, path, flags, nullptr);
@@ -56,11 +48,7 @@ NYA_Error nya_reflect_load_file_secret(const NYA_TypeReflection* type, void* ins
     return _nya_serde_reflect_load(type, instance, path, flags, &secret);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error
 _nya_serde_reflect_save(const NYA_TypeReflection* type, const void* instance, NYA_ConstCString path, NYA_SerdeFlags flags, const NYA_SerdeSecret* secret) {
@@ -68,17 +56,14 @@ _nya_serde_reflect_save(const NYA_TypeReflection* type, const void* instance, NY
     nya_assert(instance != nullptr);
     nya_assert(path != nullptr);
 
-    // On the stack and released here: the document exists only to be written, and handing the caller
-    // an arena to hold something they never see would be ceremony for nothing.
+    // On the stack and released here: the document exists only to be written, so the caller need not hold an arena for it.
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "reflect_save_file");
     defer     nya_arena_destroy_on_stack(&scratch);
 
     NYA_Object* object = nya_reflect_to_object(&scratch, type, instance);
     if (object == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not a struct or union", type->name);
 
-    // Before the write: the object holds each `@secret` field's plaintext as nya_reflect_to_object read
-    // it, and this turns those into sealed strings. A `@secret` field with no cipher is refused here,
-    // so nothing reaches the file. Wrong for the plaintext to leave the scratch arena, which is freed.
+    // Before the write: seals each `@secret` field's plaintext into a string; a `@secret` field with no cipher is refused here, so nothing reaches the file.
     NYA_TRY(_nya_serde_reflect_seal(&scratch, type, object, secret));
 
     return nya_serde_save_file(object, path, flags);
@@ -96,13 +81,10 @@ _nya_serde_reflect_load(const NYA_TypeReflection* type, void* instance, NYA_Cons
     NYA_Object* object = nullptr;
     NYA_TRY(nya_serde_load_file(&scratch, path, flags, &object));
 
-    // Before the check and before anything is applied: the sealed strings become their values again, so
-    // the check sees the field as it really is and a wrong key or a tampered value stops the load here
-    // rather than reading a secret wrong.
+    // Before the check and before anything is applied: unsealing here means a wrong key or tampered value stops the load rather than reading a secret wrong.
     NYA_TRY(_nya_serde_reflect_unseal(&scratch, type, object, secret));
 
-    // Before anything is written, so the warnings describe the file as it was rather than as it
-    // survived being applied. Counted only to keep the summary line honest.
+    // Before anything is written, so the warnings describe the file as it was; counted only to keep the summary line honest.
     u32 problems = nya_reflect_check(type, object, _nya_serde_reflect_report, (void*)path);
 
     if (problems > 0) {
@@ -196,8 +178,7 @@ NYA_Error _nya_serde_reflect_unseal(NYA_Arena* arena, const NYA_TypeReflection* 
 }
 
 NYA_Error _nya_serde_reflect_seal_value(NYA_Arena* arena, NYA_ConstCString field, NYA_Value* value, const NYA_SerdeSecret* secret) {
-    // The value is wrapped and encoded to the binary `.nya` form first, so a secret of any shape — a
-    // string, a number, a whole struct — is the same handful of bytes to the cipher.
+    // The value is wrapped and encoded to the binary `.nya` form first, so a secret of any shape is the same handful of bytes to the cipher.
     NYA_Object* wrapper = nya_object_create(arena);
     nya_object_add(wrapper, "v", *value);
 

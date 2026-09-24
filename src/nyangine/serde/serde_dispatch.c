@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFormat format, NYA_SerdeFlags flags) {
     nya_assert(arena != nullptr);
@@ -15,9 +11,7 @@ NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeF
         case NYA_SERDE_FORMAT_JSON:       return nya_serde_json_serialize(arena, object, flags);
         case NYA_SERDE_FORMAT_JSONC:      return nya_serde_jsonc_serialize(arena, object, flags);
 #if !OS_WASM
-        // The binary .nya wire format encodes an f128 as x87 80-bit extended precision; a wasm build's
-        // long double is IEEE quad, a different layout, so serde_nya_binary.c is not compiled for that
-        // target (see the wasm_demo.c include set) and this arm falls through to the default there.
+        // The binary .nya format encodes f128 as x87 80-bit; wasm's long double is IEEE quad, so serde_nya_binary.c is not compiled there and this arm falls through.
         case NYA_SERDE_FORMAT_NYA_BINARY: return nya_serde_nya_binary_serialize(arena, object, flags);
 #endif
 
@@ -52,8 +46,7 @@ NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) {
         return NYA_SERDE_FORMAT_NYA_BINARY;
     }
 
-    // An obfuscated nya document is identified by its leading magic byte, which is not valid at the
-    // start of any text format.
+    // An obfuscated nya document is identified by its leading magic byte, not valid at the start of any text format.
     if (data[0] == 0xA7) return NYA_SERDE_FORMAT_NYA;
 
     u64 cursor = 0;
@@ -61,9 +54,7 @@ NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) {
 
     if (cursor >= size) return NYA_SERDE_FORMAT_COUNT;
 
-    /*
-     * A leading comment can only be JSONC: strict JSON has nowhere to put one.
-     */
+    // A leading comment can only be JSONC: strict JSON has nowhere to put one.
     if (data[cursor] == '/' && cursor + 1 < size && (data[cursor + 1] == '/' || data[cursor + 1] == '*')) return NYA_SERDE_FORMAT_JSONC;
 
     if (data[cursor] == '{' || data[cursor] == '[') return NYA_SERDE_FORMAT_JSON;
@@ -74,11 +65,7 @@ NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) {
     return NYA_SERDE_FORMAT_COUNT;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * FILES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FILES ─────────────────────────────────────
 
 /** True when the path ends in .json, which is the one extension that is not the native format. */
 NYA_INTERNAL b8 _nya_serde_path_is_json(NYA_ConstCString path) {
@@ -92,8 +79,7 @@ NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, N
     nya_assert(object != nullptr);
     nya_assert(path != nullptr);
 
-    // A scratch arena for the text, which does not outlive the write. The caller should not have to
-    // supply somewhere to put something they never see.
+    // A scratch arena for the text, which does not outlive the write: the caller need not supply somewhere for something they never see.
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "serde_save_file");
     defer     nya_arena_destroy_on_stack(&scratch);
 
@@ -102,10 +88,7 @@ NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, N
     NYA_String* text = nya_serialize(&scratch, object, format, flags);
     if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize the object for '%s'", path);
 
-    /*
-     * The length carrying overload, not the cstring one. Atomic, because every caller is replacing a
-     * document someone would rather keep than find half written: saves, settings, trained networks.
-     */
+    // The length-carrying overload, atomic because every caller is replacing a document worth keeping over finding half written: saves, settings, trained networks.
     return nya_file_write_atomic(path, text);
 }
 
@@ -117,8 +100,7 @@ NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_Serde
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "serde_load_file");
     defer     nya_arena_destroy_on_stack(&scratch);
 
-    // Created against the arena rather than zero initialised: NYA_String carries the arena it grows
-    // in, and a zeroed one reallocs against a null arena the moment the file is longer than nothing.
+    // Created against the arena, not zero-initialised: NYA_String carries its arena, and a zeroed one reallocs against a null arena once the file is non-empty.
     NYA_String contents = nya_string_create_on_stack(&scratch);
     defer      nya_string_destroy_on_stack(&contents);
 

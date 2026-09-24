@@ -110,11 +110,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/serde/serde_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 /**
  * The first four bytes. 0x89 first because no text format may start with it, so the sniffer is never
@@ -159,11 +155,7 @@
 /** Longest key, in bytes. A key is a field name, and its length prefix is one byte. */
 #define NYA_SERDE_NYA_BINARY_KEY_BYTES_MAX 255
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
 
 /**
  * Encodes `object` into `out_bytes`, allocated from `arena`.

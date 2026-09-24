@@ -8,11 +8,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/serde/serde_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
 
 /**
  * Writes ordinary JSON. Identical output to nya_serde_json_serialize, including under NYA_SERDE_PRETTY.

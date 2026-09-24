@@ -24,9 +24,7 @@
 #include "nyangine/serde/serde_types.h"
 
 /*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ENCRYPTED FIELDS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ───────────────────────────────────── ENCRYPTED FIELDS ─────────────────────────────────────
  *
  * A field tagged `@secret` in its header (see base_reflection.h) is written encrypted and read back
  * decrypted, so a save file holds ciphertext where its plaintext would be. This is the opposite end
@@ -74,11 +72,7 @@ struct NYA_SerdeSecret {
     void*                 user;
 };
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS ─────────────────────────────────────
 
 /**
  * Writes `instance` to `path` as the format the extension names, through `type`'s description.
@@ -124,11 +118,7 @@ NYA_API NYA_Error
 nya_reflect_load_file_secret(const NYA_TypeReflection* type, void* instance, NYA_ConstCString path, NYA_SerdeFlags flags, NYA_SerdeSecret secret)
     __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TEST FIXTURE
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TEST FIXTURE ─────────────────────────────────────
 
 /**
  * The worked example of `@secret`, and what test_secret_serde round-trips. A reflected struct that

@@ -1,15 +1,8 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
-/*
- * The wire tags, fixed by serde_nya_binary.h. Explicit values, since these are the format and must
- * not follow an edit to the enum's order.
- */
+// The wire tags, fixed by serde_nya_binary.h: explicit values, since these are the format and must not follow an edit to the enum's order.
 typedef enum {
     _NYA_SERDE_NYA_BINARY_TAG_NULL   = 0x00,
     _NYA_SERDE_NYA_BINARY_TAG_B8     = 0x01,
@@ -121,11 +114,7 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_binary_read_payload(_NYA_SerdeNyaBinaryRea
 
 NYA_INTERNAL s32 _nya_serde_nya_binary_compare_keys(const void* left, const void* right);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_Error nya_serde_nya_binary_encode(NYA_Arena* arena, const NYA_Object* object, const NYA_TypeReflection* type, OUT NYA_String** out_bytes) {
     nya_assert(arena != nullptr);
@@ -135,7 +124,7 @@ NYA_Error nya_serde_nya_binary_encode(NYA_Arena* arena, const NYA_Object* object
 
     *out_bytes = nullptr;
 
-    // a typed document is a claim about its shape, so the claim is checked where it is made.
+    // A typed document is a claim about its shape, so the claim is checked where it is made.
     if (type != nullptr) {
         u32 problems = nya_reflect_check(type, object, nullptr, nullptr);
         if (problems > 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the object does not fit %s (" FMTu32 " problems)", type->name, problems);
@@ -228,11 +217,7 @@ NYA_Error nya_serde_nya_binary_deserialize(NYA_Arena* arena, const u8* data, u64
     return nya_serde_nya_binary_decode(arena, data, size, nullptr, out_object);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 b8 _nya_serde_nya_binary_tag_of(NYA_Type type, OUT u8* out_tag) {
     for (u32 tag = 0; tag < _NYA_SERDE_NYA_BINARY_TAG_VALUE_COUNT; tag++) {
@@ -249,11 +234,7 @@ s32 _nya_serde_nya_binary_compare_keys(const void* left, const void* right) {
     return strcmp(*(NYA_ConstCString const*)left, *(NYA_ConstCString const*)right);
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * WRITING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── WRITING ─────────────────────────────────────
 
 void _nya_serde_nya_binary_put(_NYA_SerdeNyaBinaryWriter* writer, const void* bytes, u64 count) {
     if (count == 0) return;
@@ -289,7 +270,7 @@ NYA_Error _nya_serde_nya_binary_write_object(_NYA_SerdeNyaBinaryWriter* writer, 
 
     writer->depth++;
 
-    // sorted, so the same object always writes the same bytes whatever order its table holds the keys in.
+    // Sorted, so the same object always writes the same bytes whatever order its table holds the keys in.
     NYA_ConstCString* keys  = object->length > 0 ? nya_arena_alloc(writer->arena, object->length * sizeof(NYA_ConstCString)) : nullptr;
     u64               count = 0;
 
@@ -442,11 +423,7 @@ NYA_Error _nya_serde_nya_binary_write_payload(_NYA_SerdeNyaBinaryWriter* writer,
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * READING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── READING ─────────────────────────────────────
 
 b8 _nya_serde_nya_binary_take(_NYA_SerdeNyaBinaryReader* reader, u64 count, OUT const u8** out_bytes) {
     nya_assert(reader->cursor <= reader->size);
@@ -557,8 +534,7 @@ NYA_Error _nya_serde_nya_binary_read_object(_NYA_SerdeNyaBinaryReader* reader, O
     if (!_nya_serde_nya_binary_take_uint(reader, _NYA_SERDE_NYA_BINARY_COUNT_BYTES, &count))
         return nya_error(NYA_ERROR_PARSE, "truncated at byte " FMTu64 ": an object's member count", at);
 
-    // every member is at least two bytes, so a count the rest of the input cannot hold is refused
-    // before the table is sized from it.
+    // Every member is at least two bytes, so a count the rest of the input cannot hold is refused before the table is sized from it.
     if (count > (reader->size - reader->cursor) / _NYA_SERDE_NYA_BINARY_MEMBER_BYTES_MIN) {
         return nya_error(
             NYA_ERROR_PARSE,
@@ -572,7 +548,7 @@ NYA_Error _nya_serde_nya_binary_read_object(_NYA_SerdeNyaBinaryReader* reader, O
 
     reader->depth++;
 
-    // sized so that no insertion below grows the table: nya_dict_add grows past a load of three quarters.
+    // Sized so no insertion below grows the table: nya_dict_add grows past a load of three quarters.
     u64        capacity = count == 0 ? 0 : (u64)count + (u64)count / 3 + 1;
     NYA_Object object   = nya_dict_create_with_capacity_on_stack(reader->arena, NYA_Value, capacity);
 
@@ -593,7 +569,7 @@ NYA_Error _nya_serde_nya_binary_read_object(_NYA_SerdeNyaBinaryReader* reader, O
         nya_memcpy(key, key_bytes, (u64)key_length);
         key[key_length] = '\0';
 
-        // the offset and not the key: a key is a stranger's bytes, and an error message ends up in a log.
+        // The offset and not the key: a key is a stranger's bytes, and an error message ends up in a log.
         if (previous != nullptr) {
             s32 order = strcmp(previous, key);
             if (order == 0) return nya_error(NYA_ERROR_PARSE, "at byte " FMTu64 ": a key appears twice", key_at);
@@ -639,8 +615,7 @@ NYA_Error _nya_serde_nya_binary_read_array(_NYA_SerdeNyaBinaryReader* reader, OU
         return nya_error(NYA_ERROR_PARSE, "at byte " FMTu64 ": 0x%02x is not an element tag", reader->cursor - 1, (u32)tag);
     }
 
-    // every element is at least one byte, its tag or its payload, which is what null not being an
-    // element type buys. So this refuses a length the input cannot back before sizing anything.
+    // Every element is at least one byte (what null not being an element type buys), so a length the input cannot back is refused before sizing anything.
     if (count > reader->size - reader->cursor) {
         return nya_error(
             NYA_ERROR_PARSE,

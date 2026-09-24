@@ -15,11 +15,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/serde/serde_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
 
 /** Dispatches to the format's own serializer. */
 NYA_API NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFormat format, NYA_SerdeFlags flags) __attr_no_discard;
@@ -34,11 +30,7 @@ nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat form
  * */
 NYA_API NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────
- * FILES
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FILES ─────────────────────────────────────
 
 /**
  * Writes an object to `path`, picking the format from the extension. Through nya_file_write_atomic, so a

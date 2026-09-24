@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 #define _NYA_SERDE_JSON_INDENT_SIZE 2
 
@@ -37,11 +33,7 @@ NYA_INTERNAL b8         _nya_serde_json_accept_symbol(_NYA_SerdeJsonParser* pars
 NYA_INTERNAL b8         _nya_serde_json_token_equals(_NYA_SerdeJsonParser* parser, const NYA_Token* token, NYA_ConstCString text);
 NYA_INTERNAL u32        _nya_serde_json_encode_utf8(u32 codepoint, OUT char* out);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_String* nya_serde_json_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFlags flags) {
     nya_assert(arena != nullptr);
@@ -70,9 +62,7 @@ NYA_Error _nya_serde_json_deserialize_with(NYA_Arena* arena, const u8* data, u64
     NYA_Lexer   lexer = nya_lexer_create(text);
     nya_lexer_run(&lexer);
 
-    // Destroyed on every path out, of which there are ten below, all of them early returns on a
-    // malformed document. Nothing in the parsed object points into the lexer: keys and string
-    // values are allocated from the caller's arena, not from the token stream.
+    // Destroyed on every path out; nothing in the parsed object points into the lexer, since keys and strings come from the caller's arena.
     defer nya_lexer_destroy(&lexer);
 
     _NYA_SerdeJsonParser parser = { .arena = arena, .lexer = &lexer, .index = 0, .depth = 0, .lenient = lenient };
@@ -80,8 +70,7 @@ NYA_Error _nya_serde_json_deserialize_with(NYA_Arena* arena, const u8* data, u64
     NYA_Object* object = nullptr;
     NYA_TRY(_nya_serde_json_parse_object(&parser, &object));
 
-    // Trailing content means the document was two values, or truncated and then resumed. Either
-    // way the caller asked for one object and did not get exactly one.
+    // Trailing content means the document was two values, or truncated and resumed: the caller asked for one object and did not get exactly one.
     if (_nya_serde_json_peek(&parser) != nullptr) {
         NYA_Token* token = _nya_serde_json_peek(&parser);
         return nya_error(
@@ -116,8 +105,7 @@ void nya_serde_json_escape(NYA_String* out, NYA_ConstCString text) {
             default:   break;
         }
 
-        // JSON forbids raw control characters in strings, and only \u escapes can carry them.
-        // Everything at or above 0x20 goes through untouched, which keeps UTF-8 intact.
+        // JSON forbids raw control characters in strings; only \u escapes carry them, and bytes at or above 0x20 pass through untouched, keeping UTF-8 intact.
         if (character < 0x20)
             nya_string_extend_sprintf(out, "\\u%04x", character);
         else
@@ -127,17 +115,9 @@ void nya_serde_json_escape(NYA_String* out, NYA_ConstCString text) {
     nya_string_extend(out, "\"");
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * WRITING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── WRITING ─────────────────────────────────────
 
 NYA_INTERNAL void _nya_serde_json_write_object(NYA_String* out, const NYA_Object* object, u32 indent, b8 pretty) {
     if (object->length == 0) {
@@ -198,9 +178,7 @@ NYA_INTERNAL void _nya_serde_json_write_value(NYA_String* out, const NYA_Value* 
         case NYA_TYPE_S32:  nya_string_extend_sprintf(out, FMTs32, value->as_s32); break;
         case NYA_TYPE_S64:  nya_string_extend_sprintf(out, FMTs64, value->as_s64); break;
 
-        // JSON numbers have no width, and 128 bit values do not survive the double that most
-        // readers will parse them into. Quoted, they at least arrive intact and are obviously
-        // not ordinary numbers.
+        // JSON numbers have no width and 128-bit values do not survive most readers' double; quoted, they arrive intact and clearly not ordinary numbers.
         case NYA_TYPE_U128: {
             NYA_String* rendered = nya_u128_to_string(out->arena, value->as_u128);
             nya_serde_json_escape(out, nya_string_to_cstring(out->arena, rendered));
@@ -245,8 +223,7 @@ NYA_INTERNAL void _nya_serde_json_write_value(NYA_String* out, const NYA_Value* 
             nya_string_extend(out, "]");
         } break;
 
-        // A pointer's numeric value is meaningless outside the process that produced it, so it is
-        // written as null rather than as an integer someone might believe.
+        // A pointer's numeric value is meaningless outside its process, so it is written as null rather than an integer someone might believe.
         default: nya_string_extend(out, "null"); break;
     }
 }
@@ -263,9 +240,7 @@ NYA_INTERNAL void _nya_serde_json_write_real(NYA_String* out, f64 number, NYA_Co
     u64 before = out->length;
     nya_string_extend_sprintf(out, format, number);
 
-    // %g drops the fractional part of a whole number, so 1.0 comes out "1". That is a valid JSON
-    // number, but it reads back as an integer and the value silently changes type. A trailing
-    // ".0" keeps it a real.
+    // %g drops the fraction of a whole number, so 1.0 comes out "1" and reads back as an integer; a trailing ".0" keeps it a real.
     for (u64 i = before; i < out->length; i++) {
         u8 character = out->items[i];
         if (character == '.' || character == 'e' || character == 'E') return;
@@ -278,11 +253,7 @@ NYA_INTERNAL void _nya_serde_json_write_indent(NYA_String* out, u32 indent) {
     for (u32 i = 0; i < indent * _NYA_SERDE_JSON_INDENT_SIZE; i++) nya_string_push_back(out, ' ');
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * PARSING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PARSING ─────────────────────────────────────
 
 NYA_INTERNAL NYA_Error _nya_serde_json_parse_object(_NYA_SerdeJsonParser* parser, OUT NYA_Object** out_object) {
     if (parser->depth >= NYA_SERDE_JSON_DEPTH_MAX) return nya_error(NYA_ERROR_PARSE, "object nesting is too deep");
@@ -476,9 +447,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_number(_NYA_SerdeJsonParser* parser
 
     if (negative) text[length++] = '-';
 
-    /*
-     * Refused rather than clamped.
-     */
+    // Refused rather than clamped.
     u64 digits_length = token->length;
     if (digits_length > sizeof(text) - length - 1) {
         return nya_error(
@@ -528,9 +497,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
 
     const char* source = parser->lexer->source + token->source_location;
 
-    // A \u escape is 6 source characters and yields at most 3 UTF-8 bytes, and a surrogate pair is
-    // 12 source characters for 4 bytes, so unescaping never grows the text. The raw length plus a
-    // terminator is always enough.
+    // Unescaping never grows the text (a \u escape is 6 chars for at most 3 bytes, a surrogate pair 12 for 4), so the raw length plus a terminator is always enough.
     NYA_CString unescaped = nya_arena_alloc(parser->arena, token->length + 1);
     u64         written   = 0;
 
@@ -574,8 +541,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
                 }
                 i += 4;
 
-                // A codepoint above the BMP arrives as a surrogate pair. Combine them, otherwise
-                // the result is two unpaired surrogates, which are not valid UTF-8.
+                // A codepoint above the BMP arrives as a surrogate pair; combine them, else the result is two unpaired surrogates that are not valid UTF-8.
                 if (0xD800 <= codepoint && codepoint <= 0xDBFF && i + 6 < token->length && source[i + 1] == '\\' && source[i + 2] == 'u') {
                     u32 low = 0;
                     b8  ok  = true;
@@ -604,10 +570,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
                     }
                 }
 
-                /*
-                 * Anything still in the surrogate range did not pair up: a high surrogate without a low one, or a
-                 * lone low surrogate. It becomes U+FFFD, as the Unicode standard prescribes.
-                 */
+                // Anything still in the surrogate range did not pair up (a lone high or low surrogate) and becomes U+FFFD, as Unicode prescribes.
                 if (0xD800 <= codepoint && codepoint <= 0xDFFF) codepoint = 0xFFFD;
 
                 written += _nya_serde_json_encode_utf8(codepoint, unescaped + written);
@@ -624,15 +587,10 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * TOKEN HELPERS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TOKEN HELPERS ─────────────────────────────────────
 
 NYA_INTERNAL NYA_Token* _nya_serde_json_peek(_NYA_SerdeJsonParser* parser) {
-    // Here rather than at each call site: every token the grammar looks at comes through this, so
-    // one skip covers keys, values, separators and the trailing content check alike.
+    // Here rather than at each call site: every token comes through this, so one skip covers keys, values, separators and the trailing-content check.
     if (parser->lenient) _nya_serde_json_skip_comments(parser);
 
     if (parser->index >= parser->lexer->tokens->length) return nullptr;
@@ -641,9 +599,7 @@ NYA_INTERNAL NYA_Token* _nya_serde_json_peek(_NYA_SerdeJsonParser* parser) {
     return token->type == NYA_TOKEN_EOF ? nullptr : token;
 }
 
-/*
- * Steps over comments, for JSONC only.
- */
+// Steps over comments, for JSONC only.
 NYA_INTERNAL void _nya_serde_json_skip_comments(_NYA_SerdeJsonParser* parser) {
     while (parser->index < parser->lexer->tokens->length &&
            parser->lexer->tokens->items[parser->index].type == NYA_TOKEN_COMMENT) {

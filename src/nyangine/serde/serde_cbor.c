@@ -1,11 +1,7 @@
 #include "nyangine/serde/serde_cbor.h"
 #include "nyangine/base/base_assert.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 /** The five bits below the major type of an initial byte: an inline value, or how many bytes the argument takes. */
 #define _NYA_CBOR_INFO_1_BYTE  24
@@ -35,11 +31,7 @@ NYA_INTERNAL b8 _nya_cbor_head(NYA_CborReader* reader, OUT u8* out_major, OUT u6
 /** The skip, carrying the depth left so a nested structure cannot recurse past NYA_CBOR_MAX_DEPTH. */
 NYA_INTERNAL b8 _nya_cbor_skip(NYA_CborReader* reader, u32 depth_left) __attr_no_discard;
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_CborReader nya_cbor_reader(const u8* data, u64 size) {
     return (NYA_CborReader){
@@ -76,8 +68,7 @@ b8 nya_cbor_read_int(NYA_CborReader* reader, s64* out_value) {
     if (!_nya_cbor_head(reader, &major, &argument)) return false;
 
     if (major == _NYA_CBOR_MAJOR_UNSIGNED) {
-        // A positive integer past what a signed 64-bit value holds is refused rather than wrapped into a
-        // negative one, since a caller reading a COSE label expects the number that was written.
+        // A positive integer past what s64 holds is refused rather than wrapped, since a COSE label reader expects the number that was written.
         if (argument > (u64)S64_MAX) return false;
 
         *out_value = (s64)argument;
@@ -86,8 +77,7 @@ b8 nya_cbor_read_int(NYA_CborReader* reader, s64* out_value) {
     }
 
     if (major == _NYA_CBOR_MAJOR_NEGATIVE) {
-        // A negative CBOR integer encodes the magnitude of -1 - n, so the most negative value it can carry
-        // is -1 - S64_MAX, which is S64_MIN. Anything past that will not fit and is refused.
+        // A negative CBOR integer encodes -1 - n, so its most negative value is S64_MIN; anything past that will not fit and is refused.
         if (argument > (u64)S64_MAX) return false;
 
         *out_value = -1 - (s64)argument;
@@ -110,8 +100,7 @@ b8 nya_cbor_read_bytes(NYA_CborReader* reader, const u8** out_bytes, u64* out_si
     if (!_nya_cbor_head(reader, &major, &length)) return false;
     if (major != _NYA_CBOR_MAJOR_BYTES) return false;
 
-    // The length is checked against what is left before the pointer is handed back, so a string that
-    // claims more bytes than the buffer holds is a refused read rather than an out-of-bounds one.
+    // The length is checked against what is left before the pointer is handed back, so an over-claiming string is a refused read, not an out-of-bounds one.
     if (length > reader->size - reader->offset) return false;
 
     *out_bytes = reader->data + reader->offset;
@@ -182,11 +171,7 @@ b8 nya_cbor_skip(NYA_CborReader* reader) {
     return _nya_cbor_skip(reader, NYA_CBOR_MAX_DEPTH);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
 b8 _nya_cbor_head(NYA_CborReader* reader, u8* out_major, u64* out_argument) {
     *out_major    = 0;
@@ -209,9 +194,7 @@ b8 _nya_cbor_head(NYA_CborReader* reader, u8* out_major, u64* out_argument) {
         return true;
     }
 
-    // The number of argument bytes the additional info names. Everything between the inline range and
-    // the four defined widths is a reserved encoding, and the indefinite-length marker is refused here
-    // rather than parsed, so nothing below ever has to handle a break code.
+    // The number of argument bytes the additional info names; reserved encodings and the indefinite-length marker are refused here, so nothing below handles a break code.
     u32 width = 0;
 
     switch (info) {
@@ -279,9 +262,7 @@ b8 _nya_cbor_skip(NYA_CborReader* reader, u32 depth_left) {
             return _nya_cbor_skip(reader, depth_left - 1);
 
         case _NYA_CBOR_MAJOR_SIMPLE:
-            // A simple value or a float: the payload, if any, was the argument bytes the head already
-            // consumed, so there is nothing left to step over. The indefinite-length break (info 31) was
-            // refused by the head, so it cannot arrive here.
+            // A simple value or a float: its payload was the argument bytes the head consumed, so nothing is left; the break (info 31) was refused by the head.
             return true;
 
         default: return false;

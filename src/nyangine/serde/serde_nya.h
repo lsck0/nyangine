@@ -26,11 +26,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/serde/serde_types.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * CONSTANTS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 
 #define NYA_SERDE_NYA_MAGIC   "nya"
 #define NYA_SERDE_NYA_VERSION 2
@@ -38,11 +34,7 @@
 /** Element type name for an array whose members do not share one type. */
 #define NYA_SERDE_NYA_ANY_TYPE "any"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONS AND MACROS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
 
 NYA_API NYA_String* nya_serde_nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFlags flags) __attr_no_discard;
 

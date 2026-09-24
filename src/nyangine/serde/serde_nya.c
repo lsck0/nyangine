@@ -1,10 +1,6 @@
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API DECLARATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
 
 #define _NYA_SERDE_NYA_INDENT_SIZE      4
 #define _NYA_SERDE_NYA_OBFUSCATED_MAGIC 0xA7
@@ -54,11 +50,7 @@ NYA_INTERNAL void _nya_serde_nya_xor(u8* data, u64 length);
 NYA_INTERNAL u64  _nya_serde_nya_checksum_value(const NYA_Value* value);
 NYA_INTERNAL u64  _nya_serde_nya_mix(u64 a, u64 b);
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PUBLIC API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_String* nya_serde_nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFlags flags) {
     nya_assert(arena != nullptr);
@@ -117,9 +109,7 @@ NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, 
     NYA_Lexer lexer = nya_lexer_create(text);
     nya_lexer_run(&lexer);
 
-    // Destroyed on every path out, of which there are ten below, all of them early returns on a
-    // malformed document. Nothing in the parsed object points into the lexer: keys and string
-    // values are allocated from the caller's arena, not from the token stream.
+    // Destroyed on every path out; nothing in the parsed object points into the lexer, since keys and strings come from the caller's arena.
     defer nya_lexer_destroy(&lexer);
 
     _NYA_SerdeNyaParser parser = { .arena = arena, .lexer = &lexer, .index = 0, .depth = 0 };
@@ -188,17 +178,13 @@ NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, 
     return NYA_OK;
 }
 
-/*
- * The accumulation wraps on purpose, like every hash here, so it is exempted like _nya_serde_nya_mix.
- * Sanitized builds abort on unsigned overflow otherwise.
- */
+// The accumulation wraps on purpose, like every hash here, so it is exempted (sanitized builds abort on unsigned overflow otherwise).
 __attr_no_sanitize("unsigned-integer-overflow") u64 nya_serde_nya_checksum(const NYA_Object* object) {
     nya_assert(object != nullptr);
 
     u64 checksum = 0;
 
-    // summed, not XORed. A dict needs a commutative combine, but XOR also cancels: swapping two keys'
-    // values, or two entries hashing alike, leaves it unchanged.
+    // Summed, not XORed: a dict needs a commutative combine, but XOR also cancels, so swapping two keys' values would leave it unchanged.
     nya_dict_foreach_key (object, key) {
         const NYA_Value* value = nya_object_get(object, *key);
 
@@ -212,17 +198,9 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_serde_nya_checksum(const
     return _nya_serde_nya_mix(checksum, object->length);
 }
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * PRIVATE API IMPLEMENTATION
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── PRIVATE API IMPLEMENTATION ─────────────────────────────────────
 
-/*
- * ─────────────────────────────────────────────────────────
- * WRITING
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── WRITING ─────────────────────────────────────
 
 NYA_INTERNAL void _nya_serde_nya_write_object(NYA_String* out, const NYA_Object* object, u32 indent, NYA_SerdeFlags flags) {
     b8 pretty = nya_flag_check(flags, NYA_SERDE_PRETTY);
@@ -294,9 +272,7 @@ NYA_INTERNAL void _nya_serde_nya_write_value(NYA_String* out, const NYA_Value* v
         case NYA_TYPE_S64:    nya_string_extend_sprintf(out, FMTs64, value->as_s64); break;
         case NYA_TYPE_S128:   nya_string_extend(out, nya_s128_to_string(out->arena, value->as_s128)); break;
 
-        /*
-         * Hexadecimal, so a float survives the round trip bit for bit.
-         * */
+        // Hexadecimal, so a float survives the round trip bit for bit.
         case NYA_TYPE_F16:    nya_string_extend_sprintf(out, "%a", (f64)value->as_f16); break;
         case NYA_TYPE_F32:    nya_string_extend_sprintf(out, "%a", (f64)value->as_f32); break;
         case NYA_TYPE_F64:    nya_string_extend_sprintf(out, "%a", value->as_f64); break;
@@ -313,8 +289,7 @@ NYA_INTERNAL void _nya_serde_nya_write_value(NYA_String* out, const NYA_Value* v
                 break;
             }
 
-            // One shared element type keeps the type name out of every element. A mixed array
-            // cannot do that, so it declares `any` and every element names itself.
+            // One shared element type keeps the type name out of every element; a mixed array declares `any` and every element names itself.
             NYA_Type element_type = value->as_array.items[0].type;
             b8       homogeneous  = true;
             for (u64 i = 1; i < value->as_array.length; i++) {
@@ -437,16 +412,14 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_typed_value(_NYA_SerdeNyaParser* par
     if (_nya_serde_nya_token_equals(parser, token, "null")) {
         parser->index++;
 
-        // the writer spells an array of nulls `null[] [null, null]`, which read as a bare null and
-        // then a stray '[' until the marker was looked for here.
+        // The writer spells an array of nulls `null[] [null, null]`, which reads as a bare null then a stray '[' unless the marker is looked for here.
         if (_nya_serde_nya_accept_array_marker(parser)) return _nya_serde_nya_parse_array(parser, NYA_TYPE_NULL, out_value);
 
         *out_value = (NYA_Value){ .type = NYA_TYPE_NULL };
         return NYA_OK;
     }
 
-    // `any[]` heads a heterogeneous array. It is not a NYA_Type, so it is matched by name before
-    // the type table is consulted.
+    // `any[]` heads a heterogeneous array; it is not a NYA_Type, so it is matched by name before the type table is consulted.
     if (_nya_serde_nya_token_equals(parser, token, NYA_SERDE_NYA_ANY_TYPE)) {
         parser->index++;
         if (!_nya_serde_nya_accept_array_marker(parser)) return nya_error(NYA_ERROR_PARSE, "'any' is only valid as the 'any[]' array header");
@@ -488,8 +461,7 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_array(_NYA_SerdeNyaParser* parser, N
 
         NYA_Value element;
 
-        // An `any[]` element, and a nested array element, both carry their own type name, so they
-        // go back through the full path. Everything else inherits the header's type.
+        // An `any[]` element and a nested array element carry their own type name, so they go back through the full path; everything else inherits the header's type.
         if (element_type == NYA_TYPE_COUNT || element_type == NYA_TYPE_ARRAY) {
             NYA_TRY(_nya_serde_nya_parse_typed_value(parser, &element));
         } else {
@@ -639,16 +611,13 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, 
         );
     }
 
-    // One scratch buffer, so the sign and the digits are contiguous for nya_type_parse. The longest
-    // thing that reaches here is an f128 in decimal, which stays well inside this.
+    // One scratch buffer so the sign and digits are contiguous for nya_type_parse; the longest thing that reaches here is a decimal f128, well inside this.
     char text[192];
     u64  length = 0;
 
     if (negative) text[length++] = '-';
 
-    /*
-     * Refused rather than clamped, matching _nya_serde_json_parse_number.
-     */
+    // Refused rather than clamped, matching _nya_serde_json_parse_number.
     u64 digits_length = token->length;
     if (digits_length > sizeof(text) - length - 1) {
         return nya_error(
@@ -675,15 +644,9 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, 
     return NYA_OK;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * TOKEN HELPERS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── TOKEN HELPERS ─────────────────────────────────────
 
-/**
- * Skips comments.
- * */
+/** Skips comments. */
 NYA_INTERNAL void _nya_serde_nya_skip_trivia(_NYA_SerdeNyaParser* parser) {
     while (parser->index < parser->lexer->tokens->length &&
            parser->lexer->tokens->items[parser->index].type == NYA_TOKEN_COMMENT) {
@@ -736,11 +699,7 @@ NYA_INTERNAL b8 _nya_serde_nya_token_equals(_NYA_SerdeNyaParser* parser, const N
     return strncmp(parser->lexer->source + token->source_location, text, length) == 0;
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * VALUE HELPERS
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── VALUE HELPERS ─────────────────────────────────────
 
 NYA_INTERNAL b8 _nya_serde_nya_value_is_true(const NYA_Value* value) {
     switch (value->type) {
@@ -764,11 +723,7 @@ NYA_INTERNAL void _nya_serde_nya_set_boolean(NYA_Value* value, b8 truth) {
     }
 }
 
-/*
- * ─────────────────────────────────────────────────────────
- * CHECKSUM AND OBFUSCATION
- * ─────────────────────────────────────────────────────────
- */
+// ───────────────────────────────────── CHECKSUM AND OBFUSCATION ─────────────────────────────────────
 
 NYA_INTERNAL void _nya_serde_nya_xor(u8* data, u64 length) {
     for (u64 i = 0; i < length; i++) data[i] ^= _NYA_SERDE_NYA_XOR_KEY[i % sizeof(_NYA_SERDE_NYA_XOR_KEY)];
@@ -793,8 +748,7 @@ NYA_INTERNAL u64 _nya_serde_nya_checksum_value(const NYA_Value* value) {
     switch (value->type) {
         case NYA_TYPE_NULL:   break;
 
-        // Hashed as the one bit they mean rather than as raw storage: a b32 holding 1 and one
-        // holding 2 are both true, and a checksum that disagreed with that would be surprising.
+        // Hashed as the one bit they mean, not raw storage: a b32 holding 1 and one holding 2 are both true, and a checksum should agree.
         case NYA_TYPE_B8:
         case NYA_TYPE_B16:
         case NYA_TYPE_B32:
