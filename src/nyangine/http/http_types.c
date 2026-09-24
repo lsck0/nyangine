@@ -89,6 +89,9 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_TEXT[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
     [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
+    // JSON in shape, so UTF-8 always, but +json has no registered charset parameter (RFC 6839): the
+    // encoding is assumed, and a browser's installability check wants the bare registered type.
+    [NYA_HTTP_MEDIA_MANIFEST]   = "application/manifest+json",
     // The generated discoverability documents. XML for a sitemap, and the two feed dialects each with
     // the media type that names them exactly, so a reader that asked for a feed is never handed a page.
     [NYA_HTTP_MEDIA_XML]        = "application/xml; charset=utf-8",
@@ -115,6 +118,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_ESSENCE[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
     [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
+    [NYA_HTTP_MEDIA_MANIFEST]   = "application/manifest+json",
     [NYA_HTTP_MEDIA_XML]        = "application/xml",
     [NYA_HTTP_MEDIA_RSS]        = "application/rss+xml",
     [NYA_HTTP_MEDIA_ATOM]       = "application/atom+xml",

@@ -301,6 +301,30 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a .webmanifest mounts and is served as application/manifest+json, so a CSR bundle whose
+    // index.html carries <link rel="manifest"> is an installable PWA. A manifest served as
+    // application/json passes no installability check, which is why the suffix has its own media type.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_ConstCString   asset = scratch_path(arena, "app.webmanifest");
+        NYA_HttpStaticFile file  = {
+            .asset = asset,
+            .path  = "/app.webmanifest",
+            .data  = SOME_BYTES,
+            .size  = SOME_BYTES_SIZE,
+        };
+
+        NYA_Error mounted = nya_http_static_mount((NYA_HttpStaticConfig){ .files = &file, .count = 1, .root = SCRATCH });
+        nya_assert(mounted.ok, "a .webmanifest file mounts: %s", (NYA_ConstCString)mounted.message);
+
+        NYA_ConstCString hashed = nya_http_static_url(asset);
+        nya_assert(hashed != nullptr && nya_string_ends_with(nya_string_from(arena, hashed), ".webmanifest"),
+                   "the .webmanifest suffix survives the hash, got '%s'", hashed);
+
+        nya_http_static_unmount();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: an absolute path, and a root the handle only appears to be under.
     // ─────────────────────────────────────────────────────────────────────────────
     {

@@ -374,6 +374,14 @@ enum NYA_HttpMediaType {
     NYA_HTTP_MEDIA_WASM,
 
     /**
+     * `application/manifest+json`. A web app manifest, the file a `<link rel="manifest">` points a
+     * browser at to make a CSR bundle an installable PWA. JSON in shape, but the registered type is
+     * what an installability check keys off, so a manifest served as `application/json` is a bundle
+     * that will not offer to install. A suffix (`.webmanifest`) http_static.h names.
+     * */
+    NYA_HTTP_MEDIA_MANIFEST,
+
+    /**
      * `application/xml`. A generated document — a sitemap, or anything whose shape is XML but is not a
      * feed. The discoverability surface (http_sitemap.h) answers in it; see nya_http_doc.h for the
      * bounded builder and the escaper that keep a `<` or a `&` in the data out of the markup.
