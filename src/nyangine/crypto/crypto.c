@@ -3,6 +3,8 @@
 /**/
 #include "nyangine/crypto/crypto_aead.c"
 #include "nyangine/crypto/crypto_encoding.c"
+// after crypto_aead.c and crypto_encoding.c, the two it composes into a sealed base64url box.
+#include "nyangine/crypto/crypto_seal.c"
 #include "nyangine/crypto/crypto_exchange.c"
 #include "nyangine/crypto/crypto_hash.c"
 #include "nyangine/crypto/crypto_kdf.c"

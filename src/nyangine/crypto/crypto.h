@@ -9,6 +9,7 @@
  *   crypto_secret.h     32 byte keys, a constant time compare, wiping
  *   crypto_hash.h       SHA-256, HMAC-SHA256, BLAKE2b, and SHA-1 with HMAC-SHA1 for the two old protocols
  *   crypto_aead.h       XChaCha20-Poly1305: encrypt and authenticate, decrypt or refuse
+ *   crypto_seal.h       a value sealed under a key as one base64url box; serde's @secret codec
  *   crypto_exchange.h   X25519 key agreement
  *   crypto_sign.h       Ed25519 signatures, RFC 8032
  *   crypto_kdf.h        Argon2id, for passwords and anything else a person types
@@ -58,5 +59,6 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/crypto/crypto_kdf.h"
 #include "nyangine/crypto/crypto_rsa.h"
+#include "nyangine/crypto/crypto_seal.h"
 #include "nyangine/crypto/crypto_sign.h"
 #include "nyangine/crypto/crypto_totp.h"
