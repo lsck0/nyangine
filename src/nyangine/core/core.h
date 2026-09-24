@@ -1,5 +1,12 @@
 #pragma once
 
+// First, and on its own: the SDL-free floor of core — the system registry, callbacks, jobs, save, the
+// skeleton and audio math, the plugin registry. Everything below this line names a window, a renderer, an
+// asset or an entity and needs SDL on the include line; core_runtime.h names none of it, so http, net and
+// a headless server can grow to depend on it without the renderer. It removes nothing: the individual
+// includes below still stand, and #pragma once makes the overlap a no-op. See core_runtime.h.
+#include "nyangine/core/core_runtime.h"
+
 #include "nyangine/core/core_app.h"
 // after core_app.h: the trio here is one layer out from nya_app_init/run/deinit, and its comment refers to them.
 #include "nyangine/core/core_app_entry.h"
