@@ -4565,6 +4565,15 @@ NYA_UI_SCROLL_STEP 40.0F
 NYA_UI_SCROLLBAR 4.0F
 NYA_UI_FOCUS_BAR 3.0F
 NYA_UI_PROGRESS_HEIGHT 8.0F
+NYA_UI_SKELETON_HEIGHT 12.0F
+NYA_UI_SPINNER_FRAMES 4
+NYA_UI_SPINNER_FPS 10.0F
+NYA_UI_DIALOG_Z 1000
+NYA_UI_TOASTS_MAX 4  // Transient notifications a window stacks at once, and the longest one's text with its terminator.
+NYA_UI_TOAST_TEXT_MAX 96
+NYA_UI_TOAST_WIDTH 240.0F  // How wide the toast stack is, in pixels at scale 1, and how long a toast shows and then fades, in seconds.
+NYA_UI_TOAST_SHOW_S 3.0
+NYA_UI_TOAST_FADE_S 0.4
 NYA_UI_GRIP 12.0F  // A window's resize grip, and the least it may be dragged to, in pixels at scale 1.
 NYA_UI_WINDOW_MIN ((f32x2){ 96.0F, 64.0F })
 NYA_UI_NODE_PORTS_MAX 256
@@ -4643,8 +4652,19 @@ b8 nya_ui_radio(NYA_UI* ui, NYA_ConstCString label, u32* selected, u32 value)  /
 void nya_ui_chart(NYA_UI* ui, NYA_ConstCString label, NYA_UIChart chart)  // Plots `chart`, taking a row of its own.
 void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size)  // A square `size` pixels at scale 1 on a side, cut from a texture.
 void nya_ui_badge(NYA_UI* ui, NYA_ConstCString label)
+void nya_ui_avatar(NYA_UI* ui, NYA_ConstCString initials)
 void nya_ui_progress(NYA_UI* ui, f32 fraction)  // A slim bar, `fraction` of it filled in the accent over the track, clamped to [0, 1].
+void nya_ui_spinner(NYA_UI* ui)
+void nya_ui_skeleton(NYA_UI* ui, f32 width, f32 height)
+void nya_ui_separator(NYA_UI* ui)
 b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* items, u32 count, u32* current)  // A trail of `count` crumbs in a row, separated by a mark.
+b8 nya_ui_accordion_begin(NYA_UI* ui, NYA_ConstCString label, u32 index, u32* open)
+void nya_ui_accordion_end(NYA_UI* ui)
+void nya_ui_tooltip(NYA_UI* ui, NYA_ConstCString id, NYA_Rectf trigger, NYA_ConstCString text)  // A small popover shown while the pointer rests over `trigger`, `text` in a floating frame just under it.
+b8 nya_ui_dialog_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, b8* open)
+void nya_ui_dialog_end(NYA_UI* ui)
+void nya_ui_toast(NYA_UI* ui, NYA_ConstCString text)  // Posts a transient notification carrying `text`, kept per window so it outlives the pass that raised it.
+void nya_ui_toasts(NYA_UI* ui)
 b8 nya_ui_color_picker(NYA_UI* ui, NYA_ConstCString label, NYA_Color* color)
 b8 nya_ui_node_editor_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UINodeEditor* editor)  // A pannable, zoomable canvas for a node graph.
 void nya_ui_node_editor_end(NYA_UI* ui, NYA_UINodeEditor* editor)
@@ -4676,7 +4696,7 @@ typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_
 typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f32 fold_height; b8 folded; f32 fold_from; f64 shown_s; f64 seen_s; b8 top_level; NYA_Rectf bounds; s32 z; u64 order; } _NYA_UIPanelState
 typedef struct { u64 id; b8 refused; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; } _NYA_UIWidget  // A widget's standing in the current pass.
 typedef struct { u64 id; f64 time_s; f32 focus; f32 press; } _NYA_UIAnimation  // Where one widget's transitions stand, and when they were last stepped.
-struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; const NYA_UIPresenter* present; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; f32x2 open_at; u64 resize_panel; f32x2 resize_grip; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; char theme_path[NYA_UI_THEME_PATH_MAX]; b8 theme_active; u64 theme_modification_time; u64 theme_next_recovery_ns; }  // What persists per window.
+struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; const NYA_UIPresenter* present; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; f32x2 open_at; struct { char text[NYA_UI_TOAST_TEXT_MAX]; f64 born_s; } toasts[NYA_UI_TOASTS_MAX]; u32 toast_count; u64 resize_panel; f32x2 resize_grip; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; char theme_path[NYA_UI_THEME_PATH_MAX]; b8 theme_active; u64 theme_modification_time; u64 theme_next_recovery_ns; }  // What persists per window.
 typedef struct { NYA_InputAction action; NYA_Keycode key; } _NYA_UIPress  // What a press is read from: an action, or a raw key when the action is NONE.
 typedef struct { NYA_UI windows[NYA_WINDOW_MAX]; NYA_UI* open; u64 pass_serial; b8 registered; NYA_TraceScope trace; b8 confirm; b8 cancel; b8 confirm_down; b8 presses[_NYA_UI_PRESS_COUNT]; f32x2 pointer; b8 pointer_moved; b8 pointer_pressed; b8 pointer_down; b8 pointer_released; b8 pointer_over_panel; f32 wheel; f32 wheel_x; b8 editing_seen; b8 typing_at_begin; u64 press_tick; b8 tick_presses[_NYA_UI_PRESS_COUNT]; u32 repeat_press; f32 repeat_s; u64 widgets[NYA_UI_WIDGETS_MAX]; u32 widget_groups[NYA_UI_WIDGETS_MAX]; u32 widget_panels[NYA_UI_WIDGETS_MAX]; b8 widget_horizontal[NYA_UI_WIDGETS_MAX]; u32 widget_count; u32 widget_count_worst; u32 focus_found; NYA_Rectf claims[NYA_UI_CLAIMS_MAX]; u32 claim_count; b8 drag_started; _NYA_UILayout layouts[NYA_UI_DEPTH_MAX]; u32 depth; NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 look_depth; NYA_Rectf safe; NYA_UISize next; b8 next_set; u32 disabled; f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1]; u32 opacity_depth; s32 layer_base; _NYA_UIPanelState panels[NYA_UI_PANELS_MAX]; u32 panel_count; u64 raise_serial; u64 raise_swallowed; _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX]; } _NYA_UISystem
 ```

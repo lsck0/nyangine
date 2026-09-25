@@ -598,6 +598,185 @@ b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* it
 }
 
 
+void nya_ui_avatar(NYA_UI* ui, NYA_ConstCString initials) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(initials != nullptr);
+
+    const NYA_UILook* look = _nya_ui_look();
+
+    // A person's chip, built from the same fitted panel and label a badge is, so it follows the theme with nothing hardcoded. It wears the accent rather than the panel fill and centres its text, which is the whole of what makes it read as an avatar rather than a tag; a caller wanting a photo puts nya_ui_icon here instead.
+    if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){
+            .width   = nya_ui_fit(),
+            .text    = NYA_UI_TEXT_SMALL,
+            .align   = NYA_UI_ALIGN_CENTER,
+            .padding = roundf(look->style.padding * 0.5F),
+            .fill    = look->style.accent,
+        })) {
+        nya_ui_label(ui, initials);
+        nya_ui_panel_end(ui);
+    }
+}
+
+void nya_ui_spinner(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+
+    // A turning mark chosen by the wall clock, drawn as an accent label: one glyph the shape, cell and record backends all measure and draw, and no shape of any backend's. The wall clock rather than the tick, so it keeps turning while the simulation is paused, the way a panel's slide-in does.
+    static const NYA_ConstCString FRAMES[NYA_UI_SPINNER_FRAMES] = { "|", "/", "-", "\\" };
+
+    u32 frame = (u32)(nya_app_uptime_s() * (f64)NYA_UI_SPINNER_FPS) % NYA_UI_SPINNER_FRAMES;
+
+    nya_ui_label(ui, FRAMES[frame], _nya_ui_look()->style.accent);
+}
+
+void nya_ui_skeleton(NYA_UI* ui, f32 width, f32 height) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(width >= 0.0F && height >= 0.0F);
+
+    const NYA_UILook* look = _nya_ui_look();
+
+    // a block in the track colour standing in for text that has not arrived, the same STRIPE fill a progress track is, so it draws wherever that does.
+    NYA_Rectf rect = nya_ui_space(ui, width, height > 0.0F ? height : NYA_UI_SKELETON_HEIGHT);
+    if (!_nya_ui_drawn(rect)) return;
+
+    NYA_UIWidgetDraw draw = { .kind = NYA_UI_WIDGET_STRIPE, .rect = rect, .color = look->style.track };
+    _nya_ui_draw(ui, &draw);
+}
+
+void nya_ui_separator(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+
+    const NYA_UILook* look = _nya_ui_look();
+
+    // a slim row holding a one-pixel dim rule centred in it, exactly the separator a context menu draws between its groups, so the two read the same.
+    NYA_Rectf slot = nya_ui_space(ui, 0.0F, NYA_UI_SPACING);
+    if (!_nya_ui_drawn(slot)) return;
+
+    f32              thickness = nya_max(1.0F, _nya_ui_px(1.0F));
+    NYA_UIWidgetDraw rule      = { .kind = NYA_UI_WIDGET_UNDERLINE, .rect = { slot.x, roundf(slot.y + (slot.height - thickness) * 0.5F), slot.width, thickness }, .color = look->style.text_dim };
+
+    _nya_ui_draw(ui, &rule);
+}
+
+b8 nya_ui_accordion_begin(NYA_UI* ui, NYA_ConstCString label, u32 index, u32* open) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(label != nullptr && open != nullptr);
+
+    // A section whose open flag is derived from the shared index, so exactly one fold is open: section_begin flips the local copy when its header is activated, and this folds that back into the index — opening one writes this index, closing it clears the store. Everything else, the header, the mark, the keyboard and the ids, is a section's.
+    b8 want  = *open == index;
+    b8 was   = want;
+    b8 shown = nya_ui_section_begin(ui, label, &want);
+
+    if (want != was) *open = want ? index : U32_MAX;
+
+    return shown;
+}
+
+void nya_ui_accordion_end(NYA_UI* ui) {
+    nya_ui_section_end(ui);
+}
+
+void nya_ui_tooltip(NYA_UI* ui, NYA_ConstCString id, NYA_Rectf trigger, NYA_ConstCString text) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(id != nullptr && text != nullptr);
+
+    // Only in the draw pass: a tooltip is decoration, and declaring its float in the input pass would claim the pointer that is resting on the trigger and so block the very click the trigger is there to take. The pointer is live in both passes, so hover still reads exactly.
+    if (ui->pass != NYA_UI_PASS_DRAW) return;
+
+    const _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
+    const NYA_UILook*    look   = _nya_ui_look();
+
+    // shown only while the pointer rests on the trigger and nothing floats above it.
+    if (layout->covered || _nya_ui_claimed(_nya_ui.pointer) || !nya_rect_contains(trigger, _nya_ui.pointer)) return;
+
+    f32 width = ceilf(_nya_ui_text_width(layout->text, text)) + (look->padding * 2.0F);
+
+    // hangs just under the trigger, a small gap off it, and is clamped to the window like every float.
+    NYA_Rectf at = { _nya_ui.pointer.x, trigger.y + trigger.height + _nya_ui_px(NYA_UI_SPACING), width, 0.0F };
+
+    if (_nya_ui_float_begin(ui, id, (NYA_UIPanel){ .text = NYA_UI_TEXT_SMALL }, at)) {
+        nya_ui_label(ui, text);
+        _nya_ui_float_end(ui);
+    }
+}
+
+b8 nya_ui_dialog_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, b8* open) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(id != nullptr && title != nullptr && open != nullptr);
+
+    if (!*open) return false;
+
+    // the scrim first, under everything drawn after it, then a centred panel on a z above every ordinary one: the two together are what read as modal, since the module itself is not. Escape backs out, the one meaning cancel always has.
+    nya_ui_scrim(ui);
+
+    if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_CENTER, .z = NYA_UI_DIALOG_Z, .width = nya_ui_fit(), .title = title })) return false;
+
+    if (nya_ui_cancelled(ui)) *open = false;
+
+    return true;
+}
+
+void nya_ui_dialog_end(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(_nya_ui.depth > 1, "nya_ui_dialog_end without a dialog_begin");
+
+    nya_ui_panel_end(ui);
+}
+
+void nya_ui_toast(NYA_UI* ui, NYA_ConstCString text) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(text != nullptr);
+
+    // drops the oldest to make room, so the stack shows the newest few rather than growing without bound; the array stays packed from the front, which is what lets the draw expire them in order.
+    if (ui->toast_count == NYA_UI_TOASTS_MAX) {
+        nya_memmove(&ui->toasts[0], &ui->toasts[1], sizeof(ui->toasts[0]) * (NYA_UI_TOASTS_MAX - 1));
+        ui->toast_count -= 1;
+    }
+
+    u32 slot = ui->toast_count++;
+
+    (void)snprintf(ui->toasts[slot].text, sizeof(ui->toasts[slot].text), "%s", text);
+    ui->toasts[slot].born_s = nya_app_uptime_s();
+}
+
+void nya_ui_toasts(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+
+    f64 now  = nya_app_uptime_s();
+    f64 life = NYA_UI_TOAST_SHOW_S + NYA_UI_TOAST_FADE_S;
+
+    // the ones that have run their course leave from the front, and they sit oldest first, so the run stops at the first still-living toast. Done in every pass, so an input pass sees the same stack the draw pass will.
+    while (ui->toast_count > 0 && now - ui->toasts[0].born_s >= life) {
+        nya_memmove(&ui->toasts[0], &ui->toasts[1], sizeof(ui->toasts[0]) * (ui->toast_count - 1));
+        ui->toast_count -= 1;
+    }
+
+    if (ui->pass != NYA_UI_PASS_DRAW || ui->toast_count == 0) return;
+
+    // one frameless column at the top right of the safe area holds the stack, so the toasts stack and clip without this placing any of them by hand; each is a framed row that fades over its last moments.
+    f32       width = _nya_ui_px(NYA_UI_TOAST_WIDTH);
+    NYA_Rectf at    = { _nya_ui.safe.x + _nya_ui.safe.width - width, _nya_ui.safe.y, width, 0.0F };
+
+    if (!_nya_ui_float_begin(ui, "toasts", (NYA_UIPanel){ .frameless = true, .width = nya_ui_fixed(NYA_UI_TOAST_WIDTH) }, at)) return;
+
+    for (u32 i = 0; i < ui->toast_count; i++) {
+        f64 age   = now - ui->toasts[i].born_s;
+        f32 alpha = age > NYA_UI_TOAST_SHOW_S ? 1.0F - (f32)((age - NYA_UI_TOAST_SHOW_S) / NYA_UI_TOAST_FADE_S) : 1.0F;
+
+        nya_ui_opacity_begin(ui, alpha);
+
+        // unnamed, so two toasts reading the same keep their own place in the column, and grown to the stack's width so the frames line up.
+        if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .width = nya_ui_grow(1), .text = NYA_UI_TEXT_SMALL })) {
+            nya_ui_label(ui, ui->toasts[i].text);
+            nya_ui_panel_end(ui);
+        }
+
+        nya_ui_opacity_end(ui);
+    }
+
+    _nya_ui_float_end(ui);
+}
+
+
 // INTERNAL
 
 b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width) {

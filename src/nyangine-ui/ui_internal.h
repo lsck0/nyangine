@@ -236,6 +236,17 @@ struct NYA_UI {
     /** Where a context menu opened, so its list stays put at the click rather than following the pointer. */
     f32x2 open_at;
 
+    /**
+     * The transient notifications posted to this window, oldest first, with the wall-clock second each was posted.
+     * A compacting stack: posting past NYA_UI_TOASTS_MAX drops the front, and nya_ui_toasts drops from the front as
+     * each runs out its life, so the oldest always leaves first and the array stays packed from index zero.
+     * */
+    struct {
+        char text[NYA_UI_TOAST_TEXT_MAX];
+        f64  born_s;
+    } toasts[NYA_UI_TOASTS_MAX];
+    u32 toast_count;
+
     /** The window being resized by its corner grip, and where in that corner the pointer took hold. */
     u64   resize_panel;
     f32x2 resize_grip;

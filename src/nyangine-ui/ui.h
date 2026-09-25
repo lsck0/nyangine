@@ -36,8 +36,16 @@
  *   nya_ui_node_link                            an elbow drawn between two ports, under the nodes
  *   nya_ui_icon                                 a picture cut from a texture
  *   nya_ui_badge                                a small tag, fitted to its text
+ *   nya_ui_avatar                               a fitted chip carrying a person's initials
  *   nya_ui_progress                             a slim bar, part of it filled
+ *   nya_ui_spinner                              a turning mark for an indeterminate wait
+ *   nya_ui_skeleton                             a placeholder block for content still loading
+ *   nya_ui_separator                            a thin dim rule across the container
  *   nya_ui_breadcrumb                           a trail of crumbs, one of them the page in view
+ *   nya_ui_accordion_begin, nya_ui_accordion_end  one of a set of folds, opening it closing the rest
+ *   nya_ui_tooltip                              a small popover shown while the pointer rests on a rectangle
+ *   nya_ui_dialog_begin, nya_ui_dialog_end      a centred panel over a scrim, closed by escape
+ *   nya_ui_toast, nya_ui_toasts                 post a transient notification, and draw the stack of them
  *   nya_ui_disabled_begin, nya_ui_disabled_end  widgets between them are dimmed, skipped by focus, and never act
  *   nya_ui_style_push, nya_ui_style_pop         another look for what follows, until popped
  *   nya_ui_cancelled                            whether cancel was pressed this pass
@@ -262,6 +270,29 @@ typedef struct NYA_Window NYA_Window;
 
 /** A progress bar's thickness, in pixels at scale 1: a slim strip that reads as a bar without taking a row's height. */
 #define NYA_UI_PROGRESS_HEIGHT 8.0F
+
+/** A loading skeleton's default height when the caller passes zero, in pixels at scale 1: one line of stand-in text. */
+#define NYA_UI_SKELETON_HEIGHT 12.0F
+
+/** A spinner's frames and how many it steps through a second, so an indeterminate wait reads as turning on any backend. */
+#define NYA_UI_SPINNER_FRAMES 4
+#define NYA_UI_SPINNER_FPS    10.0F
+
+/** A dialog sits on this z, above every ordinary panel, so a scrim and a high place are what make it read as modal. */
+#define NYA_UI_DIALOG_Z 1000
+
+/**
+ * Transient notifications a window stacks at once, and the longest one's text with its terminator. Past the count
+ * the oldest is dropped, so a flood shows the newest few rather than growing without bound. Kept per window, so it
+ * costs this much of each NYA_UI whether or not a program ever posts one; both are small and bounded on purpose.
+ * */
+#define NYA_UI_TOASTS_MAX     4
+#define NYA_UI_TOAST_TEXT_MAX 96
+
+/** How wide the toast stack is, in pixels at scale 1, and how long a toast shows and then fades, in seconds. */
+#define NYA_UI_TOAST_WIDTH  240.0F
+#define NYA_UI_TOAST_SHOW_S 3.0
+#define NYA_UI_TOAST_FADE_S 0.4
 
 /**
  * A window's resize grip, and the least it may be dragged to, in pixels at scale 1. The minimum is a title bar and
@@ -1202,10 +1233,34 @@ NYA_API void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size);
 NYA_API void nya_ui_badge(NYA_UI* ui, NYA_ConstCString label);
 
 /**
+ * A person's chip: `initials` centred in a fitted frame carrying the accent, so a row of them lines up the way
+ * avatars do and follows the theme like a badge. It samples no texture in this composable form — a caller wanting a
+ * photo draws nya_ui_icon in its place — and nothing focuses or clicks it.
+ * */
+NYA_API void nya_ui_avatar(NYA_UI* ui, NYA_ConstCString initials);
+
+/**
  * A slim bar, `fraction` of it filled in the accent over the track, clamped to [0, 1]. It takes a row of its own,
  * draws only, and nothing focuses it, so a progress that changes every frame costs two fills a pass.
  * */
 NYA_API void nya_ui_progress(NYA_UI* ui, f32 fraction);
+
+/**
+ * A turning mark for a wait with no known end: one of a handful of frames chosen by the wall clock, drawn as a label
+ * in the accent so it reads on a GPU, in a terminal and through the recorder alike. Draws only; nothing focuses it.
+ * A paused simulation still turns it, since it is on the wall clock rather than the tick.
+ * */
+NYA_API void nya_ui_spinner(NYA_UI* ui);
+
+/**
+ * A placeholder block standing in for content that has not loaded, `width` by `height` pixels at scale 1 in the
+ * track colour; a zero width fills the container's direction and a zero height takes NYA_UI_SKELETON_HEIGHT. Draws
+ * only, so a page of them costs one fill each while it waits.
+ * */
+NYA_API void nya_ui_skeleton(NYA_UI* ui, f32 width, f32 height);
+
+/** A thin dim rule across the container, taking a slim row of its own, to set one group of widgets apart from the next. */
+NYA_API void nya_ui_separator(NYA_UI* ui);
 
 /**
  * A trail of `count` crumbs in a row, separated by a mark. `*current` is the crumb the trail is at, drawn as plain
@@ -1213,6 +1268,74 @@ NYA_API void nya_ui_progress(NYA_UI* ui, f32 fraction);
  * `*current`. True when it changed.
  * */
 NYA_API b8 nya_ui_breadcrumb(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* items, u32 count, u32* current);
+
+/**
+ * One fold of an accordion: a section header that shows what follows until the end while it is the open one, and the
+ * one already open closes when another is opened. `index` is this fold's place in the set and `*open` the index of
+ * the open one, U32_MAX for none; the caller keeps that single index for the reason a window's flag is kept. Built
+ * on nya_ui_section_begin, so the header, the fold mark, the keyboard and the ids are exactly a section's — the only
+ * thing added is that opening one closes the rest.
+ *
+ * False, with nothing opened and no end to call, when it is folded or the container table is full.
+ *
+ * ```c
+ * static u32 open = 0;
+ * for (u32 i = 0; i < count; i++) {
+ *     if (nya_ui_accordion_begin(ui, sections[i].title, i, &open)) {
+ *         nya_ui_label(ui, sections[i].body);
+ *         nya_ui_accordion_end(ui);
+ *     }
+ * }
+ * ```
+ * */
+NYA_API b8   nya_ui_accordion_begin(NYA_UI* ui, NYA_ConstCString label, u32 index, u32* open) __attr_no_discard;
+NYA_API void nya_ui_accordion_end(NYA_UI* ui);
+
+/**
+ * A small popover shown while the pointer rests over `trigger`, `text` in a floating frame just under it. `id` names
+ * the float and shares nothing else. It only draws — the float is declared in the draw pass alone, so it never
+ * claims the pointer it depends on and never blocks a click on what it hovers. Near the window's edge it is clamped
+ * to stay on screen, as every float is.
+ * */
+NYA_API void nya_ui_tooltip(NYA_UI* ui, NYA_ConstCString id, NYA_Rectf trigger, NYA_ConstCString text);
+
+/**
+ * A modal dialog: dims the window with the style's scrim, then opens a centred panel titled `title` on a z above
+ * every ordinary panel, so it reads as modal even though the module is not — the scrim takes the eye and the z keeps
+ * it in front. Escape closes it, writing false to `*open`, the one step-back cancel always means; the caller owns
+ * the flag and outlives the pass, exactly as a window's does, and adds its own buttons in the body.
+ *
+ * False, with nothing opened and no end to call, when `*open` is false or the container table is full.
+ *
+ * ```c
+ * static b8 confirm_open = false;
+ * if (nya_ui_button(ui, "delete")) confirm_open = true;
+ *
+ * if (nya_ui_dialog_begin(ui, "confirm", "Delete file?", &confirm_open)) {
+ *     nya_ui_label(ui, "This cannot be undone.");
+ *     if (nya_ui_button(ui, "delete")) { delete_file(); confirm_open = false; }
+ *     if (nya_ui_button(ui, "cancel")) confirm_open = false;
+ *     nya_ui_dialog_end(ui);
+ * }
+ * ```
+ * */
+NYA_API b8   nya_ui_dialog_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, b8* open) __attr_no_discard;
+NYA_API void nya_ui_dialog_end(NYA_UI* ui);
+
+/**
+ * Posts a transient notification carrying `text`, kept per window so it outlives the pass that raised it. At most
+ * NYA_UI_TOASTS_MAX stack up and the longest text is NYA_UI_TOAST_TEXT_MAX bytes; past either the oldest is dropped
+ * or the text is cut. Post it from update logic, the way a button's return is acted on — not from a draw pass, which
+ * would post it every frame. nya_ui_toasts draws and expires the stack.
+ * */
+NYA_API void nya_ui_toast(NYA_UI* ui, NYA_ConstCString text);
+
+/**
+ * Draws the window's toast stack at the top right of the safe area and drops the ones that have run their course,
+ * each fading over its last NYA_UI_TOAST_FADE_S. Call it once a frame, at the top level; a window that never posts a
+ * toast draws nothing. The stack floats over the rest of the UI, clamped to the window like every float.
+ * */
+NYA_API void nya_ui_toasts(NYA_UI* ui);
 
 /**
  * `label` and a swatch, a field of saturation across and value down with a hue bar beside it, an alpha bar under it,
