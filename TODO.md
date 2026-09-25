@@ -59,6 +59,7 @@ The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 - **Automatic `created_at`/`updated_at`** — `@created_at`/`@updated_at` ORM attributes that stamp a typed `NYA_Instant` on insert (both) and update (updated_at).
 - **First-class recurring/cron tasks** — `db_jobs` does durable delayed (`run_at`) jobs already; add a periodic/"every N" (or cron) scheduler layer over it (the template's key-rotation-on-a-schedule).
 - Analytics endpoints — app-level, not an engine gap (skip unless asked).
+- **`NYA_Error` → HTTP response + HTML error pages** — a `nya_http_response_error(exchange, NYA_Error)` mapping `error.kind` → status (NOT_FOUND→404, PERMISSION_DENIED→403, INVALID_ARGUMENT→422, TIMEOUT→504, …) so a handler returns the error directly, AND content-negotiation: a styled HTML error page (via `template`) when `Accept: text/html`, the `NYA_HttpProblem` JSON otherwise (today every error is JSON, even to a browser — `http_message.c:500`).
 
 **Observability (from the review):** ceiling/gauge registry has no locking + `nya_permissions_destroy` never unregisters its ceilings → **UAF via unauth `/metrics`** (H1/H2, small fix, high value); no RED metrics — latency measured in `http_log.c` then dropped, no `http_request_duration_seconds` histogram / `requests_total{route,method,status}` (H3); no OTLP request tracing (H4); verify `http_health` covers `/healthz`+`/readyz` (H5).
 
