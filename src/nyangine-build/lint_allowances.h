@@ -37,6 +37,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_skeleton_inertializer_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
     { "nya_supervisor_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
     { "nya_skeleton_player_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
+    { "nya_http_multipart_reader_init", "binds a plain-data reader to a byte range and holds nothing; the walk points into the caller's buffer, so there is nothing to deinit" },
     { "nya_string_remove", "drops a substring wherever it occurs; there is no key to have added it at" },
     { "nya_command_destroy", "made as a struct literal, then run; there is no create" },
     { "nya_gpu_buffer_create", "create/release, AGENTS.md's pair for a resource owned outside the arena; create/destroy and acquire/release each still want their own half by name" },

@@ -57,6 +57,8 @@
 // after http and accounts both: the login flow wired to HTTP. Not part of http's own umbrella, so plain
 // http still builds without accounts; included here where both are present, headless server included.
 #include "nyangine-core/http/http_accounts.c"
+// after http_accounts, whose caller check the ownership decision reads: uploads into the blob store and an auth-guarded download. Behind db's flag, whose blob store and ORM it uses.
+#include "nyangine-core/http/http_files.c"
 #endif
 // After the server modules whose types it describes: the builtins and the reflection tables for every
 // server-safe engine type (base, math, serde, net, http, and — behind NYA_MODULE_DB — db and accounts).

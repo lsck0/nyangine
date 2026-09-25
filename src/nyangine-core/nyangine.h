@@ -67,6 +67,9 @@
 // because it depends on both and http is the layer that may — accounts sits below it. Behind db's flag
 // like accounts, whose primitives it wires; a server built without the db module leaves it out.
 #include "nyangine-core/http/http_accounts.h"
+// After http_accounts, whose caller check it reads for the per-file ownership decision: uploads into the
+// blob store and an auth-guarded download. Behind db's flag like accounts, whose primitives it leans on.
+#include "nyangine-core/http/http_files.h"
 #endif
 #endif
 

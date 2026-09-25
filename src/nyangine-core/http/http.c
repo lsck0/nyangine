@@ -10,6 +10,8 @@
 // over crypto's Ed25519/SHA-256 and independent of the server: a signed statement an origin serves and a mirror checks — data a program builds, not a socket.
 #include "nyangine-core/http/http_attestation.c"
 #include "nyangine-core/http/http_message.c"
+// a pure parser over a body's bytes, like the message layer beside it and independent of the socket: multipart/form-data as a stream of parts.
+#include "nyangine-core/http/http_multipart.c"
 // beside http_auth.c and independent of it: it answers the second factor, where that answers the first.
 #include "nyangine-core/http/http_totp.c"
 /**/
