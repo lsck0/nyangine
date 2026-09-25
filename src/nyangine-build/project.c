@@ -81,6 +81,10 @@ typedef struct NYA_BuildProject {
     u32              source_count;
     NYA_ConstCString assets[NYA_BUILD_PROJECT_MAX_ROOTS];
     u32              asset_count;
+    NYA_ConstCString tests[NYA_BUILD_PROJECT_MAX_ROOTS];
+    u32              test_count;
+    NYA_ConstCString benches[NYA_BUILD_PROJECT_MAX_ROOTS];
+    u32              bench_count;
     NYA_BuildBinary  binaries[NYA_BUILD_PROJECT_MAX_BINARIES];
     u32              binary_count;
 } NYA_BuildProject;
@@ -139,6 +143,8 @@ NYA_INTERNAL NYA_Error nya_build_project_read(NYA_Arena* arena, NYA_ConstCString
     NYA_TRY(_nya_build_read_strings(manifest, "modules", out_project->modules, NYA_BUILD_PROJECT_MAX_MODULES, &out_project->module_count));
     NYA_TRY(_nya_build_read_strings(manifest, "sources", out_project->sources, NYA_BUILD_PROJECT_MAX_ROOTS, &out_project->source_count));
     NYA_TRY(_nya_build_read_strings(manifest, "assets", out_project->assets, NYA_BUILD_PROJECT_MAX_ROOTS, &out_project->asset_count));
+    NYA_TRY(_nya_build_read_strings(manifest, "tests", out_project->tests, NYA_BUILD_PROJECT_MAX_ROOTS, &out_project->test_count));
+    NYA_TRY(_nya_build_read_strings(manifest, "bench", out_project->benches, NYA_BUILD_PROJECT_MAX_ROOTS, &out_project->bench_count));
 
     NYA_Value* binaries = nya_object_get(manifest, "binaries");
     if (binaries != nullptr) {
@@ -197,6 +203,8 @@ void project_runner(NYA_ArgCommand* command) {
     for (u32 index = 0; index < project.module_count; index++) nya_log_info("  module:  %s", project.modules[index]);
     for (u32 index = 0; index < project.source_count; index++) nya_log_info("  source:  %s", project.sources[index]);
     for (u32 index = 0; index < project.asset_count; index++) nya_log_info("  assets:  %s", project.assets[index]);
+    for (u32 index = 0; index < project.test_count; index++) nya_log_info("  test:    %s", project.tests[index]);
+    for (u32 index = 0; index < project.bench_count; index++) nya_log_info("  bench:   %s", project.benches[index]);
 
     for (u32 index = 0; index < project.binary_count; index++) {
         NYA_BuildBinary* binary = &project.binaries[index];

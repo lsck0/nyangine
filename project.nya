@@ -17,6 +17,10 @@ nya 2 0
     sources: string[] ["src/gnyame"];
     // Asset roots the asset and reflection generators walk.
     assets: string[] ["assets"];
+    // Test roots the runner walks for `./build run test`.
+    tests: string[] ["tests"];
+    // Benchmark roots for `./build run bench`.
+    bench: string[] ["bench"];
     // The binaries this project ships. Each may name its own profile; without one it takes the project's.
     binaries: array[] [
         object {
