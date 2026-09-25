@@ -36,6 +36,12 @@ NYA_INTERNAL NYA_Error _nya_jobs_has_column(NYA_JobQueue* queue, NYA_ConstCStrin
 /** The next run_at for a recurring job: `run_at` advanced by whole `interval`s to the first moment after `now`. */
 NYA_INTERNAL s64 _nya_jobs_next_occurrence(s64 run_at, s64 interval, s64 now) __attr_no_discard;
 
+/** Reads a run of ASCII digits at `*cursor` into `out_value`, bounded so it cannot overflow; advances the cursor past them. */
+NYA_INTERNAL NYA_Error _nya_cron_parse_uint(NYA_ConstCString* cursor, OUT s32* out_value) __attr_no_discard;
+
+/** Parses one cron field (a `*`/number/range/step/comma-list, no whitespace) over [lo, hi] into a value bitmask. */
+NYA_INTERNAL NYA_Error _nya_cron_parse_field(NYA_ConstCString field, s32 lo, s32 hi, OUT u64* out_mask) __attr_no_discard;
+
 /** Reads a result row — the columns nya_job_claim and nya_job_get select — into `out_job`, copying into `out_arena`. */
 NYA_INTERNAL void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT NYA_QueuedJob* out_job);
 
@@ -95,7 +101,8 @@ NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, N
         "created INTEGER NOT NULL, "
         "updated INTEGER NOT NULL, "
         "last_error TEXT, "
-        "recur_interval INTEGER NOT NULL DEFAULT 0"
+        "recur_interval INTEGER NOT NULL DEFAULT 0, "
+        "cron TEXT"
         ")",
         queue->table
     );
@@ -106,6 +113,14 @@ NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, N
     NYA_TRY(_nya_jobs_has_column(queue, "recur_interval", &has_recur));
     if (!has_recur) {
         NYA_String* alter = nya_string_sprintf(scratch, "ALTER TABLE %s ADD COLUMN recur_interval INTEGER NOT NULL DEFAULT 0", queue->table);
+        NYA_TRY(nya_sql_exec(database, nya_string_to_cstring(scratch, alter)));
+    }
+
+    // The same upgrade path for the cron column, added after recur_interval: a nullable TEXT, null meaning no cron schedule.
+    b8 has_cron = false;
+    NYA_TRY(_nya_jobs_has_column(queue, "cron", &has_cron));
+    if (!has_cron) {
+        NYA_String* alter = nya_string_sprintf(scratch, "ALTER TABLE %s ADD COLUMN cron TEXT", queue->table);
         NYA_TRY(nya_sql_exec(database, nya_string_to_cstring(scratch, alter)));
     }
 
@@ -150,6 +165,21 @@ NYA_Error nya_job_enqueue_with_options(
     u32 max_attempts = options.max_attempts != 0 ? options.max_attempts : queue->default_max_attempts;
     s64 recur        = options.recur.ns > 0 ? options.recur.ns : 0;  // negative or zero: a one-shot job
 
+    // A cron schedule is the calendar-aware superset of recur: validate it now so a malformed spec fails the enqueue rather than a later completion, and let it settle the first run and out-rank a bare interval.
+    NYA_ConstCString cron = options.cron;  // null means no cron schedule
+    if (cron != nullptr) {
+        NYA_Cron parsed = { 0 };
+        NYA_TRY(nya_cron_parse(cron, &parsed));
+
+        // "At 02:30" means the next 02:30, not now, so a fresh cron job first fires at its next matching instant unless the caller pinned run_at.
+        if (options.run_at.ns == 0) {
+            NYA_Instant next = { 0 };
+            NYA_TRY(nya_cron_next(parsed, (NYA_Instant){ .ns = now }, &next));
+            run_at = next.ns;
+        }
+        recur = 0;  // cron and recur are mutually exclusive; cron wins.
+    }
+
     // A zero-length payload binds a non-null pointer so SQLite stores an empty blob rather than the forbidden NULL, which would come back null, not empty.
     const u8* data = payload != nullptr ? payload : (const u8*)"";
 
@@ -160,8 +190,8 @@ NYA_Error nya_job_enqueue_with_options(
         // No key: every call is a new row. RETURNING is not needed — an INSERT sets last_insert_id.
         NYA_String* sql = nya_string_sprintf(
             scratch,
-            "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error, recur_interval) "
-            "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, NULL, ?, ?, NULL, ?)",
+            "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error, recur_interval, cron) "
+            "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, NULL, ?, ?, NULL, ?, ?)",
             queue->table,
             NYA_JOB_STATE_PENDING
         );
@@ -169,7 +199,7 @@ NYA_Error nya_job_enqueue_with_options(
         NYA_SqlValue values[] = {
             nya_sql_text(kind),        nya_sql_blob(data, payload_size), nya_sql_s64((s64)max_attempts),
             nya_sql_s64(run_at),       nya_sql_s64(deadline),            nya_sql_s64(now),
-            nya_sql_s64(now),          nya_sql_s64(recur),
+            nya_sql_s64(now),          nya_sql_s64(recur),               cron != nullptr ? nya_sql_text(cron) : nya_sql_null(),
         };
         NYA_SqlResult result = { 0 };
         NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, sql), values, nya_carray_length(values), &result));
@@ -185,7 +215,7 @@ NYA_Error nya_job_enqueue_with_options(
             scratch,
             "DO UPDATE SET payload = excluded.payload, max_attempts = excluded.max_attempts, "
             "run_at = excluded.run_at, deadline = excluded.deadline, updated = excluded.updated, "
-            "recur_interval = excluded.recur_interval, attempts = 0, last_error = NULL WHERE %s.state = %d",
+            "recur_interval = excluded.recur_interval, cron = excluded.cron, attempts = 0, last_error = NULL WHERE %s.state = %d",
             queue->table,
             NYA_JOB_STATE_PENDING
         );
@@ -195,8 +225,8 @@ NYA_Error nya_job_enqueue_with_options(
 
     NYA_String* sql = nya_string_sprintf(
         scratch,
-        "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error, recur_interval) "
-        "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, ?, ?, ?, NULL, ?) "
+        "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error, recur_interval, cron) "
+        "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, ?, ?, ?, NULL, ?, ?) "
         "ON CONFLICT (unique_key) WHERE unique_key IS NOT NULL AND state IN (%d, %d) %.*s",
         queue->table,
         NYA_JOB_STATE_PENDING,
@@ -209,7 +239,7 @@ NYA_Error nya_job_enqueue_with_options(
     NYA_SqlValue values[] = {
         nya_sql_text(kind),  nya_sql_blob(data, payload_size), nya_sql_s64((s64)max_attempts), nya_sql_s64(run_at),
         nya_sql_s64(deadline), nya_sql_text(options.unique_key), nya_sql_s64(now),               nya_sql_s64(now),
-        nya_sql_s64(recur),
+        nya_sql_s64(recur),  cron != nullptr ? nya_sql_text(cron) : nya_sql_null(),
     };
     NYA_TRY(nya_sql_exec_bound(queue->database, nya_string_to_cstring(scratch, sql), values, nya_carray_length(values)));
 
@@ -258,7 +288,7 @@ NYA_Error nya_job_claim(NYA_JobQueue* queue, NYA_ConstCString worker_id, NYA_Are
         "AND (state = %d OR (state = %d AND lease_expiry <= ?)) "
         "ORDER BY run_at ASC, id ASC LIMIT 1"
         ") "
-        "RETURNING id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry, recur_interval",
+        "RETURNING id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry, recur_interval, cron",
         queue->table,
         NYA_JOB_STATE_CLAIMED,
         queue->table,
@@ -289,8 +319,8 @@ NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id) {
 
     s64 now = _nya_jobs_now();
 
-    // A recurring job reschedules rather than finishing, so its interval and last run_at decide the next fire; read them for the one claimed job, since a job not in flight is not one this call completes.
-    NYA_String* read_sql = nya_string_sprintf(scratch, "SELECT run_at, recur_interval FROM %s WHERE id = ? AND state = %d", queue->table, NYA_JOB_STATE_CLAIMED);
+    // A recurring or cron job reschedules rather than finishing, so its interval or cron spec and last run_at decide the next fire; read them for the one claimed job, since a job not in flight is not one this call completes.
+    NYA_String* read_sql = nya_string_sprintf(scratch, "SELECT run_at, recur_interval, cron FROM %s WHERE id = ? AND state = %d", queue->table, NYA_JOB_STATE_CLAIMED);
     NYA_SqlValue  key[]  = { nya_sql_s64(job_id) };
     NYA_SqlResult read   = { 0 };
     NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, read_sql), key, 1, &read));
@@ -298,12 +328,28 @@ NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id) {
     // No claimed row: a completion for one not in flight affects nothing and is reported as not found, so a real completion is told from a no-op.
     if (read.rows->length == 0) return nya_error(NYA_ERROR_NOT_FOUND, "no claimed job " FMTs64, job_id);
 
-    s64 run_at   = nya_object_get(read.rows->items[0], "run_at")->as_s64;
-    s64 interval = nya_object_get(read.rows->items[0], "recur_interval")->as_s64;
+    s64        run_at   = nya_object_get(read.rows->items[0], "run_at")->as_s64;
+    s64        interval = nya_object_get(read.rows->items[0], "recur_interval")->as_s64;
+    NYA_Value* cron_val = nya_object_get(read.rows->items[0], "cron");
+    NYA_ConstCString cron = (cron_val != nullptr && cron_val->type == NYA_TYPE_STRING) ? cron_val->as_string : nullptr;
 
-    if (interval > 0) {
-        // Recurring: back to pending at the next occurrence, attempts reset so the next fire gets its full retry budget, lease and error cleared. The row (and its unique key) stays exactly one.
-        s64         next_run = _nya_jobs_next_occurrence(run_at, interval, now);
+    // A cron schedule wins over a bare interval: its next matching instant, computed from now (not the last run_at), is where it reschedules. The spec was validated at enqueue, so a parse failure here means a hand-edited row — surfaced as an error, never a crash.
+    b8  reschedule = false;
+    s64 next_run   = 0;
+    if (cron != nullptr && cron[0] != '\0') {
+        NYA_Cron parsed = { 0 };
+        NYA_TRY(nya_cron_parse(cron, &parsed));
+        NYA_Instant next = { 0 };
+        NYA_TRY(nya_cron_next(parsed, (NYA_Instant){ .ns = now }, &next));
+        next_run   = next.ns;
+        reschedule = true;
+    } else if (interval > 0) {
+        next_run   = _nya_jobs_next_occurrence(run_at, interval, now);
+        reschedule = true;
+    }
+
+    if (reschedule) {
+        // Recurring or cron: back to pending at the next occurrence, attempts reset so the next fire gets its full retry budget, lease and error cleared. The row (and its unique key) stays exactly one.
         NYA_String* recur_sql = nya_string_sprintf(
             scratch, "UPDATE %s SET state = %d, worker = NULL, lease_expiry = 0, attempts = 0, run_at = ?, updated = ?, last_error = NULL WHERE id = ? AND state = %d",
             queue->table, NYA_JOB_STATE_PENDING, NYA_JOB_STATE_CLAIMED
@@ -386,7 +432,7 @@ NYA_Error nya_job_get(NYA_JobQueue* queue, s64 job_id, NYA_Arena* out_arena, OUT
     defer      nya_arena_destroy(scratch);
 
     NYA_String* sql = nya_string_sprintf(
-        scratch, "SELECT id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry, recur_interval FROM %s WHERE id = ?", queue->table
+        scratch, "SELECT id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry, recur_interval, cron FROM %s WHERE id = ?", queue->table
     );
 
     NYA_SqlValue  key[]  = { nya_sql_s64(job_id) };
@@ -574,6 +620,12 @@ void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT NYA_QueuedJob
     NYA_ConstCString kind = nya_object_get(row, "kind")->as_string;
     out_job->kind         = nya_string_to_cstring(out_arena, nya_string_sprintf(out_arena, "%s", kind != nullptr ? kind : ""));
 
+    // The cron spec is null for a job without one (a null column), so it is copied only when present and left null otherwise, mirroring the column.
+    NYA_Value* cron = nya_object_get(row, "cron");
+    out_job->cron    = (cron != nullptr && cron->type == NYA_TYPE_STRING && cron->as_string != nullptr)
+                         ? nya_string_to_cstring(out_arena, nya_string_sprintf(out_arena, "%s", cron->as_string))
+                         : nullptr;
+
     // The blob comes back base64 (see db_sql.c's row builder); decode into the caller's arena, a zero-length payload keeping a non-null pointer so it reads as empty, not missing.
     NYA_Value*  payload = nya_object_get(row, "payload");
     NYA_String* decoded = nya_string_create(out_arena);
@@ -606,4 +658,195 @@ NYA_Error _nya_jobs_reap(NYA_JobQueue* queue, s64 now, OUT u64* out_reaped) {
 
     if (out_reaped != nullptr) *out_reaped = result.rows_affected;
     return NYA_OK;
+}
+
+// ───────────────────────────────────── CRON IMPLEMENTATION ─────────────────────────────────────
+
+NYA_Error _nya_cron_parse_uint(NYA_ConstCString* cursor, OUT s32* out_value) {
+    nya_assert(cursor != nullptr);
+    nya_assert(out_value != nullptr);
+
+    const char* p = *cursor;
+    if (*p < '0' || *p > '9') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "expected a number in a cron field");
+
+    // Bounded so a long digit run cannot overflow; every real cron value is far under this, and the caller range-checks the result besides.
+    s64 value = 0;
+    while (*p >= '0' && *p <= '9') {
+        value = value * 10 + (*p - '0');
+        if (value > 100000) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron number is too large");
+        p++;
+    }
+
+    *cursor    = p;
+    *out_value = (s32)value;
+    return NYA_OK;
+}
+
+NYA_Error _nya_cron_parse_field(NYA_ConstCString field, s32 lo, s32 hi, OUT u64* out_mask) {
+    nya_assert(field != nullptr);
+    nya_assert(out_mask != nullptr);
+    nya_assert(lo >= 0 && hi <= 63 && lo <= hi, "a cron field range fits in the 64-bit mask");
+
+    u64         mask = 0;
+    const char* p    = field;
+    if (*p == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an empty cron field");
+
+    // Each comma-separated term is a `*`, a single value or a range, any of them optionally stepped.
+    for (;;) {
+        s32 start     = lo;
+        s32 end       = lo;
+        s32 step      = 1;
+        b8  was_star  = false;
+        b8  had_range = false;
+
+        if (*p == '*') {
+            was_star = true;
+            start    = lo;
+            end      = hi;
+            p++;
+        } else {
+            NYA_TRY(_nya_cron_parse_uint(&p, &start));
+            end = start;
+            if (*p == '-') {
+                had_range = true;
+                p++;
+                NYA_TRY(_nya_cron_parse_uint(&p, &end));
+            }
+        }
+
+        if (*p == '/') {
+            p++;
+            NYA_TRY(_nya_cron_parse_uint(&p, &step));
+            if (step < 1) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron step must be at least one");
+            // `n/step` — a lone value stepped, not a range and not `*` — reads as "from n to the top of the field", the common `5/15` form.
+            if (!was_star && !had_range) end = hi;
+        }
+
+        if (start < lo || end > hi || start > end) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron value %d-%d is outside [%d, %d] or reversed", start, end, lo, hi);
+
+        for (s32 v = start; v <= end; v += step) mask |= (1ULL << v);
+
+        if (*p == ',') {
+            p++;
+            if (*p == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron field ends in a comma");
+            continue;
+        }
+        if (*p == '\0') break;
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an unexpected '%c' in a cron field", *p);
+    }
+
+    *out_mask = mask;
+    return NYA_OK;
+}
+
+NYA_Error nya_cron_parse(NYA_ConstCString spec, OUT NYA_Cron* out_cron) {
+    nya_assert(out_cron != nullptr);
+
+    *out_cron = (NYA_Cron){ 0 };
+
+    if (spec == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a null cron spec");
+
+    u64 length = strlen(spec);
+    if (length == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an empty cron spec");
+    if (length >= NYA_CRON_MAX) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron spec over %d bytes", NYA_CRON_MAX);
+
+    // A local copy, split in place: the fields are digits and punctuation, never bound as data, so nothing leaves this buffer.
+    char buffer[NYA_CRON_MAX];
+    memcpy(buffer, spec, length + 1);
+
+    // Split on runs of spaces or tabs into exactly five fields; leading and trailing whitespace is tolerated.
+    NYA_ConstCString fields[5] = { 0 };
+    s32              count     = 0;
+    char*            p         = buffer;
+    while (*p == ' ' || *p == '\t') p++;
+    while (*p != '\0') {
+        if (count >= 5) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron spec has five fields, not more");
+        fields[count++] = p;
+        while (*p != '\0' && *p != ' ' && *p != '\t') p++;
+        if (*p != '\0') {
+            *p = '\0';
+            p++;
+            while (*p == ' ' || *p == '\t') p++;
+        }
+    }
+    if (count != 5) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a cron spec has five fields, got %d", count);
+
+    u64 minute = 0, hour = 0, day_of_month = 0, month = 0, day_of_week = 0;
+    NYA_TRY(_nya_cron_parse_field(fields[0], 0, 59, &minute));
+    NYA_TRY(_nya_cron_parse_field(fields[1], 0, 23, &hour));
+    NYA_TRY(_nya_cron_parse_field(fields[2], 1, 31, &day_of_month));
+    NYA_TRY(_nya_cron_parse_field(fields[3], 1, 12, &month));
+    NYA_TRY(_nya_cron_parse_field(fields[4], 0, 7, &day_of_week));
+
+    // Cron's two spellings of Sunday: fold 7 onto 0 so matching only ever reads bit 0.
+    if (day_of_week & (1ULL << 7)) day_of_week = (day_of_week | 1ULL) & ~(1ULL << 7);
+
+    *out_cron = (NYA_Cron){
+        .minute                  = minute,
+        .hour                    = (u32)hour,
+        .day_of_month            = (u32)day_of_month,
+        .month                   = (u16)month,
+        .day_of_week             = (u8)day_of_week,
+        .day_of_month_restricted = strcmp(fields[2], "*") != 0,
+        .day_of_week_restricted  = strcmp(fields[4], "*") != 0,
+    };
+    return NYA_OK;
+}
+
+NYA_Error nya_cron_next(NYA_Cron cron, NYA_Instant after, OUT NYA_Instant* out_next) {
+    nya_assert(out_next != nullptr);
+
+    *out_next = (NYA_Instant){ 0 };
+
+    // The first whole minute strictly after `after`: cron fires on minute boundaries, and "next" excludes the moment itself so completing exactly at a firing does not re-fire it.
+    s64 remainder = after.ns % NYA_NS_PER_MINUTE;
+    s64 candidate = after.ns - remainder + NYA_NS_PER_MINUTE;
+
+    NYA_Date      date = { 0 };
+    NYA_TimeOfDay tod  = { 0 };
+    nya_instant_to_utc((NYA_Instant){ .ns = candidate }, &date, &tod);
+
+    // Bounded search: eight years covers the widest real gap — a Feb-29 spec across a non-leap century year like 2100 — so a spec that can never match (February the 30th) falls out as NOT_FOUND rather than looping without end.
+    const s32 horizon_days = 366 * 8;
+    for (s32 day = 0; day < horizon_days; day++) {
+        b8 month_ok = (cron.month >> date.month) & 1u;
+        if (month_ok) {
+            b8          dom_ok   = (cron.day_of_month >> date.day) & 1u;
+            NYA_Weekday weekday  = nya_date_weekday(date);
+            u8          cron_dow = weekday == NYA_WEEKDAY_SUNDAY ? 0 : (u8)(weekday + 1);
+            b8          dow_ok   = (cron.day_of_week >> cron_dow) & 1u;
+
+            // The traditional Vixie rule: both day fields restricted means a day matches on EITHER; one restricted means only it decides; neither restricted means every day passes.
+            b8 day_ok;
+            if (cron.day_of_month_restricted && cron.day_of_week_restricted) day_ok = dom_ok || dow_ok;
+            else if (cron.day_of_month_restricted)                           day_ok = dom_ok;
+            else if (cron.day_of_week_restricted)                            day_ok = dow_ok;
+            else                                                             day_ok = true;
+
+            if (day_ok) {
+                // On the first day, start at the candidate's own time of day; on later days, at midnight.
+                u8 first_hour = day == 0 ? tod.hour : 0;
+                for (u32 h = first_hour; h < 24; h++) {
+                    if (!((cron.hour >> h) & 1u)) continue;
+                    u8 first_minute = (day == 0 && h == tod.hour) ? tod.minute : 0;
+                    for (u32 m = first_minute; m < 60; m++) {
+                        if (!((cron.minute >> m) & 1u)) continue;
+
+                        NYA_TimeOfDay match  = { .hour = (u8)h, .minute = (u8)m, .second = 0, .nanosecond = 0 };
+                        NYA_Instant   result = { 0 };
+                        if (!nya_instant_from_utc(date, match, &result)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the next cron firing is past the representable range");
+                        *out_next = result;
+                        return NYA_OK;
+                    }
+                }
+            }
+        }
+
+        // Nothing today: on to midnight tomorrow. The checked add stops at the calendar's edge rather than asserting.
+        NYA_Date tomorrow = { 0 };
+        if (!nya_date_add_days_checked(date, 1, &tomorrow)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the cron search ran past the representable range");
+        date = tomorrow;
+    }
+
+    return nya_error(NYA_ERROR_NOT_FOUND, "no cron firing within the search horizon");
 }

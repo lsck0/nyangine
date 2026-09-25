@@ -104,6 +104,35 @@
  * occurrences are the ordinary backoff — a recurring job is retryable within one firing and rescheduled
  * after a successful one. Pair `recur` with a `unique_key` so a restart or a duplicate enqueue can
  * never start the same schedule twice.
+ *
+ * ─────────────────────────────────────────────────────────
+ * CRON SCHEDULES
+ * ─────────────────────────────────────────────────────────
+ *
+ * A `cron` option is the calendar-aware superset of `recur`: instead of "every N", it fires at the
+ * clock times a five-field cron spec names — "every day at 02:30", "every quarter hour", "Monday
+ * mornings" — and reschedules to its next matching instant on completion, exactly the one-row,
+ * no-per-firing-growth path `recur` uses. It is the key-rotation-on-a-schedule case.
+ *
+ * The spec is the standard five whitespace-separated fields, in order: minute (0-59), hour (0-23),
+ * day-of-month (1-31), month (1-12), day-of-week (0-7, where both 0 and 7 are Sunday). Each field is a
+ * star (every value), a single number, a range `a-b`, a step `a-b/n` or `a/n` (from `a` to the field's
+ * top) or a star with a step (every nth value over the whole field), or a comma list of those, e.g.
+ * `0,30`, `9-17`, `0/15`. Names (`jan`, `mon`) are not accepted; numbers only. When day-of-month and
+ * day-of-week are BOTH restricted (neither is a bare star) a day
+ * matches when EITHER does — the traditional Vixie-cron rule, so `0 0 1,15 * 1` is the 1st, the 15th,
+ * AND every Monday. A malformed spec is rejected at enqueue with NYA_ERROR_INVALID_ARGUMENT; nothing
+ * panics.
+ *
+ * Everything is UTC. A cron time has no meaning without a zone, and this module's whole clock (see
+ * base_clock_instant.h — NYA_Instant is UTC nanoseconds) is zoneless UTC, so `30 2 * * *` fires at
+ * 02:30 UTC, not in the host's local time, and never skips or doubles a firing across a daylight-saving
+ * change. A caller wanting local wall-clock semantics converts its offset into the fields itself.
+ *
+ * Unlike a bare `recur`, a fresh cron job first fires at its next matching instant after enqueue, not
+ * immediately — "at 02:30" means the next 02:30, not now — unless the caller pins an explicit `run_at`.
+ * `cron` and `recur` are mutually exclusive; when both are set `cron` wins. Pair a cron schedule with a
+ * `unique_key`, like a recurring one, so a restart never forks the schedule.
  * */
 #pragma once
 
@@ -125,6 +154,9 @@
 /** The ceiling on retries a queue uses when the caller and the job both leave it unset: five attempts. */
 #define NYA_JOB_DEFAULT_MAX_ATTEMPTS 5
 
+/** Longest cron spec accepted, terminator included; five fields with comma lists fit well inside this. */
+#define NYA_CRON_MAX 256
+
 // ───────────────────────────────────── TYPES ─────────────────────────────────────
 
 typedef struct NYA_JobQueue        NYA_JobQueue;
@@ -132,7 +164,37 @@ typedef struct NYA_JobQueueOptions NYA_JobQueueOptions;
 typedef struct NYA_JobOptions      NYA_JobOptions;
 typedef struct NYA_QueuedJob       NYA_QueuedJob;
 typedef struct NYA_JobStats        NYA_JobStats;
+typedef struct NYA_Cron            NYA_Cron;
 typedef enum NYA_JobState          NYA_JobState;
+
+/**
+ * A parsed five-field cron schedule, evaluated in UTC. Each field is the set of values it allows, held
+ * as a bitmask so matching an instant is a handful of bit tests. Produced by nya_cron_parse and read by
+ * nya_cron_next; a caller does not build one by hand. See the CRON note in this file's block for the
+ * grammar, the UTC decision, and the day-of-month/day-of-week rule.
+ * */
+struct NYA_Cron {
+    /** Bit i set means minute i (0-59) is allowed. */
+    u64 minute;
+
+    /** Bit i set means hour i (0-23) is allowed. */
+    u32 hour;
+
+    /** Bit i set means day-of-month i (1-31) is allowed; bit 0 is unused. */
+    u32 day_of_month;
+
+    /** Bit i set means month i (1-12) is allowed; bit 0 is unused. */
+    u16 month;
+
+    /** Bit i set means weekday i (0 = Sunday .. 6 = Saturday) is allowed; the `7 = Sunday` spelling is folded onto 0. */
+    u8 day_of_week;
+
+    /** Whether the day-of-month field was given as anything other than `*`; drives the OR rule below. */
+    b8 day_of_month_restricted;
+
+    /** Whether the day-of-week field was given as anything other than `*`. When both are restricted a day matches on EITHER. */
+    b8 day_of_week_restricted;
+};
 
 /**
  * Where a job is in its life. Stored as the integer it is, so the same values a query filters on are
@@ -234,6 +296,15 @@ struct NYA_JobOptions {
      * default) or negative is a one-shot job. See the recurring note in this file's block.
      * */
     NYA_Duration recur;
+
+    /**
+     * A five-field cron spec (UTC) that makes the job reschedule to its next matching instant on every
+     * completion — the calendar-aware superset of `recur`. Null (the default) is no cron schedule. A
+     * malformed spec fails the enqueue with NYA_ERROR_INVALID_ARGUMENT. When set it wins over `recur`,
+     * and the first firing is the next matching instant rather than now unless `run_at` is pinned. See
+     * the cron note in this file's block.
+     * */
+    NYA_ConstCString cron;
 };
 
 /**
@@ -270,6 +341,9 @@ struct NYA_QueuedJob {
 
     /** The recurrence interval, or a zero span when the job is one-shot. See the recurring note. */
     NYA_Duration recur;
+
+    /** The job's cron spec (UTC), or null when it has none; copied into the claim's arena. See the cron note. */
+    NYA_ConstCString cron;
 };
 
 /** The count of jobs in each state, as nya_jobs_stats fills it in one query. */
@@ -380,3 +454,27 @@ NYA_API NYA_Error nya_jobs_stats(NYA_JobQueue* queue, OUT NYA_JobStats* out_stat
  * for work; a caller wanting the sweep without a claim (a maintenance tick) calls it directly.
  * */
 NYA_API NYA_Error nya_jobs_reap_expired(NYA_JobQueue* queue, OUT u64* out_reaped) __attr_no_discard;
+
+// ───────────────────────────────────── CRON ─────────────────────────────────────
+
+/**
+ * Parses a standard five-field cron spec (UTC) into `out_cron`. Refuses a malformed one with
+ * NYA_ERROR_INVALID_ARGUMENT and never panics: a wrong field count, a non-number, an out-of-range or
+ * reversed value, a zero step, a trailing comma and a spec longer than NYA_CRON_MAX are all errors, not
+ * crashes. See the cron note in this file's block for the grammar this accepts.
+ *
+ * ```c
+ * NYA_Cron cron = { 0 };
+ * NYA_TRY(nya_cron_parse("30 2 * * *", &cron));      // every day at 02:30 UTC
+ * NYA_TRY(nya_cron_parse("0/15 * * * 1-5", &cron)); // every 15 minutes, Monday through Friday
+ * ```
+ * */
+NYA_API NYA_Error nya_cron_parse(NYA_ConstCString spec, OUT NYA_Cron* out_cron) __attr_no_discard;
+
+/**
+ * The first instant a `cron` schedule matches strictly after `after`, written to `out_next`. UTC, to the
+ * minute (seconds and below are zero). The search is bounded: a spec that can never match (`0 0 30 2 *`,
+ * February the 30th) is not chased forever but reported as NYA_ERROR_NOT_FOUND once a multi-year horizon
+ * is crossed, and a match beyond what NYA_Instant can hold is NYA_ERROR_INVALID_ARGUMENT.
+ * */
+NYA_API NYA_Error nya_cron_next(NYA_Cron cron, NYA_Instant after, OUT NYA_Instant* out_next) __attr_no_discard;

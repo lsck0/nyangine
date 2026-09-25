@@ -25,6 +25,16 @@ static NYA_Instant at(s64 ns) {
   return (NYA_Instant){ .ns = ns };
 }
 
+/** A UTC instant from calendar parts, for the cron tests, which reason in wall-clock time. Asserts it is representable. */
+static NYA_Instant utc(s32 year, u8 month, u8 day, u8 hour, u8 minute, u8 second) {
+  NYA_Instant instant = { 0 };
+  b8          ok      = nya_instant_from_utc(
+    (NYA_Date){ .year = year, .month = month, .day = day }, (NYA_TimeOfDay){ .hour = hour, .minute = minute, .second = second, .nanosecond = 0 }, &instant
+  );
+  nya_assert(ok, "the test date is within the representable range");
+  return instant;
+}
+
 /** Removes a database file and the WAL/SHM sidecars a connection may leave beside it. */
 static void remove_database(NYA_ConstCString path) {
   (void)remove(path);
@@ -570,6 +580,133 @@ s32 main(void) {
     b8            revived_flag = true;
     NYA_EXPECT(nya_job_claim(queue, "w", arena, &revived, &revived_flag));
     nya_assert(!revived_flag, "the dead recurring job is never handed out again");
+  }
+
+  // TEST: cron specs parse, and malformed ones are refused rather than crashing
+  {
+    NYA_Cron cron = { 0 };
+
+    // Every shape the grammar accepts: star, single, range, step, list, and the 7 = Sunday spelling.
+    NYA_EXPECT(nya_cron_parse("* * * * *", &cron));
+    NYA_EXPECT(nya_cron_parse("30 2 * * *", &cron));
+    NYA_EXPECT(nya_cron_parse("*/15 9-17 * * 1-5", &cron));
+    NYA_EXPECT(nya_cron_parse("0,15,30,45 * 1,15 1,6,12 *", &cron));
+    NYA_EXPECT(nya_cron_parse("5/15 * * * *", &cron));  // n/step: 5, 20, 35, 50
+    nya_assert((cron.minute & (1ULL << 5)) && (cron.minute & (1ULL << 20)) && (cron.minute & (1ULL << 50)), "n/step spans from n to the field's top");
+    NYA_EXPECT(nya_cron_parse("  0   0 * * *  ", &cron));  // surrounding and repeated whitespace is tolerated
+
+    NYA_EXPECT(nya_cron_parse("0 0 * * 7", &cron));
+    nya_assert((cron.day_of_week & 1ULL) && !(cron.day_of_week & (1ULL << 7)), "day-of-week 7 folds onto Sunday = 0");
+
+    // Malformed specs: each is an error, none panics.
+    nya_assert(nya_cron_parse("* * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "four fields is too few");
+    nya_assert(nya_cron_parse("* * * * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "six fields is too many");
+    nya_assert(nya_cron_parse("60 * * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "minute 60 is out of range");
+    nya_assert(nya_cron_parse("* 24 * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "hour 24 is out of range");
+    nya_assert(nya_cron_parse("* * 0 * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "day-of-month 0 is out of range");
+    nya_assert(nya_cron_parse("* * * 13 *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "month 13 is out of range");
+    nya_assert(nya_cron_parse("* * * * 8", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "day-of-week 8 is out of range");
+    nya_assert(nya_cron_parse("5-1 * * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "a reversed range is rejected");
+    nya_assert(nya_cron_parse("*/0 * * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "a zero step is rejected");
+    nya_assert(nya_cron_parse("x * * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "a non-number is rejected");
+    nya_assert(nya_cron_parse("1, * * * *", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "a trailing comma is rejected");
+    nya_assert(nya_cron_parse("", &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "an empty spec is rejected");
+    nya_assert(nya_cron_parse(nullptr, &cron).kind == NYA_ERROR_INVALID_ARGUMENT, "a null spec is rejected");
+  }
+
+  // TEST: next-fire computation for representative specs, all UTC
+  {
+    NYA_Cron every_minute = { 0 };
+    NYA_Cron hourly       = { 0 };
+    NYA_Cron daily        = { 0 };
+    NYA_Cron quarter      = { 0 };
+    NYA_Cron weekday      = { 0 };
+    NYA_EXPECT(nya_cron_parse("* * * * *", &every_minute));
+    NYA_EXPECT(nya_cron_parse("0 * * * *", &hourly));
+    NYA_EXPECT(nya_cron_parse("30 2 * * *", &daily));
+    NYA_EXPECT(nya_cron_parse("*/15 * * * *", &quarter));
+    NYA_EXPECT(nya_cron_parse("0 9 * * 1-5", &weekday));
+
+    NYA_Instant next = { 0 };
+
+    NYA_EXPECT(nya_cron_next(every_minute, utc(2024, 3, 10, 8, 15, 30), &next));
+    nya_assert(next.ns == utc(2024, 3, 10, 8, 16, 0).ns, "every-minute rounds up to the next whole minute");
+
+    NYA_EXPECT(nya_cron_next(hourly, utc(2024, 3, 10, 8, 15, 0), &next));
+    nya_assert(next.ns == utc(2024, 3, 10, 9, 0, 0).ns, "hourly fires at the top of the next hour");
+
+    NYA_EXPECT(nya_cron_next(daily, utc(2024, 3, 10, 8, 15, 0), &next));
+    nya_assert(next.ns == utc(2024, 3, 11, 2, 30, 0).ns, "a daily 02:30 job after 08:15 is tomorrow at 02:30");
+
+    NYA_EXPECT(nya_cron_next(daily, utc(2024, 3, 10, 1, 0, 0), &next));
+    nya_assert(next.ns == utc(2024, 3, 10, 2, 30, 0).ns, "a daily 02:30 job seen before 02:30 fires today");
+
+    NYA_EXPECT(nya_cron_next(quarter, utc(2024, 3, 10, 8, 15, 0), &next));
+    nya_assert(next.ns == utc(2024, 3, 10, 8, 30, 0).ns, "*/15 seen exactly at :15 fires at :30, strictly after");
+
+    NYA_EXPECT(nya_cron_next(quarter, utc(2024, 3, 10, 8, 47, 0), &next));
+    nya_assert(next.ns == utc(2024, 3, 10, 9, 0, 0).ns, "*/15 after :47 rolls into the next hour at :00");
+
+    // 2024-03-08 is a Friday; the next weekday-09:00 firing skips the weekend to Monday the 11th.
+    NYA_EXPECT(nya_cron_next(weekday, utc(2024, 3, 8, 10, 0, 0), &next));
+    nya_assert(next.ns == utc(2024, 3, 11, 9, 0, 0).ns, "a weekday 09:00 job on Friday afternoon next fires Monday");
+
+    // A spec that can never match is bounded, not an infinite loop.
+    NYA_Cron never = { 0 };
+    NYA_EXPECT(nya_cron_parse("0 0 30 2 *", &never));  // February the 30th
+    NYA_Instant sink = { 0 };
+    nya_assert(nya_cron_next(never, utc(2024, 1, 1, 0, 0, 0), &sink).kind == NYA_ERROR_NOT_FOUND, "an impossible date is reported after the horizon, never looped forever");
+  }
+
+  // TEST: a cron job first fires at its next matching instant and reschedules to the following one on completion
+  {
+    g_now_ns = utc(2024, 3, 10, 8, 15, 0).ns;
+
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
+    defer nya_sql_close(db);
+
+    NYA_JobQueue* queue = nullptr;
+    NYA_EXPECT(nya_jobs_open(arena, db, &queue));
+    defer nya_jobs_close(queue);
+
+    // Rotate a key every day at 02:30 UTC, keyed so a duplicate enqueue never forks the schedule.
+    s64 id = 0;
+    NYA_EXPECT(nya_job_enqueue(queue, "rotate", (const u8*)"", 0, &id, .cron = "30 2 * * *", .unique_key = "rot"));
+
+    // The first firing is the next 02:30 after now (08:15 on the 10th), i.e. the 11th, not now.
+    NYA_QueuedJob first = { 0 };
+    NYA_EXPECT(nya_job_get(queue, id, arena, &first));
+    nya_assert(first.run_at.ns == utc(2024, 3, 11, 2, 30, 0).ns, "a fresh cron job first fires at its next matching instant, not immediately");
+    nya_assert(first.cron != nullptr && nya_string_equals(first.cron, "30 2 * * *"), "the stored cron spec round-trips");
+
+    // Not claimable before its first instant.
+    NYA_QueuedJob early         = { 0 };
+    b8            early_claimed = true;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &early, &early_claimed));
+    nya_assert(!early_claimed, "a cron job is not claimable before its next matching instant");
+
+    // At the instant: claim carries the spec, completion reschedules rather than finishing.
+    g_now_ns = first.run_at.ns;
+    NYA_QueuedJob job     = { 0 };
+    b8            claimed = false;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &job, &claimed));
+    nya_assert(claimed && job.id == id, "the cron job is claimed at its matching instant");
+    nya_assert(job.cron != nullptr && nya_string_equals(job.cron, "30 2 * * *"), "the claim carries the cron spec");
+    NYA_EXPECT(nya_job_complete(queue, id));
+
+    // One row, pending again, advanced to the next day's 02:30.
+    NYA_JobStats stats = { 0 };
+    NYA_EXPECT(nya_jobs_stats(queue, &stats));
+    nya_assert(stats.pending == 1 && stats.done == 0 && stats.total == 1, "a completed cron job is pending again, one row, not a done tombstone");
+
+    NYA_QueuedJob next = { 0 };
+    NYA_EXPECT(nya_job_get(queue, id, arena, &next));
+    nya_assert(next.run_at.ns == utc(2024, 3, 12, 2, 30, 0).ns, "a completed cron job advances to its next matching instant");
+    nya_assert(next.attempts == 0, "the reschedule resets the attempt count for the next firing");
+
+    // Restore the module clock for anything that runs after this block.
+    g_now_ns = 1700000000LL * NYA_NS_PER_SECOND;
   }
 
   printf("PASSED: test_db_jobs\n");
