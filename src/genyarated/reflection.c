@@ -28,6 +28,25 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigRobots = {
     .field_count = 5,
 };
 
+/* GNY_ConfigCamera, src/gnyame/config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigCamera_FIELDS[] = {
+    { .name = "follow_easing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigCamera, follow_easing), .hint = NYA_HINT_NONE },
+    { .name = "pan_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigCamera, pan_speed), .hint = NYA_HINT_NONE },
+    { .name = "zoom_step", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigCamera, zoom_step), .hint = NYA_HINT_NONE },
+    { .name = "zoom_min", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigCamera, zoom_min), .hint = NYA_HINT_NONE },
+    { .name = "zoom_max", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigCamera, zoom_max), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigCamera = {
+    .name = "GNY_ConfigCamera",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(GNY_ConfigCamera),
+    .alignment = alignof(GNY_ConfigCamera),
+    .fields = _NYA_REFLECT_GNY_ConfigCamera_FIELDS,
+    .field_count = 5,
+};
+
 /* GNY_ConfigGame, src/gnyame/config.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame_menu_sheet_ARRAY = {
@@ -42,6 +61,7 @@ static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigGame_FIELDS[] = {
     { .name = "player_spawn_spacing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_spawn_spacing), .hint = NYA_HINT_NONE },
     { .name = "animation_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, animation_speed), .hint = NYA_HINT_NONE },
     { .name = "menu_sheet", .type = &_NYA_REFLECT_GNY_ConfigGame_menu_sheet_ARRAY, .offset = nya_offsetof(GNY_ConfigGame, menu_sheet), .hint = NYA_HINT_NONE },
+    { .name = "camera", .type = &_NYA_REFLECT_GNY_ConfigCamera, .offset = nya_offsetof(GNY_ConfigGame, camera), .hint = NYA_HINT_NONE },
     { .name = "robots", .type = &_NYA_REFLECT_GNY_ConfigRobots, .offset = nya_offsetof(GNY_ConfigGame, robots), .hint = NYA_HINT_NONE },
 };
 
@@ -51,7 +71,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
     .size = sizeof(GNY_ConfigGame),
     .alignment = alignof(GNY_ConfigGame),
     .fields = _NYA_REFLECT_GNY_ConfigGame_FIELDS,
-    .field_count = 5,
+    .field_count = 6,
 };
 
 /* GNY_Config, src/gnyame/config.h */
@@ -246,6 +266,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_UIStateSkins,
     &_NYA_REFLECT_NYA_UIStyle,
     &_NYA_REFLECT_GNY_ConfigRobots,
+    &_NYA_REFLECT_GNY_ConfigCamera,
     &_NYA_REFLECT_GNY_ConfigGame,
     &_NYA_REFLECT_GNY_Config,
     &_NYA_REFLECT_GNY_EntityKind,

@@ -218,6 +218,18 @@ nya 2 0
         player_spawn_spacing: f32 64.0;
         // See GNY_ANIMATION_SPEED.
         animation_speed: f32 1.0;
+        // The 2D scene's camera feel. A zero field takes its constants.h default.
+        camera: object {
+            // See GNY_CAMERA_FOLLOW_EASING.
+            follow_easing: f32 0.12;
+            // See GNY_CAMERA_PAN_SPEED.
+            pan_speed: f32 420.0;
+            // See GNY_CAMERA_ZOOM_STEP.
+            zoom_step: f32 1.12;
+            // See GNY_CAMERA_ZOOM_MIN and GNY_CAMERA_ZOOM_MAX.
+            zoom_min: f32 0.25;
+            zoom_max: f32 4.0;
+        };
         // The learning drones in the 2D scene. See src/gnyame/robots.h.
         robots: object {
             enabled: b8 true;

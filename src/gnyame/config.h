@@ -35,6 +35,7 @@
  */
 
 typedef struct GNY_ConfigRobots GNY_ConfigRobots;
+typedef struct GNY_ConfigCamera GNY_ConfigCamera;
 typedef struct GNY_ConfigGame   GNY_ConfigGame;
 typedef struct GNY_Config       GNY_Config;
 
@@ -60,6 +61,26 @@ struct GNY_ConfigRobots {
 };
 
 /**
+ * The 2D scene's camera feel. Mirrors constants.h's own GNY_CAMERA_* defaults, which is what a field
+ * left out of the config file still behaves as.
+ * */
+// @reflect
+struct GNY_ConfigCamera {
+    /** Fraction of the gap to a followed crate closed per tick. Zero falls back to GNY_CAMERA_FOLLOW_EASING. */
+    f32 follow_easing;
+
+    /** World units per second the direction keys pan the view, before the zoom divide. Zero falls back to GNY_CAMERA_PAN_SPEED. */
+    f32 pan_speed;
+
+    /** Zoom multiplier one wheel notch applies. Zero falls back to GNY_CAMERA_ZOOM_STEP. */
+    f32 zoom_step;
+
+    /** Closest and furthest the view may zoom. Zero falls back to GNY_CAMERA_ZOOM_MIN and GNY_CAMERA_ZOOM_MAX. */
+    f32 zoom_min;
+    f32 zoom_max;
+};
+
+/**
  * Gameplay tunables worth reaching without a rebuild. Mirrors constants.h's own GNY_PLAYER_* defaults,
  * which is what a field left out of the config file still behaves as.
  * */
@@ -77,6 +98,7 @@ struct GNY_ConfigGame {
     /** The texture the pause menu's skins are cut from, by the regions in `engine.ui`. Empty draws the menu flat. */
     char menu_sheet[NYA_UI_SKIN_TEXTURE_MAX];
 
+    GNY_ConfigCamera camera;
     GNY_ConfigRobots robots;
 };
 

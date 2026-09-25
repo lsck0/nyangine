@@ -58,7 +58,8 @@ void gny_system_player_input_update(f32 delta_time_s) {
 
         if (is_camera) {
             f32 zoom = entity->scale.x > 0.0F ? entity->scale.x : 1.0F;
-            speed    = GNY_CAMERA_PAN_SPEED / zoom;
+            f32 pan  = NYA_CONFIG.game.camera.pan_speed > 0.0F ? NYA_CONFIG.game.camera.pan_speed : GNY_CAMERA_PAN_SPEED;
+            speed    = pan / zoom;
         }
 
         f32x2 step = direction * (speed * delta_time_s);
@@ -88,8 +89,10 @@ void gny_system_camera_follow_update(f32 delta_time_s) {
         /*
          * Exponential easing toward the target rather than a constant chase speed.
          */
-        camera->position.x += (target->position.x - camera->position.x) * GNY_CAMERA_FOLLOW_EASING;
-        camera->position.y += (target->position.y - camera->position.y) * GNY_CAMERA_FOLLOW_EASING;
+        f32 easing = NYA_CONFIG.game.camera.follow_easing > 0.0F ? NYA_CONFIG.game.camera.follow_easing : GNY_CAMERA_FOLLOW_EASING;
+
+        camera->position.x += (target->position.x - camera->position.x) * easing;
+        camera->position.y += (target->position.y - camera->position.y) * easing;
     }
 }
 

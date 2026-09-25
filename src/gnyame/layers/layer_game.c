@@ -175,7 +175,8 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
         case NYA_EVENT_MOUSE_WHEEL_MOVED: {
             NYA_MouseWheelEvent* wheel = &event->as_mouse_wheel_event;
 
-            f32 factor = wheel->amount_y > 0.0F ? GNY_CAMERA_ZOOM_STEP : (1.0F / GNY_CAMERA_ZOOM_STEP);
+            f32 step   = NYA_CONFIG.game.camera.zoom_step > 0.0F ? NYA_CONFIG.game.camera.zoom_step : GNY_CAMERA_ZOOM_STEP;
+            f32 factor = wheel->amount_y > 0.0F ? step : (1.0F / step);
 
             // the wheel is an event, not a held key, so the layer forwards it instead of the camera polling it.
             gny_entity_camera_zoom_by(factor);

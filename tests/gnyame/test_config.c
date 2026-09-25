@@ -10,12 +10,15 @@
 /** Its own file under assets/config, removed at the end. */
 #define FIXTURE_PATH "./assets/config/__test_gnyame_config.nya"
 
-/** Only the spawn spacing, so player_speed is a field the file left out. */
+/** The spawn spacing and one camera field, so player_speed and the rest of camera are fields the file left out. */
 #define FIXTURE                                                                                                                                    \
     "nya 2 0\n"                                                                                                                                    \
     "{\n"                                                                                                                                          \
     "    game: object {\n"                                                                                                                         \
     "        player_spawn_spacing: f32 10.0;\n"                                                                                                    \
+    "        camera: object {\n"                                                                                                                   \
+    "            zoom_max: f32 8.0;\n"                                                                                                             \
+    "        };\n"                                                                                                                                 \
     "    };\n"                                                                                                                                         \
     "}\n"
 
@@ -64,6 +67,8 @@ s32 main(void) {
         nya_check(loaded.ok, "the fixture should load: %s", (NYA_ConstCString)loaded.message);
         nya_check(NYA_CONFIG.game.player_speed == 0.0F, "the omitted speed stays zero, got %f", (f64)NYA_CONFIG.game.player_speed);
         nya_check(NYA_CONFIG.game.player_spawn_spacing == 10.0F, "the spacing is read, got %f", (f64)NYA_CONFIG.game.player_spawn_spacing);
+        nya_check(NYA_CONFIG.game.camera.zoom_max == 8.0F, "the camera zoom_max is read, got %f", (f64)NYA_CONFIG.game.camera.zoom_max);
+        nya_check(NYA_CONFIG.game.camera.zoom_min == 0.0F, "an omitted camera field stays zero, got %f", (f64)NYA_CONFIG.game.camera.zoom_min);
     }
 
     // Zero speed falls back to GNY_PLAYER_SPEED; a set speed is used; a negative one falls back too.

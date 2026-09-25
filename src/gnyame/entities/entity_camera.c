@@ -119,7 +119,10 @@ void gny_entity_camera_zoom_by(f32 factor) {
     NYA_Entity* entity = nya_entity_get(gny_entity_camera_primary());
     if (entity == nullptr) return;
 
-    f32 zoom = nya_clamp(entity->scale.x * factor, GNY_CAMERA_ZOOM_MIN, GNY_CAMERA_ZOOM_MAX);
+    f32 zoom_min = NYA_CONFIG.game.camera.zoom_min > 0.0F ? NYA_CONFIG.game.camera.zoom_min : GNY_CAMERA_ZOOM_MIN;
+    f32 zoom_max = NYA_CONFIG.game.camera.zoom_max > 0.0F ? NYA_CONFIG.game.camera.zoom_max : GNY_CAMERA_ZOOM_MAX;
+
+    f32 zoom = nya_clamp(entity->scale.x * factor, zoom_min, zoom_max);
 
     // Both axes, so nothing that reads scale.y disagrees with what the camera is actually doing.
     entity->scale.x = zoom;
