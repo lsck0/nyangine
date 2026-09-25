@@ -131,11 +131,23 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample_api_token_AR
     .element = &_NYA_REFLECT_char, .element_count = (64),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_SerdeSecretExample_password_ATTRIBUTES[] = {
+    { .name = "secret" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_SerdeSecretExample_pin_ATTRIBUTES[] = {
+    { .name = "secret" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_SerdeSecretExample_api_token_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_SerdeSecretExample_FIELDS[] = {
     { .name = "label", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_label_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, label), .hint = NYA_HINT_NONE },
-    { .name = "password", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_password_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, password), .hint = NYA_HINT_NONE, .is_secret = true },
-    { .name = "pin", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SerdeSecretExample, pin), .hint = NYA_HINT_NONE, .is_secret = true },
-    { .name = "api_token", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_api_token_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, api_token), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "password", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_password_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, password), .hint = NYA_HINT_NONE, .is_secret = true, .attributes = _NYA_REFLECT_NYA_SerdeSecretExample_password_ATTRIBUTES, .attribute_count = 1 },
+    { .name = "pin", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SerdeSecretExample, pin), .hint = NYA_HINT_NONE, .is_secret = true, .attributes = _NYA_REFLECT_NYA_SerdeSecretExample_pin_ATTRIBUTES, .attribute_count = 1 },
+    { .name = "api_token", .type = &_NYA_REFLECT_NYA_SerdeSecretExample_api_token_ARRAY, .offset = nya_offsetof(NYA_SerdeSecretExample, api_token), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_SerdeSecretExample_api_token_ATTRIBUTES, .attribute_count = 1 },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample = {
@@ -180,9 +192,13 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpIdentity_subject_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_MAX_SUBJECT),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_HttpIdentity_scope_ATTRIBUTES[] = {
+    { .name = "flags", .args = "NYA_HttpScope" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpIdentity_FIELDS[] = {
     { .name = "subject", .type = &_NYA_REFLECT_NYA_HttpIdentity_subject_ARRAY, .offset = nya_offsetof(NYA_HttpIdentity, subject), .hint = NYA_HINT_NONE },
-    { .name = "scope", .type = &_NYA_REFLECT_NYA_HttpScope, .offset = nya_offsetof(NYA_HttpIdentity, scope), .hint = NYA_HINT_BITFLAGS },
+    { .name = "scope", .type = &_NYA_REFLECT_NYA_HttpScope, .offset = nya_offsetof(NYA_HttpIdentity, scope), .hint = NYA_HINT_BITFLAGS, .attributes = _NYA_REFLECT_NYA_HttpIdentity_scope_ATTRIBUTES, .attribute_count = 1 },
     { .name = "issued_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpIdentity, issued_at_s), .hint = NYA_HINT_NONE },
     { .name = "expires_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpIdentity, expires_at_s), .hint = NYA_HINT_NONE },
 };
@@ -321,6 +337,10 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpLogConfig_deny_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_LOG_MAX_DENY_BYTES),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_HttpLogConfig_ATTRIBUTES[] = {
+    { .name = "on_apply", .args = "_nya_http_log_config_apply" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpLogConfig_FIELDS[] = {
     { .name = "level", .type = &_NYA_REFLECT_NYA_HttpLogLevel, .offset = nya_offsetof(NYA_HttpLogConfig, level), .hint = NYA_HINT_NONE },
     { .name = "address", .type = &_NYA_REFLECT_NYA_HttpLogAddress, .offset = nya_offsetof(NYA_HttpLogConfig, address), .hint = NYA_HINT_NONE },
@@ -335,6 +355,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpLogConfig = {
     .fields = _NYA_REFLECT_NYA_HttpLogConfig_FIELDS,
     .field_count = 3,
     .on_apply = _nya_http_log_config_apply,
+    .attributes = _NYA_REFLECT_NYA_HttpLogConfig_ATTRIBUTES, .attribute_count = 1,
 };
 
 /* NYA_HttpProblem, src/nyangine-core/http/http_router.h */
@@ -377,8 +398,12 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpSubmission_code_ARRAY =
     .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_HttpTotpSubmission_code_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpTotpSubmission_FIELDS[] = {
-    { .name = "code", .type = &_NYA_REFLECT_NYA_HttpTotpSubmission_code_ARRAY, .offset = nya_offsetof(NYA_HttpTotpSubmission, code), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "code", .type = &_NYA_REFLECT_NYA_HttpTotpSubmission_code_ARRAY, .offset = nya_offsetof(NYA_HttpTotpSubmission, code), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_HttpTotpSubmission_code_ATTRIBUTES, .attribute_count = 1 },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpSubmission = {
@@ -399,8 +424,12 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ARRAY 
     .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpTotpRecoveryDto_FIELDS[] = {
-    { .name = "code", .type = &_NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ARRAY, .offset = nya_offsetof(NYA_HttpTotpRecoveryDto, code), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "code", .type = &_NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ARRAY, .offset = nya_offsetof(NYA_HttpTotpRecoveryDto, code), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_HttpTotpRecoveryDto_code_ATTRIBUTES, .attribute_count = 1 },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpRecoveryDto = {
@@ -435,9 +464,17 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_recovery_A
     .element = &_NYA_REFLECT_NYA_HttpTotpRecoveryDto, .element_count = (NYA_HTTP_TOTP_RECOVERY_CODES),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_uri_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_secret_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_FIELDS[] = {
-    { .name = "uri", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_uri_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, uri), .hint = NYA_HINT_NONE, .is_redacted = true },
-    { .name = "secret", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_secret_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, secret), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "uri", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_uri_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, uri), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_uri_ATTRIBUTES, .attribute_count = 1 },
+    { .name = "secret", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_secret_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, secret), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_HttpTotpEnrolmentDto_secret_ATTRIBUTES, .attribute_count = 1 },
     { .name = "recovery", .type = &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto_recovery_ARRAY, .offset = nya_offsetof(NYA_HttpTotpEnrolmentDto, recovery), .hint = NYA_HINT_NONE },
 };
 
@@ -638,8 +675,12 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountAudit_reason_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_AUDIT_REASON_MAX),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountAudit_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountAudit_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountAudit_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, at_s), .hint = NYA_HINT_NONE },
     { .name = "actor_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, actor_id), .hint = NYA_HINT_NONE },
     { .name = "subject_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, subject_id), .hint = NYA_HINT_NONE },
@@ -679,8 +720,12 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity_display_ARRAY =
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_DISPLAY),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountIdentity_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountIdentity_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountIdentity_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "account_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, account_id), .hint = NYA_HINT_NONE },
     { .name = "provider", .type = &_NYA_REFLECT_NYA_AccountIdentity_provider_ARRAY, .offset = nya_offsetof(NYA_AccountIdentity, provider), .hint = NYA_HINT_NONE },
     { .name = "subject", .type = &_NYA_REFLECT_NYA_AccountIdentity_subject_ARRAY, .offset = nya_offsetof(NYA_AccountIdentity, subject), .hint = NYA_HINT_NONE },
@@ -707,9 +752,17 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountInvite_code_hash_ARRAY =
     .element = &_NYA_REFLECT_char, .element_count = (72),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountInvite_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountInvite_code_hash_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountInvite_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, id), .hint = NYA_HINT_NONE, .is_key = true },
-    { .name = "code_hash", .type = &_NYA_REFLECT_NYA_AccountInvite_code_hash_ARRAY, .offset = nya_offsetof(NYA_AccountInvite, code_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountInvite_id_ATTRIBUTES, .attribute_count = 1 },
+    { .name = "code_hash", .type = &_NYA_REFLECT_NYA_AccountInvite_code_hash_ARRAY, .offset = nya_offsetof(NYA_AccountInvite, code_hash), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_AccountInvite_code_hash_ATTRIBUTES, .attribute_count = 1 },
     { .name = "created_by", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, created_by), .hint = NYA_HINT_NONE },
     { .name = "used_by", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, used_by), .hint = NYA_HINT_NONE },
     { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, created_at_s), .hint = NYA_HINT_NONE },
@@ -749,8 +802,12 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskey_name_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_PASSKEY_NAME_TEXT),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountPasskey_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountPasskey_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountPasskey_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskey, user_id), .hint = NYA_HINT_NONE },
     { .name = "credential_id", .type = &_NYA_REFLECT_NYA_AccountPasskey_credential_id_ARRAY, .offset = nya_offsetof(NYA_AccountPasskey, credential_id), .hint = NYA_HINT_NONE },
     { .name = "public_key", .type = &_NYA_REFLECT_NYA_AccountPasskey_public_key_ARRAY, .offset = nya_offsetof(NYA_AccountPasskey, public_key), .hint = NYA_HINT_NONE },
@@ -779,8 +836,12 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountPasskeyChallenge_challen
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_PASSKEY_CHALLENGE_TEXT),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountPasskeyChallenge_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountPasskeyChallenge_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountPasskeyChallenge_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, user_id), .hint = NYA_HINT_NONE },
     { .name = "purpose", .type = &_NYA_REFLECT_s64, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, purpose), .hint = NYA_HINT_NONE },
     { .name = "challenge", .type = &_NYA_REFLECT_NYA_AccountPasskeyChallenge_challenge_ARRAY, .offset = nya_offsetof(NYA_AccountPasskeyChallenge, challenge), .hint = NYA_HINT_NONE },
@@ -806,10 +867,18 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_A
     .element = &_NYA_REFLECT_char, .element_count = (72),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountRecoveryCode_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountRecoveryCode_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountRecoveryCode_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "account_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, account_id), .hint = NYA_HINT_NONE },
-    { .name = "code_hash", .type = &_NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ARRAY, .offset = nya_offsetof(NYA_AccountRecoveryCode, code_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "code_hash", .type = &_NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ARRAY, .offset = nya_offsetof(NYA_AccountRecoveryCode, code_hash), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ATTRIBUTES, .attribute_count = 1 },
     { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, created_at_s), .hint = NYA_HINT_NONE },
 };
 
@@ -852,11 +921,23 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_agent_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_AGENT),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountSession_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountSession_token_hash_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountSession_previous_hash_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountSession_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountSession_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, user_id), .hint = NYA_HINT_NONE },
-    { .name = "token_hash", .type = &_NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, token_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
-    { .name = "previous_hash", .type = &_NYA_REFLECT_NYA_AccountSession_previous_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, previous_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "token_hash", .type = &_NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, token_hash), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_AccountSession_token_hash_ATTRIBUTES, .attribute_count = 1 },
+    { .name = "previous_hash", .type = &_NYA_REFLECT_NYA_AccountSession_previous_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, previous_hash), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_AccountSession_previous_hash_ATTRIBUTES, .attribute_count = 1 },
     { .name = "address", .type = &_NYA_REFLECT_NYA_AccountSession_address_ARRAY, .offset = nya_offsetof(NYA_AccountSession, address), .hint = NYA_HINT_NONE },
     { .name = "agent", .type = &_NYA_REFLECT_NYA_AccountSession_agent_ARRAY, .offset = nya_offsetof(NYA_AccountSession, agent), .hint = NYA_HINT_NONE },
     { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, created_at_s), .hint = NYA_HINT_NONE },
@@ -904,15 +985,27 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser_password_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_HASH),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountUser_id_ATTRIBUTES[] = {
+    { .name = "key" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountUser_password_ATTRIBUTES[] = {
+    { .name = "redact" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_AccountUser_password_changed_at_s_ATTRIBUTES[] = {
+    { .name = "loggable" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_AccountUser_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_NYA_AccountUser_id_ATTRIBUTES, .attribute_count = 1 },
     { .name = "username", .type = &_NYA_REFLECT_NYA_AccountUser_username_ARRAY, .offset = nya_offsetof(NYA_AccountUser, username), .hint = NYA_HINT_NONE },
     { .name = "normalized", .type = &_NYA_REFLECT_NYA_AccountUser_normalized_ARRAY, .offset = nya_offsetof(NYA_AccountUser, normalized), .hint = NYA_HINT_NONE },
     { .name = "display", .type = &_NYA_REFLECT_NYA_AccountUser_display_ARRAY, .offset = nya_offsetof(NYA_AccountUser, display), .hint = NYA_HINT_NONE },
-    { .name = "password", .type = &_NYA_REFLECT_NYA_AccountUser_password_ARRAY, .offset = nya_offsetof(NYA_AccountUser, password), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "password", .type = &_NYA_REFLECT_NYA_AccountUser_password_ARRAY, .offset = nya_offsetof(NYA_AccountUser, password), .hint = NYA_HINT_NONE, .is_redacted = true, .attributes = _NYA_REFLECT_NYA_AccountUser_password_ATTRIBUTES, .attribute_count = 1 },
     { .name = "roles", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, roles), .hint = NYA_HINT_NONE },
     { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, created_at_s), .hint = NYA_HINT_NONE },
-    { .name = "password_changed_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, password_changed_at_s), .hint = NYA_HINT_NONE },
+    { .name = "password_changed_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, password_changed_at_s), .hint = NYA_HINT_NONE, .attributes = _NYA_REFLECT_NYA_AccountUser_password_changed_at_s_ATTRIBUTES, .attribute_count = 1 },
     { .name = "disabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AccountUser, disabled), .hint = NYA_HINT_NONE },
 };
 

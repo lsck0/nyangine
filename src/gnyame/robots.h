@@ -42,10 +42,10 @@ struct GNY_RobotBody {
  * the schema, the insert and the drift check all come from the reflection below, so growing a column
  * is adding a field here. See db/db_orm.h.
  * */
-// @reflect
+// @reflect @doc(one training run)
 struct GNY_RobotRun {
     /** Assigned by the database, so a run about to be written leaves it zero. */
-    u32 id; // @key
+    u32 id; // @key @label(Run identifier)
 
     /** Generations trained by this run and every run before it. */
     u32 generations;

@@ -113,6 +113,7 @@
 
 typedef enum NYA_ReflectKind        NYA_ReflectKind;
 typedef enum NYA_ReflectHint        NYA_ReflectHint;
+typedef struct NYA_ReflectAttribute NYA_ReflectAttribute;
 typedef struct NYA_ReflectField     NYA_ReflectField;
 typedef struct NYA_ReflectVariant   NYA_ReflectVariant;
 typedef struct NYA_TypeReflection   NYA_TypeReflection;
@@ -170,6 +171,24 @@ enum NYA_ReflectHint {
     NYA_HINT_COUNT,
 };
 
+/**
+ * One `@name` or `@name(args)` annotation, kept verbatim from the source.
+ *
+ * The generic form the typed flags below are a shortcut for: every annotation the generator meets on a
+ * type or a field becomes one of these, so a component can act on an attribute the core never knew
+ * about — `@label`, `@range`, a validation rule, an ORM `@unique` — without a new field on the structs
+ * below and a new branch in the generator. `is_key`, `is_redacted`, `is_secret` and `hint` are the ones
+ * the engine itself acts on and stay as flags so a hot path tests a bit rather than comparing a string;
+ * the same annotations are in this table too, reachable by name.
+ * */
+struct NYA_ReflectAttribute {
+    /** The name without the leading `@`: "key", "range", "label". */
+    NYA_ConstCString name;
+
+    /** The text inside `@name(...)`, verbatim, or null for an argumentless `@name`. */
+    NYA_ConstCString args;
+};
+
 /** One member of a struct or union. */
 struct NYA_ReflectField {
     NYA_ConstCString name;
@@ -216,6 +235,14 @@ struct NYA_ReflectField {
      * threads the key through, and crypto_seal.h for the box it is sealed in.
      * */
     b8 is_secret;
+
+    /**
+     * Every `@name`/`@name(args)` annotation on the field, the typed flags above included. Reached by
+     * name through nya_reflect_field_attribute; the count is zero when the field carries none. This is
+     * what a component reads to act on an attribute the core has no flag for. See NYA_ReflectAttribute.
+     * */
+    const NYA_ReflectAttribute* attributes;
+    u32                         attribute_count;
 
     /**
      * For a member of a tagged union: the value of the tag that selects this member.
@@ -279,6 +306,13 @@ struct NYA_TypeReflection {
      * Called after nya_reflect_from_object has written every field, or null.
      * */
     NYA_ReflectApplyFn on_apply;
+
+    /**
+     * Every `@name`/`@name(args)` annotation on the type itself — `@tag`, `@on_apply`, and any a
+     * component defines. Reached by name through nya_reflect_type_attribute. See NYA_ReflectAttribute.
+     * */
+    const NYA_ReflectAttribute* attributes;
+    u32                         attribute_count;
 };
 
 // FUNCTIONS AND MACROS
@@ -290,6 +324,15 @@ struct NYA_TypeReflection {
 
 /** The field called `name`, or null. Does not search into nested structs; see nya_reflect_path. */
 NYA_API const NYA_ReflectField* nya_reflect_field(const NYA_TypeReflection* type, NYA_ConstCString name) __attr_no_discard;
+
+/** The attribute called `name` on `field`, or null. `name` is written without the leading `@`. */
+NYA_API const NYA_ReflectAttribute* nya_reflect_field_attribute(const NYA_ReflectField* field, NYA_ConstCString name) __attr_no_discard;
+
+/** Whether `field` carries the attribute `name` (without the leading `@`). What a hot path tests. */
+NYA_API b8 nya_reflect_field_has_attribute(const NYA_ReflectField* field, NYA_ConstCString name) __attr_no_discard;
+
+/** The attribute called `name` on the type itself, or null. `name` is written without the leading `@`. */
+NYA_API const NYA_ReflectAttribute* nya_reflect_type_attribute(const NYA_TypeReflection* type, NYA_ConstCString name) __attr_no_discard;
 
 /** The field at a dotted path such as `"visual.color.r"`, resolving through nested structs. */
 NYA_API const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_ConstCString path, void* instance,

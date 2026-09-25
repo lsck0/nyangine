@@ -132,8 +132,17 @@ static const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun_ended_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_CLOCK_FORMAT_MAX_LENGTH),
 };
 
+static const NYA_ReflectAttribute _NYA_REFLECT_GNY_RobotRun_ATTRIBUTES[] = {
+    { .name = "doc", .args = "one training run" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_GNY_RobotRun_id_ATTRIBUTES[] = {
+    { .name = "key" },
+    { .name = "label", .args = "Run identifier" },
+};
+
 static const NYA_ReflectField _NYA_REFLECT_GNY_RobotRun_FIELDS[] = {
-    { .name = "id", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(GNY_RobotRun, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "id", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(GNY_RobotRun, id), .hint = NYA_HINT_NONE, .is_key = true, .attributes = _NYA_REFLECT_GNY_RobotRun_id_ATTRIBUTES, .attribute_count = 2 },
     { .name = "generations", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(GNY_RobotRun, generations), .hint = NYA_HINT_NONE },
     { .name = "fitness", .type = &_NYA_REFLECT_f64, .offset = nya_offsetof(GNY_RobotRun, fitness), .hint = NYA_HINT_NONE },
     { .name = "dqn_steps", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(GNY_RobotRun, dqn_steps), .hint = NYA_HINT_NONE },
@@ -148,6 +157,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun = {
     .alignment = alignof(GNY_RobotRun),
     .fields = _NYA_REFLECT_GNY_RobotRun_FIELDS,
     .field_count = 6,
+    .attributes = _NYA_REFLECT_GNY_RobotRun_ATTRIBUTES, .attribute_count = 1,
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {

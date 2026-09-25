@@ -10,6 +10,13 @@ typedef enum {
     _NYA_REFLECT_DECL_ENUM,
 } _NYA_ReflectDeclKind;
 
+/** One parsed `@name` or `@name(args)`, before it becomes an NYA_ReflectAttribute in the generated table. */
+typedef struct {
+    char name[NYA_REFLECT_MAX_ATTRIBUTE_NAME];
+    char args[NYA_REFLECT_MAX_ATTRIBUTE_ARGS];
+    b8   has_args;
+} _NYA_ReflectAttributeDecl;
+
 typedef struct {
     char name[NYA_REFLECT_MAX_NAME];
 
@@ -36,6 +43,10 @@ typedef struct {
     b8 is_secret;
 
     NYA_ConstCString hint;
+
+    /** Every `@name`/`@name(args)` on the field, the typed ones above included. See NYA_ReflectAttribute. */
+    _NYA_ReflectAttributeDecl attributes[NYA_REFLECT_MAX_ATTRIBUTES];
+    u32                       attribute_count;
 } _NYA_ReflectFieldDecl;
 
 typedef struct {
@@ -58,6 +69,10 @@ typedef struct {
 
     char tag_field[NYA_REFLECT_MAX_NAME];
     char on_apply[NYA_REFLECT_MAX_NAME];
+
+    /** Every `@name`/`@name(args)` on the type's marker comment, minus `@reflect` itself. */
+    _NYA_ReflectAttributeDecl attributes[NYA_REFLECT_MAX_ATTRIBUTES];
+    u32                       attribute_count;
 
     char source_file[512];
 } _NYA_ReflectTypeDecl;
@@ -85,6 +100,22 @@ NYA_INTERNAL b8   _nya_reflect_comment_has(const NYA_Lexer* lexer, u32 index, NY
 NYA_INTERNAL b8   _nya_reflect_annotation_argument(const NYA_Lexer* lexer, u32 index, NYA_ConstCString marker, OUT char* out, u64 capacity);
 NYA_INTERNAL NYA_ConstCString _nya_reflect_hint_from_comment(const NYA_Lexer* lexer, u32 index);
 NYA_INTERNAL NYA_ConstCString _nya_reflect_builtin_symbol(NYA_ConstCString spelling);
+
+/**
+ * Parses every `@name` / `@name(args)` in the comment at `index` into `attributes`, appending to the
+ * `count` already there. `exclude` is a bare name skipped when met (the `@reflect` marker on a type), or
+ * null. `owner` names the type or field for a diagnostic. Bounded: extra attributes past the cap and a
+ * malformed `@name(` with no closing paren are dropped with a warning rather than crashing the build.
+ * */
+NYA_INTERNAL void _nya_reflect_collect_attributes(const NYA_Lexer* lexer, u32 index, OUT _NYA_ReflectAttributeDecl* attributes,
+                                                  u32* count, NYA_ConstCString exclude, NYA_ConstCString path, u32 line,
+                                                  NYA_ConstCString owner);
+
+/** Whether the field's type resolves to a description, i.e. whether _nya_reflect_emit_type will emit it. */
+NYA_INTERNAL b8 _nya_reflect_field_emits(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDecl* field, u32 limit);
+
+/** Emits one `static const NYA_ReflectAttribute NAME[] = { ... };` table, or nothing when `count` is zero. */
+NYA_INTERNAL void _nya_reflect_emit_attributes(NYA_String* out, NYA_ConstCString symbol, const _NYA_ReflectAttributeDecl* attributes, u32 count);
 
 /** Whether `name` is annotated within the first `limit` types. See _NYA_ReflectSet.engine_type_count. */
 NYA_INTERNAL b8   _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name, u32 limit);
@@ -476,6 +507,94 @@ NYA_ConstCString _nya_reflect_builtin_symbol(NYA_ConstCString spelling) {
     return nullptr;
 }
 
+/** A character an attribute name is made of: the same set an identifier is. */
+NYA_INTERNAL b8 _nya_reflect_attribute_ident_char(u8 c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+void _nya_reflect_collect_attributes(const NYA_Lexer* lexer, u32 index, OUT _NYA_ReflectAttributeDecl* attributes, u32* count,
+                                     NYA_ConstCString exclude, NYA_ConstCString path, u32 line, NYA_ConstCString owner) {
+    if (index >= lexer->tokens->length) return;
+
+    NYA_Token token = lexer->tokens->items[index];
+    if (token.type != NYA_TOKEN_COMMENT) return;
+
+    NYA_ConstCString body   = lexer->source + token.source_location;
+    u64              length = token.length;
+
+    for (u64 i = 0; i + 1 < length; i++) {
+        if (body[i] != '@') continue;
+
+        // The name is the identifier run right after the '@'. A bare '@' is not an attribute.
+        u64 name_start = i + 1;
+        u64 name_end   = name_start;
+
+        while (name_end < length && _nya_reflect_attribute_ident_char((u8)body[name_end])) name_end++;
+
+        if (name_end == name_start) continue;
+
+        _NYA_ReflectAttributeDecl attribute = { 0 };
+
+        u64 name_length = name_end - name_start;
+        if (name_length >= sizeof(attribute.name)) name_length = sizeof(attribute.name) - 1;
+
+        nya_memcpy(attribute.name, body + name_start, name_length);
+        attribute.name[name_length] = '\0';
+
+        // An optional `(args)`, the arguments copied verbatim up to the closing paren.
+        u64 cursor = name_end;
+        while (cursor < length && (body[cursor] == ' ' || body[cursor] == '\t')) cursor++;
+
+        if (cursor < length && body[cursor] == '(') {
+            cursor++;
+
+            u64 args_start = cursor;
+            while (cursor < length && body[cursor] != ')') cursor++;
+
+            // Malformed rather than a crash: named on the build's output and dropped, the field kept.
+            if (cursor >= length) {
+                nya_log_warn("%s:%u: '%s' has an attribute @%s( with no closing ')'; the attribute is dropped.", path, line, owner,
+                             attribute.name);
+                i = name_end - 1;
+                continue;
+            }
+
+            u64 args_length = cursor - args_start;
+            if (args_length >= sizeof(attribute.args)) args_length = sizeof(attribute.args) - 1;
+
+            nya_memcpy(attribute.args, body + args_start, args_length);
+            attribute.args[args_length] = '\0';
+            attribute.has_args          = true;
+
+            i = cursor;   // resume after the ')', which the loop's i++ steps past
+        } else {
+            i = name_end - 1;   // resume after the name
+        }
+
+        // The marker word is the trigger, not an attribute of what it marks.
+        if (exclude != nullptr && nya_string_equals(attribute.name, exclude)) continue;
+
+        // The same annotation written twice is one attribute, so a lookup by name is unambiguous.
+        b8 seen = false;
+        for (u32 k = 0; k < *count; k++) {
+            if (nya_string_equals(attributes[k].name, attribute.name)) {
+                seen = true;
+                break;
+            }
+        }
+        if (seen) continue;
+
+        if (*count >= NYA_REFLECT_MAX_ATTRIBUTES) {
+            nya_log_warn("%s:%u: '%s' has more than %d attributes; @%s and any after it are dropped.", path, line, owner,
+                         NYA_REFLECT_MAX_ATTRIBUTES, attribute.name);
+            return;
+        }
+
+        attributes[*count] = attribute;
+        (*count)++;
+    }
+}
+
 b8 _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name, u32 limit) {
     for (u32 i = 0; i < limit; i++) {
         if (nya_string_equals(set->types[i].name, name)) return true;
@@ -709,6 +828,11 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
                 field.hint = "NYA_HINT_BITFLAGS";
             }
 
+            // The typed flags above are shortcuts read on hot paths; the same annotations, and any the
+            // core has no flag for, land in the generic table so a component can reach them by name.
+            _nya_reflect_collect_attributes(lexer, look, field.attributes, &field.attribute_count, nullptr, path, token.line_number,
+                                            field.name);
+
             break;
         }
 
@@ -934,6 +1058,10 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
             continue;
         }
 
+        // Every annotation on the marker comment becomes a type attribute, `@reflect` itself excepted.
+        _nya_reflect_collect_attributes(&lexer, index, decl.attributes, &decl.attribute_count, "reflect", path,
+                                        lexer.tokens->items[index].line_number, decl.name);
+
         if (_nya_reflect_is_known(set, decl.name, set->type_count)) {
             nya_log_warn("%s: '%s' is annotated more than once; the later one is ignored.", path, decl.name);
             continue;
@@ -986,6 +1114,41 @@ NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NY
     return nullptr;
 }
 
+b8 _nya_reflect_field_emits(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDecl* field, u32 limit) {
+    char buffer[NYA_REFLECT_MAX_NAME * 2] = { 0 };
+
+    // Both a plain field and an array field emit exactly when their (element) type resolves to a symbol.
+    return _nya_reflect_field_symbol(set, field, limit, buffer, sizeof(buffer)) != nullptr;
+}
+
+void _nya_reflect_emit_attributes(NYA_String* out, NYA_ConstCString symbol, const _NYA_ReflectAttributeDecl* attributes, u32 count) {
+    if (count == 0) return;
+
+    nya_string_extend_sprintf(out, "static const NYA_ReflectAttribute %s[] = {\n", symbol);
+
+    for (u32 i = 0; i < count; i++) {
+        nya_string_extend_sprintf(out, "    { .name = \"%s\"", attributes[i].name);
+
+        if (attributes[i].has_args) {
+            // The argument text is a string literal, so a quote or a backslash in it is escaped.
+            nya_string_extend(out, ", .args = \"");
+
+            for (const char* c = attributes[i].args; *c != '\0'; c++) {
+                if (*c == '"' || *c == '\\') nya_string_extend(out, "\\");
+
+                char one[2] = { *c, '\0' };
+                nya_string_extend(out, one);
+            }
+
+            nya_string_extend(out, "\"");
+        }
+
+        nya_string_extend(out, " },\n");
+    }
+
+    nya_string_extend(out, "};\n\n");
+}
+
 void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _NYA_ReflectTypeDecl* decl, u32 limit) {
     nya_string_extend_sprintf(out, "/* %s, %s */\n\n", decl->name, decl->source_file);
 
@@ -1000,6 +1163,10 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
 
         nya_string_extend(out, "};\n\n");
 
+        char enum_attr_symbol[NYA_REFLECT_MAX_NAME * 2] = { 0 };
+        (void)snprintf(enum_attr_symbol, sizeof(enum_attr_symbol), "_NYA_REFLECT_%s_ATTRIBUTES", decl->name);
+        _nya_reflect_emit_attributes(out, enum_attr_symbol, decl->attributes, decl->attribute_count);
+
         nya_string_extend_sprintf(out,
                                   "const NYA_TypeReflection _NYA_REFLECT_%s = {\n"
                                   "    .name = \"%s\",\n"
@@ -1013,10 +1180,15 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                                   "                                  : NYA_TYPE_S32),\n"
                                   "    .variants = _NYA_REFLECT_%s_VARIANTS,\n"
                                   "    .variant_count = %u,\n"
-                                  "    .is_bitflags = %s,\n"
-                                  "};\n\n",
+                                  "    .is_bitflags = %s,\n",
                                   decl->name, decl->name, decl->name, decl->name, decl->name, decl->name, decl->name,
                                   decl->name, decl->variant_count, decl->is_bitflags ? "true" : "false");
+
+        if (decl->attribute_count > 0) {
+            nya_string_extend_sprintf(out, "    .attributes = %s, .attribute_count = %u,\n", enum_attr_symbol, decl->attribute_count);
+        }
+
+        nya_string_extend(out, "};\n\n");
 
         return;
     }
@@ -1043,6 +1215,23 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                                   field->type_spelling, element, field->array_extent);
     }
 
+    // The type's own attributes, then each emitted field's, ahead of the field table that names them. A
+    // field that will not be emitted gets no array, so nothing declared here is left unreferenced.
+    char type_attr_symbol[NYA_REFLECT_MAX_NAME * 2] = { 0 };
+    (void)snprintf(type_attr_symbol, sizeof(type_attr_symbol), "_NYA_REFLECT_%s_ATTRIBUTES", decl->name);
+    _nya_reflect_emit_attributes(out, type_attr_symbol, decl->attributes, decl->attribute_count);
+
+    for (u32 i = 0; i < decl->field_count; i++) {
+        const _NYA_ReflectFieldDecl* field = &decl->fields[i];
+
+        if (field->attribute_count == 0) continue;
+        if (!_nya_reflect_field_emits(set, field, limit)) continue;
+
+        char field_attr_symbol[NYA_REFLECT_MAX_NAME * 2] = { 0 };
+        (void)snprintf(field_attr_symbol, sizeof(field_attr_symbol), "_NYA_REFLECT_%s_%s_ATTRIBUTES", decl->name, field->name);
+        _nya_reflect_emit_attributes(out, field_attr_symbol, field->attributes, field->attribute_count);
+    }
+
     nya_string_extend_sprintf(out, "static const NYA_ReflectField _NYA_REFLECT_%s_FIELDS[] = {\n", decl->name);
 
     u32 emitted = 0;
@@ -1053,6 +1242,15 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
         char             buffer[NYA_REFLECT_MAX_NAME * 2] = { 0 };
         NYA_ConstCString symbol                           = nullptr;
 
+        // The reference to this field's attribute table, or empty when it carries none. Only ever set for
+        // a field that emits, so it names an array _nya_reflect_emit_attributes actually wrote above.
+        char attribute_suffix[NYA_REFLECT_MAX_NAME * 3] = { 0 };
+        if (field->attribute_count > 0) {
+            (void)snprintf(attribute_suffix, sizeof(attribute_suffix),
+                           ", .attributes = _NYA_REFLECT_%s_%s_ATTRIBUTES, .attribute_count = %u", decl->name, field->name,
+                           field->attribute_count);
+        }
+
         if (field->array_extent[0] != '\0') {
             NYA_ConstCString element = _nya_reflect_field_symbol(set, field, limit, buffer, sizeof(buffer));
 
@@ -1061,11 +1259,11 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                 (void)snprintf(array_symbol, sizeof(array_symbol), "_NYA_REFLECT_%s_%s_ARRAY", decl->name, field->name);
 
                 nya_string_extend_sprintf(out,
-                                          "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s%s },\n",
+                                          "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s%s%s },\n",
                                           field->name, array_symbol, decl->name, field->name, field->hint,
                                           field->is_key ? ", .is_key = true" : "",
                                           field->is_redacted ? ", .is_redacted = true" : "",
-                                          field->is_secret ? ", .is_secret = true" : "");
+                                          field->is_secret ? ", .is_secret = true" : "", attribute_suffix);
                 emitted++;
             } else {
                 nya_log_warn("%s: '%s.%s' has undescribed element type '%s'; skipped. Add @reflect to it, or @skip to the field.",
@@ -1089,11 +1287,11 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
             continue;
         }
 
-        nya_string_extend_sprintf(out, "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s%s },\n",
+        nya_string_extend_sprintf(out, "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s%s%s%s },\n",
                                   field->name, symbol, decl->name, field->name, field->hint,
                                   field->is_key ? ", .is_key = true" : "",
                                   field->is_redacted ? ", .is_redacted = true" : "",
-                                  field->is_secret ? ", .is_secret = true" : "");
+                                  field->is_secret ? ", .is_secret = true" : "", attribute_suffix);
         emitted++;
     }
 
@@ -1114,6 +1312,10 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                               decl->name, decl->name, decl->name, emitted);
 
     if (decl->on_apply[0] != '\0') nya_string_extend_sprintf(out, "    .on_apply = %s,\n", decl->on_apply);
+
+    if (decl->attribute_count > 0) {
+        nya_string_extend_sprintf(out, "    .attributes = %s, .attribute_count = %u,\n", type_attr_symbol, decl->attribute_count);
+    }
 
     nya_string_extend(out, "};\n\n");
 }

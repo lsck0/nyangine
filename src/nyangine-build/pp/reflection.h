@@ -54,6 +54,15 @@
 #define NYA_REFLECT_MAX_VARIANTS 256
 #define NYA_REFLECT_MAX_NAME     128
 
+/**
+ * Attributes kept per type or field, the longest attribute name, and the longest `@name(args)` argument
+ * string, terminators included. Kept small: these size a `_NYA_ReflectTypeDecl` that lives on the stack
+ * and in a per-type arena slot, and a field carries only a handful of attributes in practice.
+ * */
+#define NYA_REFLECT_MAX_ATTRIBUTES     4
+#define NYA_REFLECT_MAX_ATTRIBUTE_NAME 32
+#define NYA_REFLECT_MAX_ATTRIBUTE_ARGS 64
+
 /* FUNCTIONS */
 
 /**

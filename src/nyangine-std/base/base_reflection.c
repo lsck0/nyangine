@@ -94,6 +94,30 @@ const NYA_ReflectField* nya_reflect_field(const NYA_TypeReflection* type, NYA_Co
     return nullptr;
 }
 
+const NYA_ReflectAttribute* nya_reflect_field_attribute(const NYA_ReflectField* field, NYA_ConstCString name) {
+    if (field == nullptr || name == nullptr) return nullptr;
+
+    for (u32 i = 0; i < field->attribute_count; i++) {
+        if (nya_string_equals(field->attributes[i].name, name)) return &field->attributes[i];
+    }
+
+    return nullptr;
+}
+
+b8 nya_reflect_field_has_attribute(const NYA_ReflectField* field, NYA_ConstCString name) {
+    return nya_reflect_field_attribute(field, name) != nullptr;
+}
+
+const NYA_ReflectAttribute* nya_reflect_type_attribute(const NYA_TypeReflection* type, NYA_ConstCString name) {
+    if (type == nullptr || name == nullptr) return nullptr;
+
+    for (u32 i = 0; i < type->attribute_count; i++) {
+        if (nya_string_equals(type->attributes[i].name, name)) return &type->attributes[i];
+    }
+
+    return nullptr;
+}
+
 void* nya_reflect_field_pointer(void* instance, const NYA_ReflectField* field) {
     if (instance == nullptr || field == nullptr) return nullptr;
 

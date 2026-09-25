@@ -95,6 +95,38 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
+  // TEST: the generic attribute table carries any @name/@name(args), the typed ones included
+  printf("TEST: attributes\n");
+  {
+    const NYA_TypeReflection* run = nya_reflect_of(GNY_RobotRun);
+    const NYA_ReflectField*   id  = nya_reflect_field(run, "id");
+
+    nya_assert(id != nullptr);
+
+    // The typed flag and the generic table agree: `@key` is is_key AND a "key" attribute, so a consumer
+    // can switch from the bool to the table without the annotation changing.
+    nya_assert(id->is_key, "@key must still populate the typed flag");
+    nya_assert(nya_reflect_field_has_attribute(id, "key"), "@key must also reach the generic table");
+
+    // A custom `@label(args)` nothing special-cases is exposed with its argument text intact.
+    const NYA_ReflectAttribute* label = nya_reflect_field_attribute(id, "label");
+    nya_assert(label != nullptr, "a custom @label attribute did not reach the table");
+    nya_assert(label->args != nullptr && nya_string_equals(label->args, "Run identifier"),
+               "the attribute argument came out as '%s'", label->args == nullptr ? "(null)" : label->args);
+
+    // An argumentless attribute has no args, and an absent one is absent rather than invented.
+    nya_assert(nya_reflect_field_attribute(id, "key")->args == nullptr, "an argumentless attribute must carry no args");
+    nya_assert(nya_reflect_field_attribute(id, "nope") == nullptr, "an absent attribute must not be invented");
+
+    // A type-level `@doc(args)` on the marker comment lands on the type, with `@reflect` itself excluded.
+    const NYA_ReflectAttribute* doc = nya_reflect_type_attribute(run, "doc");
+    nya_assert(doc != nullptr && doc->args != nullptr && nya_string_equals(doc->args, "one training run"),
+               "a type-level attribute did not reach the table");
+    nya_assert(nya_reflect_type_attribute(run, "reflect") == nullptr, "the @reflect marker must not become an attribute");
+
+    printf("  PASSED\n");
+  }
+
   // TEST: a real struct round trips through the generated description
   printf("TEST: round trip\n");
   {
