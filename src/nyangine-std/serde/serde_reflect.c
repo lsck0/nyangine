@@ -78,8 +78,9 @@ _nya_serde_reflect_load(const NYA_TypeReflection* type, void* instance, NYA_Cons
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "reflect_load_file");
     defer     nya_arena_destroy_on_stack(&scratch);
 
-    NYA_Object* object = nullptr;
-    NYA_TRY(nya_serde_load_file(&scratch, path, flags, &object));
+    NYA_Object* object          = nullptr;
+    s32         document_version = NYA_REFLECT_VERSION_NEWEST;
+    NYA_TRY(_nya_serde_load_file_versioned(&scratch, path, flags, &object, &document_version));
 
     // Before the check and before anything is applied: unsealing here means a wrong key or tampered value stops the load rather than reading a secret wrong.
     NYA_TRY(_nya_serde_reflect_unseal(&scratch, type, object, secret));
@@ -92,7 +93,8 @@ _nya_serde_reflect_load(const NYA_TypeReflection* type, void* instance, NYA_Cons
                      problems == 1 ? "y" : "ies");
     }
 
-    return nya_reflect_from_object(type, instance, object);
+    // With the document's own version, so a field added `@since` a later one is left at its default when this file predates it. See nya_reflect_from_object_versioned.
+    return nya_reflect_from_object_versioned(type, instance, object, document_version);
 }
 
 NYA_Error _nya_serde_reflect_seal(NYA_Arena* arena, const NYA_TypeReflection* type, NYA_Object* object, const NYA_SerdeSecret* secret) {

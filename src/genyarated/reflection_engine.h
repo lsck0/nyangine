@@ -39,6 +39,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_f32x4;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Quaternion;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_EaseType;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeVersionExample;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountAudit;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_AccountInvite;
@@ -121,6 +122,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in genyarated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 83
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 84
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];

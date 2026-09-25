@@ -236,6 +236,65 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
+    // TEST: a document written by this build carries every `@since` field and reads it back
+    printf("TEST: @since field round-trips in a current document\n");
+    {
+        NYA_SerdeVersionExample written = { .health = 7, .flags = 42 };
+
+        NYA_EXPECT(nya_reflect_save_file(nya_reflect_of(NYA_SerdeVersionExample), &written, FIXTURE_DIRECTORY "/version.nya",
+                                         NYA_SERDE_PRETTY));
+
+        NYA_SerdeVersionExample read = { 0 };
+        NYA_EXPECT(nya_reflect_load_file(nya_reflect_of(NYA_SerdeVersionExample), &read, FIXTURE_DIRECTORY "/version.nya", NYA_SERDE_NONE));
+
+        nya_check(read.health == 7, "the field present in every version should read back, got " FMTu32, read.health);
+        nya_check(read.flags == 42, "the @since(2) field should read back from a version-2 document, got " FMTu32, read.flags);
+        printf("  PASSED\n");
+    }
+
+    // TEST: an older document has no place for a later field, which loads at its default rather than failing
+    printf("TEST: @since field is tolerated-absent in an older document\n");
+    {
+        // A version-1 document: written before `flags` existed. `health` is set; `flags` is even present but from a version that predates it, so the load must ignore it rather than read it.
+        NYA_EXPECT(nya_file_write(FIXTURE_DIRECTORY "/version_1.nya", "nya 1 0\n{ health: u32 7; flags: u32 99; }\n"));
+
+        NYA_SerdeVersionExample read = { 0 };
+        NYA_EXPECT(nya_reflect_load_file(nya_reflect_of(NYA_SerdeVersionExample), &read, FIXTURE_DIRECTORY "/version_1.nya", NYA_SERDE_NO_CHECKSUM));
+
+        nya_check(read.health == 7, "a field older than the @since one should still read, got " FMTu32, read.health);
+        nya_check(read.flags == 0, "the @since(2) field should be left at its default in a version-1 document, got " FMTu32, read.flags);
+        printf("  PASSED\n");
+    }
+
+    // TEST: a malformed @since fails the load rather than being read as zero or crashing
+    printf("TEST: a malformed @since is rejected\n");
+    {
+        // A hand-built type, so the malformed version lives only here and no real type carries it. Its one field reuses a real u32 description.
+        const NYA_TypeReflection* u32_type = nya_reflect_field(nya_reflect_of(NYA_SerdeVersionExample), "health")->type;
+
+        NYA_ReflectAttribute attributes[] = { { .name = "since", .args = "not-a-number" } };
+        NYA_ReflectField     fields[]     = { { .name = "value", .type = u32_type, .offset = 0, .attributes = attributes, .attribute_count = 1 } };
+
+        u32                bogus_instance = 0;
+        NYA_TypeReflection bogus          = {
+                     .name        = "Bogus",
+                     .kind        = NYA_REFLECT_STRUCT,
+                     .size        = sizeof(bogus_instance),
+                     .alignment   = alignof(u32),
+                     .fields      = fields,
+                     .field_count = 1,
+        };
+
+        NYA_Object* document = nya_object_create(arena);
+        nya_object_add(document, "value", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 5 });
+
+        NYA_Error refused = nya_reflect_from_object(&bogus, &bogus_instance, document);
+
+        nya_check(!refused.ok, "a malformed @since should refuse the load");
+        nya_check(bogus_instance == 0, "and nothing should have been written past the malformed field");
+        printf("  PASSED\n");
+    }
+
     (void)nya_filesystem_delete_recursive(FIXTURE_DIRECTORY);
 
     printf(nya_check_failures() == 0 ? "PASSED: test_reflect_serde\n" : "FAILED: test_reflect_serde\n");

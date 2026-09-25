@@ -146,3 +146,19 @@ struct NYA_SerdeSecretExample {
     /** A bearer token: written to disk plainly, masked in a log. The `@redact` half of the contrast. */
     char api_token[64]; // @redact
 };
+
+/**
+ * The worked example of `@since`, and what test_reflect_serde loads across versions. `flags` was added
+ * in document version 2: a version-1 document has no place for it and loads leaving it at its default,
+ * while a version-2 document round-trips it. See nya_reflect_from_object_versioned.
+ * */
+typedef struct NYA_SerdeVersionExample NYA_SerdeVersionExample;
+
+// @reflect
+struct NYA_SerdeVersionExample {
+    /** Present in every version of the document. */
+    u32 health;
+
+    /** Added in version 2; absent from an older save, which loads it as zero rather than failing. */
+    u32 flags; // @since(2)
+};

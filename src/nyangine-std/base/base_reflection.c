@@ -14,6 +14,13 @@ NYA_INTERNAL b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s
  * */
 NYA_INTERNAL b8 _nya_reflect_real_to_s64(f64 real, OUT s64* out_value);
 
+/**
+ * The version number inside a field's `@since(...)`, or false when it is not a bare non-negative
+ * integer. Surrounding spaces are allowed; anything else (empty, a sign, a word, a value past S32_MAX)
+ * is malformed and refused rather than read as zero.
+ * */
+NYA_INTERNAL b8 _nya_reflect_parse_since(NYA_ConstCString args, OUT s32* out_version);
+
 /** One element of an array or vector, as a value. Shared by both, which differ only in their stride. */
 NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address, b8 redact);
 
@@ -483,6 +490,10 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
 }
 
 NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object) {
+    return nya_reflect_from_object_versioned(type, instance, object, NYA_REFLECT_VERSION_NEWEST);
+}
+
+NYA_Error nya_reflect_from_object_versioned(const NYA_TypeReflection* type, void* instance, const NYA_Object* object, s32 document_version) {
     if (type == nullptr || instance == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no type or no instance");
     if (object == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no object to read");
     if (type->kind != NYA_REFLECT_STRUCT && type->kind != NYA_REFLECT_UNION) {
@@ -494,6 +505,17 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
         const NYA_TypeReflection* field_type = field->type;
 
         if (field_type == nullptr) continue;
+
+        // A field is `@since(n)` a version: below it the document could not have carried the field, so it is left at its default whether the document mentions it or not. A malformed version is refused rather than read as zero, so a typo cannot silently drop a field from every older save.
+        const NYA_ReflectAttribute* since = nya_reflect_field_attribute(field, "since");
+        if (since != nullptr) {
+            s32 field_since = 0;
+            if (!_nya_reflect_parse_since(since->args, &field_since)) {
+                return nya_error(NYA_ERROR_PARSE, "'%s.%s' has a malformed @since(%s); the version must be an integer", type->name, field->name,
+                                 since->args != nullptr ? since->args : "");
+            }
+            if (document_version < field_since) continue;
+        }
 
         NYA_Value* value = nya_object_get(object, (NYA_CString)field->name);
 
@@ -902,6 +924,29 @@ NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflecti
     }
 
     return nya_reflect_read(element, address);
+}
+
+b8 _nya_reflect_parse_since(NYA_ConstCString args, OUT s32* out_version) {
+    if (args == nullptr) return false;
+
+    NYA_ConstCString cursor = args;
+    while (*cursor == ' ' || *cursor == '\t') cursor++;
+
+    // At least one digit, and no sign: a version is a plain count, so "-1" and "" are as malformed as "two".
+    if (*cursor < '0' || *cursor > '9') return false;
+
+    s64 value = 0;
+    while (*cursor >= '0' && *cursor <= '9') {
+        value = value * 10 + (*cursor - '0');
+        if (value > S32_MAX) return false; // Bounded: a version past what an s32 header can hold is a typo, not a version.
+        cursor++;
+    }
+
+    while (*cursor == ' ' || *cursor == '\t') cursor++;
+    if (*cursor != '\0') return false;
+
+    *out_version = (s32)value;
+    return true;
 }
 
 b8 _nya_reflect_real_to_s64(f64 real, OUT s64* out_value) {

@@ -159,6 +159,26 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeSecretExample = {
     .field_count = 4,
 };
 
+/* NYA_SerdeVersionExample, src/nyangine-std/serde/serde_reflect.h */
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_SerdeVersionExample_flags_ATTRIBUTES[] = {
+    { .name = "since", .args = "2" },
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_SerdeVersionExample_FIELDS[] = {
+    { .name = "health", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SerdeVersionExample, health), .hint = NYA_HINT_NONE },
+    { .name = "flags", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SerdeVersionExample, flags), .hint = NYA_HINT_NONE, .attributes = _NYA_REFLECT_NYA_SerdeVersionExample_flags_ATTRIBUTES, .attribute_count = 1 },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_SerdeVersionExample = {
+    .name = "NYA_SerdeVersionExample",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_SerdeVersionExample),
+    .alignment = alignof(NYA_SerdeVersionExample),
+    .fields = _NYA_REFLECT_NYA_SerdeVersionExample_FIELDS,
+    .field_count = 2,
+};
+
 /* NYA_HttpScope, src/nyangine-core/http/http_auth.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_HttpScope_VARIANTS[] = {

@@ -1507,6 +1507,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_Quaternion,
     &_NYA_REFLECT_NYA_EaseType,
     &_NYA_REFLECT_NYA_SerdeSecretExample,
+    &_NYA_REFLECT_NYA_SerdeVersionExample,
     &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,

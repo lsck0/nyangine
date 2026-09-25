@@ -46,6 +46,10 @@ NYA_INTERNAL b8         _nya_serde_nya_token_equals(_NYA_SerdeNyaParser* parser,
 NYA_INTERNAL b8   _nya_serde_nya_value_is_true(const NYA_Value* value);
 NYA_INTERNAL void _nya_serde_nya_set_boolean(NYA_Value* value, b8 truth);
 
+/** nya_serde_nya_deserialize, also handing back the header's version number for field-level `@since` tolerance. */
+NYA_INTERNAL NYA_Error
+_nya_serde_nya_deserialize_versioned(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object, OUT s32* out_version);
+
 NYA_INTERNAL void _nya_serde_nya_xor(u8* data, u64 length);
 NYA_INTERNAL u64  _nya_serde_nya_checksum_value(const NYA_Value* value);
 NYA_INTERNAL u64  _nya_serde_nya_mix(u64 a, u64 b);
@@ -80,10 +84,16 @@ NYA_String* nya_serde_nya_serialize(NYA_Arena* arena, const NYA_Object* object, 
 }
 
 NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {
+    return _nya_serde_nya_deserialize_versioned(arena, data, size, flags, out_object, nullptr);
+}
+
+NYA_Error
+_nya_serde_nya_deserialize_versioned(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object, OUT s32* out_version) {
     nya_assert(arena != nullptr);
     nya_assert(out_object != nullptr);
 
     *out_object = nullptr;
+    if (out_version != nullptr) *out_version = NYA_REFLECT_VERSION_NEWEST;
     if (data == nullptr || size == 0) return nya_error(NYA_ERROR_PARSE, "empty input");
 
     b8 skip_checksum = nya_flag_check(flags, NYA_SERDE_NO_CHECKSUM);
@@ -135,9 +145,9 @@ NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, 
     if (!nya_type_parse(NYA_TYPE_S32, (const u8*)lexer.source + version_token->source_location, version_token->length, &version)) {
         return nya_error(NYA_ERROR_PARSE, "the version is not an s32");
     }
-    if (version != NYA_SERDE_NYA_VERSION) {
-        return nya_error(NYA_ERROR_PARSE, "unsupported format version " FMTs32 ", this build reads %d", version, NYA_SERDE_NYA_VERSION);
-    }
+    // A negative version is nonsense; a different one is not refused. The grammar is self-describing and the checksum guards the contents, so the version is a fact the reflected loader reads to honour each field's `@since` rather than a gate that rejects an older or newer document whole. See nya_reflect_from_object_versioned.
+    if (version < 0) return nya_error(NYA_ERROR_PARSE, "the version is negative (" FMTs32 ")", version);
+    if (out_version != nullptr) *out_version = version;
     parser.index++;
 
     _nya_serde_nya_skip_trivia(&parser);

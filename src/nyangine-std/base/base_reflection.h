@@ -399,6 +399,24 @@ NYA_API NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflec
 NYA_API NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object) __attr_no_discard;
 
 /**
+ * A document written by a build newer than every `@since`, so every versioned field is present. What
+ * nya_reflect_from_object passes, and the value to use when a format carries no version of its own.
+ * */
+#define NYA_REFLECT_VERSION_NEWEST S32_MAX
+
+/**
+ * nya_reflect_from_object with the document's own version, for field-level version tolerance. A field
+ * annotated `@since(n)` belongs to a document only from version `n` on: when `document_version` is
+ * below it the field is left at its default rather than read, so a save written by an older build loads
+ * without the field it never carried and a spurious value in an old document is ignored. A field with
+ * no `@since` is read in every version. A malformed `@since(...)` — anything but an integer — fails the
+ * load rather than being guessed at. The header's version (`nya <version> ...`) is what the reflected
+ * load path threads in; nya_reflect_from_object passes NYA_REFLECT_VERSION_NEWEST.
+ * */
+NYA_API NYA_Error
+nya_reflect_from_object_versioned(const NYA_TypeReflection* type, void* instance, const NYA_Object* object, s32 document_version) __attr_no_discard;
+
+/**
  * The same document, with every `@redact` field written as NYA_REFLECT_REDACTED instead of its
  * content, at any depth and whatever the field's kind.
  *

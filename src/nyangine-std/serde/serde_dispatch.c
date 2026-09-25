@@ -1,5 +1,19 @@
 #include "nyangine-core/nyangine.h"
 
+// ───────────────────────────────────── PRIVATE API DECLARATION ─────────────────────────────────────
+
+/** The nya text parser's version-carrying entry, defined later in this unity. */
+NYA_INTERNAL NYA_Error
+_nya_serde_nya_deserialize_versioned(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object, OUT s32* out_version);
+
+/** nya_deserialize, also handing back the document version when the format carries one, else NYA_REFLECT_VERSION_NEWEST. */
+NYA_INTERNAL NYA_Error _nya_deserialize_versioned(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat format, NYA_SerdeFlags flags,
+                                                  OUT NYA_Object** out_object, OUT s32* out_version);
+
+/** nya_serde_load_file, also handing back the document version; the reflected loader reads it for `@since`. */
+NYA_INTERNAL NYA_Error
+_nya_serde_load_file_versioned(NYA_Arena* arena, NYA_ConstCString path, NYA_SerdeFlags flags, OUT NYA_Object** out_object, OUT s32* out_version);
+
 // ───────────────────────────────────── PUBLIC API IMPLEMENTATION ─────────────────────────────────────
 
 NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFormat format, NYA_SerdeFlags flags) {
@@ -21,11 +35,19 @@ NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeF
 }
 
 NYA_Error nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat format, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {
+    return _nya_deserialize_versioned(arena, data, size, format, flags, out_object, nullptr);
+}
+
+NYA_Error _nya_deserialize_versioned(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat format, NYA_SerdeFlags flags,
+                                     OUT NYA_Object** out_object, OUT s32* out_version) {
     nya_assert(arena != nullptr);
     nya_assert(out_object != nullptr);
 
+    // Only the text nya format carries a version; every other one is read as the newest, so all of its fields apply.
+    if (out_version != nullptr) *out_version = NYA_REFLECT_VERSION_NEWEST;
+
     switch (format) {
-        case NYA_SERDE_FORMAT_NYA:        return nya_serde_nya_deserialize(arena, data, size, flags, out_object);
+        case NYA_SERDE_FORMAT_NYA:        return _nya_serde_nya_deserialize_versioned(arena, data, size, flags, out_object, out_version);
         case NYA_SERDE_FORMAT_JSON:       return nya_serde_json_deserialize(arena, data, size, flags, out_object);
         case NYA_SERDE_FORMAT_JSONC:      return nya_serde_jsonc_deserialize(arena, data, size, flags, out_object);
 #if !OS_WASM
@@ -93,9 +115,15 @@ NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, N
 }
 
 NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {
+    return _nya_serde_load_file_versioned(arena, path, flags, out_object, nullptr);
+}
+
+NYA_Error _nya_serde_load_file_versioned(NYA_Arena* arena, NYA_ConstCString path, NYA_SerdeFlags flags, OUT NYA_Object** out_object, OUT s32* out_version) {
     nya_assert(arena != nullptr);
     nya_assert(path != nullptr);
     nya_assert(out_object != nullptr);
+
+    if (out_version != nullptr) *out_version = NYA_REFLECT_VERSION_NEWEST;
 
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "serde_load_file");
     defer     nya_arena_destroy_on_stack(&scratch);
@@ -110,5 +138,5 @@ NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_Serde
     if (format == NYA_SERDE_FORMAT_COUNT) return nya_error(NYA_ERROR_CORRUPT, "'%s' is neither the native format nor JSON", path);
 
     // into the caller's arena, not scratch, since the tree outlives this call.
-    return nya_deserialize(arena, contents.items, contents.length, format, flags, out_object);
+    return _nya_deserialize_versioned(arena, contents.items, contents.length, format, flags, out_object, out_version);
 }

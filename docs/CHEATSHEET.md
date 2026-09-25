@@ -1168,6 +1168,7 @@ typedef void (*NYA_ReflectReportFn)(NYA_ConstCString path, NYA_ConstCString foun
 NYA_REFLECT_REDACTED "<redacted>"  // What nya_reflect_to_object_redacted writes in place of a `@redact` field.
 nya_reflect_of(type)  // The reflection for `type`, by its bare name: `nya_reflect_of(NYA_Entity)`.
 NYA_REFLECT_LAYOUT_DEPTH_MAX 32  // Deepest nesting of described types the hash walks.
+NYA_REFLECT_VERSION_NEWEST S32_MAX  // A document written by a build newer than every `@since`, so every versioned field is present.
 NYA_REFLECT_PATH_MAX 256  // Longest dotted path a report carries, terminator included.
 
 // functions
@@ -1187,6 +1188,7 @@ NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)
 b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value value)  // The inverse.
 NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance)  // Any annotated type, as a self describing document.
 NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object)  // The inverse, in place.
+NYA_Error nya_reflect_from_object_versioned(const NYA_TypeReflection* type, void* instance, const NYA_Object* object, s32 document_version)  // nya_reflect_from_object with the document's own version, for field-level version tolerance.
 NYA_Object* nya_reflect_to_object_redacted(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance)
 u32 nya_reflect_check(const NYA_TypeReflection* type, const NYA_Object* object, NYA_ReflectReportFn report, void* user_data)
 ```
@@ -6286,6 +6288,7 @@ typedef NYA_Error (*NYA_SerdeSecretSeal)(void* user, NYA_Arena* arena, NYA_Const
 typedef NYA_Error (*NYA_SerdeSecretUnseal)(void* user, NYA_Arena* arena, NYA_ConstCString field, const char* text, u64 text_size, OUT NYA_String** out_plaintext)  // The inverse: opens `text_size` characters of a sealed value into `out_plaintext`, from `arena`.
 struct NYA_SerdeSecret { NYA_SerdeSecretSeal seal; NYA_SerdeSecretUnseal unseal; void* user; }  // The cipher and key threaded through a reflected save or load for the sake of `@secret` fields.
 struct NYA_SerdeSecretExample { char label[32]; char password[64]; u32 pin; char api_token[64]; }
+struct NYA_SerdeVersionExample { u32 health; u32 flags; }
 
 // functions
 NYA_Error nya_reflect_save_file(const NYA_TypeReflection* type, const void* instance, NYA_ConstCString path, NYA_SerdeFlags flags)  // Writes `instance` to `path` as the format the extension names, through `type`'s description.
