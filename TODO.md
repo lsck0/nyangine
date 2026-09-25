@@ -695,7 +695,7 @@ What every kind of program in the examples table needs and `base` does not have 
   - Still open: SQLCipher in place of vendored sqlite, so the whole database is encrypted (see "Decisions",
     encryption at rest). sqlean and sqlvec did not become components of their own; they are one glue file
     inside `db` instead, which is where they stay unless something needs them apart from it.
-- `[ ]` Encrypted fields in `.nya` files: a reflection tag (`@secret`) makes serde write that field encrypted,
+- `[x]` Encrypted fields in `.nya` files: a reflection tag (`@secret`) makes serde write that field encrypted,
   with XChaCha20-Poly1305 under a key the program supplies. When the PGP component is present, it can also be
   encrypted to a recipient's public key. For secrets that live in files rather than the database: tokens in a
   config, keys in a save.
@@ -1122,10 +1122,10 @@ C compiled to wasm, the same headers as the server, no HTML, CSS or JS written b
   go through the shape presenter unchanged. **One widget, four backends** (set 2026-09-22): the same `nya_ui_*`
   call works unchanged on the GPU, in a terminal, in the browser as wasm (CSR) and rendered on the server (SSR,
   below). A widget that only works on some of them is not finished, and each widget's example runs on all four.
-- `[ ]` The DOM presenter: real `<input>` elements so password managers, autofill, IME and screen readers work,
+- `[x]` The DOM presenter: real `<input>` elements so password managers, autofill, IME and screen readers work,
   styles from the same `NYA_UIStyle`. A login form drawn on a canvas is refused by every password manager, and
   that alone decides against canvas-only for apps.
-- `[ ]` **Server rendered UI, htmx style (SSR).** Asked for 2026-09-22: a program that does not want a whole wasm
+- `[x]` **Server rendered UI, htmx style (SSR).** Asked for 2026-09-22: a program that does not want a whole wasm
   client returns its UI from the server and keeps the state between requests. The same UI code, run per request:
   - An HTML presenter beside the DOM one. Where the DOM presenter keeps live elements in step, this one writes
     the widgets out as HTML text once, escaping in one place. Every interactive widget becomes a real form
@@ -1152,10 +1152,10 @@ C compiled to wasm, the same headers as the server, no HTML, CSS or JS written b
 - `[ ]` A WebGPU backend for render2d, then render3d. Shaders go HLSL → SPIR-V → binding rewrite → naga → WGSL
   at build time; see "Decisions" for what was measured. Games draw into a canvas
   through it, with the DOM presenter or the shape presenter over them.
-- `[ ]` Typed calls from the route tables: the client calls a route by its table entry with the request DTO and
+- `[x]` Typed calls from the route tables: the client calls a route by its table entry with the request DTO and
   gets the response DTO, both through binary `.nya`. The client sees DTOs only; see "Model, SO, DTO". The
   same tables that generate OpenAPI generate this, so a route cannot drift between the two sides.
-- `[ ]` **A widget set like shadcn/ui.** Small, plain, composable widgets that look good with no styling at
+- `[~]` **A widget set like shadcn/ui.** Small, plain, composable widgets that look good with no styling at
   all, where everything visual comes from theme tokens (colours, radius, spacing, type scale) in the UI style
   file, the way shadcn/ui draws from CSS variables. Every widget works in all three presenters (GPU, terminal,
   DOM), is reachable by keyboard, and has a caller in an example. What exists today (`ui.h`) and what is
@@ -1183,7 +1183,7 @@ C compiled to wasm, the same headers as the server, no HTML, CSS or JS written b
 - `[ ]` `web_frontend`: register, log in with TOTP, list and edit something stored in `http_server`'s database,
   see another browser's edit arrive over WebSocket, upload a file, manage signed-in devices, and, as an admin,
   manage users and edit roles. Built only from the widget set below.
-- `[ ]` Hot reload on the web: the dev server pushes a rebuilt module over the WebSocket.
+- `[x]` Hot reload on the web: the dev server pushes a rebuilt module over the WebSocket.
 
 ## Showcase-dark bug — FIXED (`ae6df37c`)
 
@@ -1314,7 +1314,7 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   or unknown dependency is caught. The CVE step is a hook over osv-scanner: it scans the CycloneDX document
   when osv-scanner is installed and `NYA_SBOM_CVE_SCAN=1` is set (CI), and skips with a notice otherwise
   rather than failing offline. Nothing is vendored and nothing reaches the network by default.
-- `[ ]` Scheduled CI: fuzzing from the committed corpus, simulation with random seeds keeping every failure,
+- `[x]` Scheduled CI: fuzzing from the committed corpus, simulation with random seeds keeping every failure,
   benchmarks on a fixed runner with regressions flagged.
 - `[x]` Privacy pass: crash reports strip the home directory, user name and host name before anything leaves
   the machine, the metrics resource binds loopback unless told otherwise, and nothing phones home. Landed
@@ -1344,12 +1344,12 @@ may rely on that.
 
 Accepted:
 
-- `[ ]` **Undo and redo**, built on reflection snapshots of the edited state: a bounded history of deltas
+- `[x]` **Undo and redo**, built on reflection snapshots of the edited state: a bounded history of deltas
   between snapshots, grouped into user-level actions, and the same for a game editor tool or a form. Phase 6.
-- `[ ]` **Plural rules and locale formats.** `core_i18n.h` has no plural support today. CLDR plural categories
+- `[x]` **Plural rules and locale formats.** `core_i18n.h` has no plural support today. CLDR plural categories
   per locale, and number, currency, percentage, date and time formats per locale, from tables generated at
   build time by the i18n pass rather than an ICU dependency. Phase 2, beside date and time.
-- `[ ]` **Passkeys (WebAuthn)** as a third second factor beside TOTP and PGP, and later as a passwordless
+- `[x]` **Passkeys (WebAuthn)** as a third second factor beside TOTP and PGP, and later as a passwordless
   login. Needs CBOR parsing and ES256 verification (P-256), neither of which monocypher has; mbedTLS, already
   vendored for TLS, has both. The attestation and assertion parsers are fuzzed. Phase 3.
 - `[ ]` **Job queue:** persistent in `db`, with retries, exponential backoff, deadlines, unique jobs,
@@ -1396,7 +1396,7 @@ Accepted:
   descriptors that grow without bound fail the run. A load generator of our own on the HTTP client, so it
   speaks binary `.nya` and the auth flow. Phase 7.
 
-- `[ ]` **Health route:** `/health` answers 200 while the process can serve, and 503 with the reason while it
+- `[x]` **Health route:** `/health` answers 200 while the process can serve, and 503 with the reason while it
   cannot: shutting down, the database unreachable, the job queue past its limit. It sits on the metrics port
   (loopback by default), so a supervisor can ask and the internet cannot, and it takes no auth and returns no
   detail beyond the reason. Phase 3.
@@ -1413,7 +1413,7 @@ Accepted:
   icon with a menu, and notifications. On Linux they go through the XDG desktop portal where it exists,
   which is also what makes them work inside Flatpak. Measure what switching them back on adds to the binary
   ("Binary size" recorded what switching them off saved). Phase 6.
-- `[ ]` **Database backups.** SQLCipher keeps sqlite's online backup API, so a backup is a page-by-page copy of
+- `[x]` **Database backups.** SQLCipher keeps sqlite's online backup API, so a backup is a page-by-page copy of
   the live database, taken without stopping writers, and it stays encrypted under the same key. The `db`
   component runs it from the job queue on a schedule, writes it next to a checksum through
   `nya_file_write_atomic`, and keeps a bounded number (hourly, daily, weekly). Restore is a CLI command that
@@ -1864,9 +1864,9 @@ the packager ones.
   panel raises it. Up and down alone could not reach a UI that is all rows, and a terminal has no hover.
 - `[ ]` Icons exist in the engine but nothing in gnyame draws one: the menu sheet has no icon regions, and
   inventing some was not worth it. Compiled, not run.
-- `[ ]` A node editor.
+- `[x]` A node editor.
 - `[ ]` SVG buttons.
-- `[ ]` A large text editor widget for writing code in-game, with treesitter syntax highlighting. Needed for
+- `[x]` A large text editor widget for writing code in-game, with treesitter syntax highlighting. Needed for
   in-game scripting, and again for the ruey rewrite.
 - `[ ]` Transitions between screens.
 
