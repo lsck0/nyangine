@@ -49,6 +49,27 @@ The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 - **Smaller open items:** an end-to-end ACME run against a live/pebble CA. (Landed 2026-09-24: in-process TLS termination + an OpenSSL-3 close fix, `./build coverage`/`typos`/`verify`(CBMC)/`format`(advisory)/`commit-check`, a conventional-commit hook, a devenv/nix toolchain plus a `devenv.nix` fix carrying libz/brotli/libstdc++/openssl on `LD_LIBRARY_PATH` so a self-rebuilt `./build` runs in-shell, the code-editor widget, the `./build new <name>` scaffolder, four more CBMC proofs (verify now covers 6 parsers: base64, CBOR, HTTP line, RFC 3339, integer, URL percent-decode), a `.webmanifest` media type so a CSR bundle is an installable PWA, and **core-split steps 1–4**: `core_runtime.h` names the SDL-free core floor, http lost its last SDL call, `core_event` went SDL-free (`SDL_Mutex*` → `NYA_OsMutex`), and a `NYA_SERVER` include seam now compiles http/net/crypto/tls/db/accounts with no core or renderer — plan in `docs/layering-core-split.md`.)
 - **One-off (pending user):** git-history rewrite to strip the historical `Co-Authored-By: Claude` trailers and normalize every commit to a one-line conventional message — prepared (`filter-repo` message-callback in scratch, backup branch `backup-pre-rewrite`), blocked on the destructive-action guard; needs the user to run the force-push.
 
+## Backlog (2026-09-25)
+
+**Subproject restructure (in progress):** `src/` → `nyangine-std` {os,platform,base,math,serde} · `nyangine-core` {engine} · `nyangine-ui` {toolkit} · `nyangine-editor` {stub}. gnyame (user app) then leaves `src/`. See [[engine-scope]].
+
+**Web-backend gaps (from the `~/projects/webapp-template/services/core` compare — template has, nyangine doesn't):**
+- **Files-with-permissions facade** — an `http_files` upload/download/delete route pair over `db_blob` + a `NYA_File{blob_id,owner,filename,content_type,size}` ORM model, every read/write guarded by session + a per-object owner/permission check (accounts + permission). The primitive (`db_blob`, content-addressed) exists; the auth-guarded facade does not.
+- **Declarative request validation** — `@min`/`@max`/`@email`/`@pattern`/`@required`/`@len` DTO field attributes + a validation extractor that rejects a bad body before the handler runs (today validation is hand-written per handler).
+- **Automatic `created_at`/`updated_at`** — `@created_at`/`@updated_at` ORM attributes that stamp a typed `NYA_Instant` on insert (both) and update (updated_at).
+- **First-class recurring/cron tasks** — `db_jobs` does durable delayed (`run_at`) jobs already; add a periodic/"every N" (or cron) scheduler layer over it (the template's key-rotation-on-a-schedule).
+- Analytics endpoints — app-level, not an engine gap (skip unless asked).
+
+**Observability (from the review):** ceiling/gauge registry has no locking + `nya_permissions_destroy` never unregisters its ceilings → **UAF via unauth `/metrics`** (H1/H2, small fix, high value); no RED metrics — latency measured in `http_log.c` then dropped, no `http_request_duration_seconds` histogram / `requests_total{route,method,status}` (H3); no OTLP request tracing (H4); verify `http_health` covers `/healthz`+`/readyz` (H5).
+
+**Distribution / DX:** rebrand `build.c` → `nyacli.c` (`nya` CLI, `nya new`); ship **precompiled** vendor `.a` + nyangine `.a`/`.o` + a PCH via LFS `precompiled/` so a consuming app recompiles only its own code (source stays for read/modify + asset-merge: engine assets + game assets → one bundle); the `project.nya` manifest (`./build project`) is the front half.
+
+**UI/console:** the **command palette** + **dev console** overlays on the landed `console` command registry (`nya_console_*`); webapps default to the **system font** (system-ui stack) + **system language** (`navigator.language`).
+
+**Code-style passes:** `#define`→enum (constant-expr contexts) or the nya/config system (runtime tunables) per [[define-discipline]]; namespace `http_accounts` internals (`_nya_http_accounts_*` — generic `handle_login` etc collided with an example); finish the core/debug comment sweep (its agent died on a 429).
+
+**CI:** `vendor-windows` (setup-windows) + `build-steam-linux` (Steam sysroot) still red — environmental/setup, separate from the (now-fixed) test-linux hang.
+
 ## Recently landed (2026-09-24, agent batch)
 
 Quality-gate + toolchain wave (2026-09-24, all pushed, `./build check` 0 at each merge, modeled on `~/projects/rust-template`): in-process **TLS termination** through the http accept loop + an **OpenSSL-3** close-without-close_notify fix; **`./build coverage`** (llvm-cov, `--fail-under`), **`./build typos`** (spell gate), **`./build verify`** (CBMC proofs of the base64 + CBOR parsers), **`./build format`** (advisory clang-format + a `SortIncludes: Never` correctness fix), **`./build commit-check`** + a conventional-commit git hook (rejects AI-attribution trailers); a **devenv/nix** pinned clang-22 toolchain; a **code-editor** widget. Also stripped a `Co-Authored-By: Claude` trailer a subagent had added, and fixed the ACME Windows cross-build.
