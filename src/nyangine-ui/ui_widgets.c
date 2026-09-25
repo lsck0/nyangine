@@ -401,6 +401,75 @@ b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* o
     return true;
 }
 
+u32 nya_ui_context_menu(NYA_UI* ui, NYA_ConstCString id, NYA_Rectf trigger, NYA_MouseButton button, const NYA_ConstCString* items, u32 count) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(id != nullptr && items != nullptr);
+    nya_assert(count > 0, "a context menu needs at least one item");
+
+    const _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
+    const NYA_UILook*    look   = _nya_ui_look();
+
+    u64 key         = _nya_ui_id(layout->scope, id);
+    b8  open        = ui->open == key;
+    b8  just_opened = false;
+
+    // opens where the pointer is, on a press of `button` inside the trigger — not one through a panel over it,
+    // nor one already taken by a float. Only in the input pass, where a press is read exactly once, and not while
+    // it is already open, so a click meant for an item over the trigger is not read as another open.
+    if (ui->pass == NYA_UI_PASS_INPUT && !open && nya_input_mouse_button_just_pressed(button) && !layout->covered && !_nya_ui_claimed(_nya_ui.pointer) &&
+        nya_rect_contains(trigger, _nya_ui.pointer)) {
+        ui->open    = key;
+        ui->open_at = _nya_ui.pointer;
+        open        = true;
+        just_opened = true;
+    }
+
+    if (!open) return NYA_UI_MENU_NONE;
+
+    // as wide as its widest entry and no wider; separators carry no text and do not stretch it.
+    f32 width = 0.0F;
+    for (u32 i = 0; i < count; i++) {
+        if (items[i] == nullptr || items[i][0] == '\0') continue;
+        width = nya_max(width, _nya_ui_text_width(layout->text, items[i]));
+    }
+    width = ceilf(width) + (look->padding * 4.0F);
+
+    u32 picked = NYA_UI_MENU_NONE;
+
+    // floats at the click, over what follows and clamped to the window, exactly as a dropdown's list does.
+    if (_nya_ui_float_begin(ui, id, (NYA_UIPanel){ 0 }, (NYA_Rectf){ ui->open_at.x, ui->open_at.y, width, 0.0F })) {
+        for (u32 i = 0; i < count; i++) {
+            // a null or empty label is a separator: a slim dim rule that takes no focus and no click.
+            if (items[i] == nullptr || items[i][0] == '\0') {
+                NYA_Rectf slot = nya_ui_space(ui, 0.0F, NYA_UI_SPACING);
+                if (_nya_ui_drawn(slot)) {
+                    f32              thickness = nya_max(1.0F, _nya_ui_px(1.0F));
+                    NYA_UIWidgetDraw rule      = { .kind = NYA_UI_WIDGET_UNDERLINE, .rect = { slot.x, roundf(slot.y + (slot.height - thickness) * 0.5F), slot.width, thickness }, .color = look->style.text_dim };
+                    _nya_ui_draw(ui, &rule);
+                }
+                continue;
+            }
+
+            if (nya_ui_button(ui, items[i])) picked = i;
+        }
+
+        _nya_ui_float_end(ui);
+    }
+
+    // a pick closes it, and so does a press that misses the list: the float claimed its rectangle as it ended, so
+    // a press inside the menu is claimed and one outside is not. `button` as well as the left button, so a right
+    // click away from a right-click menu dismisses it too. Never the press that opened it, whose float is not
+    // measured yet this pass and so has not claimed the pointer the press is already on.
+    if (picked != NYA_UI_MENU_NONE) {
+        ui->open = 0;
+    } else if (!just_opened && ui->pass == NYA_UI_PASS_INPUT && (_nya_ui.pointer_pressed || nya_input_mouse_button_just_pressed(button)) &&
+               !_nya_ui_claimed(_nya_ui.pointer)) {
+        ui->open = 0;
+    }
+
+    return picked;
+}
+
 void nya_ui_chart(NYA_UI* ui, NYA_ConstCString label, NYA_UIChart chart) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
     nya_assert(label != nullptr);

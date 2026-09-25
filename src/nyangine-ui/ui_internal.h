@@ -233,6 +233,9 @@ struct NYA_UI {
     u64 open;
     u64 drag_panel;
 
+    /** Where a context menu opened, so its list stays put at the click rather than following the pointer. */
+    f32x2 open_at;
+
     /** The window being resized by its corner grip, and where in that corner the pointer took hold. */
     u64   resize_panel;
     f32x2 resize_grip;

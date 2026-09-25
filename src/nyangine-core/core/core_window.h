@@ -448,7 +448,15 @@ enum NYA_CursorShape {
  * */
 NYA_API void nya_cursor_set(NYA_CursorShape shape);
 
-/** The shape currently set. */
+/**
+ * Sets the pointer to a custom image: `rgba` is `width` by `height` pixels, row major, eight bits a channel,
+ * with the click point at (`hotspot_x`, `hotspot_y`) in those pixels. The engine copies the pixels and owns
+ * the cursor, freeing it on deinit; a second call replaces it. A later nya_cursor_set switches back to a system
+ * shape. False when the arguments are empty, the hotspot is outside the image, or the platform cannot make one.
+ * */
+NYA_API b8 nya_cursor_set_image(const u8* rgba, u32 width, u32 height, u32 hotspot_x, u32 hotspot_y) __attr_no_discard;
+
+/** The shape currently set. Unchanged by a custom image, which is not one of the shapes. */
 NYA_API NYA_CursorShape nya_cursor(void) __attr_no_discard;
 
 /** Shows or hides the pointer entirely. What a first person camera does while it has the mouse. */

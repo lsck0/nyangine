@@ -189,6 +189,17 @@ s32 main(void) {
     nya_cursor_visible_set(true);
     nya_check(nya_cursor_visible(), "and shown again");
 
+    /* nya_cursor_set_image: a cursor from an image with a hotspot. The argument checks answer whatever the platform can do — a null image, an empty one, or a hotspot outside it are refused up front — so they hold on the offscreen driver and on a real display alike. */
+    u8 image[4 * 4 * 4] = { 0 };
+    nya_check(!nya_cursor_set_image(nullptr, 4, 4, 0, 0), "a null image is refused");
+    nya_check(!nya_cursor_set_image(image, 0, 4, 0, 0), "an image with no width is refused");
+    nya_check(!nya_cursor_set_image(image, 4, 4, 4, 0), "a hotspot outside the image is refused");
+
+    /* A valid image either takes or is cleanly refused where the platform cannot build one; both leave the shape answering. What is asserted is that a system shape set after an image is applied rather than skipped as unchanged, which is the bug the image's active flag exists to avoid. */
+    (void)nya_cursor_set_image(image, 4, 4, 1, 1);
+    nya_cursor_set(NYA_CURSOR_DEFAULT);
+    nya_check(nya_cursor() < NYA_CURSOR_COUNT, "a shape set after a custom image still answers, got %d", (int)nya_cursor());
+
     nya_cursor_set(original);
     nya_cursor_visible_set(was_shown);
 

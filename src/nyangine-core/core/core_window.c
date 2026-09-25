@@ -1,4 +1,6 @@
 #include "SDL3/SDL_gpu.h"
+#include "SDL3/SDL_mouse.h"
+#include "SDL3/SDL_surface.h"
 #include "SDL3_image/SDL_image.h"
 
 #include "nyangine-core/nyangine.h"
@@ -726,6 +728,10 @@ NYA_INTERNAL NYA_Rect _nya_rect_from_sdl(SDL_Rect rect) {
 NYA_INTERNAL SDL_Cursor*     _NYA_CURSORS[NYA_CURSOR_COUNT] = { 0 };
 NYA_INTERNAL NYA_CursorShape _NYA_CURSOR_CURRENT            = NYA_CURSOR_DEFAULT;
 
+/** The one custom-image cursor, and whether it is what is currently shown. Replaced by a second set_image. */
+NYA_INTERNAL SDL_Cursor* _NYA_CURSOR_IMAGE        = nullptr;
+NYA_INTERNAL b8          _NYA_CURSOR_IMAGE_ACTIVE = false;
+
 NYA_INTERNAL SDL_SystemCursor _nya_cursor_to_sdl(NYA_CursorShape shape) {
     switch (shape) {
         case NYA_CURSOR_TEXT:               return SDL_SYSTEM_CURSOR_TEXT;
@@ -748,8 +754,11 @@ NYA_INTERNAL SDL_SystemCursor _nya_cursor_to_sdl(NYA_CursorShape shape) {
 void nya_cursor_set(NYA_CursorShape shape) {
     if (shape >= NYA_CURSOR_COUNT) return;
 
-    // The common case by far, since this is written every frame from whatever is hovered.
-    if (shape == _NYA_CURSOR_CURRENT && _NYA_CURSORS[shape] != nullptr) return;
+    // The common case by far, since this is written every frame from whatever is hovered. A custom image
+    // showing is the exception: the shape may be unchanged, but the pointer is not that shape, so re-set it.
+    if (shape == _NYA_CURSOR_CURRENT && _NYA_CURSORS[shape] != nullptr && !_NYA_CURSOR_IMAGE_ACTIVE) return;
+
+    _NYA_CURSOR_IMAGE_ACTIVE = false;
 
     if (_NYA_CURSORS[shape] == nullptr) {
         _NYA_CURSORS[shape] = SDL_CreateSystemCursor(_nya_cursor_to_sdl(shape));
@@ -765,6 +774,40 @@ void nya_cursor_set(NYA_CursorShape shape) {
     (void)SDL_SetCursor(_NYA_CURSORS[shape]);
 
     _NYA_CURSOR_CURRENT = shape;
+}
+
+b8 nya_cursor_set_image(const u8* rgba, u32 width, u32 height, u32 hotspot_x, u32 hotspot_y) {
+    if (rgba == nullptr || width == 0 || height == 0) return false;
+    if (hotspot_x >= width || hotspot_y >= height) return false;
+
+    // The surface owns its pixels: copied row by row, since the source is tightly packed and the surface
+    // is not, so the caller's buffer may go the moment this returns.
+    SDL_Surface* surface = SDL_CreateSurface((int)width, (int)height, SDL_PIXELFORMAT_RGBA32);
+    if (surface == nullptr) {
+        nya_log_warn("Could not create the cursor surface: %s", SDL_GetError());
+        return false;
+    }
+    defer SDL_DestroySurface(surface);
+
+    for (u32 row = 0; row < height; row++) {
+        nya_memcpy((u8*)surface->pixels + (u64)row * (u64)surface->pitch, rgba + (u64)row * (u64)width * 4U, (u64)width * 4U);
+    }
+
+    SDL_Cursor* cursor = SDL_CreateColorCursor(surface, (int)hotspot_x, (int)hotspot_y);
+    if (cursor == nullptr) {
+        nya_log_warn("Could not create a custom cursor: %s", SDL_GetError());
+        return false;
+    }
+
+    // The old custom cursor is freed only once the new one exists, so a failed replacement leaves the
+    // previous image standing rather than dropping to nothing.
+    if (_NYA_CURSOR_IMAGE != nullptr) SDL_DestroyCursor(_NYA_CURSOR_IMAGE);
+    _NYA_CURSOR_IMAGE = cursor;
+
+    (void)SDL_SetCursor(cursor);
+    _NYA_CURSOR_IMAGE_ACTIVE = true;
+
+    return true;
 }
 
 NYA_CursorShape nya_cursor(void) {
@@ -793,5 +836,11 @@ NYA_INTERNAL void _nya_cursor_deinit(void) {
         _NYA_CURSORS[i] = nullptr;
     }
 
-    _NYA_CURSOR_CURRENT = NYA_CURSOR_DEFAULT;
+    if (_NYA_CURSOR_IMAGE != nullptr) {
+        SDL_DestroyCursor(_NYA_CURSOR_IMAGE);
+        _NYA_CURSOR_IMAGE = nullptr;
+    }
+
+    _NYA_CURSOR_CURRENT      = NYA_CURSOR_DEFAULT;
+    _NYA_CURSOR_IMAGE_ACTIVE = false;
 }

@@ -24,6 +24,7 @@
  *   nya_ui_radio                                one choice of a set, owning the variable
  *   nya_ui_tabs                                 a row of pages, one chosen
  *   nya_ui_dropdown                             one of a list, which opens under the row
+ *   nya_ui_context_menu                         a popup of actions, opened at the pointer by a right or left click
  *   nya_ui_toggle                               flips a b8
  *   nya_ui_slider                               moves an f32 between two bounds in steps
  *   nya_ui_text_input                           one line of typed text, with selection and the clipboard
@@ -1153,6 +1154,30 @@ NYA_API b8 nya_ui_tabs(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* 
  * window is cut by it.
  * */
 NYA_API b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* options, u32 count, u32* selected);
+
+/**
+ * A popup menu of `count` actions, opened at the pointer by a click of `button` inside `trigger` and
+ * dismissed by a pick, cancel, or a press outside it. Returns the index of the item picked this pass, or
+ * NYA_UI_MENU_NONE — the same shape a window's menu reports, so a caller acts on it right after the call:
+ *
+ * ```c
+ * // a right click anywhere in the panel opens it; a caller wanting a left-click menu passes NYA_MOUSE_BUTTON_LEFT.
+ * static const NYA_ConstCString items[] = { "Cut", "Copy", "Paste", nullptr, "Delete" };
+ *
+ * u32 picked = nya_ui_context_menu(ui, "edit", panel_bounds, NYA_MOUSE_BUTTON_RIGHT, items, nya_carray_length(items));
+ * if (picked == 0) cut();
+ * if (picked == 4) delete_selection();
+ * ```
+ *
+ * `id` names it and shares the module's one open list, so a context menu, a dropdown and a window's menu are
+ * never open at once and escape closes whichever is. `trigger` is the rectangle a click opens it over, in
+ * window pixels — a widget's own rectangle, a panel's bounds, or the whole window. An item whose label is null
+ * or empty is a separator, a thin rule taking no focus and no click; the rest are menu entries, keyboard
+ * navigable like any button, and the list floats over what follows, clamped to stay inside the window. Submenus
+ * are left out on purpose: a nested popup needs open state and placement of its own, which is not cheap here.
+ * */
+NYA_API u32 nya_ui_context_menu(NYA_UI* ui, NYA_ConstCString id, NYA_Rectf trigger, NYA_MouseButton button, const NYA_ConstCString* items,
+                                u32 count) __attr_no_discard;
 
 /**
  * One choice of a set, marked when `*selected` is already `value`. Activating it writes `value`. True when it
