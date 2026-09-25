@@ -1,0 +1,84 @@
+================================================================================
+scalars, null and nested object
+================================================================================
+
+nya 2 0
+{
+    version: u32 3;
+    name: string "My\"App\n";
+    fullscreen: b8 false;
+    ratio: f32 0.5625;
+    missing: null;
+    window: object {
+        width: u32 1920;
+    };
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (header (number) (number))
+  (object
+    (member (identifier) (scalar (type) (number)))
+    (member (identifier) (scalar (type) (string (escape_sequence) (escape_sequence))))
+    (member (identifier) (scalar (type) (boolean)))
+    (member (identifier) (scalar (type) (number)))
+    (member (identifier) (null))
+    (member (identifier)
+      (object (type)
+        (member (identifier) (scalar (type) (number)))))))
+
+================================================================================
+arrays: typed, empty, nested, any, object elements
+================================================================================
+
+nya 2 0
+{
+    tags: string[] ["fast", "small"];
+    grid: array[] [s32[] [1, 2], s32[] [3, 4]];
+    mixed: any[] [s32 1, string "two", b8 true];
+    empty: [];
+    bins: object[] [object { name: string "a"; }];
+    negatives: s32 -5;
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (header (number) (number))
+  (object
+    (member (identifier) (array (type) (string) (string)))
+    (member (identifier)
+      (array (type)
+        (array (type) (number) (number))
+        (array (type) (number) (number))))
+    (member (identifier)
+      (array (type)
+        (scalar (type) (number))
+        (scalar (type) (string))
+        (scalar (type) (boolean))))
+    (member (identifier) (array))
+    (member (identifier)
+      (array (type)
+        (object (type)
+          (member (identifier) (scalar (type) (string))))))
+    (member (identifier) (scalar (type) (number)))))
+
+================================================================================
+comments
+================================================================================
+
+nya 2 0
+{
+    // a line comment
+    a: u32 1; /* a block comment */
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (header (number) (number))
+  (object
+    (comment)
+    (member (identifier) (scalar (type) (number)))
+    (comment)))

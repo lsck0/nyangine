@@ -1,0 +1,21 @@
+{
+  "grammars": [
+    {
+      "name": "nya",
+      "camelcase": "Nya",
+      "scope": "source.nya",
+      "path": ".",
+      "file-types": [
+        "nya"
+      ],
+      "highlights": [
+        "queries/highlights.scm"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "see the nyangine repository",
+    "description": "tree-sitter grammar for the nyangine .nya object format"
+  }
+}

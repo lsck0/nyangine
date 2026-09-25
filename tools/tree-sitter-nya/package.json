@@ -1,0 +1,34 @@
+{
+  "name": "tree-sitter-nya",
+  "version": "0.1.0",
+  "description": "tree-sitter grammar for the nyangine .nya object format",
+  "main": "bindings/node",
+  "keywords": [
+    "tree-sitter",
+    "parser",
+    "nya",
+    "nyangine"
+  ],
+  "license": "see the nyangine repository",
+  "dependencies": {
+    "node-addon-api": "^7.0.0",
+    "node-gyp-build": "^4.6.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tree-sitter": {
+      "optional": true
+    }
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.nya",
+      "file-types": [
+        "nya"
+      ],
+      "highlights": "queries/highlights.scm"
+    }
+  ]
+}

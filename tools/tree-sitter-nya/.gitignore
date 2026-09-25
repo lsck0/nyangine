@@ -1,0 +1,7 @@
+# Build artifacts. The generated parser under src/ is committed so consumers need no tree-sitter CLI;
+# the compiled library and any node tooling are not.
+*.so
+*.dylib
+*.dll
+*.wasm
+node_modules/
