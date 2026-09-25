@@ -1364,8 +1364,11 @@ Accepted:
 - `[ ]` **Live updates over WebSocket:** publish and subscribe to topics, with presence. A subscription is
   authorised by the same permission check as the route that reads the same data, and re-checked when the
   subscriber's roles change. Messages are DTOs in binary `.nya`. Phase 3.
-- `[ ]` **CORS**, configured per route rather than globally, off by default, with the allowed origins listed
-  exactly (no wildcard with credentials, ever). Phase 3.
+- `[x]` **CORS**, configured per route rather than globally, off by default, with the allowed origins listed
+  exactly (no wildcard with credentials, ever). Phase 3. `http_cors.h`: a per-route/per-router policy, the
+  `OPTIONS` preflight answered 204 with the negotiated `Access-Control-*` headers, an exact-match allowlist
+  that reflects only an allowed Origin (never `*` with credentials, refused at `nya_http_router_check`), and
+  the allowlist doubling as the grant that lets an allowed cross-origin write past the CSRF guard.
 - `[ ]` **Prometheus metrics and OpenTelemetry:** a `/metrics` exposition on a separate loopback port by
   default, fed from what the ceiling, arena and system registries already know plus request counters and
   latency histograms; OpenTelemetry traces exported over OTLP/HTTP, with the request id as the trace id.

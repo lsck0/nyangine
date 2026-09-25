@@ -11,6 +11,7 @@
  * http_types.h     the vocabulary: methods, statuses, media types, requests, responses, and the bounds
  * http_message.h   the wire boundary: bytes in, NYA_HttpRequest out; NYA_HttpResponse in, bytes out
  * http_router.h    routes, the layer chain, the identity extractor, and dispatch
+ * http_cors.h      the per-route CORS policy, the preflight, and never a `*` with credentials
  * http_log.h       what one exchange leaves in the log, and the redaction that happens before it does
  * http_idempotency.h  a retried unsafe request runs once: the Idempotency-Key layer and its store
  * http_pow.h       a proof-of-work wall: the abuse layer for a server with no IP to rate-limit
@@ -71,6 +72,7 @@
 #include "nyangine-core/http/http_auth.h"
 #include "nyangine-core/http/http_client.h"
 #include "nyangine-core/http/http_cookie.h"
+#include "nyangine-core/http/http_cors.h"
 #include "nyangine-core/http/http_doc.h"
 #include "nyangine-core/http/http_feed.h"
 #include "nyangine-core/http/http_health.h"

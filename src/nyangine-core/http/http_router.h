@@ -110,6 +110,7 @@
 #include "nyangine-std/base/base_reflection.h"
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/http/http_auth.h"
+#include "nyangine-core/http/http_cors.h"
 #include "nyangine-core/http/http_message.h"
 #include "nyangine-core/http/http_types.h"
 #include "nyangine-core/permission/permission.h"
@@ -333,6 +334,13 @@ struct NYA_HttpRoute {
     /** Likewise for `handler_identified`: a `nya_callback` token for an identified handler that hot-swaps. */
     u64 handler_identified_callback;
 
+    /**
+     * The CORS policy for this route, or null for the same-origin default. Overrides the router's own
+     * `cors` when both are set, so a resource carries one policy and a route that differs states its own.
+     * A browser calling this route from another origin reads its answer only through this; see http_cors.h.
+     * */
+    const NYA_HttpCors* cors;
+
     /** One line, for the OpenAPI summary. Required. */
     NYA_ConstCString summary;
 
@@ -367,6 +375,12 @@ struct NYA_HttpRouter {
     /** Layers around this resource's handlers only, outermost first. */
     const NYA_HttpLayerFn* layers;
     u32                    layer_count;
+
+    /**
+     * The CORS policy every route here takes unless it names its own, or null for the same-origin
+     * default. One policy per resource is the common case; a route's own `cors` wins where they differ.
+     * */
+    const NYA_HttpCors* cors;
 };
 
 // FUNCTIONS

@@ -66,6 +66,10 @@ NYA_INTERNAL NYA_Error _nya_http_response_problem_html(NYA_HttpExchange* exchang
  * */
 NYA_INTERNAL b8 _nya_http_request_is_cross_site(const NYA_HttpRequest* request) __attr_no_discard;
 
+/** The CORS policy in force for `route`: its own when set, else the router it belongs to; null denies. */
+NYA_INTERNAL const NYA_HttpCors* _nya_http_route_cors(const NYA_HttpRoute* route, const NYA_HttpRouter* const* routers, u32 router_count)
+    __attr_no_discard;
+
 // PUBLIC API IMPLEMENTATION
 
 NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
@@ -83,6 +87,10 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' counts layers it does not have", router->name);
     }
 
+    // the resource's default policy, and each route's own below: a "*" origin beside credentials is a vulnerability caught here rather than reflected at runtime.
+    NYA_Error router_cors = nya_http_cors_check(router->cors);
+    if (!router_cors.ok) return nya_error(router_cors.kind, "'%s' has a bad CORS policy: %s", router->name, router_cors.message);
+
     for (u32 index = 0; index < router->route_count; index++) {
         const NYA_HttpRoute* route = &router->routes[index];
 
@@ -91,6 +99,11 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
 
         if (route->path == nullptr || route->path[0] != '/') {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "route %u of '%s' needs an absolute path", index, router->name);
+        }
+
+        NYA_Error route_cors = nya_http_cors_check(route->cors);
+        if (!route_cors.ok) {
+            return nya_error(route_cors.kind, "%s %s has a bad CORS policy: %s", nya_http_method_text(route->method), route->path, route_cors.message);
         }
 
         if (route->summary == nullptr || route->summary[0] == '\0') {
@@ -278,6 +291,21 @@ NYA_HttpStatus nya_http_router_dispatch(
 
     b8 path_exists = false;
 
+    // A CORS preflight names its target verb in Access-Control-Request-Method rather than in the request line, so it is answered before routing: no OPTIONS route is registered, and the target route's policy is what it is negotiated against.
+    if (exchange->request->method == NYA_HTTP_METHOD_OPTIONS && nya_http_request_header(exchange->request, "Origin") != nullptr &&
+        nya_http_request_header(exchange->request, "Access-Control-Request-Method") != nullptr) {
+        NYA_ConstCString requested     = nya_http_request_header(exchange->request, "Access-Control-Request-Method");
+        NYA_HttpMethod   target_method = nya_http_method_parse(requested, strlen(requested));
+
+        b8                   target_exists = false;
+        const NYA_HttpRoute* target        = nya_http_router_find(routers, router_count, target_method, exchange->request->path, &target_exists);
+
+        // for a log layer; a preflight for an unknown route is answered with no CORS headers, which the browser reads as a refusal.
+        exchange->route = target;
+
+        return nya_http_cors_preflight(target != nullptr ? _nya_http_route_cors(target, routers, router_count) : nullptr, exchange->request, exchange->response);
+    }
+
     exchange->route = nya_http_router_find(routers, router_count, exchange->request->method, exchange->request->path, &path_exists);
 
     if (exchange->route == nullptr) {
@@ -286,8 +314,11 @@ NYA_HttpStatus nya_http_router_dispatch(
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_NOT_FOUND, "no route for that path");
     }
 
-    // before every layer and the handler, so no route that writes can be reached from another site by forgetting.
-    if (!nya_http_method_is_safe(exchange->request->method) && _nya_http_request_is_cross_site(exchange->request)) {
+    const NYA_HttpCors* cors        = _nya_http_route_cors(exchange->route, routers, router_count);
+    NYA_ConstCString    cors_origin = nya_http_cors_allow_origin(cors, exchange->request);
+
+    // before every layer and the handler, so no route that writes can be reached from another site by forgetting. A CORS policy that allows this Origin is the program declaring the cross-origin caller expected, so the allowlist is the grant that lets it past the guard; a route with no policy keeps the guard.
+    if (!nya_http_method_is_safe(exchange->request->method) && _nya_http_request_is_cross_site(exchange->request) && cors_origin == nullptr) {
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "a request from another site may not change anything here");
     }
 
@@ -332,8 +363,11 @@ NYA_HttpStatus nya_http_router_dispatch(
 
     // a refusal with nothing in it is a status a client has to guess about. One shape, always.
     if (status >= NYA_HTTP_STATUS_BAD_REQUEST && exchange->response->body_size == 0) {
-        return nya_http_response_problem(exchange, status, nya_http_status_text(status));
+        status = nya_http_response_problem(exchange, status, nya_http_status_text(status));
     }
+
+    // Last, after any problem body's reset: a browser has to read the CORS headers even off a refusal, so they go on whatever the answer ended up being, its Origin allowed or not deciding whether there are any.
+    nya_http_cors_apply(cors, exchange->request, exchange->response);
 
     return status;
 }
@@ -561,6 +595,23 @@ b8 _nya_http_request_is_cross_site(const NYA_HttpRequest* request) {
     if (host == nullptr) return true;
 
     return !_nya_http_equals_ignore_case(authority, strlen(authority), host);
+}
+
+const NYA_HttpCors* _nya_http_route_cors(const NYA_HttpRoute* route, const NYA_HttpRouter* const* routers, u32 router_count) {
+    nya_assert(route != nullptr);
+
+    // A route's own policy wins; otherwise the router it belongs to lends its default.
+    if (route->cors != nullptr) return route->cors;
+
+    for (u32 index = 0; index < router_count && index < NYA_HTTP_MAX_ROUTERS; index++) {
+        const NYA_HttpRouter* router = routers[index];
+        if (router == nullptr) continue;
+
+        // the same address arithmetic the layer walk uses: a pointer inside a router's contiguous table names its owner without a back pointer per route.
+        if (route >= router->routes && route < router->routes + router->route_count) return router->cors;
+    }
+
+    return nullptr;
 }
 
 b8 _nya_http_route_declares(const NYA_HttpRoute* route, NYA_HttpStatus status) {

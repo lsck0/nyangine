@@ -15,6 +15,8 @@
 // beside http_auth.c and independent of it: it answers the second factor, where that answers the first.
 #include "nyangine-core/http/http_totp.c"
 /**/
+// over the message layer whose response headers it writes, and under the router whose route table carries its policy and whose dispatch answers a preflight through it.
+#include "nyangine-core/http/http_cors.c"
 #include "nyangine-core/http/http_router.c"
 // after the router, whose table it reads, and over serde/the message layer whose encoding it mirrors: it calls a route by its table entry, request DTO in, response DTO out.
 #include "nyangine-core/http/http_client.c"
