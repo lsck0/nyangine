@@ -7,7 +7,7 @@
 #include "nyangine-std/base/base_preflight.h"
 #include "nyangine-core/crypto/crypto_secret.h"
 #include "nyangine-std/os/os_random.h"
-#include "nyangine-core/plugins/pgp/pgp.h"
+#include "nyangine-plugins/pgp/pgp.h"
 
 // ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 

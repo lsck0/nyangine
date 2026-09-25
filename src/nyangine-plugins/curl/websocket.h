@@ -91,7 +91,7 @@
 #include "nyangine-std/base/base_types.h"
 // The protocol both ends share. A plugin depending on a module is the direction the layering allows; http names nothing here.
 #include "nyangine-core/http/http_websocket.h"
-#include "nyangine-core/plugins/curl/request.h"
+#include "nyangine-plugins/curl/request.h"
 
 // ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 

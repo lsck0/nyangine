@@ -80,7 +80,7 @@
 #include "nyangine-std/base/base_object.h"
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/crypto/crypto_rsa.h"
-#include "nyangine-core/plugins/curl/request.h"
+#include "nyangine-plugins/curl/request.h"
 
 // ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 

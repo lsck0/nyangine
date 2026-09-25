@@ -5,7 +5,7 @@
 #include "nyangine-std/base/base_clock.h"
 #include "nyangine-std/base/base_string.h"
 #include "nyangine-core/crypto/crypto_secret.h"
-#include "nyangine-core/plugins/telegram_bot/telegram.h"
+#include "nyangine-plugins/telegram_bot/telegram.h"
 
 // ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 

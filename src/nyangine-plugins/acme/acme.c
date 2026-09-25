@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "nyangine-core/acme/acme.h"
+#include "nyangine-plugins/acme/acme.h"
 #include "nyangine-std/base/base_arena.h"
 #include "nyangine-std/base/base_assert.h"
 #include "nyangine-std/base/base_basic.h"

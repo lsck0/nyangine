@@ -79,7 +79,7 @@
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/http/http_router.h"
-#include "nyangine-core/plugins/curl/request.h"
+#include "nyangine-plugins/curl/request.h"
 
 // ───────────────────────────────────── CONSTANTS ─────────────────────────────────────
 

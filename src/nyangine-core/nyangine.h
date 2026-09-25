@@ -19,7 +19,7 @@
 // permission's bitmask. Inside db's flag because its two tables are db's.
 #include "nyangine-core/accounts/accounts.h"
 #endif
-#include "nyangine-core/plugins/plugins.h"
+#include "nyangine-plugins/plugins.h"
 #include "nyangine-std/serde/serde.h"
 // Beside serde: both turn a NYA_Object into text, and neither includes the other. It only needs base,
 // so it sits low and everything above it — http bodies, emails, LaTeX reports — can render through it.
@@ -34,8 +34,12 @@
 
 // Beside tls: an ACME client that gets and renews the certificate tls is handed. It signs with crypto and
 // reaches the CA over a transport the program wires, so it needs no socket of its own; its OpenSSL half
-// (the CSR) answers NYA_ERROR_NOT_SUPPORTED where there is no OpenSSL, the same as tls.
-#include "nyangine-core/acme/acme.h"
+// (the CSR) answers NYA_ERROR_NOT_SUPPORTED where there is no OpenSSL, the same as tls. A plugin now,
+// opt-in behind NYA_PLUGIN_ACME (in the default plugin list), since a program that never renews a cert
+// has no use for it.
+#ifdef NYA_PLUGIN_ACME
+#include "nyangine-plugins/acme/acme.h"
+#endif
 
 // net and http carry no include of core, the renderer or SDL (grep proves it), so a headless server
 // takes them without the SDL half of the engine: NYA_SERVER is that build. Every existing build is

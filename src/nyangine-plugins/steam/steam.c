@@ -996,6 +996,6 @@ const NYA_SteamBackend* _nya_steam_backend_default(void) {
 
 #else
 
-#include "nyangine-core/plugins/steam/steam_steamworks.c"
+#include "nyangine-plugins/steam/steam_steamworks.c"
 
 #endif // NYA_PLUGIN_STEAM

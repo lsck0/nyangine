@@ -5,7 +5,7 @@
 #include "nyangine-std/base/base_clock.h"
 #include "nyangine-std/base/base_string.h"
 #include "nyangine-core/crypto/crypto_secret.h"
-#include "nyangine-core/plugins/twitch_bot/twitch_helix.h"
+#include "nyangine-plugins/twitch_bot/twitch_helix.h"
 
 // ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
 

@@ -5,8 +5,8 @@
 #include "nyangine-std/base/base_clock.h"
 #include "nyangine-std/base/base_clock_format.h"
 #include "nyangine-std/base/base_string.h"
-#include "nyangine-core/plugins/curl/websocket.h"
-#include "nyangine-core/plugins/twitch_bot/twitch_eventsub.h"
+#include "nyangine-plugins/curl/websocket.h"
+#include "nyangine-plugins/twitch_bot/twitch_eventsub.h"
 #include "nyangine-std/serde/serde_json.h"
 
 // ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────

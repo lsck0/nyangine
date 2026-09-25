@@ -8,7 +8,7 @@
 #include "nyangine-core/crypto/crypto_hash.h"
 #include "nyangine-core/crypto/crypto_secret.h"
 #include "nyangine-std/os/os_random.h"
-#include "nyangine-core/plugins/oidc/oidc.h"
+#include "nyangine-plugins/oidc/oidc.h"
 #include "nyangine-std/serde/serde.h"
 
 // ───────────────────────────────────── PRIVATE TYPES ─────────────────────────────────────
