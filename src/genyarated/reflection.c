@@ -1,6 +1,6 @@
 /* THIS FILE IS GENERATED. DO NYAT TOUCH. */
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include "genyarated/reflection.h"
 
@@ -151,6 +151,9 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
+    &_NYA_REFLECT_NYA_Quaternion,
+    &_NYA_REFLECT_NYA_EaseType,
+    &_NYA_REFLECT_NYA_SerdeSecretExample,
     &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,
@@ -203,8 +206,6 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_HttpTotpSubmission,
     &_NYA_REFLECT_NYA_HttpTotpRecoveryDto,
     &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto,
-    &_NYA_REFLECT_NYA_Quaternion,
-    &_NYA_REFLECT_NYA_EaseType,
     &_NYA_REFLECT_NYA_NetPeerId,
     &_NYA_REFLECT_NYA_Light2D,
     &_NYA_REFLECT_NYA_Render3DFog,
@@ -228,7 +229,6 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_NetChatMessage,
-    &_NYA_REFLECT_NYA_SerdeSecretExample,
     &_NYA_REFLECT_NYA_UIOverflow,
     &_NYA_REFLECT_NYA_UIStateColors,
     &_NYA_REFLECT_NYA_UISkin,

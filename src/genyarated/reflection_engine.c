@@ -1,6 +1,6 @@
 /* THIS FILE IS GENERATED. DO NYAT TOUCH. */
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include "genyarated/reflection_engine.h"
 
@@ -10,7 +10,7 @@
  * The builtins and the server-safe types are in reflection_engine_server.c; see it.
  */
 
-/* NYA_AudioPass, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioPass, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioPass_FIELDS[] = {
     { .name = "lowpass_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPass, lowpass_hz), .hint = NYA_HINT_NONE },
@@ -28,7 +28,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioPass = {
     .field_count = 4,
 };
 
-/* NYA_AudioEqualizer, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioEqualizer, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioEqualizer_FIELDS[] = {
     { .name = "low_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, low_db), .hint = NYA_HINT_NONE },
@@ -49,7 +49,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioEqualizer = {
     .field_count = 7,
 };
 
-/* NYA_AudioCompressor, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioCompressor, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioCompressor_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioCompressor, enabled), .hint = NYA_HINT_NONE },
@@ -69,7 +69,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioCompressor = {
     .field_count = 6,
 };
 
-/* NYA_AudioEcho, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioEcho, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioEcho_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioEcho, enabled), .hint = NYA_HINT_NONE },
@@ -88,7 +88,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioEcho = {
     .field_count = 5,
 };
 
-/* NYA_AudioReverb, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioReverb, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioReverb_FIELDS[] = {
     { .name = "room_size", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioReverb, room_size), .hint = NYA_HINT_NONE },
@@ -107,7 +107,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioReverb = {
     .field_count = 5,
 };
 
-/* NYA_AudioLimiter, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioLimiter, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioLimiter_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioLimiter, enabled), .hint = NYA_HINT_NONE },
@@ -124,7 +124,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioLimiter = {
     .field_count = 3,
 };
 
-/* NYA_AudioEffects, src/nyangine/core/core_audio_effects.h */
+/* NYA_AudioEffects, src/nyangine-core/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioEffects_FIELDS[] = {
     { .name = "pass", .type = &_NYA_REFLECT_NYA_AudioPass, .offset = nya_offsetof(NYA_AudioEffects, pass), .hint = NYA_HINT_NONE },
@@ -144,7 +144,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioEffects = {
     .field_count = 6,
 };
 
-/* NYA_AudioSpace, src/nyangine/core/core_audio_propagation.h */
+/* NYA_AudioSpace, src/nyangine-core/core/core_audio_propagation.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_AudioSpace_VARIANTS[] = {
     { .name = "NYA_AUDIO_SPACE_3D", .value = (s64)(NYA_AUDIO_SPACE_3D) },
@@ -166,7 +166,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioSpace = {
     .is_bitflags = false,
 };
 
-/* NYA_AudioPropagation, src/nyangine/core/core_audio_propagation.h */
+/* NYA_AudioPropagation, src/nyangine-core/core/core_audio_propagation.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioPropagation_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioPropagation, enabled), .hint = NYA_HINT_NONE },
@@ -195,7 +195,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AudioPropagation = {
     .field_count = 15,
 };
 
-/* NYA_ConfigEngineRenderer, src/nyangine/core/core_config.h */
+/* NYA_ConfigEngineRenderer, src/nyangine-core/core/core_config.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -237,7 +237,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .field_count = 21,
 };
 
-/* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
+/* NYA_ConfigEnginePhysics, src/nyangine-core/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEnginePhysics_FIELDS[] = {
     { .name = "gravity", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEnginePhysics, gravity), .hint = NYA_HINT_NONE },
@@ -253,7 +253,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEnginePhysics = {
     .field_count = 2,
 };
 
-/* NYA_ConfigEngineAudio, src/nyangine/core/core_config.h */
+/* NYA_ConfigEngineAudio, src/nyangine-core/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineAudio_FIELDS[] = {
     { .name = "propagation", .type = &_NYA_REFLECT_NYA_AudioPropagation, .offset = nya_offsetof(NYA_ConfigEngineAudio, propagation), .hint = NYA_HINT_NONE },
@@ -271,7 +271,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineAudio = {
     .field_count = 4,
 };
 
-/* NYA_ConfigEngine, src/nyangine/core/core_config.h */
+/* NYA_ConfigEngine, src/nyangine-core/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
     { .name = "renderer", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer, .offset = nya_offsetof(NYA_ConfigEngine, renderer), .hint = NYA_HINT_NONE },
@@ -290,7 +290,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .field_count = 5,
 };
 
-/* NYA_ConfigDocument, src/nyangine/core/core_config.h */
+/* NYA_ConfigDocument, src/nyangine-core/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigDocument_FIELDS[] = {
     { .name = "engine", .type = &_NYA_REFLECT_NYA_ConfigEngine, .offset = nya_offsetof(NYA_ConfigDocument, engine), .hint = NYA_HINT_NONE },
@@ -305,7 +305,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigDocument = {
     .field_count = 1,
 };
 
-/* NYA_EntityState, src/nyangine/core/core_entity.h */
+/* NYA_EntityState, src/nyangine-core/core/core_entity.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_EntityState_VARIANTS[] = {
     { .name = "NYA_ENTITY_STATE_NONE", .value = (s64)(NYA_ENTITY_STATE_NONE) },
@@ -329,7 +329,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_EntityState = {
     .is_bitflags = true,
 };
 
-/* NYA_EntityVisualKind, src/nyangine/core/core_entity.h */
+/* NYA_EntityVisualKind, src/nyangine-core/core/core_entity.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_EntityVisualKind_VARIANTS[] = {
     { .name = "NYA_ENTITY_VISUAL_NONE", .value = (s64)(NYA_ENTITY_VISUAL_NONE) },
@@ -353,7 +353,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_EntityVisualKind = {
     .is_bitflags = false,
 };
 
-/* NYA_PluginPermission, src/nyangine/core/core_plugin.h */
+/* NYA_PluginPermission, src/nyangine-core/core/core_plugin.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PluginPermission_VARIANTS[] = {
     { .name = "NYA_PLUGIN_PERMISSION_NONE", .value = (s64)(NYA_PLUGIN_PERMISSION_NONE) },
@@ -381,7 +381,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PluginPermission = {
     .is_bitflags = true,
 };
 
-/* NYA_PluginDependency, src/nyangine/core/core_plugin.h */
+/* NYA_PluginDependency, src/nyangine-core/core/core_plugin.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginDependency_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -411,7 +411,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PluginDependency = {
     .field_count = 2,
 };
 
-/* NYA_PluginManifest, src/nyangine/core/core_plugin.h */
+/* NYA_PluginManifest, src/nyangine-core/core/core_plugin.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -498,7 +498,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest = {
     .field_count = 10,
 };
 
-/* NYA_SceneVisual, src/nyangine/core/core_scene.h */
+/* NYA_SceneVisual, src/nyangine-core/core/core_scene.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual_sprite_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -547,7 +547,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual = {
     .field_count = 21,
 };
 
-/* NYA_SceneEntity, src/nyangine/core/core_scene.h */
+/* NYA_SceneEntity, src/nyangine-core/core/core_scene.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -582,7 +582,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity = {
     .field_count = 14,
 };
 
-/* NYA_SettingsVolumes, src/nyangine/core/core_settings.h */
+/* NYA_SettingsVolumes, src/nyangine-core/core/core_settings.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsVolumes_FIELDS[] = {
     { .name = "master", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsVolumes, master), .hint = NYA_HINT_NONE },
@@ -601,7 +601,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsVolumes = {
     .field_count = 5,
 };
 
-/* NYA_GraphicsQuality, src/nyangine/core/core_settings.h */
+/* NYA_GraphicsQuality, src/nyangine-core/core/core_settings.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_GraphicsQuality_VARIANTS[] = {
     { .name = "NYA_GRAPHICS_QUALITY_OFF", .value = (s64)(NYA_GRAPHICS_QUALITY_OFF) },
@@ -625,7 +625,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_GraphicsQuality = {
     .is_bitflags = false,
 };
 
-/* NYA_SettingsGraphics, src/nyangine/core/core_settings.h */
+/* NYA_SettingsGraphics, src/nyangine-core/core/core_settings.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsGraphics_FIELDS[] = {
     { .name = "msaa_samples", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SettingsGraphics, msaa_samples), .hint = NYA_HINT_NONE },
@@ -652,7 +652,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
     .field_count = 13,
 };
 
-/* NYA_HttpMetricsDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpMetricsDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpMetricsDto_FIELDS[] = {
     { .name = "measured_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, measured_at_s), .hint = NYA_HINT_NONE },
@@ -677,7 +677,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpMetricsDto = {
     .field_count = 11,
 };
 
-/* NYA_HttpCeilingDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpCeilingDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -702,7 +702,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto = {
     .field_count = 4,
 };
 
-/* NYA_HttpCeilingsDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpCeilingsDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto_rows_ARRAY = {
     .name = "NYA_HttpCeilingDto[]", .kind = NYA_REFLECT_ARRAY,
@@ -726,7 +726,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto = {
     .field_count = 3,
 };
 
-/* NYA_HttpArenaDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpArenaDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -753,7 +753,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto = {
     .field_count = 6,
 };
 
-/* NYA_HttpArenasDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpArenasDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto_rows_ARRAY = {
     .name = "NYA_HttpArenaDto[]", .kind = NYA_REFLECT_ARRAY,
@@ -777,7 +777,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto = {
     .field_count = 3,
 };
 
-/* NYA_HttpOwnerDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpOwnerDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -803,7 +803,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto = {
     .field_count = 5,
 };
 
-/* NYA_HttpSystemsDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpSystemsDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto_rows_ARRAY = {
     .name = "NYA_HttpOwnerDto[]", .kind = NYA_REFLECT_ARRAY,
@@ -828,7 +828,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto = {
     .field_count = 4,
 };
 
-/* NYA_HttpAccountingDto, src/nyangine/debug/debug_metrics.h */
+/* NYA_HttpAccountingDto, src/nyangine-core/debug/debug_metrics.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_HttpAccountingDto_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpAccountingDto, enabled), .hint = NYA_HINT_NONE },
@@ -843,7 +843,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpAccountingDto = {
     .field_count = 1,
 };
 
-/* NYA_Light2D, src/nyangine/renderer/render2d.h */
+/* NYA_Light2D, src/nyangine-core/renderer/render2d.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Light2D_FIELDS[] = {
     { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_Light2D, radius), .hint = NYA_HINT_NONE },
@@ -861,7 +861,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Light2D = {
     .field_count = 4,
 };
 
-/* NYA_Render3DFog, src/nyangine/renderer/render3d.h */
+/* NYA_Render3DFog, src/nyangine-core/renderer/render3d.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Render3DFog_FIELDS[] = {
     { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_Render3DFog, color), .hint = NYA_HINT_NONE },
@@ -881,7 +881,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Render3DFog = {
     .field_count = 6,
 };
 
-/* NYA_Render3DDecals, src/nyangine/renderer/render3d_decal.h */
+/* NYA_Render3DDecals, src/nyangine-core/renderer/render3d_decal.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Render3DDecals_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_Render3DDecals, enabled), .hint = NYA_HINT_NONE },
@@ -897,7 +897,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Render3DDecals = {
     .field_count = 2,
 };
 
-/* NYA_Color, src/nyangine/renderer/render_color.h */
+/* NYA_Color, src/nyangine-core/renderer/render_color.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Color_FIELDS[] = {
     { .name = "r", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_Color, r), .hint = NYA_HINT_NONE },
@@ -915,7 +915,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Color = {
     .field_count = 4,
 };
 
-/* NYA_RenderToggle, src/nyangine/renderer/render_features.h */
+/* NYA_RenderToggle, src/nyangine-core/renderer/render_features.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_RenderToggle_VARIANTS[] = {
     { .name = "NYA_RENDER_TOGGLE_DEFAULT", .value = (s64)(NYA_RENDER_TOGGLE_DEFAULT) },
@@ -938,7 +938,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_RenderToggle = {
     .is_bitflags = false,
 };
 
-/* NYA_RenderFeatures, src/nyangine/renderer/render_features.h */
+/* NYA_RenderFeatures, src/nyangine-core/renderer/render_features.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_RenderFeatures_FIELDS[] = {
     { .name = "frustum_culling", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, frustum_culling), .hint = NYA_HINT_NONE },
@@ -983,7 +983,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_RenderFeatures = {
     .field_count = 31,
 };
 
-/* NYA_RenderOutput, src/nyangine/renderer/render_output.h */
+/* NYA_RenderOutput, src/nyangine-core/renderer/render_output.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_RenderOutput_FIELDS[] = {
     { .name = "hdr", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_RenderOutput, hdr), .hint = NYA_HINT_NONE },
@@ -999,7 +999,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_RenderOutput = {
     .field_count = 2,
 };
 
-/* NYA_PostInk, src/nyangine/renderer/render_post.h */
+/* NYA_PostInk, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostInk_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostInk, enabled), .hint = NYA_HINT_NONE },
@@ -1019,7 +1019,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostInk = {
     .field_count = 6,
 };
 
-/* NYA_PostAmbientOcclusion, src/nyangine/renderer/render_post.h */
+/* NYA_PostAmbientOcclusion, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostAmbientOcclusion_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostAmbientOcclusion, enabled), .hint = NYA_HINT_NONE },
@@ -1039,7 +1039,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion = {
     .field_count = 6,
 };
 
-/* NYA_PostSsao, src/nyangine/renderer/render_post.h */
+/* NYA_PostSsao, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostSsao_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostSsao, enabled), .hint = NYA_HINT_NONE },
@@ -1058,7 +1058,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostSsao = {
     .field_count = 5,
 };
 
-/* NYA_PostSsr, src/nyangine/renderer/render_post.h */
+/* NYA_PostSsr, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostSsr_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostSsr, enabled), .hint = NYA_HINT_NONE },
@@ -1078,7 +1078,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostSsr = {
     .field_count = 6,
 };
 
-/* NYA_PostAntialias, src/nyangine/renderer/render_post.h */
+/* NYA_PostAntialias, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostAntialias_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostAntialias, enabled), .hint = NYA_HINT_NONE },
@@ -1095,7 +1095,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostAntialias = {
     .field_count = 3,
 };
 
-/* NYA_PostFocus, src/nyangine/renderer/render_post.h */
+/* NYA_PostFocus, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostFocus_VARIANTS[] = {
     { .name = "NYA_POST_FOCUS_OFF", .value = (s64)(NYA_POST_FOCUS_OFF) },
@@ -1118,7 +1118,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostFocus = {
     .is_bitflags = false,
 };
 
-/* NYA_PostDepthOfField, src/nyangine/renderer/render_post.h */
+/* NYA_PostDepthOfField, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostDepthOfField_FIELDS[] = {
     { .name = "focus", .type = &_NYA_REFLECT_NYA_PostFocus, .offset = nya_offsetof(NYA_PostDepthOfField, focus), .hint = NYA_HINT_NONE },
@@ -1140,7 +1140,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField = {
     .field_count = 8,
 };
 
-/* NYA_PostSpeedLines, src/nyangine/renderer/render_post.h */
+/* NYA_PostSpeedLines, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostSpeedLines_FIELDS[] = {
     { .name = "amount", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, amount), .hint = NYA_HINT_NONE },
@@ -1161,7 +1161,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines = {
     .field_count = 7,
 };
 
-/* NYA_PostBloom, src/nyangine/renderer/render_post.h */
+/* NYA_PostBloom, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostBloom_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostBloom, enabled), .hint = NYA_HINT_NONE },
@@ -1179,7 +1179,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostBloom = {
     .field_count = 4,
 };
 
-/* NYA_PostEyeAdaptation, src/nyangine/renderer/render_post.h */
+/* NYA_PostEyeAdaptation, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostEyeAdaptation_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostEyeAdaptation, enabled), .hint = NYA_HINT_NONE },
@@ -1200,7 +1200,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostEyeAdaptation = {
     .field_count = 7,
 };
 
-/* NYA_PostLightShafts, src/nyangine/renderer/render_post.h */
+/* NYA_PostLightShafts, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostLightShafts_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostLightShafts, enabled), .hint = NYA_HINT_NONE },
@@ -1218,7 +1218,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostLightShafts = {
     .field_count = 4,
 };
 
-/* NYA_PostMotionBlur, src/nyangine/renderer/render_post.h */
+/* NYA_PostMotionBlur, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_PostMotionBlur_FIELDS[] = {
     { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostMotionBlur, enabled), .hint = NYA_HINT_NONE },
@@ -1234,7 +1234,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostMotionBlur = {
     .field_count = 2,
 };
 
-/* NYA_PostDebugView, src/nyangine/renderer/render_post.h */
+/* NYA_PostDebugView, src/nyangine-core/renderer/render_post.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostDebugView_VARIANTS[] = {
     { .name = "NYA_POST_DEBUG_VIEW_NONE", .value = (s64)(NYA_POST_DEBUG_VIEW_NONE) },
@@ -1260,7 +1260,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView = {
     .is_bitflags = false,
 };
 
-/* NYA_Render2DHaze, src/nyangine/renderer/renderer.h */
+/* NYA_Render2DHaze, src/nyangine-core/renderer/renderer.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Render2DHaze_FIELDS[] = {
     { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_Render2DHaze, color), .hint = NYA_HINT_NONE },
@@ -1277,7 +1277,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Render2DHaze = {
     .field_count = 3,
 };
 
-/* NYA_NetChatMessage, src/nyangine/replicate/replicate_chat.h */
+/* NYA_NetChatMessage, src/nyangine-core/replicate/replicate_chat.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -1310,168 +1310,10 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage = {
     .field_count = 5,
 };
 
-/* NYA_UIOverflow, src/nyangine/ui/ui.h */
-
-static const NYA_ReflectVariant _NYA_REFLECT_NYA_UIOverflow_VARIANTS[] = {
-    { .name = "NYA_UI_OVERFLOW_INHERIT", .value = (s64)(NYA_UI_OVERFLOW_INHERIT) },
-    { .name = "NYA_UI_OVERFLOW_VISIBLE", .value = (s64)(NYA_UI_OVERFLOW_VISIBLE) },
-    { .name = "NYA_UI_OVERFLOW_WRAP", .value = (s64)(NYA_UI_OVERFLOW_WRAP) },
-    { .name = "NYA_UI_OVERFLOW_SHRINK", .value = (s64)(NYA_UI_OVERFLOW_SHRINK) },
-    { .name = "NYA_UI_OVERFLOW_COUNT", .value = (s64)(NYA_UI_OVERFLOW_COUNT) },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_UIOverflow = {
-    .name = "NYA_UIOverflow",
-    .kind = NYA_REFLECT_ENUM,
-    .size = sizeof(NYA_UIOverflow),
-    .alignment = alignof(NYA_UIOverflow),
-    .primitive = (sizeof(NYA_UIOverflow) == 8 ? NYA_TYPE_S64
-                : sizeof(NYA_UIOverflow) == 2 ? NYA_TYPE_S16
-                : sizeof(NYA_UIOverflow) == 1 ? NYA_TYPE_S8
-                                  : NYA_TYPE_S32),
-    .variants = _NYA_REFLECT_NYA_UIOverflow_VARIANTS,
-    .variant_count = 5,
-    .is_bitflags = false,
-};
-
-/* NYA_UIStateColors, src/nyangine/ui/ui.h */
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_UIStateColors_FIELDS[] = {
-    { .name = "normal", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStateColors, normal), .hint = NYA_HINT_NONE },
-    { .name = "focused", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStateColors, focused), .hint = NYA_HINT_NONE },
-    { .name = "pressed", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStateColors, pressed), .hint = NYA_HINT_NONE },
-    { .name = "disabled", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStateColors, disabled), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateColors = {
-    .name = "NYA_UIStateColors",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_UIStateColors),
-    .alignment = alignof(NYA_UIStateColors),
-    .fields = _NYA_REFLECT_NYA_UIStateColors_FIELDS,
-    .field_count = 4,
-};
-
-/* NYA_UISkin, src/nyangine/ui/ui.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_UISkin_texture_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_UISkin*)nullptr)->texture),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_SKIN_TEXTURE_MAX),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_UISkin_FIELDS[] = {
-    { .name = "texture", .type = &_NYA_REFLECT_NYA_UISkin_texture_ARRAY, .offset = nya_offsetof(NYA_UISkin, texture), .hint = NYA_HINT_NONE },
-    { .name = "source_x", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, source_x), .hint = NYA_HINT_NONE },
-    { .name = "source_y", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, source_y), .hint = NYA_HINT_NONE },
-    { .name = "source_width", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, source_width), .hint = NYA_HINT_NONE },
-    { .name = "source_height", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, source_height), .hint = NYA_HINT_NONE },
-    { .name = "left", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, left), .hint = NYA_HINT_NONE },
-    { .name = "right", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, right), .hint = NYA_HINT_NONE },
-    { .name = "top", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, top), .hint = NYA_HINT_NONE },
-    { .name = "bottom", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UISkin, bottom), .hint = NYA_HINT_NONE },
-    { .name = "tile", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_UISkin, tile), .hint = NYA_HINT_NONE },
-    { .name = "hollow", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_UISkin, hollow), .hint = NYA_HINT_NONE },
-    { .name = "tint", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UISkin, tint), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_UISkin = {
-    .name = "NYA_UISkin",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_UISkin),
-    .alignment = alignof(NYA_UISkin),
-    .fields = _NYA_REFLECT_NYA_UISkin_FIELDS,
-    .field_count = 12,
-};
-
-/* NYA_UIStateSkins, src/nyangine/ui/ui.h */
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_UIStateSkins_FIELDS[] = {
-    { .name = "normal", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStateSkins, normal), .hint = NYA_HINT_NONE },
-    { .name = "focused", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStateSkins, focused), .hint = NYA_HINT_NONE },
-    { .name = "pressed", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStateSkins, pressed), .hint = NYA_HINT_NONE },
-    { .name = "disabled", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStateSkins, disabled), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins = {
-    .name = "NYA_UIStateSkins",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_UIStateSkins),
-    .alignment = alignof(NYA_UIStateSkins),
-    .fields = _NYA_REFLECT_NYA_UIStateSkins_FIELDS,
-    .field_count = 4,
-};
-
-/* NYA_UIStyle, src/nyangine/ui/ui.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_font_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_UIStyle*)nullptr)->font),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_FONT_NAME_MAX),
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_title_font_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_UIStyle*)nullptr)->title_font),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_FONT_NAME_MAX),
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_icon_sheet_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_UIStyle*)nullptr)->icon_sheet),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_SKIN_TEXTURE_MAX),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_UIStyle_FIELDS[] = {
-    { .name = "font", .type = &_NYA_REFLECT_NYA_UIStyle_font_ARRAY, .offset = nya_offsetof(NYA_UIStyle, font), .hint = NYA_HINT_NONE },
-    { .name = "title_font", .type = &_NYA_REFLECT_NYA_UIStyle_title_font_ARRAY, .offset = nya_offsetof(NYA_UIStyle, title_font), .hint = NYA_HINT_NONE },
-    { .name = "body_size", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, body_size), .hint = NYA_HINT_NONE },
-    { .name = "small_size", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, small_size), .hint = NYA_HINT_NONE },
-    { .name = "title_size", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, title_size), .hint = NYA_HINT_NONE },
-    { .name = "scale", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, scale), .hint = NYA_HINT_NONE },
-    { .name = "follow_display_scale", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_UIStyle, follow_display_scale), .hint = NYA_HINT_NONE },
-    { .name = "margin", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, margin), .hint = NYA_HINT_NONE },
-    { .name = "padding", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, padding), .hint = NYA_HINT_NONE },
-    { .name = "spacing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, spacing), .hint = NYA_HINT_NONE },
-    { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, radius), .hint = NYA_HINT_NONE },
-    { .name = "outline", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, outline), .hint = NYA_HINT_NONE },
-    { .name = "depth", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, depth), .hint = NYA_HINT_NONE },
-    { .name = "pop", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, pop), .hint = NYA_HINT_NONE },
-    { .name = "focus_bar", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, focus_bar), .hint = NYA_HINT_NONE },
-    { .name = "item_height", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, item_height), .hint = NYA_HINT_NONE },
-    { .name = "overflow", .type = &_NYA_REFLECT_NYA_UIOverflow, .offset = nya_offsetof(NYA_UIStyle, overflow), .hint = NYA_HINT_NONE },
-    { .name = "transition_s", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, transition_s), .hint = NYA_HINT_NONE },
-    { .name = "appear_s", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, appear_s), .hint = NYA_HINT_NONE },
-    { .name = "easing", .type = &_NYA_REFLECT_NYA_EaseType, .offset = nya_offsetof(NYA_UIStyle, easing), .hint = NYA_HINT_NONE },
-    { .name = "scrim", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, scrim), .hint = NYA_HINT_NONE },
-    { .name = "panel", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, panel), .hint = NYA_HINT_NONE },
-    { .name = "ink", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, ink), .hint = NYA_HINT_NONE },
-    { .name = "track", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, track), .hint = NYA_HINT_NONE },
-    { .name = "accent", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, accent), .hint = NYA_HINT_NONE },
-    { .name = "text_dim", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, text_dim), .hint = NYA_HINT_NONE },
-    { .name = "button", .type = &_NYA_REFLECT_NYA_UIStateColors, .offset = nya_offsetof(NYA_UIStyle, button), .hint = NYA_HINT_NONE },
-    { .name = "text", .type = &_NYA_REFLECT_NYA_UIStateColors, .offset = nya_offsetof(NYA_UIStyle, text), .hint = NYA_HINT_NONE },
-    { .name = "icon_sheet", .type = &_NYA_REFLECT_NYA_UIStyle_icon_sheet_ARRAY, .offset = nya_offsetof(NYA_UIStyle, icon_sheet), .hint = NYA_HINT_NONE },
-    { .name = "panel_skin", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStyle, panel_skin), .hint = NYA_HINT_NONE },
-    { .name = "button_skin", .type = &_NYA_REFLECT_NYA_UIStateSkins, .offset = nya_offsetof(NYA_UIStyle, button_skin), .hint = NYA_HINT_NONE },
-    { .name = "track_skin", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStyle, track_skin), .hint = NYA_HINT_NONE },
-    { .name = "knob_skin", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStyle, knob_skin), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
-    .name = "NYA_UIStyle",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_UIStyle),
-    .alignment = alignof(NYA_UIStyle),
-    .fields = _NYA_REFLECT_NYA_UIStyle_FIELDS,
-    .field_count = 33,
-};
-
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {
+    &_NYA_REFLECT_NYA_Quaternion,
+    &_NYA_REFLECT_NYA_EaseType,
+    &_NYA_REFLECT_NYA_SerdeSecretExample,
     &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,
@@ -1524,8 +1366,6 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_HttpTotpSubmission,
     &_NYA_REFLECT_NYA_HttpTotpRecoveryDto,
     &_NYA_REFLECT_NYA_HttpTotpEnrolmentDto,
-    &_NYA_REFLECT_NYA_Quaternion,
-    &_NYA_REFLECT_NYA_EaseType,
     &_NYA_REFLECT_NYA_NetPeerId,
     &_NYA_REFLECT_NYA_Light2D,
     &_NYA_REFLECT_NYA_Render3DFog,
@@ -1549,7 +1389,6 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_NetChatMessage,
-    &_NYA_REFLECT_NYA_SerdeSecretExample,
     &_NYA_REFLECT_NYA_UIOverflow,
     &_NYA_REFLECT_NYA_UIStateColors,
     &_NYA_REFLECT_NYA_UISkin,

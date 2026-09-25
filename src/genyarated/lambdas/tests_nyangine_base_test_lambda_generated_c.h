@@ -8,13 +8,13 @@
  */
 #pragma once
 
-#line 46 "tests/nyangine/base/test_lambda_generated.c"
+#line 43 "tests/nyangine/base/test_lambda_generated.c"
 NYA_INTERNAL s32 _nya_lambda_test_lambda_descending(const u32* a, const u32* b) {
                      if (*a == *b) return 0;
                      return *a > *b ? -1 : 1;
                    }
 
-#line 69 "tests/nyangine/base/test_lambda_generated.c"
+#line 64 "tests/nyangine/base/test_lambda_generated.c"
 NYA_INTERNAL b8 _nya_lambda_test_lambda_walk(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
                                      WalkTally* seen = user_data;
 
@@ -26,8 +26,8 @@ NYA_INTERNAL b8 _nya_lambda_test_lambda_walk(NYA_ConstCString path, const NYA_Di
                                      return true;
                                    }
 
-#line 94 "tests/nyangine/base/test_lambda_generated.c"
+#line 86 "tests/nyangine/base/test_lambda_generated.c"
 NYA_INTERNAL u32 _nya_lambda_test_lambda_concatenate(u32 a, u32 b) { return (a * 10) + b; }
 
-#line 95 "tests/nyangine/base/test_lambda_generated.c"
+#line 87 "tests/nyangine/base/test_lambda_generated.c"
 NYA_INTERNAL u32 _nya_lambda_test_lambda_multiply(u32 a, u32 b) { return a * b; }

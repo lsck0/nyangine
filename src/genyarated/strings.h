@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "nyangine/core/core_i18n.h"
+#include "nyangine-core/core/core_i18n.h"
 
 /*
  * Generated from ./assets/i18n/en.json by src/build/i18n.c. One entry and one accessor per key of the base
