@@ -649,7 +649,7 @@ What every kind of program in the examples table needs and `base` does not have 
     get date and time pickers in the UI.
   - The simulated clock in the testing harness drives `NYA_Instant` too, so time dependent logic (session
     expiry, TOTP, retention sweeps) is deterministic under simulation.
-- `[ ]` **A general attribute system for reflection.** Today every annotation is special cased: `@key` became
+- `[x]` **A general attribute system for reflection.** Today every annotation is special cased: `@key` became
   `is_key`, `@hint` an enum of four hints, `@tag` a `tag_value`, and `@skip`, `@flags` and `@on_apply` are each
   their own path in `src/nyangine-build/pp/reflection.c`. Every new use (`@redact`, `@secret`, validation, UI labels)
   would mean another field on `NYA_ReflectField` and another branch in the generator. Instead:
@@ -1357,11 +1357,11 @@ Accepted:
   died runs again, so jobs are written to be idempotent, and the simulation harness kills the process at
   random points to prove it. The template has `src/tasks/`; here it is a component that server and desktop
   programs share. Phase 3.
-- `[ ]` **File uploads and downloads:** streaming bodies and multipart, size limits per route, storage by content
+- `[~]` **File uploads and downloads:** streaming bodies and multipart, size limits per route, storage by content
   hash on disk with the metadata in `db`, `Range` requests so downloads resume, the content type decided by
   the server rather than trusted from the client, and served with `Content-Disposition: attachment` unless
   the route says otherwise. Phase 3.
-- `[ ]` **Live updates over WebSocket:** publish and subscribe to topics, with presence. A subscription is
+- `[x]` **Live updates over WebSocket:** publish and subscribe to topics, with presence. A subscription is
   authorised by the same permission check as the route that reads the same data, and re-checked when the
   subscriber's roles change. Messages are DTOs in binary `.nya`. Phase 3.
 - `[x]` **CORS**, configured per route rather than globally, off by default, with the allowed origins listed
@@ -1369,14 +1369,14 @@ Accepted:
   `OPTIONS` preflight answered 204 with the negotiated `Access-Control-*` headers, an exact-match allowlist
   that reflects only an allowed Origin (never `*` with credentials, refused at `nya_http_router_check`), and
   the allowlist doubling as the grant that lets an allowed cross-origin write past the CSRF guard.
-- `[ ]` **Prometheus metrics and OpenTelemetry:** a `/metrics` exposition on a separate loopback port by
+- `[x]` **Prometheus metrics and OpenTelemetry:** a `/metrics` exposition on a separate loopback port by
   default, fed from what the ceiling, arena and system registries already know plus request counters and
   latency histograms; OpenTelemetry traces exported over OTLP/HTTP, with the request id as the trace id.
   Phase 3.
-- `[ ]` **Graceful shutdown:** on SIGTERM or the Windows equivalent, stop accepting, finish in-flight requests
+- `[x]` **Graceful shutdown:** on SIGTERM or the Windows equivalent, stop accepting, finish in-flight requests
   up to a deadline, let running jobs reach a checkpoint or be requeued, flush logs, close the database. The
   deadline is config, and passing it falls back to the crash path, which already has to be safe. Phase 3.
-- `[ ]` **Save and replay versioning:** a save written by an older version loads, through the same `@since`
+- `[x]` **Save and replay versioning:** a save written by an older version loads, through the same `@since`
   attributes and migrations as `db`. Deterministic replays built on the simulation harness: record the seed
   and the inputs, play them back, compare the checksums. Phase 5.
 - `[ ]` **Player accessibility:** colour blind palettes (applied through the grading LUT), subtitles and
@@ -1408,7 +1408,7 @@ Accepted:
   splits a line into runs, and each run is shaped with its own direction. Either SheenBidi (C, Apache 2.0,
   small, passes the Unicode conformance tests) vendored, or our own implementation held to those same tests.
   FriBiDi is LGPL, which is awkward for a static binary. Phase 6.
-- `[ ]` **Tray and native dialogs.** SDL's dialog and tray subsystems come back on, behind a `desktop_shell`
+- `[x]` **Tray and native dialogs.** SDL's dialog and tray subsystems come back on, behind a `desktop_shell`
   component so a game or server does not pay for them: open, save and folder dialogs with filters, a tray
   icon with a menu, and notifications. On Linux they go through the XDG desktop portal where it exists,
   which is also what makes them work inside Flatpak. Measure what switching them back on adds to the binary
