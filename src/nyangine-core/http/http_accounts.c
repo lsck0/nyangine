@@ -97,7 +97,7 @@ NYA_INTERNAL struct {
 // REQUEST HELPERS
 
 /** Reads `username` and `password` out of a JSON body, refusing anything that is not both strings. */
-NYA_INTERNAL b8 request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_username, OUT NYA_ConstCString* out_password) {
+NYA_INTERNAL b8 _nya_http_accounts_request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_username, OUT NYA_ConstCString* out_password) {
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return false;
 
@@ -117,7 +117,7 @@ NYA_INTERNAL b8 request_credentials(NYA_HttpExchange* exchange, OUT NYA_ConstCSt
  * The same, plus the optional `invite` code an INVITE policy needs. `out_invite` is null when the body
  * carries none, which OPEN ignores and INVITE refuses; the policy is the one thing that reads it.
  * */
-NYA_INTERNAL b8 request_registration(
+NYA_INTERNAL b8 _nya_http_accounts_request_registration(
     NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_username, OUT NYA_ConstCString* out_password, OUT NYA_ConstCString* out_invite
 ) {
     NYA_Object* body = nullptr;
@@ -139,12 +139,12 @@ NYA_INTERNAL b8 request_registration(
 }
 
 /** The peer's address as the server sees it, for the session's own record of where it was opened. */
-NYA_INTERNAL NYA_ConstCString request_address(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_ConstCString _nya_http_accounts_request_address(NYA_HttpExchange* exchange) {
     return exchange->address[0] != '\0' ? exchange->address : "unknown";
 }
 
 /** Reads a single `code` string out of a JSON body, for a second factor submission. */
-NYA_INTERNAL b8 request_code(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_code) {
+NYA_INTERNAL b8 _nya_http_accounts_request_code(NYA_HttpExchange* exchange, OUT NYA_ConstCString* out_code) {
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return false;
 
@@ -158,7 +158,7 @@ NYA_INTERNAL b8 request_code(NYA_HttpExchange* exchange, OUT NYA_ConstCString* o
 // SESSION HELPERS
 
 /** Sets the session cookie from a token, with the attributes a session cookie must have. */
-NYA_INTERNAL NYA_HttpStatus set_session_cookie(NYA_HttpExchange* exchange, NYA_ConstCString token) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_set_session_cookie(NYA_HttpExchange* exchange, NYA_ConstCString token) {
     NYA_Error set = nya_http_response_cookie(exchange->response,
                                              &(NYA_HttpCookie){
                                                  .name      = NYA_HTTP_SESSION_COOKIE,
@@ -173,17 +173,17 @@ NYA_INTERNAL NYA_HttpStatus set_session_cookie(NYA_HttpExchange* exchange, NYA_C
 }
 
 /** Opens a session for a user and sets it as the session cookie. The full login, once every factor is in. */
-NYA_INTERNAL NYA_HttpStatus issue_session(NYA_HttpExchange* exchange, u64 user_id) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_issue_session(NYA_HttpExchange* exchange, u64 user_id) {
     NYA_ConstCString agent = nya_http_request_header(exchange->request, "user-agent");
 
     NYA_AccountSession session = { 0 };
-    if (!nya_account_session_issue(exchange->arena, user_id, request_address(exchange), agent, &session).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!nya_account_session_issue(exchange->arena, user_id, _nya_http_accounts_request_address(exchange), agent, &session).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    return set_session_cookie(exchange, session.token);
+    return _nya_http_accounts_set_session_cookie(exchange, session.token);
 }
 
 /** Seals "this account passed its password" into the pending-login cookie. */
-NYA_INTERNAL NYA_HttpStatus set_pending_cookie(NYA_HttpExchange* exchange, u64 user_id) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_set_pending_cookie(NYA_HttpExchange* exchange, u64 user_id) {
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
 
     if (!nya_http_seal(_STATE.config.login_seal_secret, _STATE.config.login_seal_secret_size, LOGIN_SEAL_LABEL, (const u8*)&user_id, sizeof(user_id),
@@ -206,7 +206,7 @@ NYA_INTERNAL NYA_HttpStatus set_pending_cookie(NYA_HttpExchange* exchange, u64 u
 }
 
 /** Opens the pending-login cookie, or false when there is none, it was tampered with, or it has expired. */
-NYA_INTERNAL b8 read_pending_cookie(NYA_HttpExchange* exchange, OUT u64* out_user_id) {
+NYA_INTERNAL b8 _nya_http_accounts_read_pending_cookie(NYA_HttpExchange* exchange, OUT u64* out_user_id) {
     *out_user_id = 0;
 
     NYA_HttpCookieValue cookie = { 0 };
@@ -234,7 +234,7 @@ NYA_INTERNAL b8 read_pending_cookie(NYA_HttpExchange* exchange, OUT u64* out_use
  * Secure and SameSite=Strict, because it is a bearer of the same weight as the pending-login cookie and
  * carries none of it to script or across a site.
  * */
-NYA_INTERNAL b8 set_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCString name, NYA_ConstCString label, u64 user_id, u64 ttl_s) {
+NYA_INTERNAL b8 _nya_http_accounts_set_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCString name, NYA_ConstCString label, u64 user_id, u64 ttl_s) {
     char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
 
     if (!nya_http_seal(_STATE.config.login_seal_secret, _STATE.config.login_seal_secret_size, label, (const u8*)&user_id, sizeof(user_id), ttl_s, token,
@@ -255,8 +255,8 @@ NYA_INTERNAL b8 set_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCStr
         .ok;
 }
 
-/** Opens a sealed user-id cookie set by set_sealed_user_cookie, or false when there is none, it is forged, or it has expired. */
-NYA_INTERNAL b8 read_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCString name, NYA_ConstCString label, OUT u64* out_user_id) {
+/** Opens a sealed user-id cookie set by _nya_http_accounts_set_sealed_user_cookie, or false when there is none, it is forged, or it has expired. */
+NYA_INTERNAL b8 _nya_http_accounts_read_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCString name, NYA_ConstCString label, OUT u64* out_user_id) {
     *out_user_id = 0;
 
     NYA_HttpCookieValue cookie = { 0 };
@@ -279,7 +279,7 @@ NYA_INTERNAL b8 read_sealed_user_cookie(NYA_HttpExchange* exchange, NYA_ConstCSt
 // SECOND FACTOR HELPERS
 
 /** Whether a submission is an authenticator code — exactly six digits — rather than a recovery code. */
-NYA_INTERNAL b8 code_is_totp_shaped(NYA_ConstCString code) {
+NYA_INTERNAL b8 _nya_http_accounts_code_is_totp_shaped(NYA_ConstCString code) {
     if (strlen(code) != NYA_CRYPTO_TOTP_DIGITS) return false;
 
     for (u32 index = 0; index < NYA_CRYPTO_TOTP_DIGITS; index++) {
@@ -290,7 +290,7 @@ NYA_INTERNAL b8 code_is_totp_shaped(NYA_ConstCString code) {
 }
 
 /** The guard the http_totp calls take, read out of a stored row. Plain data, no secret in it. */
-NYA_INTERNAL NYA_HttpTotpGuard totp_guard_of(const _NYA_HttpAccountsTotpRow* row) {
+NYA_INTERNAL NYA_HttpTotpGuard _nya_http_accounts_totp_guard_of(const _NYA_HttpAccountsTotpRow* row) {
     return (NYA_HttpTotpGuard){
         .last_counter     = (u64)row->last_counter,
         .attempts         = (u32)row->attempts,
@@ -299,14 +299,14 @@ NYA_INTERNAL NYA_HttpTotpGuard totp_guard_of(const _NYA_HttpAccountsTotpRow* row
 }
 
 /** Writes an advanced guard back into a row, so the replay guard and the rate limit survive the request. */
-NYA_INTERNAL void totp_guard_store(_NYA_HttpAccountsTotpRow* row, const NYA_HttpTotpGuard* guard) {
+NYA_INTERNAL void _nya_http_accounts_totp_guard_store(_NYA_HttpAccountsTotpRow* row, const NYA_HttpTotpGuard* guard) {
     row->last_counter     = (s64)guard->last_counter;
     row->attempts         = (s64)guard->attempts;
     row->window_started_s = (s64)guard->window_started_s;
 }
 
 /** The stored base32 secret back to its twenty bytes. False on a row this module did not write. */
-NYA_INTERNAL b8 totp_secret_decode(const _NYA_HttpAccountsTotpRow* row, OUT NYA_CryptoTotpSecret* out_secret) {
+NYA_INTERNAL b8 _nya_http_accounts_totp_secret_decode(const _NYA_HttpAccountsTotpRow* row, OUT NYA_CryptoTotpSecret* out_secret) {
     nya_memset(out_secret, 0, sizeof(*out_secret));
 
     u64 size = 0;
@@ -316,7 +316,7 @@ NYA_INTERNAL b8 totp_secret_decode(const _NYA_HttpAccountsTotpRow* row, OUT NYA_
 }
 
 /** The ten recovery hashes as one comma-joined base64url string, for the text column. */
-NYA_INTERNAL b8 totp_recovery_encode(const NYA_HttpTotpRecoveryHash hashes[NYA_HTTP_TOTP_RECOVERY_CODES], OUT char* out_text, u64 capacity) {
+NYA_INTERNAL b8 _nya_http_accounts_totp_recovery_encode(const NYA_HttpTotpRecoveryHash hashes[NYA_HTTP_TOTP_RECOVERY_CODES], OUT char* out_text, u64 capacity) {
     u64 written = 0;
 
     for (u32 index = 0; index < NYA_HTTP_TOTP_RECOVERY_CODES; index++) {
@@ -335,7 +335,7 @@ NYA_INTERNAL b8 totp_recovery_encode(const NYA_HttpTotpRecoveryHash hashes[NYA_H
 }
 
 /** The comma-joined base64url string back into the ten hashes. Missing entries stay zero, which match nothing. */
-NYA_INTERNAL b8 totp_recovery_decode(const char* text, OUT NYA_HttpTotpRecoveryHash hashes[NYA_HTTP_TOTP_RECOVERY_CODES]) {
+NYA_INTERNAL b8 _nya_http_accounts_totp_recovery_decode(const char* text, OUT NYA_HttpTotpRecoveryHash hashes[NYA_HTTP_TOTP_RECOVERY_CODES]) {
     nya_memset(hashes, 0, sizeof(NYA_HttpTotpRecoveryHash) * NYA_HTTP_TOTP_RECOVERY_CODES);
 
     if (text == nullptr || text[0] == '\0') return true;
@@ -358,26 +358,26 @@ NYA_INTERNAL b8 totp_recovery_decode(const char* text, OUT NYA_HttpTotpRecoveryH
 }
 
 /** The account's second factor row, or false when there is none. */
-NYA_INTERNAL b8 totp_find(NYA_HttpExchange* exchange, u64 owner, OUT _NYA_HttpAccountsTotpRow* out_row) {
+NYA_INTERNAL b8 _nya_http_accounts_totp_find(NYA_HttpExchange* exchange, u64 owner, OUT _NYA_HttpAccountsTotpRow* out_row) {
     nya_memset(out_row, 0, sizeof(*out_row));
     return nya_orm_find(_STATE.totp, exchange->arena, nya_sql_s64((s64)owner), out_row).ok;
 }
 
 /** Whether the account has a confirmed second factor, which is what makes a login two steps. */
-NYA_INTERNAL b8 totp_is_enrolled(NYA_HttpExchange* exchange, u64 owner) {
+NYA_INTERNAL b8 _nya_http_accounts_totp_is_enrolled(NYA_HttpExchange* exchange, u64 owner) {
     _NYA_HttpAccountsTotpRow row = { 0 };
-    return totp_find(exchange, owner, &row) && row.confirmed != 0;
+    return _nya_http_accounts_totp_find(exchange, owner, &row) && row.confirmed != 0;
 }
 
 // HANDLERS: ACCOUNTS
 
 /** Registration, under the config's policy. A taken name, a short password or a bad invite says which. */
-NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_register(NYA_HttpExchange* exchange) {
     NYA_ConstCString username = nullptr;
     NYA_ConstCString password = nullptr;
     NYA_ConstCString invite   = nullptr;
 
-    if (!request_registration(exchange, &username, &password, &invite)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_request_registration(exchange, &username, &password, &invite)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user = { 0 };
     NYA_Error       made = nya_account_register(exchange->arena, _STATE.config.registration, username, password, invite, &user);
@@ -396,8 +396,8 @@ NYA_INTERNAL NYA_HttpStatus handle_register(NYA_HttpExchange* exchange) {
 }
 
 /** Answers a login with "the password was right, now send a code", the pending state sealed in a cookie. */
-NYA_INTERNAL NYA_HttpStatus answer_second_factor_required(NYA_HttpExchange* exchange, u64 user_id) {
-    NYA_HttpStatus sealed = set_pending_cookie(exchange, user_id);
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_answer_second_factor_required(NYA_HttpExchange* exchange, u64 user_id) {
+    NYA_HttpStatus sealed = _nya_http_accounts_set_pending_cookie(exchange, user_id);
     if (sealed != NYA_HTTP_STATUS_OK) return sealed;
 
     NYA_Object* body = nya_object_create(exchange->arena);
@@ -413,22 +413,22 @@ NYA_INTERNAL NYA_HttpStatus answer_second_factor_required(NYA_HttpExchange* exch
  * The throttle in accounts slows a guessing spree whatever the outcome, and one refusal covers every way
  * the password step can fail so nothing here tells a guesser which usernames exist.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_login(NYA_HttpExchange* exchange) {
     NYA_ConstCString username = nullptr;
     NYA_ConstCString password = nullptr;
 
-    if (!request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user    = { 0 };
-    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, request_address(exchange), &user);
+    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, _nya_http_accounts_request_address(exchange), &user);
 
     // One answer for every failure (wrong password, no such user, disabled, throttled) so the response tells a guesser nothing; 401, since credentials were refused.
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     // A confirmed second factor makes this only the first of two steps: hold the account in a sealed cookie and issue nothing actionable until the code answers.
-    if (totp_is_enrolled(exchange, user.id)) return answer_second_factor_required(exchange, user.id);
+    if (_nya_http_accounts_totp_is_enrolled(exchange, user.id)) return _nya_http_accounts_answer_second_factor_required(exchange, user.id);
 
-    return issue_session(exchange, user.id);
+    return _nya_http_accounts_issue_session(exchange, user.id);
 }
 
 /**
@@ -440,41 +440,41 @@ NYA_INTERNAL NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
  * with no second factor alike, and 429 when the guard is spent, which is the only verdict that says
  * anything and says only "later".
  * */
-NYA_INTERNAL NYA_HttpStatus handle_login_totp(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_login_totp(NYA_HttpExchange* exchange) {
     u64 user_id = 0;
-    if (!read_pending_cookie(exchange, &user_id)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    if (!_nya_http_accounts_read_pending_cookie(exchange, &user_id)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     NYA_ConstCString code = nullptr;
-    if (!request_code(exchange, &code)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_request_code(exchange, &code)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     _NYA_HttpAccountsTotpRow row = { 0 };
-    if (!totp_find(exchange, user_id, &row) || row.confirmed == 0) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    if (!_nya_http_accounts_totp_find(exchange, user_id, &row) || row.confirmed == 0) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     NYA_CryptoTotpSecret secret = { 0 };
-    if (!totp_secret_decode(&row, &secret)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!_nya_http_accounts_totp_secret_decode(&row, &secret)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
     defer nya_crypto_totp_secret_destroy(&secret);
 
-    NYA_HttpTotpGuard guard = totp_guard_of(&row);
+    NYA_HttpTotpGuard guard = _nya_http_accounts_totp_guard_of(&row);
 
     // Six digits read as an authenticator code, anything else as a recovery code: the forms never overlap, so routing on shape spends one attempt and never distinguishes them in the answer; a redeemed recovery code is zeroed and the row rewritten, and a failed re-encode refuses rather than issuing a session on an unsaved spend.
     NYA_HttpTotpVerdict verdict = NYA_HTTP_TOTP_REFUSED;
 
-    if (code_is_totp_shaped(code)) {
+    if (_nya_http_accounts_code_is_totp_shaped(code)) {
         verdict = nya_http_totp_verify(&guard, &secret, code, exchange->now_s);
     } else {
         NYA_HttpTotpRecoveryHash hashes[NYA_HTTP_TOTP_RECOVERY_CODES] = { 0 };
 
-        if (totp_recovery_decode(row.recovery, hashes)) {
+        if (_nya_http_accounts_totp_recovery_decode(row.recovery, hashes)) {
             verdict = nya_http_totp_recovery_redeem(&guard, hashes, NYA_HTTP_TOTP_RECOVERY_CODES, code, exchange->now_s);
 
-            if (verdict == NYA_HTTP_TOTP_ACCEPTED && !totp_recovery_encode(hashes, row.recovery, sizeof(row.recovery))) {
+            if (verdict == NYA_HTTP_TOTP_ACCEPTED && !_nya_http_accounts_totp_recovery_encode(hashes, row.recovery, sizeof(row.recovery))) {
                 return NYA_HTTP_STATUS_INTERNAL_ERROR;
             }
         }
     }
 
     // The guard moved whatever the verdict (an attempt spent, or a counter advanced), so it's written back first, or the replay guard forgets and the rate limit resets.
-    totp_guard_store(&row, &guard);
+    _nya_http_accounts_totp_guard_store(&row, &guard);
     if (!nya_orm_update(_STATE.totp, &row).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     if (verdict == NYA_HTTP_TOTP_RATE_LIMITED) return NYA_HTTP_STATUS_TOO_MANY_REQUESTS;
@@ -483,11 +483,11 @@ NYA_INTERNAL NYA_HttpStatus handle_login_totp(NYA_HttpExchange* exchange) {
     // The factor is proved: clear the pending cookie so it cannot be replayed, and issue the real session.
     (void)nya_http_response_cookie_clear(exchange->response, LOGIN_COOKIE, "/", true);
 
-    return issue_session(exchange, user_id);
+    return _nya_http_accounts_issue_session(exchange, user_id);
 }
 
 /** Signing out: the session row is revoked, not only the cookie cleared, so the token cannot be reused. */
-NYA_INTERNAL NYA_HttpStatus handle_logout(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_logout(NYA_HttpExchange* exchange) {
     NYA_HttpCookieValue cookie = { 0 };
 
     if (nya_http_cookie_read(exchange->request, NYA_HTTP_SESSION_COOKIE, &cookie)) {
@@ -511,7 +511,7 @@ NYA_INTERNAL NYA_HttpStatus handle_logout(NYA_HttpExchange* exchange) {
 }
 
 /** Who the cookie says you are. 401 when it says nobody. */
-NYA_INTERNAL NYA_HttpStatus handle_session(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_session(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
@@ -535,12 +535,12 @@ NYA_INTERNAL NYA_HttpStatus handle_session(NYA_HttpExchange* exchange) {
  * server compute the same code. 409 when a confirmed factor is already there, so one cannot be silently
  * replaced.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_totp_enrol(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_totp_enrol(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     _NYA_HttpAccountsTotpRow existing = { 0 };
-    b8                       present  = totp_find(exchange, user.id, &existing);
+    b8                       present  = _nya_http_accounts_totp_find(exchange, user.id, &existing);
     if (present && existing.confirmed != 0) return NYA_HTTP_STATUS_CONFLICT;
 
     NYA_HttpTotpEnrolment enrolment = { 0 };
@@ -551,7 +551,7 @@ NYA_INTERNAL NYA_HttpStatus handle_totp_enrol(NYA_HttpExchange* exchange) {
     _NYA_HttpAccountsTotpRow row = { .owner = (s64)user.id, .confirmed = 0 };
     (void)snprintf(row.secret, sizeof(row.secret), "%s", enrolment.secret_base32);
 
-    if (!totp_recovery_encode(enrolment.recovery_hash, row.recovery, sizeof(row.recovery))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!_nya_http_accounts_totp_recovery_encode(enrolment.recovery_hash, row.recovery, sizeof(row.recovery))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     NYA_Error stored = present ? nya_orm_update(_STATE.totp, &row) : nya_orm_insert(_STATE.totp, &row);
     if (!stored.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -576,25 +576,25 @@ NYA_INTERNAL NYA_HttpStatus handle_totp_enrol(NYA_HttpExchange* exchange) {
  * confirm and there to log in. 401 for a wrong code, 429 when the guard is spent, 404 when there is no
  * enrolment in progress, 409 when it is already confirmed.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_totp_confirm(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_totp_confirm(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     NYA_ConstCString code = nullptr;
-    if (!request_code(exchange, &code)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_request_code(exchange, &code)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     _NYA_HttpAccountsTotpRow row = { 0 };
-    if (!totp_find(exchange, user.id, &row)) return NYA_HTTP_STATUS_NOT_FOUND;
+    if (!_nya_http_accounts_totp_find(exchange, user.id, &row)) return NYA_HTTP_STATUS_NOT_FOUND;
     if (row.confirmed != 0) return NYA_HTTP_STATUS_CONFLICT;
 
     NYA_CryptoTotpSecret secret = { 0 };
-    if (!totp_secret_decode(&row, &secret)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!_nya_http_accounts_totp_secret_decode(&row, &secret)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
     defer nya_crypto_totp_secret_destroy(&secret);
 
-    NYA_HttpTotpGuard   guard   = totp_guard_of(&row);
+    NYA_HttpTotpGuard   guard   = _nya_http_accounts_totp_guard_of(&row);
     NYA_HttpTotpVerdict verdict = nya_http_totp_verify(&guard, &secret, code, exchange->now_s);
 
-    totp_guard_store(&row, &guard);
+    _nya_http_accounts_totp_guard_store(&row, &guard);
     if (verdict == NYA_HTTP_TOTP_ACCEPTED) row.confirmed = 1;
 
     if (!nya_orm_update(_STATE.totp, &row).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -608,7 +608,7 @@ NYA_INTERNAL NYA_HttpStatus handle_totp_confirm(NYA_HttpExchange* exchange) {
 // PASSKEY HELPERS
 
 /** An optional string field of a JSON body, or null when it is absent or not a string. */
-NYA_INTERNAL NYA_ConstCString passkey_body_string(NYA_Object* body, NYA_ConstCString key) {
+NYA_INTERNAL NYA_ConstCString _nya_http_accounts_passkey_body_string(NYA_Object* body, NYA_ConstCString key) {
     if (body == nullptr) return nullptr;
 
     NYA_Value* value = nya_object_get(body, (NYA_CString)key);
@@ -623,11 +623,11 @@ NYA_INTERNAL NYA_ConstCString passkey_body_string(NYA_Object* body, NYA_ConstCSt
  * so a hostile body cannot make this allocate without limit and a part longer than that is refused rather
  * than truncated. False for a missing field, a non-string, or text that does not decode inside the bound.
  * */
-NYA_INTERNAL b8 passkey_body_bytes(NYA_Object* body, NYA_ConstCString key, NYA_Arena* arena, OUT const u8** out_bytes, OUT u64* out_size) {
+NYA_INTERNAL b8 _nya_http_accounts_passkey_body_bytes(NYA_Object* body, NYA_ConstCString key, NYA_Arena* arena, OUT const u8** out_bytes, OUT u64* out_size) {
     *out_bytes = nullptr;
     *out_size  = 0;
 
-    NYA_ConstCString text = passkey_body_string(body, key);
+    NYA_ConstCString text = _nya_http_accounts_passkey_body_string(body, key);
     if (text == nullptr) return false;
 
     u64 text_size = strlen(text);
@@ -652,7 +652,7 @@ NYA_INTERNAL b8 passkey_body_bytes(NYA_Object* body, NYA_ConstCString key, NYA_A
  * curve accounts_passkey can check; an ES256 one would be refused at finish. The user handle is the account
  * id as base64url, the opaque `user.id` WebAuthn wants, echoed back as an assertion's userHandle.
  * */
-NYA_INTERNAL NYA_HttpStatus passkey_creation_options(NYA_HttpExchange* exchange, const NYA_AccountUser* user, NYA_ConstCString challenge) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_passkey_creation_options(NYA_HttpExchange* exchange, const NYA_AccountUser* user, NYA_ConstCString challenge) {
     char handle[NYA_ACCOUNTS_PASSKEY_PUBLIC_KEY_TEXT] = { 0 };
     u64  handle_size                                  = 0;
     if (!nya_crypto_base64url_encode((const u8*)&user->id, sizeof(user->id), handle, sizeof(handle), &handle_size)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -687,7 +687,7 @@ NYA_INTERNAL NYA_HttpStatus passkey_creation_options(NYA_HttpExchange* exchange,
  * (discoverable) credential still works through this flow, the username only saying which account the
  * challenge is bound to.
  * */
-NYA_INTERNAL NYA_HttpStatus passkey_request_options(NYA_HttpExchange* exchange, u64 user_id, NYA_ConstCString challenge) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_passkey_request_options(NYA_HttpExchange* exchange, u64 user_id, NYA_ConstCString challenge) {
     NYA_Object* body = nya_object_create(exchange->arena);
     nya_object_add(body, "challenge", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)challenge });
     nya_object_add(body, "rp_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_STATE.config.passkey_rp_id });
@@ -724,7 +724,7 @@ NYA_INTERNAL NYA_HttpStatus passkey_request_options(NYA_HttpExchange* exchange, 
  * passkey sign-up is never a way past the invite gate; those policies want a registered, signed-in account
  * before a passkey is added.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_passkey_register_begin(NYA_HttpExchange* exchange) {
     // The body is optional on the signed-in path and carries the username on the signed-out one; a failed parse leaves it null, which the signed-out path checks.
     NYA_Object* body = nullptr;
     (void)nya_http_request_document(exchange->request, exchange->arena, &body);
@@ -735,7 +735,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exch
     if (!signed_in) {
         if (_STATE.config.registration != NYA_ACCOUNT_REGISTRATION_OPEN) return NYA_HTTP_STATUS_FORBIDDEN;
 
-        NYA_ConstCString username = passkey_body_string(body, "username");
+        NYA_ConstCString username = _nya_http_accounts_passkey_body_string(body, "username");
         if (username == nullptr || username[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
 
         // A passwordless account: the password column stays empty so nya_account_authenticate refuses it, and the passkey is the only way in until a password is set. A taken/malformed name is the caller's to fix — a sign-up, not a login.
@@ -750,10 +750,10 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exch
     if (!nya_account_passkey_register_begin(exchange->arena, user.id, &challenge).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     // Only the signed-out path needs the binding cookie; a signed-in enrolment is bound by the session the finish revalidates, so it sets nothing here.
-    if (!signed_in && !set_sealed_user_cookie(exchange, PASSKEY_REGISTER_COOKIE, PASSKEY_REGISTER_SEAL_LABEL, user.id, (u64)PASSKEY_PENDING_TTL_S))
+    if (!signed_in && !_nya_http_accounts_set_sealed_user_cookie(exchange, PASSKEY_REGISTER_COOKIE, PASSKEY_REGISTER_SEAL_LABEL, user.id, (u64)PASSKEY_PENDING_TTL_S))
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    return passkey_creation_options(exchange, &user, challenge.challenge);
+    return _nya_http_accounts_passkey_creation_options(exchange, &user, challenge.challenge);
 }
 
 /**
@@ -766,7 +766,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_begin(NYA_HttpExchange* exch
  * cleared and the session cookie set: the sign-up ends logged in, exactly as a password registration
  * followed by a login would. The relying party checked is the config's, not a request header's.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_passkey_register_finish(NYA_HttpExchange* exchange) {
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
@@ -776,7 +776,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exc
     b8              via_cookie = false;
 
     if (!signed_in) {
-        if (!read_sealed_user_cookie(exchange, PASSKEY_REGISTER_COOKIE, PASSKEY_REGISTER_SEAL_LABEL, &user_id)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+        if (!_nya_http_accounts_read_sealed_user_cookie(exchange, PASSKEY_REGISTER_COOKIE, PASSKEY_REGISTER_SEAL_LABEL, &user_id)) return NYA_HTTP_STATUS_UNAUTHORIZED;
         via_cookie = true;
     }
 
@@ -785,8 +785,8 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exc
     const u8* attestation      = nullptr;
     u64       attestation_size = 0;
 
-    if (!passkey_body_bytes(body, "client_data_json", exchange->arena, &client_data, &client_data_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
-    if (!passkey_body_bytes(body, "attestation_object", exchange->arena, &attestation, &attestation_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_passkey_body_bytes(body, "client_data_json", exchange->arena, &client_data, &client_data_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_passkey_body_bytes(body, "attestation_object", exchange->arena, &attestation, &attestation_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountPasskeyRegistration request = {
         .rp_id                   = _STATE.config.passkey_rp_id,
@@ -795,7 +795,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exc
         .client_data_json_size   = client_data_size,
         .attestation_object      = attestation,
         .attestation_object_size = attestation_size,
-        .name                    = passkey_body_string(body, "name"),
+        .name                    = _nya_http_accounts_passkey_body_string(body, "name"),
     };
 
     NYA_Error stored = nya_account_passkey_register_finish(exchange->arena, user_id, &request, nullptr);
@@ -813,7 +813,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exc
 
     if (via_cookie) {
         (void)nya_http_response_cookie_clear(exchange->response, PASSKEY_REGISTER_COOKIE, "/", true);
-        return issue_session(exchange, user_id);
+        return _nya_http_accounts_issue_session(exchange, user_id);
     }
 
     return NYA_HTTP_STATUS_NO_CONTENT;
@@ -829,11 +829,11 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_register_finish(NYA_HttpExchange* exc
  * account it is for are sealed into a `__Host-passkey-login` cookie the finish reads, so the assertion is
  * only ever checked against the account the challenge was minted for.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_passkey_login_begin(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_passkey_login_begin(NYA_HttpExchange* exchange) {
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    NYA_ConstCString username = passkey_body_string(body, "username");
+    NYA_ConstCString username = _nya_http_accounts_passkey_body_string(body, "username");
     if (username == nullptr || username[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user  = { 0 };
@@ -848,17 +848,17 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_begin(NYA_HttpExchange* exchang
         u64  length                                         = 0;
         if (!nya_crypto_base64url_encode(bytes, sizeof(bytes), challenge, sizeof(challenge), &length)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-        if (!set_sealed_user_cookie(exchange, PASSKEY_LOGIN_COOKIE, PASSKEY_LOGIN_SEAL_LABEL, 0, (u64)PASSKEY_PENDING_TTL_S)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+        if (!_nya_http_accounts_set_sealed_user_cookie(exchange, PASSKEY_LOGIN_COOKIE, PASSKEY_LOGIN_SEAL_LABEL, 0, (u64)PASSKEY_PENDING_TTL_S)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-        return passkey_request_options(exchange, 0, challenge);
+        return _nya_http_accounts_passkey_request_options(exchange, 0, challenge);
     }
 
     NYA_AccountPasskeyChallenge challenge = { 0 };
     if (!nya_account_passkey_assert_begin(exchange->arena, user.id, &challenge).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    if (!set_sealed_user_cookie(exchange, PASSKEY_LOGIN_COOKIE, PASSKEY_LOGIN_SEAL_LABEL, user.id, (u64)PASSKEY_PENDING_TTL_S)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!_nya_http_accounts_set_sealed_user_cookie(exchange, PASSKEY_LOGIN_COOKIE, PASSKEY_LOGIN_SEAL_LABEL, user.id, (u64)PASSKEY_PENDING_TTL_S)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-    return passkey_request_options(exchange, user.id, challenge.challenge);
+    return _nya_http_accounts_passkey_request_options(exchange, user.id, challenge.challenge);
 }
 
 /**
@@ -871,9 +871,9 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_begin(NYA_HttpExchange* exchang
  * decoy cookie for an unknown username (user zero) included, so the answer says nothing a guesser can use.
  * The session cookie set here is the very one the password login sets, with the same flags.
  * */
-NYA_INTERNAL NYA_HttpStatus handle_passkey_login_finish(NYA_HttpExchange* exchange) {
+NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_passkey_login_finish(NYA_HttpExchange* exchange) {
     u64 user_id     = 0;
-    b8  have_cookie = read_sealed_user_cookie(exchange, PASSKEY_LOGIN_COOKIE, PASSKEY_LOGIN_SEAL_LABEL, &user_id);
+    b8  have_cookie = _nya_http_accounts_read_sealed_user_cookie(exchange, PASSKEY_LOGIN_COOKIE, PASSKEY_LOGIN_SEAL_LABEL, &user_id);
 
     // Spend the pending-login cookie now, before anything can go wrong, so it is one request's use only.
     (void)nya_http_response_cookie_clear(exchange->response, PASSKEY_LOGIN_COOKIE, "/", true);
@@ -883,7 +883,7 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_finish(NYA_HttpExchange* exchan
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    NYA_ConstCString credential_id = passkey_body_string(body, "credential_id");
+    NYA_ConstCString credential_id = _nya_http_accounts_passkey_body_string(body, "credential_id");
     if (credential_id == nullptr || credential_id[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
 
     const u8* client_data             = nullptr;
@@ -893,9 +893,9 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_finish(NYA_HttpExchange* exchan
     const u8* signature               = nullptr;
     u64       signature_size          = 0;
 
-    if (!passkey_body_bytes(body, "client_data_json", exchange->arena, &client_data, &client_data_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
-    if (!passkey_body_bytes(body, "authenticator_data", exchange->arena, &authenticator_data, &authenticator_data_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
-    if (!passkey_body_bytes(body, "signature", exchange->arena, &signature, &signature_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_passkey_body_bytes(body, "client_data_json", exchange->arena, &client_data, &client_data_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_passkey_body_bytes(body, "authenticator_data", exchange->arena, &authenticator_data, &authenticator_data_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!_nya_http_accounts_passkey_body_bytes(body, "signature", exchange->arena, &signature, &signature_size)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountPasskeyAssertion request = {
         .rp_id                   = _STATE.config.passkey_rp_id,
@@ -912,45 +912,45 @@ NYA_INTERNAL NYA_HttpStatus handle_passkey_login_finish(NYA_HttpExchange* exchan
     // accounts_passkey answers one refusal for every invalid case (unknown credential, spent/forged challenge, bad origin or RP id hash, clear user-present, bad signature, non-climbing counter, decoy user zero); this route doesn't soften it.
     if (!nya_account_passkey_assert_finish(exchange->arena, user_id, &request, nullptr).ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    return issue_session(exchange, user_id);
+    return _nya_http_accounts_issue_session(exchange, user_id);
 }
 
 // ROUTES
 
 // Every handler touches the one database on the ticking thread, so every route is MAIN: no route runs on a worker, and two requests never race the same rows.
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_ACCOUNTS_ROUTES[] = {
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_REGISTER_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_register,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_REGISTER_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_register,
       .summary = "Makes an account", .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_LOGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_login,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_LOGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_login,
       .summary = "Logs in; sets the session cookie, or asks for a second factor",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_LOGIN_TOTP_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_login_totp,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_LOGIN_TOTP_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_login_totp,
       .summary = "Answers the second factor and finishes the login",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_TOO_MANY_REQUESTS, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_LOGOUT_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_logout,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_LOGOUT_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_logout,
       .summary = "Revokes the session and clears the cookie", .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_GET, .path = NYA_HTTP_ACCOUNTS_SESSION_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_session,
+    { .method = NYA_HTTP_METHOD_GET, .path = NYA_HTTP_ACCOUNTS_SESSION_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_session,
       .summary = "Who the cookie says you are", .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_UNAUTHORIZED } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_TOTP_ENROL_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_totp_enrol,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_TOTP_ENROL_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_totp_enrol,
       .summary = "Begins enrolling a second factor", .response_type = nya_reflect_of(NYA_HttpTotpEnrolmentDto),
       .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_TOTP_CONFIRM_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_totp_confirm,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_TOTP_CONFIRM_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_totp_confirm,
       .summary = "Confirms a pending second factor with one code",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_NOT_FOUND,
                     NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_TOO_MANY_REQUESTS, NYA_HTTP_STATUS_FORBIDDEN } },
 
     // The passkey routes are the last PASSKEY_ROUTE_COUNT entries, so the password-only router names the array short of them and the passwordless one names all of it (see nya_http_accounts_open); keep them at the end or the counts stop lining up.
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_BEGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_passkey_register_begin,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_BEGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_passkey_register_begin,
       .summary = "Begins enrolling a passkey; opens a passwordless account when signed out",
       .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_FINISH_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_passkey_register_finish,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_REGISTER_FINISH_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_passkey_register_finish,
       .summary = "Stores the passkey; logs a new passwordless account in",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_CONFLICT,
                     NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_BEGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_passkey_login_begin,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_BEGIN_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_passkey_login_begin,
       .summary = "An assertion challenge and the account's credentials, for a username",
       .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN } },
-    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_FINISH_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_passkey_login_finish,
+    { .method = NYA_HTTP_METHOD_POST, .path = NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_FINISH_PATH, .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = _nya_http_accounts_handle_passkey_login_finish,
       .summary = "Verifies the assertion and sets the session cookie; no password",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN } },
 };
