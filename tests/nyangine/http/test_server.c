@@ -588,6 +588,52 @@ s32 main(void) {
         nya_assert(nya_host_environment_remove("NYANGINE_TEST_SECRET"));
     }
 
+    // TEST: a graceful shutdown, driven the deterministic way — the flag a signal would set, set by hand.
+    {
+        u16   port = start_server((NYA_HttpConfig){ .shutdown_deadline_ms = 1000 });
+        defer nya_system_http_deinit();
+
+        nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
+
+        // a real keep-alive: answered once, so the drain has an open connection to finish rather than an empty table.
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
+
+        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"));
+        nya_assert(nya_http_server_connection_count() == 1);
+
+        // begins the drain: from here the server does not accept, and a fresh request is a clean 503.
+        nya_assert(!nya_http_server_is_shutting_down());
+        nya_http_server_shutdown();
+        nya_assert(nya_http_server_is_shutting_down());
+
+        // a connection made after the drain begins is never pulled off the backlog.
+        NYA_OsSocket latecomer = connect_to(port);
+        defer             nya_os_socket_close(latecomer);
+
+        // the fresh request on the open connection is answered 503 and its connection closed, not run.
+        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(
+            nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 503 Service Unavailable\r\n"),
+            "a request during shutdown is refused, got '%s'",
+            answer
+        );
+
+        // both connections gone: the served one drained, the late one was refused a slot. That is also what says the drain finished.
+        u64 started_ns = nya_clock_get_monotonic_ns();
+        while (!nya_http_server_shutdown_is_complete() && (nya_clock_get_monotonic_ns() - started_ns) / 1000000ULL < 2000) {
+            nya_system_http_tick();
+            sleep_ms(1);
+        }
+
+        u64 took_ms = (nya_clock_get_monotonic_ns() - started_ns) / 1000000ULL;
+
+        nya_assert(nya_http_server_shutdown_is_complete(), "the drain did not finish");
+        nya_assert(took_ms < 1000, "the drain ran to its deadline instead of finishing early, took " FMTu64 " ms", took_ms);
+        nya_assert(nya_http_server_connection_count() == 0, "no connection is accepted once shutdown has begun");
+    }
+
     printf("PASSED: http server\n");
 
     return EXIT_SUCCESS;

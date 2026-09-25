@@ -161,6 +161,16 @@
 #define NYA_HTTP_SHUTDOWN_GRACE_MS 2000
 
 /**
+ * How long a graceful shutdown may take to drain before what is still open is force-closed.
+ *
+ * nya_http_server_shutdown stops accepting and gives the requests in flight and the WebSockets this
+ * long to finish; past it nya_system_http_deinit closes whatever remains. It is the config default for
+ * a zero shutdown_deadline_ms, and the worker join in deinit adds at most NYA_HTTP_SHUTDOWN_GRACE_MS on
+ * top, so total shutdown is bounded by the two together.
+ * */
+#define NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS 5000
+
+/**
  * Connections accepted in one tick. Bounded for the same reason: a process that loops on connect gets
  * this much of the frame and no more.
  * */
@@ -242,6 +252,25 @@ struct NYA_HttpConfig {
     /** Layers around every route, outermost first. Copied; the array need not outlive the call. */
     const NYA_HttpLayerFn* layers;
     u32                    layer_count;
+
+    /**
+     * How long a graceful shutdown may take to drain the requests in flight and the WebSockets before
+     * the rest is force-closed. Zero means NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS. See
+     * nya_http_server_shutdown.
+     * */
+    u32 shutdown_deadline_ms;
+
+    /**
+     * Install SIGINT and SIGTERM handlers, through the engine's own signal facility, that begin a
+     * graceful shutdown.
+     *
+     * Off by default: a program running the engine's frame loop already has core drive shutdown through
+     * should_quit and then nya_system_http_deinit, and a second handler here would overwrite that one.
+     * A headless server with no such loop sets this, so a kill drains the server rather than cutting its
+     * connections off. The handler only stores an atomic flag; the draining happens on the thread that
+     * ticks, never in the handler.
+     * */
+    b8 handle_shutdown_signals;
 };
 
 // FUNCTIONS
@@ -327,6 +356,31 @@ NYA_API u64 nya_http_server_request_count(void) __attr_no_discard;
 /** What is mounted. The table http_openapi.h walks to generate the document. */
 NYA_API u32                   nya_http_server_router_count(void) __attr_no_discard;
 NYA_API const NYA_HttpRouter* nya_http_server_router_at(u32 index) __attr_no_discard;
+
+// GRACEFUL SHUTDOWN
+
+/**
+ * Begins a graceful shutdown: the server stops accepting, lets the requests already in flight finish or
+ * answers a fresh one a clean 503, keeps ticking the WebSockets, and quiesces within
+ * `shutdown_deadline_ms`. It does not free anything — nya_system_http_deinit does, and force-closes
+ * whatever the deadline left — so a host drives nya_system_http_tick until
+ * nya_http_server_shutdown_is_complete and then calls deinit.
+ *
+ * Idempotent, and a no-op when the server is not running. This is the normal-context entry, and what
+ * config.handle_shutdown_signals arranges to reach from a signal: the handler itself only stores an
+ * atomic flag, and the drain this describes runs on the thread that ticks.
+ * */
+NYA_API void nya_http_server_shutdown(void);
+
+/** Whether a graceful shutdown has begun. */
+NYA_API b8 nya_http_server_is_shutting_down(void) __attr_no_discard;
+
+/**
+ * Whether a graceful shutdown has finished: every connection drained, or the deadline reached. True too
+ * when the server is not running, so a `while (!complete) tick();` loop over a server that never started
+ * does not spin.
+ * */
+NYA_API b8 nya_http_server_shutdown_is_complete(void) __attr_no_discard;
 
 // SECRETS
 

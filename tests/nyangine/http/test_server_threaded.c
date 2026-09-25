@@ -391,6 +391,47 @@ s32 main(void) {
         nya_system_http_deinit();
     }
 
+    // TEST: a graceful shutdown lets the handler already inside finish, then quiesces within its deadline.
+    {
+        u16 port = start_server((NYA_HttpConfig){ .workers = 2, .shutdown_deadline_ms = 2000 });
+        defer nya_system_http_deinit();
+
+        nya_assert(nya_http_server_merge(&TEST_ROUTER).ok);
+
+        NYA_OsSocket inflight = connect_to(port);
+        defer             nya_os_socket_close(inflight);
+
+        send_request(inflight, REQUEST(TEST_SLOW_PATH));
+
+        // waited for, so from here there really is a handler inside its sleep when the drain begins.
+        for (u32 attempt = 0; attempt < 2000 && atomic_load(&SLOW_RUNNING) == 0; attempt++) {
+            nya_system_http_tick();
+            sleep_ms(1);
+        }
+
+        nya_assert(atomic_load(&SLOW_RUNNING) == 1, "the slow handler never started");
+
+        // the flag a signal would set, set by hand while the handler is still inside.
+        nya_http_server_shutdown();
+        nya_assert(nya_http_server_is_shutting_down());
+
+        // the request in flight is still answered rather than cut off.
+        nya_assert(read_answer(inflight, answer, sizeof(answer), 5000) > 0, "the in-flight request went unanswered");
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"));
+
+        // and once its connection has drained the shutdown is complete, inside the deadline.
+        u64 started_ns = nya_clock_get_monotonic_ns();
+        while (!nya_http_server_shutdown_is_complete() && (nya_clock_get_monotonic_ns() - started_ns) / 1000000ULL < 3000) {
+            nya_system_http_tick();
+            sleep_ms(1);
+        }
+
+        u64 took_ms = (nya_clock_get_monotonic_ns() - started_ns) / 1000000ULL;
+
+        nya_assert(nya_http_server_shutdown_is_complete(), "the drain did not finish");
+        nya_assert(took_ms < 2000, "the drain ran to its deadline instead of finishing with its connection, took " FMTu64 " ms", took_ms);
+    }
+
     printf("PASSED: http server threaded\n");
 
     return EXIT_SUCCESS;

@@ -9,6 +9,7 @@
 #include "nyangine-std/base/base_string.h"
 #include "nyangine-std/base/base_thread.h"
 #include "nyangine-core/http/http_server.h"
+#include "nyangine-std/platform/signals/signals.h"
 #include "nyangine-std/base/base_clock.h"
 #include "nyangine-std/os/os_random.h"
 #include "nyangine-std/os/os_time.h"
@@ -233,12 +234,32 @@ struct _NYA_HttpState {
 
     /** Set by deinit; every thread here checks it and returns. */
     atomic b8 stopping;
+
+    /**
+     * A graceful shutdown is under way: stop accepting, let what is in flight finish, then quiesce.
+     * Latched once — the first observer records the deadline below and everyone after is a no-op. Distinct
+     * from `stopping`, which is deinit tearing the threads down; draining is the phase before it.
+     * */
+    atomic b8 draining;
+
+    /** When the drain must be finished by, monotonic ns. Zero until draining begins. */
+    atomic u64 drain_deadline_ns;
+
+    /** How long that drain may take, from the config and defaulted. */
+    u32 shutdown_deadline_ms;
 };
 
 // STATE
 
 /** Null when the server is off, which is what makes every call here a no-op and costs nothing. */
 NYA_INTERNAL _NYA_HttpState* _NYA_HTTP = nullptr;
+
+/**
+ * Set by the shutdown signal handler and read by the drain, so the handler touches one lock-free atomic
+ * and returns and no work happens in async-signal-unsafe context. File scope rather than in the state,
+ * because the handler must not dereference a pointer that deinit may be clearing under it.
+ * */
+NYA_INTERNAL atomic b8 _NYA_HTTP_SHUTDOWN_SIGNALLED = false;
 
 // PRIVATE API DECLARATION
 
@@ -341,6 +362,17 @@ NYA_INTERNAL NYA_Error _nya_http_threads_start(_NYA_HttpState* state) __attr_no_
 /** Joins every worker inside NYA_HTTP_SHUTDOWN_GRACE_MS and returns how many were still inside a handler. */
 NYA_INTERNAL u32 _nya_http_workers_join(_NYA_HttpState* state) __attr_no_discard;
 
+/* ── graceful shutdown ── */
+
+/** Latches the drain and records its deadline. Idempotent; the first caller wins and logs. */
+NYA_INTERNAL void _nya_http_shutdown_begin(_NYA_HttpState* state);
+
+/** Begins the drain if the signal handler has asked for it. Called on the thread that ticks. */
+NYA_INTERNAL void _nya_http_shutdown_observe(void);
+
+/** The SIGINT/SIGTERM handler config.handle_shutdown_signals installs: one atomic store and nothing else. */
+NYA_INTERNAL void _nya_http_on_shutdown_signal(NYA_Signal signal);
+
 // PUBLIC API IMPLEMENTATION
 
 // SYSTEM FUNCTIONS
@@ -439,6 +471,10 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     state->requests_per_second         = config.requests_per_second != 0 ? config.requests_per_second : NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND;
     state->request_burst               = config.request_burst != 0 ? config.request_burst : NYA_HTTP_DEFAULT_REQUEST_BURST;
     state->max_connections_per_address = nya_min(state->max_connections_per_address, state->max_connections);
+    state->shutdown_deadline_ms        = config.shutdown_deadline_ms != 0 ? config.shutdown_deadline_ms : NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS;
+
+    // A signal from a previous run of this server, or from before it started, is not this run's; cleared here so a re-init begins accepting rather than already draining.
+    atomic_store_explicit(&_NYA_HTTP_SHUTDOWN_SIGNALLED, false, memory_order_relaxed);
 
     // clamped rather than refused: a program asking for more threads than this has guessed about the machine, and a server that won't start is worse than one with eight workers.
     state->workers = nya_min(config.workers, (u32)NYA_HTTP_MAX_WORKERS);
@@ -520,6 +556,12 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     nya_ceiling_register("http_connections", _NYA_HTTP->max_connections, (const u32*)&_NYA_HTTP->connection_count);
     nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
     nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
+
+    // Opt-in, and through the engine's own facility rather than a raw handler: a program with a frame loop leaves this off and lets core drive shutdown, and only a headless server sets it. Installed last, once the server is up, so the first signal it could catch finds a state to drain. The handler stores one atomic and returns; _nya_http_shutdown_observe does the work on the ticking thread.
+    if (config.handle_shutdown_signals) {
+        nya_signals_set_handler(NYA_SIGNAL_INTERRUPT, _nya_http_on_shutdown_signal);
+        nya_signals_set_handler(NYA_SIGNAL_TERMINATE, _nya_http_on_shutdown_signal);
+    }
 
     // Every response says so, and only over TLS; see nya_http_hsts_set.
     nya_http_hsts_set(state->tls != nullptr);
@@ -616,6 +658,9 @@ void nya_system_http_deinit(void) {
 void nya_system_http_tick(void) {
     if (_NYA_HTTP == nullptr) return;
 
+    // A signal may have asked for shutdown; latch it here too, so a threaded server's host thread sees the drain begin without waiting on the listener's next pass.
+    _nya_http_shutdown_observe();
+
     // With workers the listener thread does the sockets, and what's left for the tick is the work that must happen where the program's own state is: the exchanges whose route asked for it, and every WebSocket. Without them this is the whole drain, as it has always been.
     if (_NYA_HTTP->workers > 0) {
         _nya_http_main_drain();
@@ -706,6 +751,30 @@ const NYA_HttpRouter* nya_http_server_router_at(u32 index) {
     return _NYA_HTTP->routers[index];
 }
 
+// GRACEFUL SHUTDOWN
+
+void nya_http_server_shutdown(void) {
+    if (_NYA_HTTP == nullptr) return;
+
+    _nya_http_shutdown_begin(_NYA_HTTP);
+}
+
+b8 nya_http_server_is_shutting_down(void) {
+    return _NYA_HTTP != nullptr && atomic_load_explicit(&_NYA_HTTP->draining, memory_order_acquire);
+}
+
+b8 nya_http_server_shutdown_is_complete(void) {
+    // nothing to shut down is shut down: a `while (!complete) tick();` loop over a server that never started returns at once rather than spinning.
+    if (_NYA_HTTP == nullptr) return true;
+
+    if (!atomic_load_explicit(&_NYA_HTTP->draining, memory_order_acquire)) return false;
+
+    // every connection drained is the clean end; the deadline is the other, past which deinit force-closes whatever is left.
+    if (atomic_load_explicit(&_NYA_HTTP->connection_count, memory_order_relaxed) == 0) return true;
+
+    return nya_clock_get_monotonic_ns() >= atomic_load_explicit(&_NYA_HTTP->drain_deadline_ns, memory_order_acquire);
+}
+
 // SECRETS
 
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, u8* buffer, u64 capacity, u64* out_size) {
@@ -738,11 +807,17 @@ NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, u8* buffer
 void _nya_http_pass(void) {
     const b8 threaded = _NYA_HTTP->workers > 0;
 
+    // a signal may have asked for shutdown; latch it before the accept below reads the flag.
+    _nya_http_shutdown_observe();
+
+    const b8 draining = atomic_load_explicit(&_NYA_HTTP->draining, memory_order_acquire);
+
     // the whole pass under one lock, and the only other thread that wants it is the tick draining the WebSockets; a pass is non-blocking socket calls over at most eight connections, so it makes the tick wait microseconds, and a handler never runs under it.
     nya_mutex_lock(_NYA_HTTP->table_mutex);
     defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
-    _nya_http_accept();
+    // No accept once the drain has begun: a connection made after that gets nothing and is dropped when the listener socket closes in deinit, which is what stops new work while the old finishes.
+    if (!draining) _nya_http_accept();
 
     u32 budget = NYA_HTTP_MAX_REQUESTS_PER_TICK;
 
@@ -807,6 +882,12 @@ void _nya_http_pass(void) {
         }
 
         if (connection->closing && connection->sending_size == connection->sent) _nya_http_close(connection);
+
+        // Draining and this connection has nothing left to do — no request part in, no answer part out, and its slot handed back — so it is closed now rather than held open to its idle timeout, which is what lets the drain finish the moment the last in-flight request does. One mid-request or mid-answer is left to the passes above to finish.
+        if (draining && connection->socket.handle != 0 && !connection->upgraded && connection->received_size == 0 &&
+            connection->sending_size == connection->sent) {
+            _nya_http_close(connection);
+        }
     }
 }
 
@@ -1021,6 +1102,12 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
     const u32 index    = (u32)(connection - _NYA_HTTP->connections);
 
     while (*budget > 0 && connection->received_size > 0 && !connection->closing) {
+        // Draining: nothing new is dispatched. A request already in flight is in a busy slot the pass skipped over, so it is never seen here; this is a fresh one, answered a clean 503 that closes the connection rather than started while the server is going down.
+        if (atomic_load_explicit(&_NYA_HTTP->draining, memory_order_acquire)) {
+            _nya_http_refuse(connection, slot, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the server is shutting down", 0);
+            return false;
+        }
+
         u64            consumed = 0;
         NYA_HttpStatus refusal  = NYA_HTTP_STATUS_NONE;
 
@@ -1594,4 +1681,30 @@ u32 _nya_http_workers_join(_NYA_HttpState* state) {
     }
 
     return stuck;
+}
+
+void _nya_http_shutdown_begin(_NYA_HttpState* state) {
+    // Latched once with an exchange: the listener thread and the ticking thread both observe the flag, and the first of them records the deadline while the other returns, so the window a request has to finish in doesn't move.
+    if (atomic_exchange_explicit(&state->draining, true, memory_order_acq_rel)) return;
+
+    u64 deadline_ns = nya_clock_get_monotonic_ns() + ((u64)state->shutdown_deadline_ms * 1000000ULL);
+    atomic_store_explicit(&state->drain_deadline_ns, deadline_ns, memory_order_release);
+
+    nya_log_info(
+        "HTTP server draining for shutdown: no longer accepting, %u ms for %u connection(s) in flight to finish.",
+        state->shutdown_deadline_ms,
+        atomic_load_explicit(&state->connection_count, memory_order_relaxed)
+    );
+}
+
+void _nya_http_shutdown_observe(void) {
+    if (_NYA_HTTP == nullptr) return;
+    if (atomic_load_explicit(&_NYA_HTTP_SHUTDOWN_SIGNALLED, memory_order_relaxed)) _nya_http_shutdown_begin(_NYA_HTTP);
+}
+
+void _nya_http_on_shutdown_signal(NYA_Signal signal) {
+    nya_unused(signal);
+
+    // The whole of what runs in signal context: one store to a lock-free atomic. The drain reads it and does the work on the thread that ticks; see _nya_http_shutdown_observe.
+    atomic_store_explicit(&_NYA_HTTP_SHUTDOWN_SIGNALLED, true, memory_order_relaxed);
 }
