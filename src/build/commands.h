@@ -14,6 +14,7 @@
  *   check.c      `./build check`
  *   typos.c      `./build typos`
  *   format.c     `./build format` and `./build format --check`
+ *   fmt.c        `./build fmt <file.nya>` and `./build fmt --check`
  *   lint.c       the rules `./build check` runs before clang-tidy
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
@@ -122,6 +123,13 @@ void commit_check_runner(NYA_ArgCommand* command);
  * `./build check`: the tuned .clang-format cannot reproduce every hand-formatted construct. See format.c.
  * */
 void format_runner(NYA_ArgCommand* command);
+
+/**
+ * Canonically formats the named `.nya` files by round-tripping each through the engine's own serde
+ * (deserialize, then serialize with NYA_SERDE_PRETTY), rewriting in place; with --check it reports drift
+ * or a parse error and fails instead of writing. Dogfoods the serializer rather than a second parser. See fmt.c.
+ * */
+void nya_fmt_runner(NYA_ArgCommand* command);
 
 /**
  * The project's own rules, run by `./build check` before clang-tidy: banned calls, the module order, verb pairs,

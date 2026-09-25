@@ -40,5 +40,7 @@
 #include "build/new.c"
 // Beside new.c: reads a project.nya manifest and resolves it to a build plan. The first slice of consuming the engine as a vendored dependency.
 #include "build/project.c"
+// Beside project.c: another .nya reader, this one round-tripping a file through the engine's serde to format or lint it.
+#include "build/fmt.c"
 // Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"

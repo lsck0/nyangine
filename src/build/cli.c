@@ -683,6 +683,29 @@ NYA_INTERNAL NYA_ArgCommand project_command = {
     .parameters  = { &project_manifest, },
 };
 
+NYA_INTERNAL NYA_ArgParameter fmt_check_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "check",
+    .description = "Report what is not canonically formatted and exit non-zero, rather than rewriting. What CI wants.",
+};
+
+NYA_INTERNAL NYA_ArgParameter fmt_files = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    .variadic    = true,
+    .name        = "file",
+    .description = "The .nya file(s) to format or check.",
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE },
+};
+
+NYA_INTERNAL NYA_ArgCommand fmt_command = {
+    .name        = "fmt",
+    .description = "Canonically format .nya files by round-tripping them through the engine's serde. --check lints instead of rewriting. See fmt.c.",
+    .handler     = &nya_fmt_runner,
+    .parameters  = { &fmt_check_flag, &fmt_files, },
+};
+
 NYA_INTERNAL NYA_ArgCommand check = {
     .name        = "check",
     .description = "Run clang-tidy over the translation units.",
@@ -836,6 +859,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &build,
             &new_command,
             &project_command,
+            &fmt_command,
             &dist,
             &check,
             &typos,
