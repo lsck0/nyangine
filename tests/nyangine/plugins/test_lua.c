@@ -256,6 +256,39 @@ s32 main(void) {
         nya_check(empty.as_b8, "no standard library means none of it");
     }
 
+    // Budgets: a runaway script is stopped rather than hanging or exhausting the host, and an honest one is untouched.
+    {
+        NYA_LuaVM* budgeted = nullptr;
+        NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .budgeted = true }, &budgeted));
+        defer nya_lua_destroy(budgeted);
+
+        // An honest script runs to the end under both budgets, exactly as it would on an unbudgeted VM.
+        NYA_EXPECT(nya_lua_run(budgeted, "local s = 0 for i = 1, 1000 do s = s + i end total = s", "honest"));
+
+        NYA_Value total = { 0 };
+        NYA_EXPECT(nya_lua_global_get(budgeted, arena, "total", &total));
+        nya_check(fabs(total.as_f64 - 500500.0) < 0.5, "an honest script runs unaffected, got %f", total.as_f64);
+
+        // An infinite loop is cut off by the instruction budget rather than hanging, and returns as an error carrying why.
+        NYA_Error looped = nya_lua_run(budgeted, "while true do end", "runaway");
+        nya_check(!looped.ok && looped.kind == NYA_ERROR_NOT_OK, "an infinite loop is stopped, got ok=%d", looped.ok);
+        nya_check(strstr((const char*)looped.message, "budget") != nullptr, "and says which budget, got '%s'", looped.message);
+
+        // The VM survives its own abort: the budget is rearmed per run, so a later honest call still works.
+        NYA_EXPECT(nya_lua_run(budgeted, "recovered = true", "after"));
+        NYA_Value recovered = { 0 };
+        NYA_EXPECT(nya_lua_global_get(budgeted, arena, "recovered", &recovered));
+        nya_check(recovered.type == NYA_TYPE_B8 && recovered.as_b8, "and the VM is still usable after a budget abort");
+
+        // Allocating without end is refused past the heap ceiling, again an error rather than a crash. Megabyte strings reach the cap in far fewer instructions than the budget, so it is the heap that trips.
+        NYA_LuaVM* greedy = nullptr;
+        NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .budgeted = true }, &greedy));
+        defer nya_lua_destroy(greedy);
+
+        NYA_Error bomb = nya_lua_run(greedy, "local t = {} while true do t[#t + 1] = string.rep('x', 1024 * 1024) end", "bomb");
+        nya_check(!bomb.ok && bomb.kind == NYA_ERROR_NOT_OK, "an allocation bomb is refused, not fatal, got ok=%d", bomb.ok);
+    }
+
     // Introspection, and the degenerate cases every one of these has to survive.
     {
         nya_check(nya_lua_memory_bytes(vm) > 0, "a live VM has allocated something");

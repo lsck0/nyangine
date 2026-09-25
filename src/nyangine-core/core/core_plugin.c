@@ -1191,9 +1191,10 @@ NYA_INTERNAL void _nya_plugin_open_host_bindings(_NYA_PluginSlot* slot) {
 NYA_Error _nya_plugin_vm_create(_NYA_PluginSlot* slot) {
     nya_assert(slot != nullptr && slot->arena != nullptr);
 
-    // `restricted`, always, whatever the permissions say: io, os, package, ffi and debug are not
-    // permissions a plugin can ask for, they are doors out of the process. See lua.h.
-    NYA_TRY(nya_lua_create(slot->arena, (NYA_LuaOptions){ .restricted = true }, &slot->vm));
+    // `restricted` and `budgeted`, always, whatever the permissions say: io, os, package, ffi and debug
+    // are doors out of the process, and an unbounded plugin can hang or starve the host by looping or
+    // allocating forever. Neither is a permission a plugin can ask for. See lua.h.
+    NYA_TRY(nya_lua_create(slot->arena, (NYA_LuaOptions){ .restricted = true, .budgeted = true }, &slot->vm));
 
     nya_lua_open_engine_permitted(slot->vm, slot->plugin.permissions);
     _nya_plugin_open_host_bindings(slot);

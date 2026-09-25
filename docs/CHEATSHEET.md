@@ -7406,7 +7406,7 @@ A LuaJIT VM, values crossing in both directions as NYA_Value, and C functions ca
 enum NYA_PluginPermission : u64
 struct NYA_LuaCall { NYA_Arena* arena; const NYA_Value* arguments; u32 argument_count; void* user_data; NYA_Value results[NYA_LUA_MAX_ARGUMENTS]; u32 result_count; }  // What a bound C function receives and answers with.
 typedef void (*NYA_LuaFn)(NYA_LuaCall* call)  // A function a script may call.
-struct NYA_LuaOptions { b8 no_standard_library; b8 restricted; b8 engine_api; }  // Everything optional about a VM.
+struct NYA_LuaOptions { b8 no_standard_library; b8 restricted; b8 engine_api; b8 budgeted; }  // Everything optional about a VM.
 
 // macros
 NYA_LUA_MAX_ARGUMENTS 16  // Arguments one call may pass, and values one may return.

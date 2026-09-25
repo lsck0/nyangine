@@ -26,6 +26,45 @@ typedef struct {
  * */
 #define _NYA_LUA_PATH_SEGMENT_MAX 64
 
+/**
+ * Bytecode instructions one budgeted run may execute before it is stopped.
+ *
+ * A runaway guard, not a scheduler: the count hook fires this often and the first fire aborts, so
+ * `while true do end` is cut off in tens of milliseconds instead of hanging the host, while an honest
+ * per-frame or load-time script finishes orders of magnitude under it. Armed per top-level run/call, so
+ * the budget is per invocation rather than a lifetime total. A count hook keeps the VM in the
+ * interpreter (LuaJIT cannot trace through one), which is why only VMs that ask for it pay the cost.
+ * */
+#ifndef NYA_LUA_INSTRUCTION_BUDGET
+#define NYA_LUA_INSTRUCTION_BUDGET (10 * 1000 * 1000)
+#endif
+
+/**
+ * Bytes one budgeted VM's Lua heap may reach before further growth is refused.
+ *
+ * The guard allocator returns null past this; LuaJIT answers a null with a full collection and, if the
+ * heap is still over, a Lua out-of-memory error, caught by the same lua_pcall as any other. An
+ * allocation-bomb script is stopped, not the host. LuaJIT itself boots in a few hundred KB, so this
+ * still holds a substantial script and its working set while capping the runaway well short of the
+ * machine.
+ * */
+#ifndef NYA_LUA_HEAP_CEILING_BYTES
+#define NYA_LUA_HEAP_CEILING_BYTES (64ULL * 1024 * 1024)
+#endif
+
+/**
+ * Wraps LuaJIT's own allocator to cap a VM's heap. `real_*` is what lua_getallocf handed back — the
+ * genuine allocator and its mspace, still called for every allocation so the low-address guarantee the
+ * collector needs is untouched (see the memory note in lua.h). `used` tracks live bytes by delta,
+ * seeded with the base heap; a grow past `ceiling` is refused instead of forwarded.
+ * */
+typedef struct {
+    lua_Alloc real_alloc;
+    void*     real_ud;
+    u64       used;
+    u64       ceiling;
+} _NYA_LuaAllocGuard;
+
 struct NYA_LuaVM {
     lua_State* state;
 
@@ -34,6 +73,12 @@ struct NYA_LuaVM {
 
     _NYA_LuaBinding bindings[NYA_LUA_MAX_BINDINGS];
     u32             binding_count;
+
+    /** Instructions a run may take when non-zero; zero leaves the VM unhooked and JIT-eligible. */
+    u32 instruction_budget;
+
+    /** Set (real_alloc non-null) once the heap guard is installed; see nya_lua_destroy for the restore. */
+    _NYA_LuaAllocGuard alloc_guard;
 };
 
 // ───────────────────────────────────── INTERNALS ─────────────────────────────────────
@@ -98,6 +143,44 @@ NYA_INTERNAL NYA_Error _nya_lua_take_error(lua_State* state, NYA_ErrorKind kind,
     lua_pop(state, 1);
 
     return error;
+}
+
+/**
+ * Fires every NYA_LUA_INSTRUCTION_BUDGET instructions on a budgeted VM and stops the run.
+ *
+ * luaL_error longjmps out to the nearest lua_pcall — the one every entry point wraps its run in — so a
+ * script that loops forever unwinds cleanly into an NYA_Error rather than hanging the host.
+ * */
+NYA_INTERNAL void _nya_lua_instruction_hook(lua_State* state, lua_Debug* activation) {
+    nya_unused(activation);
+
+    luaL_error(state, "instruction budget of %d exceeded", NYA_LUA_INSTRUCTION_BUDGET);
+}
+
+/**
+ * The guard allocator. Forwards to LuaJIT's own allocator, refusing only a grow that would put the
+ * heap past the ceiling; a refusal is a null return, which LuaJIT turns into a collection and then an
+ * out-of-memory error. Zero added work but one compare and one add per allocation.
+ * */
+NYA_INTERNAL void* _nya_lua_alloc_guard(void* ud, void* ptr, size_t old_size, size_t new_size) {
+    _NYA_LuaAllocGuard* guard = (_NYA_LuaAllocGuard*)ud;
+
+    // Only a grow can breach the ceiling; a free or a shrink is always forwarded.
+    if (new_size > old_size && guard->used + (new_size - old_size) > guard->ceiling) return nullptr;
+
+    void* result = guard->real_alloc(guard->real_ud, ptr, old_size, new_size);
+
+    // Accounted only on success (a free reports new_size 0 and a null result), so a refused or failed grow never moves the counter.
+    if (new_size == 0 || result != nullptr) guard->used = guard->used - old_size + new_size;
+
+    return result;
+}
+
+/** Rearms the instruction budget for the run about to start, so the budget is per invocation. Nothing on an unbudgeted VM. */
+NYA_INTERNAL void _nya_lua_arm_budget(NYA_LuaVM* vm) {
+    if (vm->instruction_budget > 0) {
+        lua_sethook(vm->state, _nya_lua_instruction_hook, LUA_MASKCOUNT, (int)vm->instruction_budget);
+    }
 }
 
 void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
@@ -345,6 +428,19 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
 
     *vm = (NYA_LuaVM){ .state = state, .arena = arena };
 
+    if (options.budgeted) {
+        vm->instruction_budget = NYA_LUA_INSTRUCTION_BUDGET;
+
+        // The instruction hook is armed per run in _nya_lua_arm_budget, not here: a lifetime countdown would eventually trip a well-behaved plugin mid-call.
+
+        // Wrap the allocator LuaJIT already installed, seeding the counter with the base heap so the ceiling is a true total. nya_lua_destroy restores real_alloc before lua_close, which frees the mspace correctly.
+        vm->alloc_guard.real_alloc = lua_getallocf(state, &vm->alloc_guard.real_ud);
+        vm->alloc_guard.used       = (u64)lua_gc(state, LUA_GCCOUNT, 0) * 1024ULL + (u64)lua_gc(state, LUA_GCCOUNTB, 0);
+        vm->alloc_guard.ceiling    = NYA_LUA_HEAP_CEILING_BYTES;
+
+        lua_setallocf(state, _nya_lua_alloc_guard, &vm->alloc_guard);
+    }
+
     if (options.engine_api) nya_lua_open_engine(vm);
 
     *out_vm = vm;
@@ -356,14 +452,17 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
         ceiling_registered = true;
     }
 
-    nya_log_info("Lua VM created (%s%s).", options.no_standard_library ? "no standard library" : "standard library",
-                 options.restricted ? ", restricted" : "");
+    nya_log_info("Lua VM created (%s%s%s).", options.no_standard_library ? "no standard library" : "standard library",
+                 options.restricted ? ", restricted" : "", options.budgeted ? ", budgeted" : "");
 
     return NYA_OK;
 }
 
 void nya_lua_destroy(NYA_LuaVM* vm) {
     if (vm == nullptr || vm->state == nullptr) return;
+
+    // Restore LuaJIT's own allocator first: lua_close only frees the underlying mspace when it sees that exact function, so leaving the guard in its place would leak the whole heap.
+    if (vm->alloc_guard.real_alloc != nullptr) lua_setallocf(vm->state, vm->alloc_guard.real_alloc, vm->alloc_guard.real_ud);
 
     lua_close(vm->state);
 
@@ -382,6 +481,8 @@ NYA_Error nya_lua_run(NYA_LuaVM* vm, NYA_ConstCString code, NYA_ConstCString chu
     if (luaL_loadbuffer(vm->state, code, strlen(code), name) != 0) {
         return _nya_lua_take_error(vm->state, NYA_ERROR_PARSE, "Lua syntax error");
     }
+
+    _nya_lua_arm_budget(vm);
 
     if (lua_pcall(vm->state, 0, 0, 0) != 0) {
         return _nya_lua_take_error(vm->state, NYA_ERROR_NOT_OK, "Lua error");
@@ -407,6 +508,8 @@ NYA_Error nya_lua_run_asset(NYA_LuaVM* vm, NYA_ConstCString asset_handle) {
     if (luaL_loadbuffer(vm->state, (const char*)asset->as_text.data, (size_t)asset->as_text.size, asset_handle) != 0) {
         return _nya_lua_take_error(vm->state, NYA_ERROR_PARSE, "Lua syntax error");
     }
+
+    _nya_lua_arm_budget(vm);
 
     if (lua_pcall(vm->state, 0, 0, 0) != 0) return _nya_lua_take_error(vm->state, NYA_ERROR_NOT_OK, "Lua error");
 
@@ -452,6 +555,8 @@ NYA_Error nya_lua_call(
     }
 
     for (u32 i = 0; i < argument_count; i++) _nya_lua_push(vm->state, &arguments[i], 0);
+
+    _nya_lua_arm_budget(vm);
 
     // one result regardless; Lua pads with nil.
     if (lua_pcall(vm->state, (int)argument_count, 1, 0) != 0) {

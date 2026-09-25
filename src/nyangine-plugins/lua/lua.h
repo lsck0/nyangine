@@ -111,6 +111,18 @@ struct NYA_LuaOptions {
 
     /** Put the engine's `nya` table in front of scripts. See nya_lua_open_engine. */
     b8 engine_api;
+
+    /**
+     * Bound the VM's work. A script that loops forever is cut off past NYA_LUA_INSTRUCTION_BUDGET
+     * instructions and one that allocates without end is refused past NYA_LUA_HEAP_CEILING_BYTES; both
+     * surface as an ordinary NYA_Error out of nya_lua_run/nya_lua_call, not as a hung or dead host. This
+     * is what the plugin host gives every plugin — the third bound, after `restricted` and the binding
+     * permissions (see core_plugin.h).
+     *
+     * The instruction bound keeps the VM in the interpreter, since LuaJIT cannot trace through a count
+     * hook, so leave it off for a VM whose code you wrote and whose running time you already trust.
+     * */
+    b8 budgeted;
 };
 
 // ───────────────────────────────────── FUNCTIONS AND MACROS ─────────────────────────────────────
