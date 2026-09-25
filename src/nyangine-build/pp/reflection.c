@@ -331,8 +331,8 @@ void nya_reflection_generate(void) {
 /* PRIVATE API IMPLEMENTATION */
 
 b8 _nya_reflect_is_sdl_bound(NYA_ConstCString source_file) {
-    // A whitelist of the modules that name SDL, the renderer or core, checked against the type's source path. Everything else under src/nyangine is the server-safe floor. The leading and trailing slashes keep this from matching a substring of some longer name.
-    return strstr(source_file, "/core/") != nullptr || strstr(source_file, "/renderer/") != nullptr || strstr(source_file, "/ui/") != nullptr ||
+    // A whitelist of the modules that name SDL, the renderer or core, checked against the type's source path. Everything else under src/nyangine is the server-safe floor. The leading and trailing slashes keep this from matching a substring of some longer name. `nyangine-ui` is its own subproject, so it is matched by name rather than by a `/ui/` segment.
+    return strstr(source_file, "/core/") != nullptr || strstr(source_file, "/renderer/") != nullptr || strstr(source_file, "/nyangine-ui/") != nullptr ||
            strstr(source_file, "/physics/") != nullptr || strstr(source_file, "/debug/") != nullptr || strstr(source_file, "/replicate/") != nullptr;
 }
 

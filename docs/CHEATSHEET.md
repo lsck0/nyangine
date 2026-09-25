@@ -1158,9 +1158,10 @@ One generated description per annotated type, and everything generic over a stru
 typedef NYA_Error (*NYA_ReflectApplyFn)(void* instance)  // What `@on_apply` names.
 enum NYA_ReflectKind { NYA_REFLECT_PRIMITIVE, NYA_REFLECT_STRUCT, NYA_REFLECT_UNION, NYA_REFLECT_ENUM, NYA_REFLECT_ARRAY, NYA_REFLECT_VECTOR, NYA_REFLECT_POINTER, NYA_REFLECT_COUNT, }  // What a described type *is*, which selects which members of NYA_TypeReflection mean anything.
 enum NYA_ReflectHint { NYA_HINT_NONE, NYA_HINT_POSITION, NYA_HINT_SCALE, NYA_HINT_EULER, NYA_HINT_COLOR, NYA_HINT_ASSET, NYA_HINT_BITFLAGS, NYA_HINT_COUNT, }  // What a field *means*, where its type does not say.
-struct NYA_ReflectField { NYA_ConstCString name; const NYA_TypeReflection* type; u64 offset; NYA_ReflectHint hint; b8 is_key; b8 is_redacted; b8 is_secret; b8 has_tag_value; s64 tag_value; }  // One member of a struct or union.
+struct NYA_ReflectAttribute { NYA_ConstCString name; NYA_ConstCString args; }  // One `@name` or `@name(args)` annotation, kept verbatim from the source.
+struct NYA_ReflectField { NYA_ConstCString name; const NYA_TypeReflection* type; u64 offset; NYA_ReflectHint hint; b8 is_key; b8 is_redacted; b8 is_secret; const NYA_ReflectAttribute* attributes; u32 attribute_count; b8 has_tag_value; s64 tag_value; }  // One member of a struct or union.
 struct NYA_ReflectVariant { NYA_ConstCString name; s64 value; }  // One variant of an enum.
-struct NYA_TypeReflection { NYA_ConstCString name; NYA_ReflectKind kind; u64 size; u64 alignment; NYA_Type primitive; const NYA_ReflectField* fields; u32 field_count; const NYA_ReflectField* tag_field; const NYA_ReflectVariant* variants; u32 variant_count; b8 is_bitflags; const NYA_TypeReflection* element; u32 element_count; NYA_ReflectApplyFn on_apply; }  // Everything known about one type.
+struct NYA_TypeReflection { NYA_ConstCString name; NYA_ReflectKind kind; u64 size; u64 alignment; NYA_Type primitive; const NYA_ReflectField* fields; u32 field_count; const NYA_ReflectField* tag_field; const NYA_ReflectVariant* variants; u32 variant_count; b8 is_bitflags; const NYA_TypeReflection* element; u32 element_count; NYA_ReflectApplyFn on_apply; const NYA_ReflectAttribute* attributes; u32 attribute_count; }  // Everything known about one type.
 typedef void (*NYA_ReflectReportFn)(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One problem found in a document.
 
 // macros
@@ -1171,6 +1172,9 @@ NYA_REFLECT_PATH_MAX 256  // Longest dotted path a report carries, terminator in
 
 // functions
 const NYA_ReflectField* nya_reflect_field(const NYA_TypeReflection* type, NYA_ConstCString name)  // The field called `name`, or null.
+const NYA_ReflectAttribute* nya_reflect_field_attribute(const NYA_ReflectField* field, NYA_ConstCString name)  // The attribute called `name` on `field`, or null.
+b8 nya_reflect_field_has_attribute(const NYA_ReflectField* field, NYA_ConstCString name)  // Whether `field` carries the attribute `name` (without the leading `@`).
+const NYA_ReflectAttribute* nya_reflect_type_attribute(const NYA_TypeReflection* type, NYA_ConstCString name)  // The attribute called `name` on the type itself, or null.
 const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_ConstCString path, void* instance, OUT void** out_instance)  // The field at a dotted path such as `"visual.color.r"`, resolving through nested structs.
 void* nya_reflect_field_pointer(void* instance, const NYA_ReflectField* field)  // The address of `field` within `instance`.
 NYA_ConstCString nya_reflect_variant_name(const NYA_TypeReflection* type, s64 value)  // The name of the variant with `value`, or null.
@@ -5412,6 +5416,24 @@ NYA_Error nya_http_response_cookie_clear(NYA_HttpResponse* response, NYA_ConstCS
 b8 nya_http_cookie_parse(const char* header, u64 size, OUT NYA_HttpCookieValue* out_names, OUT NYA_HttpCookieValue* out_values, OUT u32* out_count)
 ```
 
+### http_cors.h
+
+Cross-Origin Resource Sharing, per route rather than for the whole server, and off unless a route
+
+```c
+// types
+struct NYA_HttpCors { const NYA_ConstCString* origins; u32 origin_count; const NYA_HttpMethod* methods; u32 method_count; const NYA_ConstCString* headers; u32 header_count; const NYA_ConstCString* expose; u32 expose_count; u32 max_age_s; b8 credentials; }  // One route's CORS policy.
+
+// macros
+NYA_HTTP_CORS_MAX_ORIGINS 8  // Origins one policy may list.
+
+// functions
+NYA_Error nya_http_cors_check(const NYA_HttpCors* cors)
+NYA_ConstCString nya_http_cors_allow_origin(const NYA_HttpCors* cors, const NYA_HttpRequest* request)
+void nya_http_cors_apply(const NYA_HttpCors* cors, const NYA_HttpRequest* request, NYA_HttpResponse* response)
+NYA_HttpStatus nya_http_cors_preflight(const NYA_HttpCors* cors, const NYA_HttpRequest* request, NYA_HttpResponse* response)
+```
+
 ### http_doc.h
 
 The pieces the four discoverability documents are built and served with, in one place so each of them
@@ -5456,6 +5478,26 @@ NYA_HTTP_FEED_MAX_ITEMS 500  // Items one feed here carries.
 NYA_Error nya_http_feed_rss(NYA_Arena* arena, NYA_HttpFeedConfig config, OUT NYA_ConstCString* out)  // Builds the RSS 2.0 document into `out`, allocated from `arena`.
 NYA_Error nya_http_feed_atom(NYA_Arena* arena, NYA_HttpFeedConfig config, OUT NYA_ConstCString* out)  // Builds the Atom 1.0 document into `out`, allocated from `arena`.
 NYA_Error nya_http_feed_mount(NYA_HttpFeedConfig config)
+```
+
+### http_files.h
+
+Uploads and downloads as a router a server merges: a file goes into the content-addressed blob store,
+
+```c
+// types
+struct NYA_HttpFilesConfig { NYA_Arena* arena; NYA_Database* database; }  // What a program hands the file routes: where the blob store and the record table live.
+struct NYA_HttpFile { s64 id; s64 owner; char blob_id[NYA_BLOB_ID_LENGTH + 1]; char name[NYA_HTTP_FILES_MAX_NAME]; char content_type[NYA_HTTP_FILES_MAX_CONTENT_TYPE]; s64 size; s64 created; }  // One uploaded file, as it is stored: the row that binds a blob to its owner and its metadata.
+
+// macros
+NYA_HTTP_FILES_PATH "/api/files"  // The paths this module answers on.
+NYA_HTTP_FILES_MAX_UPLOAD_BYTES 4096  // The largest upload this route accepts, checked against Content-Length before the body is parsed.
+NYA_HTTP_FILES_MAX_NAME 128  // Bytes a stored (sanitised) filename may take, terminator included.
+NYA_HTTP_FILES_MAX_CONTENT_TYPE 128  // Bytes a stored content type may take, terminator included.
+
+// functions
+const NYA_HttpRouter* nya_http_files_open(NYA_HttpFilesConfig config)
+void nya_http_files_close(void)  // Closes the record table and forgets the config.
 ```
 
 ### http_health.h
@@ -5638,6 +5680,27 @@ b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_
 NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
 ```
 
+### http_multipart.h
+
+The one body format an HTML `<input type=file>` sends: `multipart/form-data`, parsed as a stream of
+
+```c
+// types
+enum NYA_HttpMultipartStep { NYA_HTTP_MULTIPART_PART = 0, NYA_HTTP_MULTIPART_DONE, NYA_HTTP_MULTIPART_MALFORMED, }  // What one call to nya_http_multipart_next decided.
+struct NYA_HttpMultipartPart { const char* name; u64 name_size; const char* filename; u64 filename_size; const char* content_type; u64 content_type_size; const u8* body; u64 body_size; }  // One part, as byte ranges into the body the reader was bound to.
+struct NYA_HttpMultipartReader { const u8* data; u64 size; u64 cursor; char boundary[NYA_HTTP_MULTIPART_MAX_BOUNDARY + 1]; u64 boundary_size; u32 parts_seen; b8 started; b8 finished; }  // A walk in progress.
+
+// macros
+NYA_HTTP_MULTIPART_MAX_BOUNDARY 70  // Longest boundary, terminator not included.
+NYA_HTTP_MULTIPART_MAX_PARTS 16  // Parts one body may carry.
+NYA_HTTP_MULTIPART_MAX_PART_HEADER_BYTES 512  // Bytes one part's header block may take, its terminating blank line included.
+
+// functions
+NYA_Error nya_http_multipart_boundary(NYA_ConstCString content_type, OUT char* out_boundary, u64 capacity, OUT u64* out_size)
+NYA_Error nya_http_multipart_reader_init(OUT NYA_HttpMultipartReader* reader, const u8* body, u64 body_size, NYA_ConstCString content_type)  // Binds `reader` to `body` and the boundary in `content_type`.
+NYA_HttpMultipartStep nya_http_multipart_next(NYA_HttpMultipartReader* reader, OUT NYA_HttpMultipartPart* out_part)  // The next part, or the reason there is not one.
+```
+
 ### http_net_websocket.h
 
 A net transport over a WebSocket, so a browser can be a peer of a native server.
@@ -5661,6 +5724,46 @@ NYA_Error nya_net_transport_ws_allow(NYA_NetTransport* transport, const u8 key[N
 void nya_net_transport_ws_disallow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE])  // Removes a key from the allowlist.
 b8 nya_net_transport_ws_is_allowed(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE])  // Whether a key is on the allowlist right now.
 void nya_net_ws_join_encode(u32 version, const u8 key[NYA_NET_KEY_SIZE], OUT u8 out_frame[NYA_NET_WS_JOIN_SIZE])  // Writes the join frame a client sends first: NYA_NET_WS_TAG_JOIN, `version` little-endian, then `key`.
+```
+
+### http_observe.h
+
+The two things a request leaves behind for a machine: a latency histogram a Prometheus job scrapes,
+
+```c
+// types
+struct NYA_HttpTraceConfig { b8 enabled; }  // What turns span recording on.
+struct NYA_HttpSpan { u8 trace_id[NYA_HTTP_TRACE_ID_BYTES]; u8 span_id[NYA_HTTP_SPAN_ID_BYTES]; u8 parent_span_id[NYA_HTTP_SPAN_ID_BYTES]; b8 has_parent; char name[NYA_HTTP_TRACE_NAME_MAX]; u64 start_unix_ns; u64 end_unix_ns; NYA_HttpMethod method; u32 status; }  // One recorded request.
+typedef NYA_Error (*NYA_HttpTraceExportFn)(const char* json, u64 size, void* userdata)  // The exporter seam.
+
+// macros
+NYA_HTTP_OBSERVE_BUCKET_COUNT 11  // Finite histogram bucket boundaries, in seconds: 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s.
+NYA_HTTP_OBSERVE_CLASS_COUNT 6  // Status classes the histogram keys on: index 0 is anything outside 1xx–5xx, 1–5 are 1xx–5xx.
+NYA_HTTP_TRACE_SPAN_MAX 256  // Spans the ring holds before it drops the oldest.
+NYA_HTTP_TRACE_NAME_MAX 64  // Longest span name, terminator included.
+NYA_HTTP_TRACE_ID_BYTES 16  // Bytes of a trace id (128 bits) and a span id (64 bits), as W3C `traceparent` and OTLP both define them.
+NYA_HTTP_SPAN_ID_BYTES 8
+
+// functions
+void nya_http_observe_request(NYA_HttpMethod method, NYA_HttpStatus status, u64 duration_ns)  // Records one finished request.
+void nya_http_observe_metrics_set_enabled(b8 enabled)  // Turns the histogram on or off.
+b8 nya_http_observe_metrics_enabled(void)  // Whether the histogram is recording.
+void nya_http_observe_reset(void)  // Zeroes every histogram and error counter.
+u32 nya_http_observe_bucket_count(void)  // The number of finite buckets, NYA_HTTP_OBSERVE_BUCKET_COUNT.
+f64 nya_http_observe_bucket_bound_s(u32 index)  // The `le` boundary of finite bucket `index`, in seconds.
+u64 nya_http_observe_bucket_cumulative(NYA_HttpMethod method, u32 status_class, u32 index)
+u64 nya_http_observe_count(NYA_HttpMethod method, u32 status_class)  // How many requests `method` and `status_class` have seen: the histogram's `_count` and `+Inf` bucket.
+u64 nya_http_observe_sum_ns(NYA_HttpMethod method, u32 status_class)  // The sum of durations for `method` and `status_class`, in nanoseconds.
+u64 nya_http_observe_errors(NYA_HttpMethod method)  // How many 5xx answers `method` has produced: the `http_request_errors_total` counter.
+void nya_http_trace_config_set(NYA_HttpTraceConfig config)  // Installs the tracing config.
+NYA_HttpTraceConfig nya_http_trace_config_get(void)  // What is in force.
+void nya_http_trace_record( NYA_HttpMethod method, NYA_HttpStatus status, NYA_ConstCString route, u64 start_unix_ns, u64 duration_ns, NYA_ConstCString parent )  // Records one span, when tracing is on.
+u32 nya_http_trace_span_count(void)  // How many spans the ring holds right now.
+b8 nya_http_trace_span_at(u32 index, OUT NYA_HttpSpan* out)  // Copies the span at `index` (oldest first) into `out`.
+void nya_http_trace_reset(void)  // Empties the ring.
+u64 nya_http_trace_export_json(OUT char* out, u64 capacity)
+NYA_Error nya_http_trace_flush(NYA_HttpTraceExportFn exporter, void* userdata, NYA_Arena* arena)  // Serializes the buffered spans, hands them to `exporter`, and clears the ring when it took them.
+b8 nya_http_traceparent_parse( NYA_ConstCString header, u64 size, OUT u8 trace_id[NYA_HTTP_TRACE_ID_BYTES], OUT u8 span_id[NYA_HTTP_SPAN_ID_BYTES], OUT u8* flags )  // Parses a W3C `traceparent` value — `00-<32 hex>-<16 hex>-<2 hex>` — into its trace id, span id and flags.
 ```
 
 ### http_openapi.h
@@ -5750,8 +5853,8 @@ typedef NYA_HttpStatus (*NYA_HttpHandlerFn)(NYA_HttpExchange* exchange)  // A ha
 typedef NYA_HttpStatus (*NYA_HttpIdentifiedFn)(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity)  // A handler on a route that demands an identity.
 typedef NYA_HttpStatus (*NYA_HttpLayerFn)(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One layer of the onion.
 struct NYA_HttpChain { const NYA_HttpLayerFn* layers; u32 count; u32 index; }  // Where a dispatch has got to in the layer chain.
-struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpAffinity affinity; NYA_HttpScope scope; NYA_Permission permission; u64 resource; u64 (*resource_of)(const NYA_HttpExchange* exchange); NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; u64 handler_callback; u64 handler_identified_callback; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
-struct NYA_HttpRouter { NYA_ConstCString name; const NYA_HttpRoute* routes; u32 route_count; const NYA_HttpLayerFn* layers; u32 layer_count; }  // One resource's routes, plus whatever wraps only them.
+struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpAffinity affinity; NYA_HttpScope scope; NYA_Permission permission; u64 resource; u64 (*resource_of)(const NYA_HttpExchange* exchange); NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; u64 handler_callback; u64 handler_identified_callback; const NYA_HttpCors* cors; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
+struct NYA_HttpRouter { NYA_ConstCString name; const NYA_HttpRoute* routes; u32 route_count; const NYA_HttpLayerFn* layers; u32 layer_count; const NYA_HttpCors* cors; }  // One resource's routes, plus whatever wraps only them.
 typedef NYA_HttpHandlerFn (*NYA_HttpHandlerResolver)(u64 token)  // Turns a route's `handler_callback` token into the function to call this dispatch.
 typedef NYA_HttpIdentifiedFn (*NYA_HttpIdentifiedResolver)(u64 token)  // Likewise for `handler_identified_callback`.
 
@@ -5794,13 +5897,14 @@ The listener: a TCP port, a handful of connections, and either one drain a frame
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
 NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered, or started, in one drain pass across every connection.
 NYA_HTTP_MAX_WORKERS 8  // Worker threads one server may run, whatever the config or the core count says.
 NYA_HTTP_SHUTDOWN_GRACE_MS 2000  // How long nya_system_http_deinit waits for a handler that is still running before it stops waiting.
+NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS 5000  // How long a graceful shutdown may take to drain before what is still open is force-closed.
 NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
 NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes this server may hold queued for one connection before it is dropped.
 
@@ -5816,6 +5920,9 @@ u32 nya_http_server_connection_count(void)
 u64 nya_http_server_request_count(void)  // Requests answered since init, refusals included.
 u32 nya_http_server_router_count(void)  // What is mounted.
 const NYA_HttpRouter* nya_http_server_router_at(u32 index)
+void nya_http_server_shutdown(void)
+b8 nya_http_server_is_shutting_down(void)  // Whether a graceful shutdown has begun.
+b8 nya_http_server_shutdown_is_complete(void)  // Whether a graceful shutdown has finished: every connection drained, or the deadline reached.
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Reads a signing secret out of the environment variable `variable`.
 ```
 
@@ -6027,7 +6134,8 @@ The server end of RFC 6455: the upgrade, and a connection that outlives the exch
 typedef void (*NYA_HttpWebSocketOpenFn)(NYA_HttpWebSocket* socket)  // Called once, after the 101 has gone out and before any message.
 typedef void (*NYA_HttpWebSocketMessageFn)(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size)  // Called for one whole message, fragments already joined.
 typedef void (*NYA_HttpWebSocketCloseFn)(NYA_HttpWebSocket* socket, NYA_WebSocketClose code)  // Called once when the connection ends, for any reason, including a refusal.
-struct NYA_HttpWebSocketRoute { NYA_ConstCString path; NYA_ConstCString summary; NYA_HttpWebSocketOpenFn on_open; NYA_HttpWebSocketMessageFn on_message; NYA_HttpWebSocketCloseFn on_close; }  // One path a client may upgrade on, and what happens when it does.
+typedef void (*NYA_HttpWebSocketPresenceFn)(NYA_HttpWebSocket* socket, NYA_ConstCString topic, b8 joined)  // Called when `socket` joins a topic (`joined`) or leaves one, on the thread the server ticks on.
+struct NYA_HttpWebSocketRoute { NYA_ConstCString path; NYA_ConstCString summary; NYA_HttpWebSocketOpenFn on_open; NYA_HttpWebSocketMessageFn on_message; NYA_HttpWebSocketCloseFn on_close; NYA_HttpWebSocketPresenceFn on_presence; }  // One path a client may upgrade on, and what happens when it does.
 
 // macros
 NYA_HTTP_MAX_WEBSOCKETS 4  // WebSocket connections held at once, out of the NYA_HTTP_MAX_CONNECTIONS the listener accepts.
@@ -6040,12 +6148,22 @@ NYA_HTTP_WEBSOCKET_RECEIVE_BYTES 4096  // What one read takes off the socket at 
 NYA_HTTP_WEBSOCKET_IDLE_TIMEOUT_MS 30000  // Silence before a connection is dropped.
 NYA_HTTP_WEBSOCKET_PING_INTERVAL_MS 10000  // Silence before the server pings.
 NYA_HTTP_WEBSOCKET_MAX_MESSAGES_PER_TICK 8  // Messages handed to a handler from one connection in one tick.
+NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION 8  // Topics one connection may be on at once.
+NYA_HTTP_WEBSOCKET_MAX_TOPICS 16  // Distinct topics the server tracks across every stream at once, so a publish is a scan of few.
+NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC NYA_HTTP_MAX_WEBSOCKETS  // Connections one topic may carry.
+NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES 64  // Bytes of a topic name, the NUL not counted.
 
 // functions
 NYA_Error nya_http_websocket_route_add(const NYA_HttpWebSocketRoute* route)  // Mounts `route`, so an upgrade on its path is answered rather than refused.
 void nya_http_websocket_route_remove(const NYA_HttpWebSocketRoute* route)  // Unmounts it.
 NYA_Error nya_http_websocket_send_text(NYA_HttpWebSocket* socket, NYA_ConstCString text)  // Queues `text` as one message for `socket`, to go out on the next drain.
 u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString text)  // The same message to every connection on `path`, and how many of them took it.
+NYA_Error nya_http_websocket_subscribe(NYA_HttpWebSocket* socket, NYA_ConstCString topic)
+void nya_http_websocket_unsubscribe(NYA_HttpWebSocket* socket, NYA_ConstCString topic)  // Undoes it.
+u32 nya_http_websocket_publish_text(NYA_ConstCString path, NYA_ConstCString topic, NYA_ConstCString text)  // The same message to every connection subscribed to `topic` on `path`, and how many took it.
+b8 nya_http_websocket_is_subscribed(const NYA_HttpWebSocket* socket, NYA_ConstCString topic)  // Whether `socket` is subscribed to `topic` on its own path.
+u32 nya_http_websocket_topic_subscriber_count(NYA_ConstCString path, NYA_ConstCString topic)  // How many connections are subscribed to `topic` on `path` right now: who is there, as a count.
+NYA_HttpWebSocket* nya_http_websocket_topic_subscriber_at(NYA_ConstCString path, NYA_ConstCString topic, u32 index)  // The `index`th subscriber to `topic` on `path`, or null.
 NYA_WebSocketProtocol* nya_http_websocket_protocol(NYA_HttpWebSocket* socket)
 u32 nya_http_websocket_count(void)  // How many connections are open.
 NYA_HttpWebSocket* nya_http_websocket_at(u32 index)  // The `index`th open connection, or null.
@@ -6703,16 +6821,18 @@ A background job queue that lives in a SQLite table, so the work a program still
 
 ```c
 // types
+struct NYA_Cron { u64 minute; u32 hour; u32 day_of_month; u16 month; u8 day_of_week; b8 day_of_month_restricted; b8 day_of_week_restricted; }  // A parsed five-field cron schedule, evaluated in UTC.
 enum NYA_JobState { NYA_JOB_STATE_PENDING = 0, NYA_JOB_STATE_CLAIMED = 1, NYA_JOB_STATE_DONE = 2, NYA_JOB_STATE_DEAD = 3, NYA_JOB_STATE_EXPIRED = 4, NYA_JOB_STATE_COUNT, }  // Where a job is in its life.
 struct NYA_JobQueueOptions { NYA_ConstCString table; u32 default_max_attempts; NYA_Duration backoff_base; NYA_Duration backoff_cap; NYA_Duration lease; f64 jitter; s64 busy_timeout_ms; }  // What nya_jobs_open takes besides the arena, the database, and where to put the queue.
-struct NYA_JobOptions { NYA_Instant run_at; NYA_Instant deadline; u32 max_attempts; NYA_ConstCString unique_key; b8 replace; NYA_Duration recur; }  // What nya_job_enqueue takes besides the queue, the kind, and the payload.
-struct NYA_QueuedJob { s64 id; NYA_ConstCString kind; const u8* payload; u64 payload_size; u32 attempts; u32 max_attempts; NYA_Instant run_at; NYA_Instant deadline; NYA_Instant created; NYA_Instant lease_expiry; NYA_Duration recur; }  // A claimed job, as nya_job_claim hands it back.
+struct NYA_JobOptions { NYA_Instant run_at; NYA_Instant deadline; u32 max_attempts; NYA_ConstCString unique_key; b8 replace; NYA_Duration recur; NYA_ConstCString cron; }  // What nya_job_enqueue takes besides the queue, the kind, and the payload.
+struct NYA_QueuedJob { s64 id; NYA_ConstCString kind; const u8* payload; u64 payload_size; u32 attempts; u32 max_attempts; NYA_Instant run_at; NYA_Instant deadline; NYA_Instant created; NYA_Instant lease_expiry; NYA_Duration recur; NYA_ConstCString cron; }  // A claimed job, as nya_job_claim hands it back.
 struct NYA_JobStats { u64 pending; u64 claimed; u64 done; u64 dead; u64 expired; u64 total; }  // The count of jobs in each state, as nya_jobs_stats fills it in one query.
 
 // macros
 NYA_JOB_TABLE_DEFAULT "jobs"  // The table a queue uses when the caller names none.
 NYA_JOB_TABLE_MAX 64  // Longest queue table name, terminator included; the same ceiling db_blob.h and db_orm.h hold one to.
 NYA_JOB_DEFAULT_MAX_ATTEMPTS 5  // The ceiling on retries a queue uses when the caller and the job both leave it unset: five attempts.
+NYA_CRON_MAX 256  // Longest cron spec accepted, terminator included; five fields with comma lists fit well inside this.
 nya_jobs_open(arena, database, out_queue, ...)  // Opens a queue on `database`, creating or migrating its table and index.
 nya_job_enqueue(queue, job_kind, job_payload, job_payload_size, out_id, ...)  // Puts a job on the queue and, when `out_id` is not null, writes its id there.
 
@@ -6727,6 +6847,8 @@ NYA_Error nya_job_get(NYA_JobQueue* queue, s64 job_id, NYA_Arena* out_arena, OUT
 NYA_Error nya_jobs_count(NYA_JobQueue* queue, NYA_JobState state, OUT u64* out_count)  // Writes the number of jobs in `state` to `out_count`.
 NYA_Error nya_jobs_stats(NYA_JobQueue* queue, OUT NYA_JobStats* out_stats)  // Fills `out_stats` with the count of every state in a single query.
 NYA_Error nya_jobs_reap_expired(NYA_JobQueue* queue, OUT u64* out_reaped)
+NYA_Error nya_cron_parse(NYA_ConstCString spec, OUT NYA_Cron* out_cron)  // Parses a standard five-field cron spec (UTC) into `out_cron`.
+NYA_Error nya_cron_next(NYA_Cron cron, NYA_Instant after, OUT NYA_Instant* out_next)  // The first instant a `cron` schedule matches strictly after `after`, written to `out_next`.
 ```
 
 ### db_jobworker.h
@@ -6883,7 +7005,7 @@ NYA_HTTP_METRICS_PROMETHEUS_PATH "/metrics"  // The scrape endpoint.
 NYA_HTTP_METRICS_PROMETHEUS_CONTENT_TYPE "text/plain; version=0.0.4"  // The Content-Type a Prometheus text body carries.
 NYA_HTTP_METRICS_MAX_ROWS 48  // Rows one list answer carries.
 NYA_HTTP_METRICS_MAX_NAME 64  // Longest name in a row, terminator included.
-NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES 32768  // Bytes the Prometheus render may produce, terminator included.
+NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES 65536  // Bytes the Prometheus render may produce, terminator included.
 
 // functions
 const NYA_HttpRouter* nya_http_metrics_router(void)  // Static storage, so it outlives any mount and needs no lifetime from the caller.
