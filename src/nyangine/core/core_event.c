@@ -138,10 +138,15 @@ void nya_event_dispatch(NYA_Event event) {
 
     event.timestamp = nya_clock_get_timestamp_ms();
 
+    // The lock covers only the queue push. Immediate listeners run after it is released, because a
+    // listener may itself dispatch an event (an agent's frame hook moves the mouse, which dispatches):
+    // notifying under the lock would re-enter this on the same thread and deadlock the non-recursive
+    // NYA_OsMutex. The deferred path already notifies unlocked for the same reason.
     nya_os_mutex_lock(&app->event_system.event_queue_mutex);
     nya_array_push_back(app->event_system.event_queue, event);
-    _nya_event_notify_immediate_listeners(&event);
     nya_os_mutex_unlock(&app->event_system.event_queue_mutex);
+
+    _nya_event_notify_immediate_listeners(&event);
 
     if (NYA_EVENT_LIFECYCLE_EVENTS_BEGIN <= event.type && event.type <= NYA_EVENT_LIFECYCLE_EVENTS_END) return;
     nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);
