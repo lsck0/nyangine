@@ -31,6 +31,23 @@
   color: "ffffff"
   description: "This won't be fixed or done"
 
+# topic areas
+- name: "security"
+  color: "b60205"
+  description: "Vulnerability, advisory, or security-relevant finding"
+
+- name: "performance"
+  color: "fbca04"
+  description: "Benchmark regression or performance issue"
+
+- name: "dependencies"
+  color: "0366d6"
+  description: "Dependency version bump or vendored-submodule change"
+
+- name: "ci"
+  color: "5319e7"
+  description: "CI/CD workflow or pipeline issue"
+
 # status workflow
 - name: "status: waiting"
   color: "fef2c0"
