@@ -709,8 +709,8 @@ What every kind of program in the examples table needs and `base` does not have 
   and the per-sink rendering on top of them. A field carries a correlation id the way the per-thread log tag
   does, so everything logged while serving one request, running one job or ticking one session can be found
   together.
-- `[ ]` A parsed newtype helper, so `Email`, `UserId` and `Username` are one macro and a fallible `_from_string`
-  each rather than bare strings.
+- `[x]` A parsed newtype helper, so `Email`, `UserId` and `Username` are one macro and a fallible `_from_string`
+  each rather than bare strings. Landed as `src/nyangine-std/base/base_newtype.h` (`NYA_NEWTYPE_STRING`/`NYA_NEWTYPE_U64`, inline fixed-capacity storage, validate-on-construct) with the three worked types.
 
 ## Phase 3 — the secure server
 
