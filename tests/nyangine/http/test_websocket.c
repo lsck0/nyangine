@@ -76,6 +76,60 @@ static const NYA_HttpWebSocketRoute PUSH_ROUTE = {
     .summary = "says nothing until the program broadcasts",
 };
 
+/* THE TOPIC ROUTES */
+
+#define TOPIC_PATH   "/ws/topics"
+#define HANDLER_PATH "/ws/handler"
+#define ROOM_A_PATH  "/ws/rooms-a"
+#define ROOM_B_PATH  "/ws/rooms-b"
+
+static u32 TOPIC_JOINS   = 0;
+static u32 TOPIC_LEAVES  = 0;
+static u32 HANDLER_JOINS = 0;
+
+/** Presence, counted: every join and every leave the server reports comes through here. */
+static void topic_on_presence(NYA_HttpWebSocket* socket, NYA_ConstCString topic, b8 joined) {
+    nya_unused(socket);
+    nya_unused(topic);
+
+    if (joined) {
+        TOPIC_JOINS++;
+    } else {
+        TOPIC_LEAVES++;
+    }
+}
+
+/** Subscribing off a client's message, the way a route that gates a stream actually joins a peer. */
+static void handler_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
+    nya_unused(is_text);
+    nya_unused(data);
+    nya_unused(size);
+
+    if (nya_http_websocket_subscribe(socket, "handler-room").ok) HANDLER_JOINS++;
+}
+
+static const NYA_HttpWebSocketRoute TOPIC_ROUTE = {
+    .path        = TOPIC_PATH,
+    .summary     = "topics with presence",
+    .on_presence = topic_on_presence,
+};
+
+static const NYA_HttpWebSocketRoute HANDLER_ROUTE = {
+    .path       = HANDLER_PATH,
+    .summary    = "subscribes a peer when it asks",
+    .on_message = handler_on_message,
+};
+
+static const NYA_HttpWebSocketRoute ROOM_A_ROUTE = {
+    .path    = ROOM_A_PATH,
+    .summary = "one stream, its own topics",
+};
+
+static const NYA_HttpWebSocketRoute ROOM_B_ROUTE = {
+    .path    = ROOM_B_PATH,
+    .summary = "another stream, topics of the same name and no shared reach",
+};
+
 /* THE CLIENT */
 
 /** What a message on this connection may be. Smaller than the server's, which is what it is testing. */
@@ -648,6 +702,193 @@ s32 main(void) {
         nya_assert(nya_http_websocket_count() == NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS, "the bound is the bound");
 
         printf("  the socket past one address's share is refused while the table has room\n");
+    }
+
+    // TEST: a publish reaches a topic's subscribers and nobody else, and unsubscribing stops it.
+    {
+        u16   port = start_server((NYA_HttpConfig){ 0 });
+        defer nya_system_http_deinit();
+
+        NYA_EXPECT(nya_http_websocket_route_add(&TOPIC_ROUTE));
+
+        TOPIC_JOINS  = 0;
+        TOPIC_LEAVES = 0;
+
+        // Off the stack, since main already holds every earlier block's clients: a Client is tens of kilobytes.
+        static Client a;
+        static Client b;
+        client_open(&a, arena, port, TOPIC_PATH);
+        client_open(&b, arena, port, TOPIC_PATH);
+        defer client_destroy(&a);
+        defer client_destroy(&b);
+
+        nya_assert(nya_http_websocket_count() == 2);
+
+        // The slots fill in the order the two upgraded, and nothing has detached yet, so this is A then B.
+        NYA_HttpWebSocket* conn_a = nya_http_websocket_at(0);
+        NYA_HttpWebSocket* conn_b = nya_http_websocket_at(1);
+        nya_assert(conn_a != nullptr && conn_b != nullptr && conn_a != conn_b);
+
+        // both join one topic.
+        NYA_EXPECT(nya_http_websocket_subscribe(conn_a, "room1"));
+        NYA_EXPECT(nya_http_websocket_subscribe(conn_b, "room1"));
+
+        nya_assert(TOPIC_JOINS == 2, "presence never heard the joins");
+        nya_assert(nya_http_websocket_topic_subscriber_count(TOPIC_PATH, "room1") == 2);
+        nya_assert(nya_http_websocket_is_subscribed(conn_a, "room1") && nya_http_websocket_is_subscribed(conn_b, "room1"));
+
+        // who is here, enumerated: the two subscribers, in some order, and nothing past them.
+        NYA_HttpWebSocket* first  = nya_http_websocket_topic_subscriber_at(TOPIC_PATH, "room1", 0);
+        NYA_HttpWebSocket* second = nya_http_websocket_topic_subscriber_at(TOPIC_PATH, "room1", 1);
+        nya_assert((first == conn_a && second == conn_b) || (first == conn_b && second == conn_a));
+        nya_assert(nya_http_websocket_topic_subscriber_at(TOPIC_PATH, "room1", 2) == nullptr);
+
+        // a publish reaches exactly the two of them, and reports two.
+        nya_assert(nya_http_websocket_publish_text(TOPIC_PATH, "room1", "p1") == 2);
+
+        client_wait(&a, &a.texts, 1);
+        client_wait(&b, &b.texts, 1);
+
+        nya_assert(a.texts == 1 && a.last_size == 2 && nya_memcmp(a.last, "p1", 2) == 0);
+        nya_assert(b.texts == 1 && b.last_size == 2 && nya_memcmp(b.last, "p1", 2) == 0);
+
+        // a publish to a topic nobody is on, and to one that does not exist, reaches nobody.
+        nya_assert(nya_http_websocket_publish_text(TOPIC_PATH, "room2", "x") == 0);
+
+        // B leaves; presence hears it, and the count falls.
+        nya_http_websocket_unsubscribe(conn_b, "room1");
+
+        nya_assert(TOPIC_LEAVES == 1, "presence never heard the leave");
+        nya_assert(!nya_http_websocket_is_subscribed(conn_b, "room1"));
+        nya_assert(nya_http_websocket_topic_subscriber_count(TOPIC_PATH, "room1") == 1);
+
+        // the next publish reaches only A, and B, pumped, hears nothing more.
+        nya_assert(nya_http_websocket_publish_text(TOPIC_PATH, "room1", "p2") == 1);
+
+        client_wait(&a, &a.texts, 2);
+        for (u32 step = 0; step < 40; step++) client_step(&b);
+
+        nya_assert(a.texts == 2 && a.last_size == 2 && nya_memcmp(a.last, "p2", 2) == 0, "the remaining subscriber missed the publish");
+        nya_assert(b.texts == 1, "a publish reached a peer that had unsubscribed");
+
+        // A is still on room1 when it drops: the leave fires on the disconnect, and the emptied topic goes away.
+        client_destroy(&a);
+
+        for (u32 step = 0; step < PUMP_STEPS && nya_http_websocket_count() > 1; step++) {
+            nya_system_http_tick();
+            sleep_ms(2);
+        }
+
+        nya_assert(TOPIC_LEAVES == 2, "a dropped connection's subscription was not reported as a leave");
+        nya_assert(nya_http_websocket_topic_subscriber_count(TOPIC_PATH, "room1") == 0, "an emptied topic was not reclaimed");
+
+        printf("  a publish reached one topic's subscribers, unsubscribe and a drop both stopped delivery, presence saw every join and leave\n");
+    }
+
+    // TEST: a name is validated, and the per-connection cap is enforced.
+    {
+        u16   port = start_server((NYA_HttpConfig){ 0 });
+        defer nya_system_http_deinit();
+
+        NYA_EXPECT(nya_http_websocket_route_add(&TOPIC_ROUTE));
+
+        static Client a;
+        client_open(&a, arena, port, TOPIC_PATH);
+        defer client_destroy(&a);
+
+        NYA_HttpWebSocket* conn = nya_http_websocket_at(0);
+        nya_assert(conn != nullptr);
+
+        // an empty name, one past the byte bound, and one carrying a control byte are all refused as arguments.
+        nya_assert(nya_http_websocket_subscribe(conn, "").kind == NYA_ERROR_INVALID_ARGUMENT);
+
+        char too_long[NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES + 2];
+        for (u32 index = 0; index < NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES + 1; index++) too_long[index] = 'a';
+        too_long[NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES + 1] = '\0';
+
+        nya_assert(nya_http_websocket_subscribe(conn, too_long).kind == NYA_ERROR_INVALID_ARGUMENT, "a name over the bound is refused");
+        nya_assert(nya_http_websocket_subscribe(conn, "bad\x01name").kind == NYA_ERROR_INVALID_ARGUMENT, "a control byte in a name is refused");
+
+        // the per-connection cap: as many topics as the bound allows, and the next one over is out of memory.
+        for (u32 index = 0; index < NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION; index++) {
+            NYA_ConstCString topic = nya_string_to_cstring(arena, nya_string_sprintf(arena, "t%u", index));
+            NYA_EXPECT(nya_http_websocket_subscribe(conn, topic));
+        }
+
+        nya_assert(nya_http_websocket_subscribe(conn, "one-too-many").kind == NYA_ERROR_OUT_OF_MEMORY, "the topics-per-connection cap was not enforced");
+
+        // subscribing again to one it already holds is a no-op that still succeeds, and adds no topic.
+        NYA_EXPECT(nya_http_websocket_subscribe(conn, "t0"));
+        nya_assert(nya_http_websocket_topic_subscriber_count(TOPIC_PATH, "t0") == 1, "an idempotent subscribe double-counted");
+
+        printf("  an empty, oversized or control-byte name is refused, and the ninth topic on a connection is out of memory\n");
+    }
+
+    // TEST: a topic is scoped to its path, so the same name on two streams shares no reach.
+    {
+        u16   port = start_server((NYA_HttpConfig){ 0 });
+        defer nya_system_http_deinit();
+
+        NYA_EXPECT(nya_http_websocket_route_add(&ROOM_A_ROUTE));
+        NYA_EXPECT(nya_http_websocket_route_add(&ROOM_B_ROUTE));
+
+        static Client a;
+        static Client b;
+        client_open(&a, arena, port, ROOM_A_PATH);
+        client_open(&b, arena, port, ROOM_B_PATH);
+        defer client_destroy(&a);
+        defer client_destroy(&b);
+
+        NYA_HttpWebSocket* conn_a = nya_http_websocket_at(0);
+        NYA_HttpWebSocket* conn_b = nya_http_websocket_at(1);
+        nya_assert(conn_a != nullptr && conn_b != nullptr);
+
+        // both join a topic of the same name, one on each stream.
+        NYA_EXPECT(nya_http_websocket_subscribe(conn_a, "room1"));
+        NYA_EXPECT(nya_http_websocket_subscribe(conn_b, "room1"));
+
+        // the two "room1"s are distinct: each carries one subscriber, its own.
+        nya_assert(nya_http_websocket_topic_subscriber_count(ROOM_A_PATH, "room1") == 1);
+        nya_assert(nya_http_websocket_topic_subscriber_count(ROOM_B_PATH, "room1") == 1);
+
+        // a publish on one path reaches only that path's subscriber, never the other's.
+        nya_assert(nya_http_websocket_publish_text(ROOM_A_PATH, "room1", "only-a") == 1);
+
+        client_wait(&a, &a.texts, 1);
+        for (u32 step = 0; step < 40; step++) client_step(&b);
+
+        nya_assert(a.texts == 1 && nya_memcmp(a.last, "only-a", 6) == 0);
+        nya_assert(b.texts == 0, "a topic on one path leaked into the same name on another");
+
+        printf("  a topic name on one stream is a different topic on another, and a publish does not cross the path\n");
+    }
+
+    // TEST: a route subscribes a peer off its own message, the way a real stream gates a join.
+    {
+        u16   port = start_server((NYA_HttpConfig){ 0 });
+        defer nya_system_http_deinit();
+
+        NYA_EXPECT(nya_http_websocket_route_add(&HANDLER_ROUTE));
+
+        HANDLER_JOINS = 0;
+
+        static Client a;
+        client_open(&a, arena, port, HANDLER_PATH);
+        defer client_destroy(&a);
+
+        NYA_EXPECT(nya_websocket_protocol_send(&a.protocol, NYA_WEBSOCKET_OPCODE_TEXT, (const u8*)"join", 4));
+
+        for (u32 step = 0; step < PUMP_STEPS && HANDLER_JOINS == 0; step++) client_step(&a);
+
+        nya_assert(HANDLER_JOINS == 1, "the handler never subscribed the peer");
+        nya_assert(nya_http_websocket_topic_subscriber_count(HANDLER_PATH, "handler-room") == 1);
+
+        nya_assert(nya_http_websocket_publish_text(HANDLER_PATH, "handler-room", "hi") == 1);
+        client_wait(&a, &a.texts, 1);
+
+        nya_assert(a.texts == 1 && a.last_size == 2 && nya_memcmp(a.last, "hi", 2) == 0);
+
+        printf("  a route subscribed a peer from its on_message and the publish reached it\n");
     }
 
     printf("PASSED: http websocket server\n");

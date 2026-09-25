@@ -11,9 +11,24 @@
  * nya_http_websocket_broadcast_text  the same message to everyone on one path. The push case
  * nya_http_websocket_protocol      the connection's framing, for binary, a ping or a goodbye
  *
+ * nya_http_websocket_subscribe / _unsubscribe   put one connection on a topic within its path, or off it
+ * nya_http_websocket_publish_text  the same message to a topic's subscribers, and nobody else on the path
+ * nya_http_websocket_is_subscribed / _topic_subscriber_count / _at   presence: who is on a topic
+ *
  * nya_http_websocket_count / _at   what is connected right now
  * nya_http_websocket_path / _address   which route it upgraded on, and who it is
  * ```
+ *
+ * ── topics and presence ──
+ *
+ * A broadcast reaches everyone on a path; a topic is a name within a path that a subset asks to be on,
+ * so a publish reaches only them. A subscription is per connection and scoped to the path it upgraded
+ * on: the same name on two paths is two topics, and a peer can only join a topic on the path whose
+ * origin check it already passed, which is what keeps a subscription inside the same door the route is.
+ * The route hears a join and a leave through on_presence, and a leave fires for each topic a closing
+ * connection was on, so "who is here" stays true without the program tracking it. All of it is bounded:
+ * a connection holds at most NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION, a topic at most
+ * NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC, and nothing here allocates past the table it mounts on.
  *
  * ```c
  * NYA_INTERNAL void on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
@@ -181,6 +196,42 @@
  * */
 #define NYA_HTTP_WEBSOCKET_MAX_MESSAGES_PER_TICK 8
 
+/**
+ * Topics one connection may be on at once.
+ *
+ * A subscription is a fixed cost the socket already paid for by connecting, not a place a peer can make
+ * the server spend without bound: a client that asks to join a ninth topic is refused rather than grown
+ * to fit. A program that fans a stream into more rooms than this raises the bound with the others.
+ * */
+#ifndef NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION
+#define NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION 8
+#endif
+
+/** Distinct topics the server tracks across every stream at once, so a publish is a scan of few. */
+#ifndef NYA_HTTP_WEBSOCKET_MAX_TOPICS
+#define NYA_HTTP_WEBSOCKET_MAX_TOPICS 16
+#endif
+
+/**
+ * Connections one topic may carry.
+ *
+ * At most the whole table, since that is every connection there is; a smaller number caps how far one
+ * publish reaches before the pending-write bound would anyway.
+ * */
+#ifndef NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC
+#define NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC NYA_HTTP_MAX_WEBSOCKETS
+#endif
+
+/**
+ * Bytes of a topic name, the NUL not counted.
+ *
+ * A name is a routing key, not a document: it is compared, copied into the table once, and never put on
+ * the wire, so it is bounded like an identifier rather than like a message.
+ * */
+#ifndef NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES
+#define NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES 64
+#endif
+
 // TYPES
 
 /** A connection that upgraded. A route's callbacks are handed one; nothing else makes or frees one. */
@@ -203,6 +254,14 @@ typedef void (*NYA_HttpWebSocketMessageFn)(NYA_HttpWebSocket* socket, b8 is_text
 typedef void (*NYA_HttpWebSocketCloseFn)(NYA_HttpWebSocket* socket, NYA_WebSocketClose code);
 
 /**
+ * Called when `socket` joins a topic (`joined`) or leaves one, on the thread the server ticks on.
+ * `topic` is the name as it was subscribed, borrowed for the call. A leave fires for every topic a
+ * closing connection was on, before its on_close. Nothing sent to the connection that left reaches it;
+ * a publish from a leave reaches whoever is still on the topic, which is how a "left" notice goes out.
+ * */
+typedef void (*NYA_HttpWebSocketPresenceFn)(NYA_HttpWebSocket* socket, NYA_ConstCString topic, b8 joined);
+
+/**
  * One path a client may upgrade on, and what happens when it does.
  *
  * Plain data, so a program's route is a `static const` the compiler lays out, the way an
@@ -215,9 +274,12 @@ struct NYA_HttpWebSocketRoute {
     /** One line, for the log when a peer connects. Required. */
     NYA_ConstCString summary;
 
-    NYA_HttpWebSocketOpenFn    on_open;
-    NYA_HttpWebSocketMessageFn on_message;
-    NYA_HttpWebSocketCloseFn   on_close;
+    NYA_HttpWebSocketOpenFn     on_open;
+    NYA_HttpWebSocketMessageFn  on_message;
+    NYA_HttpWebSocketCloseFn    on_close;
+
+    /** Told when a connection on this path joins or leaves one of its topics. Optional. */
+    NYA_HttpWebSocketPresenceFn on_presence;
 };
 
 // FUNCTIONS
@@ -261,6 +323,45 @@ NYA_API NYA_Error nya_http_websocket_send_text(NYA_HttpWebSocket* socket, NYA_Co
  * tick; it is dropped by the pending-write bound soon enough.
  * */
 NYA_API u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString text);
+
+// TOPICS
+
+/**
+ * Subscribes `socket` to `topic`, one name within the stream it upgraded on: a publish to that name on
+ * that path reaches it, and nothing on another path does, so a subscription cannot outrun the origin
+ * check its connection already passed at the upgrade. Called from the route's own handler, which is
+ * where a program that gates a stream decides a peer may join. Idempotent.
+ *
+ * NYA_ERROR_IO for a connection no longer open, NYA_ERROR_INVALID_ARGUMENT for a name that is empty,
+ * longer than NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES or carries a control byte, and NYA_ERROR_OUT_OF_MEMORY
+ * at NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION, at NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC, or
+ * when the topic table is full. on_presence, if the route has one, is told a peer joined.
+ * */
+NYA_API NYA_Error nya_http_websocket_subscribe(NYA_HttpWebSocket* socket, NYA_ConstCString topic) __attr_no_discard;
+
+/** Undoes it. A topic the socket was not on is a no-op; on_presence hears the leave for one it was. */
+NYA_API void nya_http_websocket_unsubscribe(NYA_HttpWebSocket* socket, NYA_ConstCString topic);
+
+/**
+ * The same message to every connection subscribed to `topic` on `path`, and how many took it.
+ *
+ * O(the topic's subscribers), not the table: what a topic layer buys over a broadcast. The name is a
+ * routing key and never touches the wire, so a name a client chose cannot smuggle bytes into anyone's
+ * frame. A connection whose queue is full is skipped rather than failing the push, as in a broadcast;
+ * it is the pending-write bound's to drop.
+ * */
+NYA_API u32 nya_http_websocket_publish_text(NYA_ConstCString path, NYA_ConstCString topic, NYA_ConstCString text);
+
+// PRESENCE
+
+/** Whether `socket` is subscribed to `topic` on its own path. */
+NYA_API b8 nya_http_websocket_is_subscribed(const NYA_HttpWebSocket* socket, NYA_ConstCString topic) __attr_no_discard;
+
+/** How many connections are subscribed to `topic` on `path` right now: who is there, as a count. */
+NYA_API u32 nya_http_websocket_topic_subscriber_count(NYA_ConstCString path, NYA_ConstCString topic) __attr_no_discard;
+
+/** The `index`th subscriber to `topic` on `path`, or null. The order is not stable across a leave. */
+NYA_API NYA_HttpWebSocket* nya_http_websocket_topic_subscriber_at(NYA_ConstCString path, NYA_ConstCString topic, u32 index) __attr_no_discard;
 
 /**
  * The connection's framing, which is where binary messages, pings and the closing handshake live:

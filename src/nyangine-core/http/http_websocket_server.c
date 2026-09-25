@@ -39,7 +39,26 @@ struct NYA_HttpWebSocket {
 
     /** Monotonic nanoseconds of the last ping sent, so one goes out per interval and not per tick. */
     u64 pinged_at_ns;
+
+    /** Topics this connection is on, so the per-connection cap is an increment and not a scan. */
+    u32 subscription_count;
 };
+
+/**
+ * One topic: a name within a stream, and the connections on it.
+ *
+ * Keyed by the route's path and the name together, so the same name on two paths is two topics and a
+ * subscription cannot reach across the door a route is. `path` is the route's own string, borrowed and
+ * stable for as long as the route is mounted; the name is copied, since a client's bytes must not be
+ * held by pointer. Subscribers are borrowed connection pointers into the fixed table above, valid until
+ * the connection detaches, which is where it is taken off every topic.
+ * */
+typedef struct {
+    NYA_ConstCString   path;
+    char               name[NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES + 1];
+    NYA_HttpWebSocket* subscribers[NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC];
+    u32                subscriber_count;
+} _NYA_HttpWebSocketTopic;
 
 struct _NYA_HttpWebSocketState {
     NYA_Arena* allocator;
@@ -48,6 +67,10 @@ struct _NYA_HttpWebSocketState {
     u32                           route_count;
 
     NYA_HttpWebSocket connections[NYA_HTTP_MAX_WEBSOCKETS];
+
+    /** Kept dense: an emptied topic is swapped off the end, so a publish scans only live ones. */
+    _NYA_HttpWebSocketTopic topics[NYA_HTTP_WEBSOCKET_MAX_TOPICS];
+    u32                     topic_count;
 };
 
 // STATE
@@ -103,6 +126,22 @@ NYA_INTERNAL b8 _nya_http_websocket_flush(NYA_HttpWebSocket* connection) __attr_
 
 /** Takes `count` bytes off the front of the receive buffer. */
 NYA_INTERNAL void _nya_http_websocket_consume(NYA_HttpWebSocket* connection, u64 count);
+
+/** Whether `topic` is a usable name: not empty, within the bound, and free of control bytes. */
+NYA_INTERNAL NYA_Error _nya_http_websocket_topic_valid(NYA_ConstCString topic) __attr_no_discard;
+
+/** The live topic on (`path`, `name`), or null. Linear over the dense table. */
+NYA_INTERNAL _NYA_HttpWebSocketTopic* _nya_http_websocket_topic_find(NYA_ConstCString path, NYA_ConstCString name) __attr_no_discard;
+
+/**
+ * Takes `connection` off `entry`, compacts the topic away when it empties, and, when `report`, tells
+ * the route it left. False when the connection was not on it. The name is copied before any callback,
+ * so a handler that mutates the table cannot leave this reading freed slots.
+ * */
+NYA_INTERNAL b8 _nya_http_websocket_topic_drop(_NYA_HttpWebSocketTopic* entry, NYA_HttpWebSocket* connection, b8 report);
+
+/** Takes `connection` off every topic, reporting each leave. What detach calls before on_close. */
+NYA_INTERNAL void _nya_http_websocket_unsubscribe_all(NYA_HttpWebSocket* connection);
 
 // PUBLIC API IMPLEMENTATION
 
@@ -213,6 +252,119 @@ u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString te
     }
 
     return sent;
+}
+
+// TOPICS
+
+NYA_Error nya_http_websocket_subscribe(NYA_HttpWebSocket* socket, NYA_ConstCString topic) {
+    nya_assert(socket != nullptr);
+
+    // A subscription is only ever a live connection's; a closed one has no path to scope it to.
+    if (socket->socket.handle == 0) return nya_error(NYA_ERROR_IO, "the connection is not open");
+
+    NYA_Error valid = _nya_http_websocket_topic_valid(topic);
+    if (!valid.ok) return valid;
+
+    nya_assert(_NYA_HTTP_WEBSOCKET != nullptr, "an open connection with no table");
+
+    NYA_ConstCString         path  = socket->route->path;
+    _NYA_HttpWebSocketTopic* entry = _nya_http_websocket_topic_find(path, topic);
+
+    // Idempotent: a peer already on the topic is on it once, and no second join is reported.
+    if (entry != nullptr) {
+        for (u32 index = 0; index < entry->subscriber_count; index++) {
+            if (entry->subscribers[index] == socket) return NYA_OK;
+        }
+    }
+
+    if (socket->subscription_count >= NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION) {
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a connection is on at most %d topics", NYA_HTTP_WEBSOCKET_MAX_TOPICS_PER_CONNECTION);
+    }
+
+    if (entry != nullptr && entry->subscriber_count >= NYA_HTTP_WEBSOCKET_MAX_SUBSCRIBERS_PER_TOPIC) {
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "'%s' holds as many subscribers as it may", topic);
+    }
+
+    // A name the table has not seen takes a slot; a new topic is born with room for its first subscriber, so no cap can bite here.
+    if (entry == nullptr) {
+        if (_NYA_HTTP_WEBSOCKET->topic_count >= NYA_HTTP_WEBSOCKET_MAX_TOPICS) {
+            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "at most %d topics can be tracked at once", NYA_HTTP_WEBSOCKET_MAX_TOPICS);
+        }
+
+        entry                   = &_NYA_HTTP_WEBSOCKET->topics[_NYA_HTTP_WEBSOCKET->topic_count++];
+        entry->path             = path;
+        entry->subscriber_count = 0;
+        (void)snprintf(entry->name, sizeof(entry->name), "%s", topic);
+    }
+
+    entry->subscribers[entry->subscriber_count++] = socket;
+    socket->subscription_count++;
+
+    // The table is consistent before the callback, so a handler that publishes reaches the peer that just joined too.
+    if (socket->route->on_presence != nullptr) socket->route->on_presence(socket, entry->name, true);
+
+    return NYA_OK;
+}
+
+void nya_http_websocket_unsubscribe(NYA_HttpWebSocket* socket, NYA_ConstCString topic) {
+    nya_assert(socket != nullptr);
+
+    if (_NYA_HTTP_WEBSOCKET == nullptr || socket->route == nullptr || topic == nullptr) return;
+
+    _NYA_HttpWebSocketTopic* entry = _nya_http_websocket_topic_find(socket->route->path, topic);
+
+    if (entry == nullptr) return;
+
+    (void)_nya_http_websocket_topic_drop(entry, socket, true);
+}
+
+u32 nya_http_websocket_publish_text(NYA_ConstCString path, NYA_ConstCString topic, NYA_ConstCString text) {
+    if (_NYA_HTTP_WEBSOCKET == nullptr || path == nullptr || topic == nullptr || text == nullptr) return 0;
+
+    _NYA_HttpWebSocketTopic* entry = _nya_http_websocket_topic_find(path, topic);
+
+    if (entry == nullptr) return 0;
+
+    u32 sent = 0;
+
+    // O(the topic's subscribers): the reason the table exists. Sending never changes the subscriber set, so the index stays true across the loop.
+    for (u32 index = 0; index < entry->subscriber_count; index++) {
+        if (nya_http_websocket_send_text(entry->subscribers[index], text).ok) sent++;
+    }
+
+    return sent;
+}
+
+// PRESENCE
+
+b8 nya_http_websocket_is_subscribed(const NYA_HttpWebSocket* socket, NYA_ConstCString topic) {
+    nya_assert(socket != nullptr);
+
+    if (_NYA_HTTP_WEBSOCKET == nullptr || socket->route == nullptr || topic == nullptr) return false;
+
+    const _NYA_HttpWebSocketTopic* entry = _nya_http_websocket_topic_find(socket->route->path, topic);
+
+    if (entry == nullptr) return false;
+
+    for (u32 index = 0; index < entry->subscriber_count; index++) {
+        if (entry->subscribers[index] == socket) return true;
+    }
+
+    return false;
+}
+
+u32 nya_http_websocket_topic_subscriber_count(NYA_ConstCString path, NYA_ConstCString topic) {
+    const _NYA_HttpWebSocketTopic* entry = _nya_http_websocket_topic_find(path, topic);
+
+    return entry != nullptr ? entry->subscriber_count : 0;
+}
+
+NYA_HttpWebSocket* nya_http_websocket_topic_subscriber_at(NYA_ConstCString path, NYA_ConstCString topic, u32 index) {
+    _NYA_HttpWebSocketTopic* entry = _nya_http_websocket_topic_find(path, topic);
+
+    if (entry == nullptr || index >= entry->subscriber_count) return nullptr;
+
+    return entry->subscribers[index];
 }
 
 NYA_WebSocketProtocol* nya_http_websocket_protocol(NYA_HttpWebSocket* socket) {
@@ -505,6 +657,9 @@ void _nya_http_websocket_detach(NYA_OsSocket socket) {
     nya_assert(_NYA_HTTP_WEBSOCKET_COUNT > 0, "a websocket was detached that was never counted");
     _NYA_HTTP_WEBSOCKET_COUNT--;
 
+    // Off every topic first, so a leave is reported before the close and "who is here" never lists a gone socket. The handle is already cleared, so a leave handler cannot resubscribe it.
+    _nya_http_websocket_unsubscribe_all(connection);
+
     nya_log_info("A websocket on %s closed: %s.", route->path, nya_websocket_close_name(code));
 
     if (route->on_close != nullptr) route->on_close(connection, code);
@@ -589,4 +744,83 @@ void _nya_http_websocket_consume(NYA_HttpWebSocket* connection, u64 count) {
     connection->receive_size -= count;
 
     if (connection->receive_size > 0) nya_memmove(connection->receive, connection->receive + count, connection->receive_size);
+}
+
+NYA_Error _nya_http_websocket_topic_valid(NYA_ConstCString topic) {
+    if (topic == nullptr || topic[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a topic needs a name");
+
+    u64 length = strlen(topic);
+
+    if (length > NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a topic name is at most %d bytes", NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES);
+    }
+
+    // A name is compared and copied, never framed; a control byte in one is a sign it isn't a routing key, and refusing it keeps a name a program echoes back clean of one.
+    for (u64 index = 0; index < length; index++) {
+        u8 byte = (u8)topic[index];
+
+        if (byte < 0x20 || byte == 0x7F) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a topic name carries a control byte");
+    }
+
+    return NYA_OK;
+}
+
+_NYA_HttpWebSocketTopic* _nya_http_websocket_topic_find(NYA_ConstCString path, NYA_ConstCString name) {
+    if (_NYA_HTTP_WEBSOCKET == nullptr || path == nullptr || name == nullptr) return nullptr;
+
+    for (u32 index = 0; index < _NYA_HTTP_WEBSOCKET->topic_count; index++) {
+        _NYA_HttpWebSocketTopic* entry = &_NYA_HTTP_WEBSOCKET->topics[index];
+
+        if (strcmp(entry->path, path) == 0 && strcmp(entry->name, name) == 0) return entry;
+    }
+
+    return nullptr;
+}
+
+b8 _nya_http_websocket_topic_drop(_NYA_HttpWebSocketTopic* entry, NYA_HttpWebSocket* connection, b8 report) {
+    nya_assert(entry != nullptr);
+    nya_assert(connection != nullptr);
+
+    u32 at = entry->subscriber_count;
+
+    for (u32 index = 0; index < entry->subscriber_count; index++) {
+        if (entry->subscribers[index] == connection) {
+            at = index;
+            break;
+        }
+    }
+
+    if (at == entry->subscriber_count) return false;
+
+    // Swap the last subscriber into the hole: the order is documented as unstable, and this keeps the scan dense.
+    entry->subscribers[at] = entry->subscribers[--entry->subscriber_count];
+
+    if (connection->subscription_count > 0) connection->subscription_count--;
+
+    // The name is copied out before the callback and before the topic may be compacted away, so neither can leave the callback reading a freed slot.
+    char name[NYA_HTTP_WEBSOCKET_MAX_TOPIC_BYTES + 1] = { 0 };
+    (void)snprintf(name, sizeof(name), "%s", entry->name);
+
+    const NYA_HttpWebSocketRoute* route = connection->route;
+
+    // An emptied topic is swapped off the end so the table stays dense and a name can be reused; done before the callback so a handler sees a consistent table.
+    if (entry->subscriber_count == 0) {
+        u32 slot                          = (u32)(entry - _NYA_HTTP_WEBSOCKET->topics);
+        _NYA_HTTP_WEBSOCKET->topics[slot] = _NYA_HTTP_WEBSOCKET->topics[--_NYA_HTTP_WEBSOCKET->topic_count];
+    }
+
+    if (report && route != nullptr && route->on_presence != nullptr) route->on_presence(connection, name, false);
+
+    return true;
+}
+
+void _nya_http_websocket_unsubscribe_all(NYA_HttpWebSocket* connection) {
+    nya_assert(connection != nullptr);
+
+    if (_NYA_HTTP_WEBSOCKET == nullptr) return;
+
+    // High to low: dropping a topic swaps the last one into its slot, and that slot is at or above the current index, so nothing below is moved and nothing is skipped.
+    for (u32 count = _NYA_HTTP_WEBSOCKET->topic_count; count > 0; count--) {
+        (void)_nya_http_websocket_topic_drop(&_NYA_HTTP_WEBSOCKET->topics[count - 1], connection, true);
+    }
 }
