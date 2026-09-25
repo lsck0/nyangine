@@ -8,7 +8,7 @@
  * The server-safe engine reflections: the builtins and the annotated types in modules a
  * headless (NYA_NO_SDL + NYA_SERVER) build compiles. The SDL-bound ones are in
  * reflection_engine.c. Every size and offset is an expression, so the compiler already
- * compiling these structs computes the layout. See src/build/pp/reflection.h.
+ * compiling these structs computes the layout. See src/nyangine-build/pp/reflection.h.
  */
 
 /* ── primitives ── */

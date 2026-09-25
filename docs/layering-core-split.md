@@ -156,17 +156,17 @@ lines change; nothing a program does changes.
 7. **[done] A headless server example builds *and links* under `-DNYA_NO_SDL -DNYA_SERVER`.** The proof
    the whole thing was for: `examples/headless_server` compiles and links with no SDL vendor on the line
    — `ldd` on the release binary names no `libSDL3` — against the `NYA_SERVER_VENDORS_LINUX_X86_64` subset
-   in `src/build/vendor/vendor.h`, the real link set rather than a link-time `--gc-sections` trick. An
+   in `src/nyangine-build/vendor/vendor.h`, the real link set rather than a link-time `--gc-sections` trick. An
    example opts in with a `.headless` marker beside its `main.c`; `./build run example <name> --server`
    then compiles it with the server module set and links the subset (see `build_headless_server_example`
-   in `src/build/example.c`). Two seams beyond the header of step 4 were needed to make the *link* work:
+   in `src/nyangine-build/example.c`). Two seams beyond the header of step 4 were needed to make the *link* work:
 
    - **nyangine.c compiles the server half behind the same guard.** crypto, tls, net, smtp, acme and http
      move from the `#ifndef NYA_NO_SDL` block into `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)`, so
      their translation units are actually compiled for a server, not merely declared. Two SDL-free
      dependencies come with them: `debug_trace.h` (its scopes are no-ops outside a development build) and
      the reflection *declarations*, both included in the server seam of nyangine.h when `NYA_NO_SDL` is set.
-   - **The reflection table splits along the wall.** `src/build/pp/reflection.c` now emits the engine
+   - **The reflection table splits along the wall.** `src/nyangine-build/pp/reflection.c` now emits the engine
      reflections into two files instead of one: `reflection_engine_server.c` holds the builtins and every
      annotated type in a server-safe module (base, math, serde, net, http, and — behind `NYA_MODULE_DB` —
      db and accounts), and `reflection_engine.c` keeps the SDL-bound ones (core, renderer, ui, physics,

@@ -32,7 +32,7 @@
  * ─────────────────────────────────────────────────────────
  *
  * The `@reflect` pass scans only src/nyangine and src/gnyame, never examples — an example is a caller
- * of the engine, not part of it (see src/build/misc.h). So the document's NYA_TypeReflection is
+ * of the engine, not part of it (see src/nyangine-build/misc.h). So the document's NYA_TypeReflection is
  * written by hand below, exactly as examples/accounts_api/notes/note_model.h writes its Model's. Inside
  * the engine this whole block would be one `// @reflect` struct; here it is a table, and core_undo
  * neither knows nor cares which produced it.

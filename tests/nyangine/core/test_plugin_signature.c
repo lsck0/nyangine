@@ -10,7 +10,7 @@
 
 /*
  * Before nyangine.h: the host must discover this test's own tree, and defining a macro is also what
- * makes the test compile its own copy of the engine (see _test_shares_engine in src/build/test.c) so
+ * makes the test compile its own copy of the engine (see _test_shares_engine in src/nyangine-build/test.c) so
  * NYA_PLUGIN_REQUIRE_SIGNATURE below is this suite's, not the shared build's.
  */
 #define NYA_PLUGIN_DIRECTORY TEST_SIGNATURE_ROOT

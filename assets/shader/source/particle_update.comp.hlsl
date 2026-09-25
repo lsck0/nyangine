@@ -5,7 +5,7 @@
 //
 // Compute has no cross-compile to GLSL ES 300 (WebGL2 has no compute stage), so a .comp shader is a
 // desktop-only path. The build skips its web variant, and the C side is gated behind !OS_WASM; see the
-// note in src/build/pp/asset.c and render_compute_particles.c. This is authored for SDL_GPU's compute
+// note in src/nyangine-build/pp/asset.c and render_compute_particles.c. This is authored for SDL_GPU's compute
 // binding model: a read-write storage buffer at (u0, space1) and a uniform buffer at (b0, space2). See
 // SDL_CreateGPUComputePipeline for the full order.
 

@@ -19,7 +19,7 @@
 #include "nyangine-core/nyangine.c"
 #include "nyangine-core/nyangine.h"
 
-// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotations.
+// What nya_watch() below expands to, written by src/nyangine-build/pp/watch.c from the @watch annotations.
 #include "genyarated/watches/tests_nyangine_debug_test_crash_report_c.h"
 
 #include "SDL3/SDL_events.h"

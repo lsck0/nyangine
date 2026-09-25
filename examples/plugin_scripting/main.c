@@ -12,7 +12,7 @@
  * ## Two senses of the word, and this is the smaller one
  *
  * A *plugin* in `src/nyangine/plugins/` is an optional dependency compiled in behind a
- * `-DNYA_PLUGIN_*` flag and absent from the binary without it. The flags in `src/build/flags.h` are
+ * `-DNYA_PLUGIN_*` flag and absent from the binary without it. The flags in `src/nyangine-build/flags.h` are
  * the whole mechanism. Five exist:
  *
  * | Plugin  | Flag                 | State                                                      |
@@ -38,7 +38,7 @@
 #include "nyangine-core/nyangine.c"
 
 #ifndef NYA_PLUGIN_LUA
-#error "This example needs -DNYA_PLUGIN_LUA, which ./build run example passes. See src/build/flags.h."
+#error "This example needs -DNYA_PLUGIN_LUA, which ./build run example passes. See src/nyangine-build/flags.h."
 #endif
 
 /* THE BINDING */

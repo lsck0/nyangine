@@ -72,7 +72,7 @@ NYA_INTERNAL void _gny_choice_row(NYA_UI* ui, NYA_ConstCString label, const NYA_
 /** A volume row that writes back to the settings when it moves. */
 NYA_INTERNAL void _gny_volume_slider(NYA_UI* ui, NYA_ConstCString label, NYA_VolumeChannel channel);
 
-// The nya_lambda bodies written below, hoisted out to here by src/build/pp/lambda.c. After the
+// The nya_lambda bodies written below, hoisted out to here by src/nyangine-build/pp/lambda.c. After the
 // declarations above and after _GNY_LOCALES, which is what a body of this file may name.
 #include "genyarated/lambdas/gnyame_layers_layer_pause_menu_c.h"
 

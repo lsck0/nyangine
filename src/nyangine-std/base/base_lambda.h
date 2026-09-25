@@ -12,7 +12,7 @@
  * }), &index, sizeof(index));
  * ```
  *
- * `src/build/pp/lambda.c` reads every call site before anything compiles and writes each body out as a
+ * `src/nyangine-build/pp/lambda.c` reads every call site before anything compiles and writes each body out as a
  * real function in a companion header, one per source file, which that file includes itself. The macro
  * expands to that function's name and drops everything else, so what is left at the call site is a
  * plain function pointer: no closure, no allocation, no indirection, nothing to free.

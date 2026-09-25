@@ -97,4 +97,4 @@ capture.
 The engine already round-trips `.nya` through its own serde, so the cheapest correct formatter is to
 dogfood that rather than write a second parser that could drift. `./build fmt <file.nya>`
 deserializes then re-serializes pretty (`NYA_SERDE_PRETTY`), which is the canonical formatting, and
-`--check` reports drift or a parse error as the lint without rewriting. See `src/build/fmt.c`.
+`--check` reports drift or a parse error as the lint without rewriting. See `src/nyangine-build/fmt.c`.

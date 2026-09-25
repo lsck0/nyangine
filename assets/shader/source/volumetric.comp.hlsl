@@ -7,7 +7,7 @@
 // The density is analytic — a fractal sum of value noise drifting with time — rather than a sampled 3D texture,
 // so the effect owns no volume asset and the whole field lives in the shader. It is the compute sibling of the
 // particle field: the same pipeline skin (render_compute.h), the same desktop-only gate. WebGL2/GLES3 has no
-// compute stage, so the build skips this shader's web variant; see render_compute.h and src/build/pp/asset.c.
+// compute stage, so the build skips this shader's web variant; see render_compute.h and src/nyangine-build/pp/asset.c.
 //
 // SDL_GPU's compute binding model, matching NYA_GPUComputePipelineDesc on the C side: a read-write storage
 // texture at (u0, space1) and a uniform buffer at (b0, space2). See SDL_CreateGPUComputePipeline for the order.

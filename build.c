@@ -3,17 +3,17 @@
  *
  * The build system's entry point, and nothing else.
  *
- * What can be built lives in src/build, and src/build/build.h is the map of it. This file is what
+ * What can be built lives in src/nyangine-build, and src/nyangine-build/build.h is the map of it. This file is what
  * runs it in the right order — parse, rebuild, bring up the vendors, dispatch — and it is
  * deliberately the only place where that order is written down.
  *
  * Bootstrap it with the command in the README. It recompiles itself from then on.
  * */
 #include "nyangine-core/nyangine.h"
-#include "build/build.h"
+#include "nyangine-build/build.h"
 
 #include "nyangine-core/nyangine.c"
-#include "build/build.c"
+#include "nyangine-build/build.c"
 
 s32 main(s32 argc, NYA_CString argv[]) {
     // The build tool itself is compiled without libbacktrace, since it is what builds it. This

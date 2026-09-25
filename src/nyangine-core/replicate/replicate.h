@@ -26,7 +26,7 @@
  * and applied back into it, a command moves an entity, prediction rolls one back and replays it. So the
  * two halves sit on opposite sides of the app loop, and `net` moved below it while this stayed above.
  *
- * A directory under `net/` would not have said that. The module order (src/build/lint.c) reads a
+ * A directory under `net/` would not have said that. The module order (src/nyangine-build/lint.c) reads a
  * module's name off the first path segment under `src/nyangine/`, so a subdirectory is still `net` to
  * the rule that enforces the order, and the split would be a naming convention rather than something
  * the build refuses to let drift. It is a module because the line between the two halves is a rule.

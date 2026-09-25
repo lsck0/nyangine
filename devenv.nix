@@ -40,7 +40,7 @@
     pkgs.lld_22
 
     # ── Vendor build tools. ──────────────────────────────────────────────────────────────────────
-    # The vendored dependencies (src/build/vendor/*) configure and build through these: cmake+ninja
+    # The vendored dependencies (src/nyangine-build/vendor/*) configure and build through these: cmake+ninja
     # for SDL and friends, make for lz4/sqlite/luajit/libbacktrace, nasm for the assembly in a couple
     # of them, pkg-config for the system libraries below. ccache is the compiler cache the split
     # rules launch through (COMPILER_CACHE_PROGRAM, flags.h); harmless when unused.
@@ -164,7 +164,7 @@
   # ── What this shell deliberately does NOT provide ────────────────────────────────────────────────
   #
   # Windows cross-compilation (`./build build windows`, and the Steam/Windows release targets). It
-  # needs mingw-w64, which nix has, but src/build/on_linux/toolchain.h hardcodes the Debian sysroot
+  # needs mingw-w64, which nix has, but src/nyangine-build/on_linux/toolchain.h hardcodes the Debian sysroot
   # layout: CMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 and the tools x86_64-w64-mingw32-windres /
   # -ar by their absolute distro names. nix stages mingw under a store path with no /usr sysroot and
   # no unversioned cross tools on PATH, so wiring it in cleanly would mean editing the toolchain header
@@ -173,7 +173,7 @@
   # Native Linux — every gate, the tests, the game, the examples, coverage — is fully covered above.
   #
   # git-hooks are intentionally omitted. nyangine already installs its own commit hooks through the
-  # build system (src/build/hooks.c) and runs the gates in CI; layering devenv's pre-commit on top
+  # build system (src/nyangine-build/hooks.c) and runs the gates in CI; layering devenv's pre-commit on top
   # would duplicate them and drop an untracked .pre-commit-config.yaml into the tree. Add one in a
   # devenv.local.nix if you want it locally.
 }

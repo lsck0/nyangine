@@ -95,7 +95,7 @@ runs:
         # Every submodule revision, plus the recipes and toolchains that configure them, since a
         # changed cmake flag produces a different archive from identical sources.
         revisions="$(git submodule status --recursive vendor)"
-        recipes="$(find src/build/vendor src/build/on_linux src/build/on_windows -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
+        recipes="$(find src/nyangine-build/vendor src/nyangine-build/on_linux src/nyangine-build/on_windows -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
         sha="$(printf '%s\n%s' "${revisions}" "${recipes}" | sha256sum | cut -d' ' -f1)"
         echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 

@@ -45,7 +45,7 @@
  * */
 #define NYA_I18N_ASSET_DIRECTORY "./assets/i18n"
 
-/** The locale a missing key falls back to. Must match NYA_I18N_BASE_LOCALE in src/build/i18n.h. */
+/** The locale a missing key falls back to. Must match NYA_I18N_BASE_LOCALE in src/nyangine-build/i18n.h. */
 #define NYA_I18N_BASE_LOCALE "en"
 
 /*

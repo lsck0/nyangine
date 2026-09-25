@@ -17,7 +17,7 @@
  *
  * ── the transport is a seam ──
  *
- * This module is rank 6 and the curl client is a plugin above it (see src/build/lint.c), so the caller
+ * This module is rank 6 and the curl client is a plugin above it (see src/nyangine-build/lint.c), so the caller
  * cannot reach down to a socket and must not try. Instead it assembles the request as bytes — a method, a
  * URL, a body and the two media types — and hands them to a NYA_HttpClientTransport the program supplies.
  * A program with the curl plugin wires a transport that performs the round trip over the network; a test

@@ -5,7 +5,7 @@
  * written for reads it: property panels, scene and save files, config reload, undo snapshots, debug
  * dumps. The alternative is a per-field conversion in each consumer, which is the code that rots.
  *
- * The tables are `const` data emitted by src/build/pp/reflection.c from `@reflect` comments in the
+ * The tables are `const` data emitted by src/nyangine-build/pp/reflection.c from `@reflect` comments in the
  * headers themselves. Nothing registers anything, nothing runs at startup, and the layout numbers are
  * `sizeof` and `offsetof` expressions the compiler evaluates rather than numbers the generator
  * guessed.
@@ -52,7 +52,7 @@
  *   meaning, use a struct with one named field per entry.
  * - **Types the generator never saw.** A field whose type carries no `@reflect` is skipped, with a
  *   warning naming it. Only the engine's own types describe engine types and only the game's describe
- *   the game's; see src/build/pp/reflection.h.
+ *   the game's; see src/nyangine-build/pp/reflection.h.
  * - **Anonymous structs and unions**, and `T *a, b;` declaring two different types in one statement.
  *   Both are rejected with a warning rather than half described.
  *

@@ -32,7 +32,7 @@
  * — so the whole header is compiled out on the web build, and its one caller (render_compute_particles.c)
  * is gated the same way. See the renderer-web wall: the renderer is SDL_GPU throughout, and the web path
  * is a later GLES3 shim that will never carry compute. The build's shader step skips the GLSL variant of
- * a `.comp` shader for the same reason; see src/build/pp/asset.c.
+ * a `.comp` shader for the same reason; see src/nyangine-build/pp/asset.c.
  * */
 #pragma once
 

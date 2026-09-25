@@ -83,7 +83,7 @@
  * browser can decode; gzip and brotli are a dependency decision of their own, not a side effect of
  * serving a page. A `Vary` on a response that does not vary only splits every cache entry in two.
  *
- * The build does compress the bundle where compression pays here: `src/build/pp/asset.c` stores each
+ * The build does compress the bundle where compression pays here: `src/nyangine-build/pp/asset.c` stores each
  * asset LZ4-compressed inside the executable when that is smaller, so a release carries the bundle
  * compressed and the asset system expands it once on the read that feeds a mount.
  *

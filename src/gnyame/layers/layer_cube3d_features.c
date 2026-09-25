@@ -11,7 +11,7 @@
  * */
 #include "gnyame/gnyame.h"
 
-// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotation.
+// What nya_watch() below expands to, written by src/nyangine-build/pp/watch.c from the @watch annotation.
 #include "genyarated/watches/gnyame_layers_layer_cube3d_features_c.h"
 
 /*

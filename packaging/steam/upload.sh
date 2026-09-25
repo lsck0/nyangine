@@ -16,7 +16,7 @@ work=.steam-upload
 : "${STEAM_USER:?}" "${STEAM_APP_ID:?}" "${STEAM_DEPOT_ID_LINUX:?}" "${STEAM_DEPOT_ID_WINDOWS:?}"
 preview="${STEAM_PREVIEW:-0}"
 
-# From the build system, not from a regex over one of its headers. See src/build/dist.c.
+# From the build system, not from a regex over one of its headers. See src/nyangine-build/dist.c.
 version="$(./build version)"
 description="${name} ${version} ($(git rev-parse --short HEAD))"
 

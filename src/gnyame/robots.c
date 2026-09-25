@@ -6,7 +6,7 @@
  * */
 #include "gnyame/gnyame.h"
 
-// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotation.
+// What nya_watch() below expands to, written by src/nyangine-build/pp/watch.c from the @watch annotation.
 #include "genyarated/watches/gnyame_robots_c.h"
 
 /*

@@ -68,7 +68,7 @@ docs/doxygen/
 /site/
 
 # keep
-!src/build/
+!src/nyangine-build/
 
 # Coverage profiles, merged data and the HTML listing from `./build coverage`.
 .coverage/
@@ -96,7 +96,7 @@ tests/**/test_*
 # shown to survive one.
 /_test_db_reopen.db
 
-# Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/build/flags.h.
+# Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/nyangine-build/flags.h.
 /.objects/
 
 # Where `./build run fuzz` puts the instrumented binaries and afl-fuzz's own findings directory. The

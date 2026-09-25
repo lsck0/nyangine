@@ -6,7 +6,7 @@
 
 /*
  * Every size and offset below is an expression rather than a number, so the compiler that is
- * already compiling these structs is what computes the layout. See src/build/pp/reflection.h.
+ * already compiling these structs is what computes the layout. See src/nyangine-build/pp/reflection.h.
  * The builtins and the server-safe types are in reflection_engine_server.c; see it.
  */
 

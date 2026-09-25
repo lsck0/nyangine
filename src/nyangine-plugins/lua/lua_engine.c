@@ -99,7 +99,7 @@ NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle 
 /*
  * ───────────────────────────────────── BINDINGS ─────────────────────────────────────
  *
- * Almost all of them are generated. src/build/pp/luabind.c reads the `@lua` annotations in the engine
+ * Almost all of them are generated. src/nyangine-build/pp/luabind.c reads the `@lua` annotations in the engine
  * headers and writes src/genyarated/lua_bindings.c: one marshalling function per annotated declaration
  * and a table of them, included below.
  *

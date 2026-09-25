@@ -206,7 +206,7 @@ NYA_API void nya_lua_register_path(NYA_LuaVM* vm, NYA_ConstCString path, NYA_Lua
  * values: after a despawn every call taking one returns nil, as in C.
  *
  * Every binding it registers is generated from the `@lua` annotations in the engine headers; see
- * src/build/pp/luabind.h. The whole table, every permission granted.
+ * src/nyangine-build/pp/luabind.h. The whole table, every permission granted.
  * */
 NYA_API void nya_lua_open_engine(NYA_LuaVM* vm);
 

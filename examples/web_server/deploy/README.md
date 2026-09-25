@@ -35,7 +35,7 @@ renderer by value — so the example compiles the whole engine and links the ful
 included. What keeps the image small anyway is the release link: `--gc-sections` drops every function
 the server never reaches, so `ldd` on the result shows **no SDL** at all, and `-s` strips the debug
 info. When a genuinely headless engine build lands, this same binary links only the server vendor
-subset (`NYA_SERVER_VENDORS_LINUX_X86_64` in `src/build/vendor/vendor.h`, which `./build --server`
+subset (`NYA_SERVER_VENDORS_LINUX_X86_64` in `src/nyangine-build/vendor/vendor.h`, which `./build --server`
 already knows how to build on its own) and the image shrinks further; nothing here changes.
 
 ## The healthcheck

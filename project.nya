@@ -2,7 +2,7 @@
 // nyangine as a vendored dependency. `./build project` reads it and prints the build plan it resolves
 // to: the profile's compile flags, the vendor subset it links, and the binaries it ships. A consumer
 // that pulls the engine in as a submodule keeps a file like this at its own root, with `sources`
-// pointing at its code and the engine living under vendor/nyangine. See src/build/project.c.
+// pointing at its code and the engine living under vendor/nyangine. See src/nyangine-build/project.c.
 //
 // Hand-edited, so the header checksum below is not verified (NYA_SERDE_NO_CHECKSUM), the same as
 // assets/config/engine.nya.

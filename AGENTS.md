@@ -24,7 +24,7 @@ full guide is at `~/.claude/skills/l-style/SKILL.md`; read it before writing cod
 
 ```
 build.c                bootstrap entry point; recompiles itself from then on
-src/build/             the build system: rules, CLI, hooks, preprocessor passes (pp/)
+src/nyangine-build/             the build system: rules, CLI, hooks, preprocessor passes (pp/)
 src/nyangine/          the engine
 src/gnyame/            the game that exercises it
 src/genyarated/         written by the preprocessor passes; never edit by hand
@@ -87,9 +87,9 @@ pretending; the terminal one asserts at open that it has left no switch unanswer
 
 ## Building
 
-**The build system is a C program in `src/build/`, driven by `./build`.** Not make, not cmake, not
-a shell script. A new build rule, flag or command is a C edit in `src/build/`, and the tool
-recompiles itself on the next run. `src/build/cli.c` holds the command tree; the per-host project
+**The build system is a C program in `src/nyangine-build/`, driven by `./build`.** Not make, not cmake, not
+a shell script. A new build rule, flag or command is a C edit in `src/nyangine-build/`, and the tool
+recompiles itself on the next run. `src/nyangine-build/cli.c` holds the command tree; the per-host project
 rules are under `on_linux/` and `on_windows/`; the preprocessor passes are in `pp/`.
 
 Bootstrap it once from a fresh clone:
@@ -158,7 +158,7 @@ machine. Verify on Linux.
 ### The editor's flags are hand maintained
 
 `.clangd` carries its own copy of the compile flags, including every vendor include path and every
-`-DNYA_PLUGIN_*`. **Add a vendor or a plugin flag to `src/build/flags.h` and you must add it to
+`-DNYA_PLUGIN_*`. **Add a vendor or a plugin flag to `src/nyangine-build/flags.h` and you must add it to
 `.clangd` too.** Nothing checks this: when the two disagree the editor silently analyses the tree
 under the wrong flags, a whole module becomes an empty translation unit, and you edit it blind with
 no diagnostics, no completion and no rename coverage. That has already happened three times. The
@@ -222,7 +222,7 @@ From `TODO.md`, which is the planning document and lives in the repository with 
 | Servers      | One machine, one instance. TLS and simple rate limits in process; a proxy is optional.     |
 | Programs     | Live in this tree beside gnyame for now.                                                   |
 | Plugins      | `core_plugin.h` loads `plugins/<name>/`. Permissions are fixed at compile time by `-DNYA_PLUGIN_PERMISSION_PROFILE`. |
-| Lua bindings | Generated from `@lua` annotations by `src/build/pp/luabind.c`. Never hand written unless they cannot be generated. |
+| Lua bindings | Generated from `@lua` annotations by `src/nyangine-build/pp/luabind.c`. Never hand written unless they cannot be generated. |
 
 The verification rule is load-bearing. **A feature with no caller in `gnyame` or an example is not
 finished**, however green its tests are: this codebase is verified by running programs and looking at
@@ -235,7 +235,7 @@ rejected approaches were rejected. Read the relevant entry before redesigning so
 
 ## Generated files
 
-`src/build/pp/` holds the preprocessor passes. Each is stale-checked, so it costs nothing when its
+`src/nyangine-build/pp/` holds the preprocessor passes. Each is stale-checked, so it costs nothing when its
 inputs have not moved, and each runs as part of an ordinary build:
 
 - `reflection.c` → `src/genyarated/reflection.{h,c}`, from `@reflect` annotations in the tree.

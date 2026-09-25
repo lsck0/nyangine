@@ -10,7 +10,7 @@
  * one shape the web profile compiles, and including this would make it refuse itself. `./build check`
  * enforces both directions — every model/so header carries this include, no dto header includes a
  * model/so header — so a header that forgets the guard is a finding rather than a silent hole. See
- * TODO.md's "Model, SO, DTO" and _lint_rule_web_profile in src/build/lint.c.
+ * TODO.md's "Model, SO, DTO" and _lint_rule_web_profile in src/nyangine-build/lint.c.
  * */
 #pragma once
 

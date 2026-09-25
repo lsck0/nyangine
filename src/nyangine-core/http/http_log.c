@@ -28,7 +28,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_LOG_DENIED[] = { "authorization", 
  * Words that make a query parameter a secret whatever the route calls it.
  *
  * A query string carries no type, so there is no reflection to ask and the name is the only evidence
- * there is. The same four words are what src/build/lint.c refuses a reflected field for when it carries
+ * there is. The same four words are what src/nyangine-build/lint.c refuses a reflected field for when it carries
  * no `@redact`, so a name that would fail the check also never reaches a log.
  * */
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_LOG_SECRET_WORDS[] = { "password", "token", "secret", "code" };

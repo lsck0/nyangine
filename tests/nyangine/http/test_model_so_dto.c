@@ -12,7 +12,7 @@
  *
  * The gate is proven by compiling the headers with the real compiler. A `*_model.h` and a `*_so.h`
  * refuse to compile under -DNYA_WEB_PROFILE (that is the web profile), while the `*_dto.h` compiles under
- * it: the one shape that reaches the client. This is the compile-time half of what src/build/lint.c's
+ * it: the one shape that reaches the client. This is the compile-time half of what src/nyangine-build/lint.c's
  * web-profile rule also enforces statically over the whole tree.
  **/
 

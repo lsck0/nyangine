@@ -28,8 +28,8 @@ directory, because a release binary carries its assets inside it.
 
 ## One source of truth
 
-`src/build/dist.c`. There are no shell scripts here any more: the two that existed each parsed `VERSION`
-out of `src/build/flags.h` with its own copy of one regex. Anything outside the build system that needs
+`src/nyangine-build/dist.c`. There are no shell scripts here any more: the two that existed each parsed `VERSION`
+out of `src/nyangine-build/flags.h` with its own copy of one regex. Anything outside the build system that needs
 the version runs `./build version`.
 
 The manifests in this directory are **templates**. `@VERSION@`, `@SHA256_LINUX@`, `@SHA256_WINDOWS@` and
@@ -47,12 +47,12 @@ the template.
 | `lua-api/` | plugin authors                          | `lua-api`           |
 | `steam/`   | SteamPipe, both depots                  | `steam-linux`, `steam-windows` |
 
-For another game, change `PROJECT_NAME` in `src/build/flags.h`, `name` in `steam/upload.sh`, and the
+For another game, change `PROJECT_NAME` in `src/nyangine-build/flags.h`, `name` in `steam/upload.sh`, and the
 names, descriptions, urls and identifiers in the manifests.
 
 ## Cutting a release
 
-1. Bump `VERSION` in `src/build/flags.h` and commit.
+1. Bump `VERSION` in `src/nyangine-build/flags.h` and commit.
 2. Tag and push: `git tag v1.2.3 && git push origin v1.2.3`.
 3. CD checks the tag against `./build version`, runs `./build dist`, and publishes the archives, the
    `SHA256SUMS` and release notes from `./build changelog --release`.
@@ -144,4 +144,4 @@ No SteamStub DRM wrapper: it rewrites the executable, which breaks the integrity
 
 ## Web
 
-`dist/web/` is a slot, and empty until the wasm target exists. See `src/build/dist.c`.
+`dist/web/` is a slot, and empty until the wasm target exists. See `src/nyangine-build/dist.c`.

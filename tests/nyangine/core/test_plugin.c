@@ -9,7 +9,7 @@
 /*
  * Before nyangine.h, so the host discovers the tree this test writes rather than the repository's real
  * `plugins/`. A #define above the include is also what makes this test compile its own copy of the
- * engine instead of linking the shared one; see _test_shares_engine in src/build/test.c.
+ * engine instead of linking the shared one; see _test_shares_engine in src/nyangine-build/test.c.
  */
 #define NYA_PLUGIN_DIRECTORY TEST_PLUGIN_ROOT
 

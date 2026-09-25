@@ -6,7 +6,7 @@
 # very recent clang, since the engine leans on the matrix_type extension, `-fdefer-ts` for its `defer`
 # statement, `-mf16c` for _Float16, and lld — bootstraps ./build, and produces the example as a
 # release artifact: optimized, its assets baked into the binary, dead code collected by the linker,
-# and stripped (see `--server` in src/build/example.c). The runtime stage is FROM scratch and holds
+# and stripped (see `--server` in src/nyangine-build/example.c). The runtime stage is FROM scratch and holds
 # exactly the stripped binary, the shared libraries `ldd` says it needs, and a writable directory for
 # the notes database — nothing else, no shell, no package manager, no distro.
 #

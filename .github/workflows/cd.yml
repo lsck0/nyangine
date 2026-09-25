@@ -50,7 +50,7 @@ jobs:
         run: |
           version="$(./build version)"
           if [ "${TAG}" != "v${version}" ]; then
-            echo "::error::tag ${TAG} does not match version ${version}; bump VERSION in src/build/flags.h"
+            echo "::error::tag ${TAG} does not match version ${version}; bump VERSION in src/nyangine-build/flags.h"
             exit 1
           fi
 

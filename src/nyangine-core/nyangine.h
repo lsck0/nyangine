@@ -117,7 +117,7 @@
 
 /*
  * Last, and inside the guard: it describes types declared above it, and the types it describes only
- * exist in an SDL build. See src/build/pp/reflection.h for why the engine has a table of its own.
+ * exist in an SDL build. See src/nyangine-build/pp/reflection.h for why the engine has a table of its own.
  */
 #include "genyarated/reflection_engine.h"
 #endif

@@ -33,7 +33,7 @@ CompileFlags:
       -DNYA_EXECUTION_MODE=0,
       -DNYA_ASSET_PREFER_BLOB,
       -DNYA_ASSET_HOT_RELOAD,
-      # The plugins the project actually compiles, mirroring FLAGS_PLUGINS in src/build/flags.h.
+      # The plugins the project actually compiles, mirroring FLAGS_PLUGINS in src/nyangine-build/flags.h.
       #
       # Without these every plugin source is an empty translation unit as far as clangd is concerned
       # — no diagnostics, no completion, no rename coverage — which is the same failure the headless
@@ -49,7 +49,7 @@ CompileFlags:
       -DNYA_PLUGIN_DISCORD,
       -DNYA_PLUGIN_LUA,
       -DNYA_PLUGIN_ACME,
-      # The game's plugin permission profile, mirroring FLAGS_PLUGIN_PERMISSIONS in src/build/flags.h.
+      # The game's plugin permission profile, mirroring FLAGS_PLUGIN_PERMISSIONS in src/nyangine-build/flags.h.
       # 2 is NYA_PLUGIN_PERMISSION_PROFILE_GAMEPLAY; without it the editor analyses core_plugin.c under
       # a different grant than the build and its #if arms disagree with the binary.
       -DNYA_PLUGIN_PERMISSION_PROFILE=2,
@@ -57,7 +57,7 @@ CompileFlags:
       -DSQLITE_CORE,
       -DSQLITE_VEC_STATIC,
       # The physics vendors' world limits and ufbx's compiled out features, from the same rules. The
-      # lint rule in src/build/lint.c found these missing, which is what it is for.
+      # lint rule in src/nyangine-build/lint.c found these missing, which is what it is for.
       -DB2_MAX_WORLDS=8,
       -DB3_MAX_WORLDS=8,
       -DUFBX_NO_SCENE_EVALUATION,
@@ -188,7 +188,7 @@ CompileFlags:
 #
 # The triple alone is enough; clang finds the distro mingw-w64 sysroot at /usr/x86_64-w64-mingw32
 # without --sysroot. The intrinsics define mirrors NYA_MINGW_INTRINSICS in
-# src/build/on_linux/toolchain.h:16 and must stay equal to it.
+# src/nyangine-build/on_linux/toolchain.h:16 and must stay equal to it.
 If:
   PathMatch: .*_windows\.c
 
@@ -208,7 +208,7 @@ CompileFlags:
 # The build system is a host tool: core and renderer are compiled out entirely rather than stubbed,
 # so nearly every engine header behaves differently here than anywhere else in the tree.
 If:
-  PathMatch: src/build/.*
+  PathMatch: src/nyangine-build/.*
 
 CompileFlags:
   Add: [-DNYA_NO_SDL]

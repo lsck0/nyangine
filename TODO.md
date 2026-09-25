@@ -159,7 +159,7 @@ the feature being bolted on, and the whole converges on one architecture over ti
 | Web server       | an HTTP server, middleware, typed DTOs, generated OpenAPI                                                                                     | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers, and a login flow (register/login/TOTP/logout, sealed session cookie) in the `accounts_api` example. Open: typed DTOs and the Model/SO/DTO web profile                                                                                                |
 | Targets          | Linux, Windows, Steam Linux, Steam Windows                                                                                                    | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out                                                                                                                                                      |
 | Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[~]` `base` is clean: it includes neither `math` nor `platform`, and an `os` layer below it holds the syscalls. The rest still has cycles (core↔renderer/ui/net/physics, nn→renderer, renderer→debug, http→core), each a counted allowance in the lint rule that can only fall. `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
-| Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[x]` all present; `check --strict` runs the project's own lint rules (`src/build/lint.c`) before clang-tidy: banned calls, module order, verb pairs, callers, `.clangd` drift                                                                                                                                                                                         |
+| Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[x]` all present; `check --strict` runs the project's own lint rules (`src/nyangine-build/lint.c`) before clang-tidy: banned calls, module order, verb pairs, callers, `.clangd` drift                                                                                                                                                                                         |
 | Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: dates and times as a type rather than a timestamp, URLs                                                                                                                                                  |
 | Auth             | login, JWT in secure cookies, CSRF defence, revocation, rate limits, TOTP and PGP second factors                                              | `[~]` Landed in `accounts_api`: Argon2id password hashing, a user store, register/login/logout routes, an opaque row-backed session cookie (`__Host-`, HttpOnly/Secure/SameSite=Strict) with revocation, TOTP and a PGP challenge, JWT over HMAC-SHA256, `SameSite`+Origin CSRF, in-process rate limits. Open: lift from the example into reusable routes; passkeys (WebAuthn)                                                                                     |
 | Web client       | C compiled to wasm, the same `nya_ui_*` calls, the same DTO headers as the server, transport in the `nya` format                            | `[ ]` not started                                                                                                                                                                                                                                                                                                                                                      |
@@ -383,7 +383,7 @@ browser, from the same `component()` function.
     unchanged. The surface is bounded: **53 distinct `SDL_*GPU*` functions** (inventory in git history of this
     line's commit). Staged:
     1. `[x]` **Shader pipeline (landed `c5725c4`)** — the build emits GLSL ES 300 beside every `.spv` via the
-       vendored SPIRV-Cross C API (`_nya_asset_shader_compile_glsl_es` in `src/build/pp/asset.c`, linked into the
+       vendored SPIRV-Cross C API (`_nya_asset_shader_compile_glsl_es` in `src/nyangine-build/pp/asset.c`, linked into the
        build tool like libbacktrace; naming `<shader>.<stage>.glsl`; NOT indexed/bundled/loaded yet — the loader
        is untouched). **37/37 convert and validate as ESSL 300 under glslangValidator.** Findings the GLES3
        backend MUST handle:
@@ -476,12 +476,12 @@ Small, and first, because every later phase trusts these numbers.
   nobody could dismiss" under Findings. 120 regression runs under six way parallel load: 0 failures, where
   about one in thirty hung before.
 - `[x]` Custom static analysis in `./build check`, built on `base_lexer` so it costs no dependency.
-  `src/build/lint.c`, run before clang-tidy by every whole `./build check` and fatal under `--strict`; it reads
+  `src/nyangine-build/lint.c`, run before clang-tidy by every whole `./build check` and fatal under `--strict`; it reads
   748 files in about 0.6 s. Six rules: banned calls outside `platform/`; the module order from "Target
   architecture"; verb pairs in the same header; a caller for every `NYA_API`; `.clangd` against every `-D` and
   include the build uses; and a file the lexer misread, since every other rule trusts the tokens. Each fired on a
   deliberate violation before landing. Where the tree has debt the rule allows it by name with a reason in
-  `src/build/lint_allowances.h`, and an allowance that stops being needed is itself a finding, so the list only
+  `src/nyangine-build/lint_allowances.h`, and an allowance that stops being needed is itself a finding, so the list only
   shrinks: 9 layering edges (Phase 1's), 82 verb pairs and 81 uncalled functions today.
   - The first run found real drift at once: five vendor defines missing from `.clangd`.
   - Two bugs in the rule itself were caught by spot checking, like the audit's before it. A C23 digit separator
@@ -651,7 +651,7 @@ What every kind of program in the examples table needs and `base` does not have 
     expiry, TOTP, retention sweeps) is deterministic under simulation.
 - `[ ]` **A general attribute system for reflection.** Today every annotation is special cased: `@key` became
   `is_key`, `@hint` an enum of four hints, `@tag` a `tag_value`, and `@skip`, `@flags` and `@on_apply` are each
-  their own path in `src/build/pp/reflection.c`. Every new use (`@redact`, `@secret`, validation, UI labels)
+  their own path in `src/nyangine-build/pp/reflection.c`. Every new use (`@redact`, `@secret`, validation, UI labels)
   would mean another field on `NYA_ReflectField` and another branch in the generator. Instead:
   - Any `@name` or `@name(arguments)` on a type, field or enum variant becomes an attribute: a name plus typed
     arguments (`NYA_Value`s), stored in `const` tables like the rest of reflection.
@@ -1301,9 +1301,9 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
 - `[ ]` Pinned releases: SDL is at `release-3.4.0-1237`, an untagged commit on main, and Box3D is pre-1.0. Pin
   each vendor to a release tag, or write down beside the submodule why not.
 - `[x]` An SBOM and a licence allowlist generated from the vendor rules, and a CVE check against it in CI.
-  `./build sbom` (src/build/sbom.c) reads `.gitmodules` and the commit HEAD pins each submodule to, detects
+  `./build sbom` (src/nyangine-build/sbom.c) reads `.gitmodules` and the commit HEAD pins each submodule to, detects
   each dependency's licence from its LICENSE/COPYING file, and writes a CycloneDX 1.5 document plus a human
-  summary under `sbom/` (gitignored). The checked-in allowlist is `src/build/vendor/licence_allowlist.h`;
+  summary under `sbom/` (gitignored). The checked-in allowlist is `src/nyangine-build/vendor/licence_allowlist.h`;
   a detected licence off it — or one that could not be determined — fails the command, so a new copyleft
   or unknown dependency is caught. The CVE step is a hook over osv-scanner: it scans the CycloneDX document
   when osv-scanner is installed and `NYA_SBOM_CVE_SCAN=1` is set (CI), and skips with a notice otherwise
@@ -1456,7 +1456,7 @@ Each changes what gets built. A recommendation is given; the call is mine.
     before calling this done.
   - naga is Rust, so this puts cargo on the shader build machine. That is only Linux, which is already the only
     host that can run DXC, so no new host needs it. It runs at build time only and ships in nothing. Pin it
-    like a vendor. The binding rewrite is about 30 lines of C in `src/build/`.
+    like a vendor. The binding rewrite is about 30 lines of C in `src/nyangine-build/`.
 - `[x]` **PGP.** Decided 2026-09-22: vendor a complete library as a `pgp` component, off by
   default, the way sqlite is optional today. It fills the second factor seam by encrypting a one-time code
   to the user's key, which the user decrypts (Phase 3), and it backs PGP-encrypted `.nya` fields. Candidate:
@@ -1534,7 +1534,7 @@ Each changes what gets built. A recommendation is given; the call is mine.
   below was "not yet", and the answer was to do it anyway. C has no function literals, and every callback here
   (`nya_callback`, event hooks, systems, comparators) was a named function somewhere else in the file.
   - Landed: `nya_lambda(tag, ReturnType, (params), { body })`, the macro in `base_lambda.h` and the pass in
-    `src/build/pp/lambda.c`, hooked as `generate_lambdas`. The body is hoisted into a companion header per
+    `src/nyangine-build/pp/lambda.c`, hooked as `generate_lambdas`. The body is hoisted into a companion header per
     source file under `src/genyarated/lambdas/`, which that source includes itself, so the body compiles inside
     the file it was written in and can name that file's statics. `#line` keeps the diagnostics on the line
     somebody typed. `manifest.txt` is the watermark `nya_pp_is_current` reads, since the companion set is
@@ -1674,7 +1674,7 @@ and can do anything the program can.
   yet. The UI is the gap that matters: every `nya_ui_*` call takes the `NYA_UI*` that `nya_ui_begin` returns,
   and a pointer cannot cross into a script, so a plugin's `on_render` needs the host to open the pass and an
   ambient current UI. That is a design decision, not a missing binding.
-- `[x]` Lua bindings **autogenerated**. `src/build/pp/luabind.c` writes `src/genyarated/lua_bindings.c` and
+- `[x]` Lua bindings **autogenerated**. `src/nyangine-build/pp/luabind.c` writes `src/genyarated/lua_bindings.c` and
   `docs/lua/nya.lua`; `.luarc.json` points a language server at the second, so `nya` is no longer an undefined
   global. Seven hand written bindings are left, each saying why it cannot be generated.
 - `[x]` Namespacing that survives a large plugin collection. Three layers, all structural: a VM per plugin, so
@@ -1944,8 +1944,8 @@ the packager ones.
 
 ## `[ ]` Docs and examples
 
-- `[x]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`, and it regenerates
-  now. It had drifted because `generate_cheatsheet` was declared in `src/build/asset_rules.h`, a file the
+- `[x]` `docs/CHEATSHEET.md`, generated from the headers by `src/nyangine-build/pp/cheatsheet.c`, and it regenerates
+  now. It had drifted because `generate_cheatsheet` was declared in `src/nyangine-build/asset_rules.h`, a file the
   build reorganisation had already folded into `pp/pp.h` and orphaned: nothing included it, so the rule was
   never dispatched and the reference was stale from the day it landed. Moved into `pp/pp.h`, the orphan
   deleted, and regenerating added 523 lines.
