@@ -159,6 +159,28 @@
     echo "linkers: mold $(mold --version | head -n1 | cut -d' ' -f2), $(ld.lld --version | head -n1)"
     echo "bootstrap with:  clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread"
     echo "then:            ./build"
+
+    # `./build ` tab-completion, wired with no manual step. `./build completions <shell>` prints a
+    # completion script to stdout (it short circuits ahead of any self-rebuild, so this is free even on
+    # a fresh checkout), but the generator only knows zsh — the interactive shell here — so zsh is the
+    # only one wired. The script is an autoloaded #compdef file: it has to sit on fpath and be picked up
+    # by compinit, NOT be sourced (a plain source defines the function but never registers it), so it is
+    # written under $DEVENV_STATE and that directory is prepended to fpath. Every step is guarded: an
+    # absent or unbuilt ./build only prints a hint, and a failed generation or compinit never aborts
+    # shell entry. A non-zsh shell (e.g. `devenv shell` under bash) skips the block, which is why the
+    # zsh-only syntax below never runs there.
+    if [ -n "''${ZSH_VERSION:-}" ]; then
+      if [ -x ./build ]; then
+        _nya_comp_dir="''${DEVENV_STATE:-.devenv/state}/completions"
+        if mkdir -p "$_nya_comp_dir" 2>/dev/null && ./build completions zsh > "$_nya_comp_dir/_build" 2>/dev/null; then
+          fpath=("$_nya_comp_dir" $fpath)
+          autoload -Uz compinit && compinit -u 2>/dev/null || true
+        fi
+        unset _nya_comp_dir
+      else
+        echo "hint: build ./build (see above), then re-enter the shell for ./build tab-completion"
+      fi
+    fi
   '';
 
   # ── What this shell deliberately does NOT provide ────────────────────────────────────────────────
