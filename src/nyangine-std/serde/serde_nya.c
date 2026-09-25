@@ -145,8 +145,9 @@ _nya_serde_nya_deserialize_versioned(NYA_Arena* arena, const u8* data, u64 size,
     if (!nya_type_parse(NYA_TYPE_S32, (const u8*)lexer.source + version_token->source_location, version_token->length, &version)) {
         return nya_error(NYA_ERROR_PARSE, "the version is not an s32");
     }
-    // A negative version is nonsense; a different one is not refused. The grammar is self-describing and the checksum guards the contents, so the version is a fact the reflected loader reads to honour each field's `@since` rather than a gate that rejects an older or newer document whole. See nya_reflect_from_object_versioned.
+    // A negative version is nonsense and a version past this build's is a format from the future this build cannot parse — both refused. An older-or-equal version is not: the grammar is self-describing and the checksum guards the contents, so the version is a fact the reflected loader reads to honour each field's `@since` rather than a gate that rejects an older document whole. See nya_reflect_from_object_versioned.
     if (version < 0) return nya_error(NYA_ERROR_PARSE, "the version is negative (" FMTs32 ")", version);
+    if (version > NYA_SERDE_NYA_VERSION) return nya_error(NYA_ERROR_PARSE, "the version " FMTs32 " is newer than this build supports (" FMTs32 ")", version, (s32)NYA_SERDE_NYA_VERSION);
     if (out_version != nullptr) *out_version = version;
     parser.index++;
 
