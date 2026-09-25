@@ -19,6 +19,16 @@
 #ifdef NYA_ASSET_PREFER_BLOB
 #include "genyarated/assets.c"
 
+/* The blob is encrypted only when the build tool baked NYA_ASSET_BLOB_ENCRYPTED (and the key) into assets.c;
+ * otherwise it is 0 here and the plaintext path below is exactly what it was. See pp/asset.h. */
+#ifndef NYA_ASSET_BLOB_ENCRYPTED
+#define NYA_ASSET_BLOB_ENCRYPTED 0
+#endif
+
+#if NYA_ASSET_BLOB_ENCRYPTED
+#include "nyangine-core/core/core_asset_crypt.h"
+#endif
+
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT NYA_Asset* out_asset);
 #endif // NYA_ASSET_PREFER_BLOB
 
@@ -679,6 +689,56 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
 
         NYA_AssetBlobExpanded* expanded = &system->blob_expanded[asset_header_index];
 
+#if NYA_ASSET_BLOB_ENCRYPTED
+        // The entry is nonce(24) || ciphertext(compressed_size) || tag(16). Decrypt one entry at a time into an owned
+        // buffer, then expand it if it was compressed — the same reference-counted sharing a compressed entry uses, so
+        // unloading is unchanged. There is no zero-copy .rodata path here: the bytes on disk are ciphertext.
+        {
+            u64 framed_size = asset_header.compressed_size + NYA_ASSET_BLOB_FRAME_OVERHEAD;
+
+            // Accidental corruption is caught here with the same halt an edited plaintext blob gets; deliberate
+            // tampering, a swapped entry or a wrong key are caught by the AEAD tag below and land in the same place.
+            if (!expanded->verified) {
+                if (nya_integrity_hash(stored, framed_size) != asset_header.hash) nya_integrity_fail(NYA_INTEGRITY_ASSET_MODIFIED, path);
+                expanded->verified = true;
+            }
+
+            if (expanded->references == 0) {
+                // Decrypted into an owned buffer, since the bytes in .rodata are ciphertext; the path is the frame's
+                // associated data, so an entry moved to another path fails to open even under the right key.
+                u8* plain = nya_arena_alloc(system->allocator, nya_max(asset_header.compressed_size, (u64)1));
+                if (plain == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "could not allocate to decrypt '%s'", path);
+
+                if (!nya_asset_blob_unframe(&NYA_ASSET_BLOB_KEY, stored, framed_size, path, plain)) nya_integrity_fail(NYA_INTEGRITY_ASSET_MODIFIED, path);
+
+                if (asset_header.compressed_size == asset_header.size) {
+                    expanded->data = plain;
+                } else {
+                    u8* data = nya_arena_alloc(system->allocator, asset_header.size);
+                    if (data == nullptr || !nya_decompress(plain, asset_header.compressed_size, data, asset_header.size)) {
+                        nya_arena_free(system->allocator, plain, nya_max(asset_header.compressed_size, (u64)1));
+                        if (data != nullptr) nya_arena_free(system->allocator, data, asset_header.size);
+                        return nya_error(NYA_ERROR_CORRUPT, "the embedded blob entry for '%s' did not decompress", path);
+                    }
+                    nya_arena_free(system->allocator, plain, asset_header.compressed_size);
+                    expanded->data = data;
+                }
+            }
+
+            expanded->references++;
+
+            out_asset->as_text.data   = expanded->data;
+            out_asset->as_text.size   = asset_header.size;
+            out_asset->raw.data       = expanded->data;
+            out_asset->raw.size       = asset_header.size;
+            out_asset->raw_owned      = false;
+            out_asset->raw_shared     = true;
+            out_asset->raw_blob_index = (u32)asset_header_index;
+
+            return NYA_OK;
+        }
+#else
+
         // once per entry, on first load: an edited asset stops the game instead of loading.
         if (!expanded->verified) {
             if (nya_integrity_hash(stored, asset_header.compressed_size) != asset_header.hash) nya_integrity_fail(NYA_INTEGRITY_ASSET_MODIFIED, path);
@@ -722,6 +782,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         out_asset->raw_blob_index = (u32)asset_header_index;
 
         return NYA_OK;
+#endif // NYA_ASSET_BLOB_ENCRYPTED
     }
 
     // a build problem, not fatal: one missing texture should not take the game down.

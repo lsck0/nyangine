@@ -1,5 +1,21 @@
 #include "nyangine-build/build.h"
 
+/* The build tool is compiled without the crypto module by design (see nyangine.c: crypto is on the project's
+ * include line, not the tool's), because it hashes nothing. At-rest asset obfuscation is the one exception, and
+ * only when opted in: NYA_ASSET_ENCRYPT_BLOB pulls in exactly the three crypto TUs the bundler needs plus
+ * monocypher, so a tool built without the flag stays crypto-free and its output byte-identical. A tool built with
+ * it must also be given the monocypher include directory, e.g. -Ivendor/monocypher/src. See pp/asset.h. */
+#ifdef NYA_ASSET_ENCRYPT_BLOB
+/* lz4 (pulled in above) already defines MIN with the same meaning; drop it so monocypher's identical macro
+ * does not warn under -Werror. */
+#undef MIN
+#include "monocypher.c"
+#include "nyangine-core/crypto/crypto_secret.c"
+#include "nyangine-core/crypto/crypto_hash.c"
+#include "nyangine-core/crypto/crypto_aead.c"
+#include "nyangine-core/core/core_asset_crypt.h"
+#endif
+
 /* The GLSL-ES cross compiler. Keyed off the header the way base_backtrace.h keys the symbolizer off backtrace.h: build.c puts SPIRV-Cross's include path and link flags on the rebuild command together, and only once the vendored .so exists, so when it does not, __has_include is false, the code below degrades to writing no GLSL, and the tool still links. See vendor_sdl_shadercross.h for the flags. */
 #if !OS_WINDOWS && __has_include("spirv_cross_c.h")
 #define NYA_BUILD_HAS_SPIRV_CROSS 1
@@ -263,6 +279,26 @@ void nya_asset_bundle(void) {
     NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(result, "#include \"nyangine-core/nyangine.h\"\n\n");
+
+    /* At-rest obfuscation, OFF unless the tool was built with NYA_ASSET_ENCRYPT_BLOB. When off, none of this is
+     * compiled or emitted and the file is byte for byte what it always was — no crypto is even linked into the
+     * tool. When on, the key is derived once from the passphrase and baked in beside a flag the loader reads; see
+     * pp/asset.h for the honest threat model. */
+#ifdef NYA_ASSET_ENCRYPT_BLOB
+    const b8        encrypt  = true;
+    NYA_CryptoKey32 blob_key = { 0 };
+    {
+        NYA_CryptoSha256Digest digest = { 0 };
+        nya_crypto_sha256((const u8*)NYA_ASSET_ENCRYPT_KEY, sizeof(NYA_ASSET_ENCRYPT_KEY) - 1, &digest);
+        nya_memcpy(blob_key.bytes, digest.bytes, sizeof(blob_key.bytes));
+
+        nya_string_extend(result, "#define NYA_ASSET_BLOB_ENCRYPTED 1\n");
+        nya_string_extend(result, "static const NYA_CryptoKey32 NYA_ASSET_BLOB_KEY = { .bytes = {\n    ");
+        for (u32 i = 0; i < sizeof(blob_key.bytes); i++) nya_string_extend_sprintf(result, "0x%02X, ", blob_key.bytes[i]);
+        nya_string_extend(result, "\n} };\n\n");
+    }
+#endif
+
     nya_string_extend(header_string, "static const NYA_AssetBlobHeader NYA_ASSET_BLOB_HEADER[] = {\n");
 
     NYA_ConstCString HEX = "0123456789ABCDEF";
@@ -299,6 +335,25 @@ void nya_asset_bundle(void) {
         total_raw += content->length;
         total_stored += stored_size;
 
+        /* What actually lands in the array. Without encryption it is the stored bytes verbatim, so the output is
+         * unchanged. With it, the entry becomes nonce(24) || ciphertext(stored_size) || tag(16): the nonce is a
+         * keyed hash of the plaintext, so it is unique per distinct content and reproducible across builds without a
+         * counter to keep; the path is the AEAD's associated data, so an entry moved to another path fails to open,
+         * exactly as a @secret field is bound to its name. compressed_size stays the ciphertext length the loader
+         * decrypts; the header's hash and the cursor cover the whole framed entry. */
+        const u8* blob_bytes      = stored;
+        u64       blob_bytes_size = stored_size;
+#ifdef NYA_ASSET_ENCRYPT_BLOB
+        if (encrypt) {
+            u8* framed = nya_arena_alloc(arena, stored_size + NYA_ASSET_BLOB_FRAME_OVERHEAD);
+            nya_assert(framed != nullptr, "out of memory encrypting '%.*s'", NYA_FMT_STRING_ARG(file));
+
+            NYA_CString aad = nya_string_to_cstring(arena, file);
+            blob_bytes      = framed;
+            blob_bytes_size = nya_asset_blob_frame(&blob_key, stored, stored_size, aad, framed);
+        }
+#endif
+
         u32 group = _nya_asset_blob_group(file);
 
         if (group != header_group) {
@@ -310,14 +365,14 @@ void nya_asset_bundle(void) {
         NYA_String* blob_name = _nya_asset_blob_name(group);
         nya_string_extend_sprintf(header_string, "  { \"%.*s\", " NYA_FMT_STRING " + " FMTu64 ", " FMTu64 ", " FMTu64 ", 0x%016" PRIX64 "ULL },\n",
                                   NYA_FMT_STRING_ARG(file), NYA_FMT_STRING_ARG(blob_name), cursors[group], content->length, stored_size,
-                                  nya_integrity_hash(stored, stored_size));
+                                  nya_integrity_hash(blob_bytes, blob_bytes_size));
 
         // A byte costs at most the indent plus "0xAB" plus a separator, so the room for a whole file is known before writing any of it and the buffer grows once rather than per byte.
         NYA_String* blob_string = blob_strings[group];
-        nya_array_reserve(blob_string, blob_string->length + stored_size * (NYA_ASSET_BLOB_INDENT + 6) + 1);
+        nya_array_reserve(blob_string, blob_string->length + blob_bytes_size * (NYA_ASSET_BLOB_INDENT + 6) + 1);
 
-        for (u64 byte_index = 0; byte_index < stored_size; byte_index++) {
-            const u8* c = &stored[byte_index];
+        for (u64 byte_index = 0; byte_index < blob_bytes_size; byte_index++) {
+            const u8* c = &blob_bytes[byte_index];
             u8* out = blob_string->items + blob_string->length;
 
             if (emitted[group] % NYA_ASSET_BLOB_BYTES_PER_LINE == 0) {
@@ -336,7 +391,7 @@ void nya_asset_bundle(void) {
             emitted[group]++;
         }
 
-        cursors[group] += stored_size;
+        cursors[group] += blob_bytes_size;
     }
 
     if (header_group != 0) nya_string_extend(header_string, "#endif\n");

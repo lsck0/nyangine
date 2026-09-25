@@ -1635,6 +1635,15 @@ const NYA_AssetBlobHeader* nya_asset_blob_at(u64 index)  // The baked entry at `
 const NYA_AssetBlobHeader* nya_asset_blob_find(NYA_ConstCString path)  // The baked entry for `path`, or null.
 ```
 
+### core_asset_crypt.h
+
+The framing that at-rest asset obfuscation uses, shared by the three places that must agree on it: the
+
+```c
+// macros
+NYA_ASSET_BLOB_FRAME_OVERHEAD (NYA_CRYPTO_NONCE_BYTES + NYA_CRYPTO_TAG_BYTES)  // The bytes a frame adds around the ciphertext: the nonce in front and the tag behind.
+```
+
 ### core_audio.h
 
 ```c

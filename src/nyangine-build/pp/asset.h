@@ -34,6 +34,25 @@
 #define NYA_ASSET_BUNDLE_OUTPUT "./src/genyarated/assets.c"
 
 /**
+ * Optional at-rest obfuscation of the bundled blob. OFF by default: without NYA_ASSET_ENCRYPT_BLOB the
+ * generated assets.c is byte for byte what it was, so an existing build is unchanged. Define it when
+ * compiling the build tool to have nya_asset_bundle encrypt every entry with XChaCha20-Poly1305 under a
+ * key derived from NYA_ASSET_ENCRYPT_KEY; core_asset.c then decrypts each entry transparently on load,
+ * one entry at a time, following a flag the generator bakes into assets.c (so the engine needs no matching
+ * flag of its own).
+ *
+ * Honest threat model: this is obfuscation, not DRM. The key is derived deterministically and ends up in
+ * the shipped binary's .rodata, so it defeats a hex editor and casual extraction or swapping of assets, not
+ * a determined attacker who reads the key out of the executable or single-steps the loader. The engine's
+ * "encrypted or obfuscated" bar, no more.
+ * */
+#ifdef NYA_ASSET_ENCRYPT_BLOB
+#ifndef NYA_ASSET_ENCRYPT_KEY
+#define NYA_ASSET_ENCRYPT_KEY "nyangine-default-asset-obfuscation-key"
+#endif
+#endif
+
+/**
  * Compiles every HLSL shader under assets/shader/source into the per backend formats the asset
  * system picks between at runtime.
  * */
