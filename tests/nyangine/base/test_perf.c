@@ -5,8 +5,8 @@
 /* Switches the profiler on for this translation unit, before the engine is included. */
 #define NYA_PERF_FORCE_DEBUG
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #if !NYA_PERF_ENABLED
 #error "test_perf.c requires the perf timers; NYA_PERF_FORCE_DEBUG should have switched them on."

@@ -6,8 +6,8 @@
  * reopen use a temp file, since those are about a file two connections share.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /*
  * A clock the test drives by hand. Installed through nya_instant_source_set, it is what nya_instant_now

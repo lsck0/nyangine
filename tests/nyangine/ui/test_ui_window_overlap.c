@@ -9,8 +9,8 @@
  * exactly what "the windows do not behave when they overlap" looks like.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

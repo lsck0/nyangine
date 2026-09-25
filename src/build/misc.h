@@ -6,7 +6,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 // For host_build_debug, HOST_DEBUG_BINARY, SANITIZER_ENVIRONMENT and BUILD_TOOL_BINARY.
 #include "build/flags.h"
 // For hook_convert_perf_data_to_plain.

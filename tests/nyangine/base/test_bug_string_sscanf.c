@@ -1,8 +1,8 @@
 /**
  * Regression test for nya_string_sscanf reading past the string (base_string.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_string_sscanf");

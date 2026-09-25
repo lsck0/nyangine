@@ -10,9 +10,9 @@
 
 #include <string.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define SECRET_TEXT "a secret the sender and this server share"
 #define BODY        "{\"event\":\"channel.follow\",\"user\":\"someone\"}"

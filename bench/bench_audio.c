@@ -2,8 +2,8 @@
  * Audio: what each bus effect costs the mixer's callback, and what propagation costs a frame against real physics.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

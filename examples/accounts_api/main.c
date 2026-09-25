@@ -95,9 +95,9 @@
  * file until SQLCipher is vendored.
  * */
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #include "SDL3/SDL_init.h"
 

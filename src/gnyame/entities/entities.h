@@ -13,7 +13,7 @@
 #pragma once
 
 // NYA_Rectf, which a camera viewport is, comes from nyangine/math/math_shapes.h via this umbrella.
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

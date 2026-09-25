@@ -12,8 +12,8 @@
  * cannot be; there is no client in CI.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* THE FAKE */
 

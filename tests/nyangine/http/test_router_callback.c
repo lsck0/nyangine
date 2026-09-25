@@ -8,9 +8,9 @@
  * changes without the route table changing — exactly what a reload does.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define TOKEN 7ULL
 

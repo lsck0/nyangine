@@ -8,8 +8,8 @@
  * A target is one file:
  *
  * ```c
- * #include "nyangine/nyangine.c"
- * #include "nyangine/nyangine.h"
+ * #include "nyangine-core/nyangine.c"
+ * #include "nyangine-core/nyangine.h"
  *
  * #define FUZZ_TARGET "serde_json"
  *

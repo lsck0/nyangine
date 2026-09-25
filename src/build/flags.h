@@ -11,7 +11,7 @@
  * */
 #pragma once
 
-#include "nyangine/base/base_basic.h"
+#include "nyangine-std/base/base_basic.h"
 
 // Which host is doing the building decides the tool names every rule uses. First, because the flags below and the vendor rules both expand them.
 #if OS_WINDOWS

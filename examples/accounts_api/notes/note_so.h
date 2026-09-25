@@ -15,9 +15,9 @@
  * */
 #pragma once
 
-#include "nyangine/base/base_web_profile.h"
+#include "nyangine-std/base/base_web_profile.h"
 
-#include "nyangine/base/base_error.h"
+#include "nyangine-std/base/base_error.h"
 
 #include "note_dto.h"
 #include "note_model.h"

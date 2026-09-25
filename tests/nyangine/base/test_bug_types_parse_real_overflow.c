@@ -1,8 +1,8 @@
 /**
  * Regression test for the unchecked u128 accumulator in the real number parser (base_types.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);

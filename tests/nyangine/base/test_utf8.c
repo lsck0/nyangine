@@ -2,8 +2,8 @@
  * UTF-8 decoding, which is what stands between the text renderer and every language but English.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

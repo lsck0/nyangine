@@ -3,9 +3,9 @@
  * a client puts in a header, which is to say by every stranger on the network.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define FUZZ_TARGET "rfc9110"
 

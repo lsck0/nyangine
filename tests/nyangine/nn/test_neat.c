@@ -2,8 +2,8 @@
  * NEAT: the network primitives, and whether evolution actually works.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Fitness in [0, 4]: four cases, one point each, minus the absolute error on each. */
 static f64 xor_trial(NYA_NeatNetwork* network) {

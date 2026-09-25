@@ -3,7 +3,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "build/flags.h"
 
 /* FUNCTIONS AND MACROS */

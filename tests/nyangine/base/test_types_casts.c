@@ -2,8 +2,8 @@
  * The nya_cast_to_* range checks.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   // TEST: in-range casts, at the boundaries

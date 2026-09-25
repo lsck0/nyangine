@@ -4,8 +4,8 @@
  * colours only, and a panel slides in on the wall clock when it shows again, and not at all with no duration.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

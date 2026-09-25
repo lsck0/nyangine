@@ -6,8 +6,8 @@
  * truncated cases below are here as much to be run under ASan as to have their return value checked.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <string.h>
 

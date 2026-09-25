@@ -12,7 +12,7 @@
  * a crash, and that is where this looks.
  **/
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"

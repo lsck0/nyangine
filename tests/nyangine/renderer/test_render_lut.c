@@ -2,8 +2,8 @@
  * The `.cube` parser: the shipped tables, exactness of the identity, and malformed files refused.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define WHITE ((f32x3){ 1.0F, 1.0F, 1.0F })
 

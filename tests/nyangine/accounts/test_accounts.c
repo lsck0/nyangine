@@ -11,8 +11,8 @@
  * is about.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Long enough to be accepted, and nothing anybody would use. */
 #define PASSWORD     "a correct horse battery staple"

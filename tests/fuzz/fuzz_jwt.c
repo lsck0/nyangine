@@ -17,8 +17,8 @@
 
 // clang-format off
 // the engine defines the feature test macros this build needs, so it comes before any libc header.
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 // clang-format on
 
 #define FUZZ_TARGET "jwt"

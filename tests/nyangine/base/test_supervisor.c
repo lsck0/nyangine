@@ -9,9 +9,9 @@
  * reports. The re-exec itself is the syscall half and is not under test here.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 int main(void) {
     // TEST: a zeroed policy is off, and an off supervisor never restarts.

@@ -6,9 +6,9 @@
  * from the future all have to be refused, and refused without the claims ever being believed.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Long enough to be accepted, and obviously not a real secret. */
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";

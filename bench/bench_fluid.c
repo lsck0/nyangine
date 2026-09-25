@@ -7,8 +7,8 @@
  * use, since the cost is linear in cells and a number taken on a toy grid predicts nothing.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Steps taken before measuring, so the field is full of fluid rather than empty. */
 #define WARMUP_STEPS 30

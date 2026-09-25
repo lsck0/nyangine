@@ -5,8 +5,8 @@
  * builds over them are covered by tests/nyangine/base/test_thread.c.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Threads started at once by the contention test. Past the core count on purpose, so some of them wait. */
 #define THREAD_COUNT 8

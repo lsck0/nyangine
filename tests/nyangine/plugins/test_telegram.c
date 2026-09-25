@@ -5,8 +5,8 @@
  * The clock is a number this file moves, so a cooldown of a second is proved without waiting one.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Replies the fake holds before a test has to drain it. */
 #define SCRIPT_MAX 8

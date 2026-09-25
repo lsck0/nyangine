@@ -5,7 +5,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // Both the HUD and the menus name a font, and the handles come from the generated asset index.
 #include "genyarated/assets.h"

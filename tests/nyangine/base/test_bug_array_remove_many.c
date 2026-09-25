@@ -1,8 +1,8 @@
 /**
  * Regression test for the memmove size in nya_array_remove_many (base_array.h).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_array_remove_many");

@@ -7,8 +7,8 @@
  * machine without gpg skips the round trip and still checks what this answers without one.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** What the server would encrypt: the sentence that says what is being approved, and the code. */
 #define MESSAGE "nyangine wants to let ada@example.test in from 203.0.113.9. The code is 7F3K-92QX."

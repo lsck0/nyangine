@@ -8,8 +8,8 @@
  * tests/nyangine/terminal/; see _test_shares_engine.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define CELL_W ((f32)NYA_TERMINAL_CELL_WIDTH_PX)
 #define CELL_H ((f32)NYA_TERMINAL_CELL_HEIGHT_PX)

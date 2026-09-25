@@ -1,8 +1,8 @@
 /**
  * Regression test for a boolean flag swallowing the positional after it (base_args.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A parser shaped like `./build check [--strict] <sources...>`, which is where this was found. */
 typedef struct {

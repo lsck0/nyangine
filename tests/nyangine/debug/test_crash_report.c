@@ -16,8 +16,8 @@
  * */
 
 // after the engine, which is what decides how SDL is configured; see the fuzz targets for the same rule.
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 // What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotations.
 #include "genyarated/watches/tests_nyangine_debug_test_crash_report_c.h"

@@ -2,8 +2,8 @@
  * Software occlusion culling: what the depth buffer hides, and everything it refuses to.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A camera at the origin looking down -z, which is the frame every coordinate below is written in. */
 static f32_4x4 camera_matrix(void) {

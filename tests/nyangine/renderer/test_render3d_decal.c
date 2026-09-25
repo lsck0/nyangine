@@ -2,8 +2,8 @@
  * Decals on the CPU: draping onto a probe, staging, the remembered grids, the ceiling and the release.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

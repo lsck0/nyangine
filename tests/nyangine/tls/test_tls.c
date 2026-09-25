@@ -17,9 +17,9 @@
 
 #include "SDL3/SDL_init.h"
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Where the generated certificate and key go. Under a directory of this test's own, deleted after. */
 typedef struct {

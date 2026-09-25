@@ -2,8 +2,8 @@
  * Daily log files and the retention sweep: nya_log_directory_open / nya_log_directory_roll.
  * */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define TEST_DIRECTORY "./.test_logs"
 

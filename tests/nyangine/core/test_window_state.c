@@ -15,8 +15,8 @@
  * cases that need a real one say so rather than pretending.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_video.h"

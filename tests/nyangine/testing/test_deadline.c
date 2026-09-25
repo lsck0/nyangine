@@ -7,8 +7,8 @@
  * Linux the report is the stuck thread's own backtrace.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_timer.h"
 

@@ -9,8 +9,8 @@
  * which culls nothing near the middle of a scene and everything at its edges.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A bone at `position` with no rotation and no scale. */
 static f32_4x4 bone_at(f32x3 position) {

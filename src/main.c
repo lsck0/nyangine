@@ -1,4 +1,4 @@
-#include "nyangine/base/base_basic.h"
+#include "nyangine-std/base/base_basic.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -7,10 +7,10 @@
  */
 
 #if !NYA_CODE_HOT_RELOAD
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "gnyame/gnyame.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 s32 main(s32 argc, NYA_CString* argv) {
@@ -48,7 +48,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 #if NYA_CODE_HOT_RELOAD
 #include <string.h>
 
-#include "nyangine/base/base_types.h"
+#include "nyangine-std/base/base_types.h"
 
 /** How often the watch thread looks at the DLL. */
 #define DLL_WATCH_INTERVAL_MS 50
@@ -129,9 +129,9 @@ NYA_INTERNAL void dll_path_from_executable(NYA_CString argv0, NYA_ConstCString s
 #include <pthread.h>
 #include <sys/stat.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 // The app's DLL is the host's own name with `.so` appended, worked out at startup rather than baked in
 // so this one host loads whichever app it was named after. See dll_path_from_executable. The debug and
@@ -331,9 +331,9 @@ void update_callback_pointers(void) {
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 // The app's DLL is the host's own name with `.exe` swapped for `.dll` (see dll_path_from_executable),
 // worked out at startup rather than baked in so this one host loads whichever app it was named after.

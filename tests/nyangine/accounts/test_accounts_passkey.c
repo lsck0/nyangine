@@ -12,8 +12,8 @@
  * Everything runs against an in-memory database of its own.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <string.h>
 

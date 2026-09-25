@@ -2,8 +2,8 @@
  * The Discord presence payload, and the frame it travels in.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Whether `haystack` contains `needle`, on plain C strings. */
 static b8 contains(NYA_ConstCString haystack, NYA_ConstCString needle) {

@@ -147,9 +147,9 @@
  * up below. They are cheap and they warn about audio and fonts on a machine with neither, which is a
  * server and is fine.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* This server opens no window, no renderer and no frame loop, so the only SDL it touches is the one call that brings the library's own state up for the asset system to hang off, and the sleep between ticks — and that second one is the os layer's own primitive, `nya_os_time_sleep_ms`, which is the same in either build and is what is used below in place of SDL_Delay. The include is guarded because a server has no reason to name SDL at all: the day the engine grows a headless build this file compiles straight through under NYA_NO_SDL. That day is not here yet — core (the asset, save, callback and event systems this uses), http and crypto all sit behind the same NYA_NO_SDL wall in nyangine.h today, so the guard buys the seam, not a headless binary. See this example's Dockerfile and deploy/README.md for what that means for shipping one. */
 #ifndef NYA_NO_SDL

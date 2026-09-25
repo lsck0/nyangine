@@ -3,8 +3,8 @@
  * two escapers and the safety they promise, and the caps that refuse a hostile template whole.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Renders and asserts success, returning the result as a NUL terminated C string for easy comparison. */
 static NYA_ConstCString render(NYA_Arena* arena, NYA_ConstCString template_text, const NYA_Object* ctx, NYA_TemplateEscape mode) {

@@ -13,9 +13,9 @@
  * arriving on another worker would find.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define NOW_S 1700000000ULL
 #define TTL_S 10ULL

@@ -16,9 +16,9 @@
  * */
 #pragma once
 
-#include "nyangine/base/base_web_profile.h"
+#include "nyangine-std/base/base_web_profile.h"
 
-#include "nyangine/base/base_memory.h"
+#include "nyangine-std/base/base_memory.h"
 #include "genyarated/reflection_engine.h"
 
 /** Longest stored note, terminator included. The row's own limit; the DTO carries its own beside it. */

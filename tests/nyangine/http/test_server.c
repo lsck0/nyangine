@@ -13,9 +13,9 @@
 
 #include "SDL3/SDL_init.h"
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 #define SECRET_SIZE (sizeof(SECRET) - 1)

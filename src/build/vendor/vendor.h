@@ -10,7 +10,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "build/flags.h"
 #include "build/vendor/vendor_box2d.h"
 #include "build/vendor/vendor_box3d.h"

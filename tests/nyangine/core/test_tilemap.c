@@ -2,8 +2,8 @@
  * Tilemaps: reading Tiled's own JSON, and the two projections it can be in.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "genyarated/assets.h"
 

@@ -177,7 +177,7 @@ void nya_i18n_generate(void) {
     NYA_String* out = nya_string_create(arena);
 
     nya_string_extend(out, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");
-    nya_string_extend(out, "#include \"nyangine/core/core_i18n.h\"\n\n");
+    nya_string_extend(out, "#include \"nyangine-core/core/core_i18n.h\"\n\n");
 
     nya_string_extend_sprintf(
         out,

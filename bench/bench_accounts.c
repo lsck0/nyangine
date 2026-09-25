@@ -8,8 +8,8 @@
  * regression. Both run against an in-memory accounts database.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define USERNAME "bench_user"
 #define PASSWORD "correct horse battery staple"

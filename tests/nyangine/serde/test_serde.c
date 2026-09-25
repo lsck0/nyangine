@@ -2,8 +2,8 @@
  * The serde dispatch layer, the JSON format, and format detection.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Round trips `object` through `format` and hands back what came out. */
 static NYA_Object* roundtrip(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFormat format, NYA_SerdeFlags flags) {

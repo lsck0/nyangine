@@ -7,8 +7,8 @@
  * parsing — which is what gnyame's CLI does, so that `--tickrate` cannot come to mean two things.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   // TEST: the default is single player, and applying nothing leaves it there.

@@ -90,9 +90,9 @@
  * be waiting for an answer it had stopped ticking to produce.
  * */
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* As web_server explains: this server opens no window and runs no frame loop, so the only SDL it touches is the one call that brings the library's base state up for the systems below to hang off. The guard buys the seam for the day the engine grows a headless build; it does not yet buy a headless binary. */
 #ifndef NYA_NO_SDL

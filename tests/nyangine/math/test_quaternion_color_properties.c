@@ -2,8 +2,8 @@
  * Algebraic identities for quaternions, and round trips for the colour spaces.
  */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 static b8 near_enough(f32 a, f32 b, f32 tolerance) {
   return fabsf(a - b) <= tolerance;

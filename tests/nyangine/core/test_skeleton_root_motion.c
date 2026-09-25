@@ -2,8 +2,8 @@
  * Root motion: extracting a clip's travel, pinning the bone that carried it, and surviving the loop.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 enum { BONE_ROOT = 0, BONE_CHILD = 1, BONE_COUNT = 2 };
 

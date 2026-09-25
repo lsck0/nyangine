@@ -2,8 +2,8 @@
  * Rectangles and circles, and the two rules the whole module hangs on.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Rectangles compare exactly here on purpose: every value below is representable and every
  * operation is one add or one compare, so a tolerance would only hide a real mistake. */

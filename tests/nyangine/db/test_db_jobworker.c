@@ -9,8 +9,8 @@
  * fails the build.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Removes a database file and the WAL/SHM sidecars a connection may leave beside it. */
 static void remove_database(NYA_ConstCString path) {

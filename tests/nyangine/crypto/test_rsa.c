@@ -9,8 +9,8 @@
  * itself would be invisible to a round trip.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* THE FIXTURE */
 

@@ -3,8 +3,8 @@
  * produced without a network.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /**
  * A port on loopback that nothing is listening on.

@@ -14,7 +14,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 /* CONSTANTS */
 
@@ -41,9 +41,11 @@
 #define NYA_REFLECT_OUTPUT_HEADER        "./src/genyarated/reflection.h"
 #define NYA_REFLECT_OUTPUT_SOURCE        "./src/genyarated/reflection.c"
 
-/** Trees walked for annotations, in this order. The game's own types matter as much as the engine's. */
-#define NYA_REFLECT_ENGINE_DIRECTORY "./src/nyangine"
-#define NYA_REFLECT_GAME_DIRECTORY   "./src/gnyame"
+/** Trees walked for annotations, in this order. The game's own types matter as much as the engine's. The engine is three subprojects now: the stdlib, the core and the ui toolkit. */
+#define NYA_REFLECT_ENGINE_STD  "./src/nyangine-std"
+#define NYA_REFLECT_ENGINE_CORE "./src/nyangine-core"
+#define NYA_REFLECT_ENGINE_UI   "./src/nyangine-ui"
+#define NYA_REFLECT_GAME_DIRECTORY "./src/gnyame"
 
 /** Generous bounds. A tree that exceeds one of these fails the build rather than truncating quietly. */
 #define NYA_REFLECT_MAX_TYPES    512

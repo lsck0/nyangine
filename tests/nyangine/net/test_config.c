@@ -2,8 +2,8 @@
  * The launch configuration parser: one executable, four modes, decided from argv.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Parses a literal argv, so each case reads as the command line it represents. */
 #define PARSE(...)                                                                                                                                   \

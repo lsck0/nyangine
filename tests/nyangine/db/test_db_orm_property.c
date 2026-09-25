@@ -16,8 +16,8 @@
 // the engine is included, which is also what makes this file its own unity build.
 #define NYA_PROPERTY_ENTROPY_MAX 4096
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Cases per law. Each case is a whole op sequence, so this is thousands of sequences of tens of ops. */
 #define CASES 1500

@@ -37,9 +37,9 @@
  * the engine this whole block would be one `// @reflect` struct; here it is a table, and core_undo
  * neither knows nor cares which produced it.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* A NEWTYPE OF OUR OWN base_newtype.h ships NYA_Email, NYA_Username and NYA_UserId; this shows the other half of the file — defining one. A Slug is the URL-safe stub of a title: lowercase letters, digits and interior hyphens. The predicate is an ordinary function, so it reads, tests and documents the rule on its own; the macro turns it into a distinct type with a parse, a reader and an equality that the compiler keeps from ever being confused with a bare string or a sibling newtype. */
 

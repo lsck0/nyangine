@@ -3,8 +3,8 @@
  * gnyame's 2D demo (crates dropped onto a floor until they settle, drones flying, a player walking).
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

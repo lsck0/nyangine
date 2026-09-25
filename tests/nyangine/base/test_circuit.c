@@ -7,8 +7,8 @@
  * across, and every transition is asserted at a known instant.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define MS 1000000ULL
 

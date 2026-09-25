@@ -7,9 +7,9 @@
  * `./build run example tui_dashboard`.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Decodes one buffer to completion, as a poll with nothing more coming would. */
 static u32 decode(NYA_ConstCString bytes, u64 size, NYA_TerminalInput* out, u32 capacity) {

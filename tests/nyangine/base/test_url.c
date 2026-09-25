@@ -4,8 +4,8 @@
  * and arbitrary bytes are tests/fuzz/fuzz_url.c's job.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Which of the two parse calls a case goes through. PARSE_ prefixed, since wingdi.h defines ABSOLUTE. */
 typedef enum {

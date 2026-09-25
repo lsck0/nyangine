@@ -2,8 +2,8 @@
  * THIS FILE WAS CLANKER WANKED !!!
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 // Compare functions for different types
 s32 compare_s32_asc(const s32* a, const s32* b) {

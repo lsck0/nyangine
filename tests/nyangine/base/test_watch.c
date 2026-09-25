@@ -8,8 +8,8 @@
  * slot that now belongs to somebody else.
  * */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** What a watched frame writes down, as the generated code writes it. See build/pp/watch.h. */
 #define watch_local(frame, function, variable)                                                                                                       \

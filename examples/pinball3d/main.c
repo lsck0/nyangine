@@ -22,9 +22,9 @@
  * the flippers and the slope agree with each other by construction. Gravity stays pointing down.
  * */
 #include "genyarated/assets.h"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

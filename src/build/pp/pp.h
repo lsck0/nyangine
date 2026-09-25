@@ -14,7 +14,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // For the hooks the rules below hang the pipeline off.
 #include "build/hooks.h"

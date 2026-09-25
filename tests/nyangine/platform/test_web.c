@@ -4,8 +4,8 @@
  * way the header says they do. The browser backends run under node from src/web/wasm_demo.c's
  * nyangine_web_probe; this is what the native tree can prove.
  */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_web");

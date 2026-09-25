@@ -2,8 +2,8 @@
  * Quaternions.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define EPS 1.0e-4F
 

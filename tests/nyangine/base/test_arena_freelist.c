@@ -2,8 +2,8 @@
  * Arena free list behaviour.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Free nodes across every region, which is the fragmentation the defragmenter exists to undo. */
 static u64 free_node_count(NYA_Arena* arena) {

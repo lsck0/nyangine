@@ -6,8 +6,8 @@
  * checked is that a token in the future opens and a token already past does not, not the exact second.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A secret long enough to be accepted, and nothing anybody would ship. */
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";

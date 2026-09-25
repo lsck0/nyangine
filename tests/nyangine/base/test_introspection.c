@@ -8,8 +8,8 @@
 #define NYA_ARENA_FORCE_DEBUG
 #define NYA_PERF_FORCE_DEBUG
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Distinct helpers so each gets its own row in the callsite table. */
 static void* allocate_from(NYA_Arena* arena, u64 size) {

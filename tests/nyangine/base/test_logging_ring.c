@@ -2,8 +2,8 @@
  * The log ring a crash report reads back: nya_log_ring_count / _at / _level_at / _clear.
  * */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Whether `text` appears anywhere in `line`. */
 static b8 line_contains(NYA_ConstCString line, NYA_ConstCString text) {

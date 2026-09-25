@@ -8,9 +8,9 @@
 
 #include <string.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Builds a request carrying one `Cookie` header, which is what the reader is written over. */
 static void with_cookie_header(NYA_HttpRequest* request, NYA_ConstCString value) {

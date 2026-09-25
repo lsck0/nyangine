@@ -5,9 +5,9 @@
  * and a fluid volume wound up by a vortex. All arithmetic and deterministic, so a failure reproduces exactly.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** A pure function must give bit-identical results; the field carries no hidden state to drift. */
 static b8 same_vector(f32x3 a, f32x3 b) {

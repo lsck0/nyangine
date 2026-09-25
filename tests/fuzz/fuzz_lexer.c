@@ -3,8 +3,8 @@
  * its bounds are a boundary even though nothing hostile reaches it over a socket.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define FUZZ_TARGET "lexer"
 

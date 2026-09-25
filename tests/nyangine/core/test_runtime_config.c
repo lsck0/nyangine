@@ -7,10 +7,10 @@
 #define NYA_ASSET_HOT_RELOAD
 #endif
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "gnyame/gnyame.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"

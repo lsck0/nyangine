@@ -2,8 +2,8 @@
  * Tensors, autograd, layers and optimizers.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Relative tolerance for the gradient check. Generous, because f32 finite differences are noisy. */
 #define TEST_NN_GRADIENT_TOLERANCE 2e-2F

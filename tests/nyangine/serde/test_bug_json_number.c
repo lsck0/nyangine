@@ -1,8 +1,8 @@
 /**
  * Regression test for silent number truncation in _nya_serde_json_parse_number (serde_json.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Well past the 192 byte buffer, and past what an s64 can hold, so it parses as f64. */
 #define DIGIT_COUNT 240

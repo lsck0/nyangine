@@ -42,12 +42,12 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 /* CONSTANTS */
 
 /** The tree scanned for annotations. Headers for `@lua`, sources for `@lua_manual`. */
-#define NYA_LUABIND_DIRECTORY "./src/nyangine"
+#define NYA_LUABIND_DIRECTORY "./src/nyangine-core"
 
 /** The generated C: one marshalling function per binding, and the table they are registered from. */
 #define NYA_LUABIND_OUTPUT_SOURCE "./src/genyarated/lua_bindings.c"

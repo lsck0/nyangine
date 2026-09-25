@@ -1,8 +1,8 @@
 /**
  * Regression test for unchecked accumulation in _nya_type_try_parse_u128 (base_types.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** 40 digits. u128 tops out at 39, so this is the smallest comfortable overflow. */
 #define TOO_BIG_U128 "9999999999999999999999999999999999999999"

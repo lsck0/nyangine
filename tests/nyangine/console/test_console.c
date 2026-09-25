@@ -7,9 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 static char CAPTURE[4096] = { 0 };
 static u32  CAPTURE_LEN   = 0;

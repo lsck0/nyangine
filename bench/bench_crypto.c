@@ -8,8 +8,8 @@
  * packet, so it is reported per byte, and dividing 1000 by the ns/item gives its MB/s.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* A megabyte to hash: big enough that the per-call overhead vanishes and the number is the compression function's. */
 #define HASH_BYTES (1024 * 1024)

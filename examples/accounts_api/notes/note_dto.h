@@ -18,7 +18,7 @@
  * */
 #pragma once
 
-#include "nyangine/base/base_memory.h"
+#include "nyangine-std/base/base_memory.h"
 #include "genyarated/reflection_engine.h"
 
 /** Longest note text, terminator included. Kept beside the type so the DTO owns its own wire limit. */

@@ -3,8 +3,8 @@
  * including releases that shift colliding entries back.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Fake handles, never dereferenced. Aligned like real allocations so they spread over the table. */
 static const void* fake_handle(u64 index) {

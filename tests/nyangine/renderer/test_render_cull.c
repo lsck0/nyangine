@@ -3,8 +3,8 @@
  * reject, the pass mask a draw keeps, and the per-pass lists and runs the playback builds from those masks.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Frustum plane order, as _nya_render3d_frustum_build writes them. */
 enum { PLANE_LEFT, PLANE_RIGHT, PLANE_BOTTOM, PLANE_TOP, PLANE_NEAR, PLANE_FAR };

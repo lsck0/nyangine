@@ -2,8 +2,8 @@
  * The orthographic projection the 2D renderer draws through.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Projects a point and hands back clip space xy. w is always 1 here; there is no perspective. */
 static f32x2 project(f32_4x4 projection, f32 x, f32 y) {

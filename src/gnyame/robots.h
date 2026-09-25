@@ -25,7 +25,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 typedef struct GNY_RobotBody GNY_RobotBody;
 typedef struct GNY_RobotRun  GNY_RobotRun;

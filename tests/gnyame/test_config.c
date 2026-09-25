@@ -2,7 +2,7 @@
  * The game's config fallbacks: a field the file leaves out loads as zero, and zero means the constants.h default.
  **/
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"

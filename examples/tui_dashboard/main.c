@@ -52,11 +52,11 @@
 #define NYA_TERMINAL 1
 
 // nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls in libc, and a system header included ahead of it has already fixed them at another value.
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_timer.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

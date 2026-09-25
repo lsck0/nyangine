@@ -2,9 +2,9 @@
  * THIS FILE WAS CLANKER WANKED !!!
  **/
 
-#include "nyangine/base/base_arena.h"
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-std/base/base_arena.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_arena");

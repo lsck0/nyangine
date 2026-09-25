@@ -9,9 +9,9 @@
  * guarantee itself lives in the fact that each is its own struct.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Fills `buffer` with `count` copies of `fill` and a NUL, for the over-length cases. */
 static void fill_string(char* buffer, char fill, u32 count) {

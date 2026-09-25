@@ -8,9 +8,9 @@
  * through nya_http_doc_router, as test_router.c and test_health.c drive their routes.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define NOW_S 1700000000ULL
 

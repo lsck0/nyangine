@@ -3,9 +3,9 @@
  * tests, and the seam the simulation installs its clock through.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Cases per law. The calendar repeats every 400 years, so this reaches every shape of year several times. */
 #define CASES 4000

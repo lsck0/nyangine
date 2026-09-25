@@ -7,8 +7,8 @@
  * `@key` is tested in tests/nyangine/base/test_reflection_generated.c against a real annotated type.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* THE DESCRIBED TYPES */
 

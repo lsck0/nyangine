@@ -2,8 +2,8 @@
  * THIS FILE WAS CLANKER WANKED !!!
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Whether token `index` covers exactly `expected`. The token's text is a slice of the source, not a copy. */
 static b8 token_text_is(const NYA_Lexer* lexer, u32 index, NYA_ConstCString expected) {

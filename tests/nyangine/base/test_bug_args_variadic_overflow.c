@@ -1,8 +1,8 @@
 /**
  * Regression test for the unbounded variadic parameter in nya_args_parse (base_args.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Comfortably past the 256 the array holds, so the overflow is unambiguous rather than marginal. */
 #define ARGUMENT_COUNT 400

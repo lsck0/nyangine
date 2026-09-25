@@ -2,8 +2,8 @@
  * A bounded undo/redo history over a reflected value: the ring semantics and round-trip fidelity.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /*
  * ─────────────────────────────────────────────────────────

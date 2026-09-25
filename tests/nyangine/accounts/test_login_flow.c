@@ -15,8 +15,8 @@
  * test touches no file and races nothing.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <string.h>
 #include <time.h>

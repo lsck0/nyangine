@@ -33,9 +33,9 @@
  * wants to do about it, and it is the one that knows about rate limits. Neither blocks the loop below
  * for longer than one HTTP transfer, which is why this shape drops straight into a game's frame.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

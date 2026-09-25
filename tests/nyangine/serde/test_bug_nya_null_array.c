@@ -4,9 +4,9 @@
  * document holding one could be written and never read back.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

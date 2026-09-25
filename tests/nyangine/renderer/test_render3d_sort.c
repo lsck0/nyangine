@@ -2,8 +2,8 @@
  * The transparent depth sort, which stopped being a qsort and became a radix pass.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** The comparator that used to drive this, kept here as the reference to check against. */
 static int reference_compare(const void* left, const void* right) {

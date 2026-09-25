@@ -2,8 +2,8 @@
  * Navigation: A* against the flow field, which is the design claim in 3.3 stated as a measurement.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A grid with a few staggered walls, so a path has to route rather than run straight. */
 static NYA_NavGrid* make_grid(NYA_Arena* arena, u32 size) {

@@ -6,8 +6,8 @@
  * a bucket that refills in five seconds is proved without waiting five seconds for it.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Replies the fake holds before a test has to drain it. */
 #define SCRIPT_MAX 8

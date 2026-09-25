@@ -6,8 +6,8 @@
  * test_db_orm.c gives: the generator scans the engine and the game, not the tests.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* FOUR VERSIONS OF ONE TYPE */
 

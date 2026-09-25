@@ -11,7 +11,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 // For the per host toolchain names the vendor rules expand, e.g. NYA_WINDOWS_CC and NYA_CMAKE_WINDOWS_TOOLCHAIN.
 #include "build/flags.h"
 

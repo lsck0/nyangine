@@ -2,8 +2,8 @@
  * Input commands: what a client tells the server it is trying to do.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);

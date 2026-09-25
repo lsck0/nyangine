@@ -12,9 +12,9 @@
  * prints them and cut at the end, so a reader can check them against the table without arithmetic.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Cases per law. Each is one HMAC over eight bytes, so this costs nothing even sanitized. */
 #define CASES 2000

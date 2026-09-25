@@ -14,9 +14,9 @@
  * needs a reachable CA and a resolvable domain, neither of which a unit test has.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>

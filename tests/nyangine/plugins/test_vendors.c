@@ -2,8 +2,8 @@
  * Every vendored dependency the project links, exercised rather than merely linked.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <box2d/box2d.h>
 #include <box3d/box3d.h>

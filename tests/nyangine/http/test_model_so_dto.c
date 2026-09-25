@@ -16,9 +16,9 @@
  * web-profile rule also enforces statically over the whole tree.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #include "examples/accounts_api/notes/note_so.h"
 

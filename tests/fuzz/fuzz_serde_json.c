@@ -2,8 +2,8 @@
  * The strict JSON reader, fed whatever. Every asset manifest, tilemap and HTTP body arrives here.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define FUZZ_TARGET "serde_json"
 

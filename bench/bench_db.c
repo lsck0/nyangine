@@ -7,8 +7,8 @@
  * the number is steady-state cost rather than a table that grows without end under the batch.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define ROWS 1000U
 

@@ -40,9 +40,9 @@
  * Neither poll blocks this loop for longer than one HTTP transfer, which is why this shape drops
  * straight into a game's frame: a game that wants a chat bot is this file's loop body, once a frame.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #include <signal.h>
 

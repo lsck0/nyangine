@@ -2,8 +2,8 @@
  * @file test_bug_event_name_map.c
  * */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
     printf("TEST: every event type has a name\n");

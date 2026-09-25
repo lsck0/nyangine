@@ -2,8 +2,8 @@
  * Finite-difference gradient check over every op in the autograd graph.
  */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 
 /* Each case builds a scalar loss out of the two parameters it is handed. */

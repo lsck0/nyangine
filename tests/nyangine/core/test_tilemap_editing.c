@@ -2,8 +2,8 @@
  * The tilemap's editing and writing half: tile_set, layer_resize, to_object and save.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "genyarated/assets.h"
 

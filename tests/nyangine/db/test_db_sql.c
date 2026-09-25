@@ -2,8 +2,8 @@
  * The db module's connection: rows as NYA_Object, bound parameters, transactions.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Opens a fresh in memory database. Each test gets its own, so none can pollute another. */
 static NYA_Database* open_memory(NYA_Arena* arena) {

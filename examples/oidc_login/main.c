@@ -31,9 +31,9 @@
  * `code` to nya_oidc_exchange straight from the callback's query string instead; see http_server.h's
  * `nya_http_request_query_param` and `web_server`'s example for that shape.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define ISSUER_VARIABLE        "OIDC_ISSUER"
 #define CLIENT_ID_VARIABLE     "OIDC_CLIENT_ID"

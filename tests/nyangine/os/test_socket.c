@@ -6,8 +6,8 @@
  * to be free, or a name server to answer.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Long enough that a lost loopback packet would be a bug rather than bad luck. */
 #define WAIT_MS 500

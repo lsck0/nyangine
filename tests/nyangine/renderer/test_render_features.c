@@ -3,8 +3,8 @@
  * and the enum are still in step.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Far larger than the stack wants, and the switches live on it. */
 static NYA_Window window;

@@ -10,9 +10,9 @@
  * system headers the engine pulls in see it. Naming _nya_http_bind_address compiles this against the
  * engine's own translation unit, which is where that internal lives.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 s32 main(void) {
     // TEST: an unset address defaults to loopback, never to every interface

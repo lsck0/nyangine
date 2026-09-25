@@ -6,9 +6,9 @@
  * public: a route table and an exchange are data, and testing them needs no port.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 #define SECRET_SIZE (sizeof(SECRET) - 1)

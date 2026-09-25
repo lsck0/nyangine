@@ -4,8 +4,8 @@
  * the compile time check C does not have.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define LOG_MAX 32
 

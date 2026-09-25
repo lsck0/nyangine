@@ -2,8 +2,8 @@
  * THIS FILE WAS CLANKER WANKED !!!
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define assert_contains(haystack, needle)                                                                                                            \
   nya_assert(strstr((haystack), (needle)) != nullptr, "expected to find '%s' in:\n%s", (needle), (haystack))

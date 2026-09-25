@@ -2,8 +2,8 @@
  * The anti-tamper checks: what the startup thread, a sweep step, the watchdog and an asset check cost.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* About the release executable: 6.8 MB of code in a 12 MB file. */
 #define CODE_BYTES (7ULL * 1024ULL * 1024ULL)

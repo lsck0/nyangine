@@ -11,8 +11,8 @@
  * random, so two saves differ on the wire while both open.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <stdlib.h>
 #include <string.h>

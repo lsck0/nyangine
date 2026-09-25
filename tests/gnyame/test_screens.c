@@ -3,7 +3,7 @@
  * and a request rearranges the layer stack only at the barrier.
  **/
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"

@@ -5,8 +5,8 @@
  * The host's primitives underneath are tests/nyangine/os/test_thread.c's.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Threads the handover test starts. One more than the tokens posted, so one of them waits in vain. */
 #define WORKER_COUNT 4

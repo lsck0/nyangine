@@ -7,7 +7,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "build/hooks.h"
 #include "build/flags.h"
 #include "build/vendor/vendor_common.h"

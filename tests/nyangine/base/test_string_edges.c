@@ -2,8 +2,8 @@
  * base_string edge cases.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define ASSERT_STR(str, expected)                                                                                                                    \
   nya_assert(nya_string_equals((str), (expected)), "got \"" NYA_FMT_STRING "\", expected \"%s\"", NYA_FMT_STRING_ARG(str), (expected))

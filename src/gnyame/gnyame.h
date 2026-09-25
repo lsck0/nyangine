@@ -80,7 +80,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "genyarated/strings.h"
 // Before the layers, which size the terrain array from GNY_TERRAIN_POINT_COUNT.
 #include "gnyame/constants.h"

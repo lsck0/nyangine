@@ -11,9 +11,9 @@
  * list, so a DTO added tomorrow is covered by this tomorrow.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define NOW_S 1700000000ULL
 

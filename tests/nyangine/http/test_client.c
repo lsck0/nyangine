@@ -9,9 +9,9 @@
  * error carrying the server's problem, and a body that does not parse is a clean parse error.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* the DTOs, reflected by hand: a test's types are not scanned by the reflection pass */
 

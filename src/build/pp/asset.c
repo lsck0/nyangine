@@ -262,7 +262,7 @@ void nya_asset_bundle(void) {
     // the same list nya_asset_index built its handles from. A second walk could see a file appear or vanish and emit a handle with no blob entry.
     NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
-    nya_string_extend(result, "#include \"nyangine/nyangine.h\"\n\n");
+    nya_string_extend(result, "#include \"nyangine-core/nyangine.h\"\n\n");
     nya_string_extend(header_string, "static const NYA_AssetBlobHeader NYA_ASSET_BLOB_HEADER[] = {\n");
 
     NYA_ConstCString HEX = "0123456789ABCDEF";

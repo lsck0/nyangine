@@ -4,9 +4,9 @@
  * .nya fuzzer found it with a NaN, and `{"enabled": 1e300}` reached it over HTTP the same way.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 s32 main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

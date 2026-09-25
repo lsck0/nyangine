@@ -2,8 +2,8 @@
  * The per window render state renderer.c owns: what a window clears to, from creation onwards.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Far larger than the stack wants, and the render state lives on it. */
 static NYA_Window window;

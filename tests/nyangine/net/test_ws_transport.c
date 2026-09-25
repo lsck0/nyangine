@@ -14,9 +14,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define FIRST_PORT 47960
 #define LAST_PORT  47979

@@ -10,9 +10,9 @@
  * round-trips back through from_json into a manifest that still verifies.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** A fixed seed, so the origin key is the same every run. A throwaway pair for the test, not a secret to keep. */
 static const NYA_CryptoKey32 SEED = { .bytes = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,

@@ -3,9 +3,9 @@
  * use up front, and the escaping and URL rules that keep a link from breaking its own syntax.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_llms");

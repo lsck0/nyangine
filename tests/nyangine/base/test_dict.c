@@ -2,8 +2,8 @@
  * THIS FILE WAS CLANKER WANKED !!!
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 nya_derive_dict(u64);
 nya_derive_dict(s32);

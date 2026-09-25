@@ -9,9 +9,9 @@
  * window nya_reconnect_window_ms reports.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 int main(void) {
     // TEST: a zeroed policy is off, and an off reconnect never schedules anything.

@@ -9,8 +9,8 @@
  * than the GPU one because it lives under tests/nyangine/terminal/; see _test_shares_engine.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A colour that is unmistakably itself, so a cell says which draw won. */
 #define RED   ((NYA_Color){ 1.0F, 0.0F, 0.0F, 1.0F })

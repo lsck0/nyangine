@@ -3,8 +3,8 @@
  * what a document got wrong before any of it is applied.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <stdlib.h>
 

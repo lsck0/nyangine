@@ -12,8 +12,8 @@
  * binary format stamps into a header, measured so its cost against the conversions is on record.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* How many of the fixed rows carry meaning, so the walk has a real fan-out to cross. */
 #define LIVE_ROWS 48

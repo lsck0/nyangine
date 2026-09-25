@@ -6,7 +6,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "gnyame/constants.h"
 
 /** One cube in the pile. The pool is fixed; see GNY_TERRAIN3D_CUBE_COUNT. */

@@ -10,7 +10,7 @@
  * `gnyame-cli.debug.so` beside it and reloads it on change, with the reload machinery unchanged from
  * gnyame's. Build and run it with `./build run gnyame-cli`; the default `./build run` is still gnyame.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // Bump this, rebuild the DLL while the app is running, and the reloaded image logs the new text: the
 // visible proof that a non-gnyame app hot-reloads through the same host. See nya_app_entry_run.

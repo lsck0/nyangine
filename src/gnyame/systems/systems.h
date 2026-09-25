@@ -6,7 +6,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 /** What every system this game registers is tagged with, so the overlay separates its cost from the engine's. */
 #define GNY_SYSTEM_OWNER ((NYA_SystemOwner){ .kind = NYA_SYSTEM_OWNER_GAME })

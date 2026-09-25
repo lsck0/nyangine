@@ -18,7 +18,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "build/hooks.h"
 #include "build/flags.h"
 #include "build/vendor/vendor_common.h"
@@ -28,7 +28,7 @@
 #define SQLEAN_SOURCE "./vendor/sqlean/src"
 
 /** The one file compiled here. In this repository, not in the submodule; see the note above. */
-#define SQLEAN_GLUE_SOURCE "./src/nyangine/db/db_extensions.c"
+#define SQLEAN_GLUE_SOURCE "./src/nyangine-core/db/db_extensions.c"
 
 #define SQLEAN_BUILD_LINUX_X86_64   "./vendor/sqlean/build-linux-x86_64/"
 #define SQLEAN_BUILD_WINDOWS_X86_64 "./vendor/sqlean/build-windows-x86_64/"

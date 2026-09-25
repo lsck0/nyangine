@@ -29,9 +29,9 @@
  * That is what makes a field dense — the cost is one draw, not one draw per blade.
  * */
 #include "genyarated/assets.h"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

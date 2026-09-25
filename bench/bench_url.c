@@ -8,8 +8,8 @@
  * so the number bounds how fast bytes off a socket become something routable.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 static const char ABSOLUTE_URL[]  = "https://example.test:8443/api/notes/2024?limit=20&order=desc#top";
 static const char REQUEST_TARGET[] = "/api/notes/2024?limit=20&order=desc";

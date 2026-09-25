@@ -1,8 +1,8 @@
 /**
  * Regression test for nya_command_wait deadlocking on a child that fills the stderr pipe.
  **/
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

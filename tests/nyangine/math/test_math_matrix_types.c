@@ -2,8 +2,8 @@
  * The matrix overloads the existing tests never reach, and nya_matrix_transform, which nothing did.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 // f128 vectors are passed by value below on purpose, and clang notes that the ABI for that differs without avx512f. Nothing here crosses an ABI boundary.
 #pragma clang diagnostic ignored "-Wpsabi"

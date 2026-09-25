@@ -7,8 +7,8 @@
  * the engine is an instance of, and a probe or a rehash regression would show here first.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 nya_derive_hmap(u64, u64);
 nya_derive_dict(u64);

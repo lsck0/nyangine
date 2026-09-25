@@ -8,9 +8,9 @@
  * The laws are about the streaming form, which no vector reaches directly.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Cases per law. Each hashes under a kilobyte, so this is quick even sanitized. */
 #define CASES 2000

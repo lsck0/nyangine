@@ -3,8 +3,8 @@
  * and the Chrome trace format.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Burns roughly `ns` of CPU, so a scope has something to measure without sleeping off the thread. */
 static void spin_ns(u64 ns) {

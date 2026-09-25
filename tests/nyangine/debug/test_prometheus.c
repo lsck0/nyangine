@@ -16,9 +16,9 @@
  * is driven once through nya_http_router_dispatch to prove the Content-Type and the body it hands back.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define NOW_S 1700000000ULL
 

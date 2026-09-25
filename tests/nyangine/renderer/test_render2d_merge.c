@@ -3,8 +3,8 @@
  * different space or the lookback keeps them apart, and the index stream comes out in draw then paint order.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 // PIPELINE_ rather than bare, since windows.h already defines TEXT.
 #define PIPELINE_SHAPES "shapes"

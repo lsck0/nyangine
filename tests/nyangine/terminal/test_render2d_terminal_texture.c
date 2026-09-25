@@ -7,8 +7,8 @@
  * backend samples one texel per cell.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A cell well inside any grid, and the pixel it starts at. */
 #define AT_COLUMN 2

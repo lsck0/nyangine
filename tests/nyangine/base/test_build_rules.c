@@ -2,8 +2,8 @@
  * The build rule engine: policies, metarules, hooks, dependencies and failure.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include <utime.h>
 

@@ -7,8 +7,8 @@
  * loses nothing, and that a message delivered twice is handed over once.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Frames a socket slot holds before a poll has to drain it. */
 #define FRAMES_MAX 8

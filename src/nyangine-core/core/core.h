@@ -1,0 +1,51 @@
+#pragma once
+
+// First, and on its own: the SDL-free floor of core — the system registry, callbacks, jobs, save, the
+// skeleton and audio math, the plugin registry. Everything below this line names a window, a renderer, an
+// asset or an entity and needs SDL on the include line; core_runtime.h names none of it, so http, net and
+// a headless server can grow to depend on it without the renderer. It removes nothing: the individual
+// includes below still stand, and #pragma once makes the overlap a no-op. See core_runtime.h.
+#include "nyangine-core/core/core_runtime.h"
+
+#include "nyangine-core/core/core_app.h"
+// after core_app.h: the trio here is one layer out from nya_app_init/run/deinit, and its comment refers to them.
+#include "nyangine-core/core/core_app_entry.h"
+#include "nyangine-core/core/core_skeleton.h"
+#include "nyangine-core/core/core_skeleton_inertial.h"
+#include "nyangine-core/core/core_asset.h"
+#include "nyangine-core/core/core_audio.h"
+#include "nyangine-core/core/core_audio_effects.h"
+#include "nyangine-core/core/core_audio_panner.h"
+#include "nyangine-core/core/core_audio_propagation.h"
+#include "nyangine-core/core/core_callback.h"
+#include "nyangine-core/core/core_config.h"
+#include "nyangine-core/core/core_control.h"
+#include "nyangine-core/core/core_http_reload.h"
+#include "nyangine-core/core/core_entity.h"
+#include "nyangine-core/core/core_event.h"
+#include "nyangine-core/core/core_i18n.h"
+#include "nyangine-core/core/core_gamepad.h"
+#include "nyangine-core/core/core_input.h"
+#include "nyangine-core/core/core_job.h"
+#include "nyangine-core/core/core_keys.h"
+#include "nyangine-core/core/core_mouse.h"
+#include "nyangine-core/core/core_save.h"
+#include "nyangine-core/core/core_scene.h"
+#include "nyangine-core/core/core_settings.h"
+#include "nyangine-core/core/core_sim.h"
+#include "nyangine-core/core/core_social.h"
+#include "nyangine-core/core/core_terrain2d.h"
+#include "nyangine-core/core/core_terrain3d.h"
+#include "nyangine-core/core/core_skeleton_layer.h"
+#include "nyangine-core/core/core_skeleton_blend.h"
+#include "nyangine-core/core/core_system.h"
+#include "nyangine-core/core/core_taskgroup.h"
+#include "nyangine-core/core/core_tilemap.h"
+#include "nyangine-core/core/core_nav.h"
+#include "nyangine-core/core/core_plugin.h"
+#include "nyangine-core/core/core_plugin_signature.h"
+#include "nyangine-core/core/core_tween.h"
+#include "nyangine-core/core/core_undo.h"
+#include "nyangine-core/core/core_types.h"
+#include "nyangine-core/core/core_window.h"
+#include "nyangine-core/core/core_world.h"

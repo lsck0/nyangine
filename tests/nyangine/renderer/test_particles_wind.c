@@ -4,9 +4,9 @@
  * the target it converges on is a known constant and the check is arithmetic, not eyeballing.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Sets one particle to a clean, still initial state so the only thing that can move it is the wind. */
 static void seed_one(NYA_ParticleSystem* system) {

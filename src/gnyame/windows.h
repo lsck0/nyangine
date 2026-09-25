@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 NYA_CString     GNY_WINDOW_MAIN_TITLE = "gnyame";
 NYA_WindowFlags GNY_WINDOW_MAIN_FLAGS = NYA_WINDOW_RESIZABLE;

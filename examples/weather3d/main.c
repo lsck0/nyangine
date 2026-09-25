@@ -15,9 +15,9 @@
  * `r` rains, `s` snows, `c` clears, up/down change the intensity, left/right turn the wind, `escape` quits.
  * */
 #include "genyarated/assets.h"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

@@ -1,8 +1,8 @@
 /**
  * Regression test for the lock order inversion between the job and event systems (core_job.c).
  **/
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

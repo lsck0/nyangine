@@ -2,8 +2,8 @@
  * Grid navigation: A*, the flow field, and the corner rule that keeps a path off the walls.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Blocks a vertical wall at `x` from y0 to y1 inclusive. */
 static void wall(NYA_NavGrid* grid, s32 x, s32 y0, s32 y1) {

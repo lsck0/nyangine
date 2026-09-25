@@ -6,8 +6,8 @@
  * five seconds, and the jitter is a constant so that a scheduled time is a number a test can state.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Frames the script holds before a test has to drain it. Every scenario here uses a handful. */
 #define SCRIPT_MAX 16

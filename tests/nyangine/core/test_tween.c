@@ -2,8 +2,8 @@
  * The tween system: interpolation, delay, repeat, yoyo, sequences, cancellation and handle staleness.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

@@ -12,8 +12,8 @@
  * prefix mistaken for the whole path shows up as a table the law disagrees with.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Cases per law. Thousands of random little route tables, each matched against paths in and out of it. */
 #define CASES 4000

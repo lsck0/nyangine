@@ -3,9 +3,9 @@
  * log a user hands back, which is to say by anyone who can send the program a string.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define FUZZ_TARGET "rfc3339"
 

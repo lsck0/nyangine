@@ -10,9 +10,9 @@
 
 #include "SDL3/SDL_init.h"
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** How many ticks a request is given to be answered before the test calls it lost. */
 #define ANSWER_TICKS 64

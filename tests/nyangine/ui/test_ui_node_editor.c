@@ -6,8 +6,8 @@
  * zoomed by the wheel, and every one of those is read back as geometry or as an event the editor reported.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

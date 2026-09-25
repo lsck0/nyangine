@@ -2,8 +2,8 @@
  * The heightmap terrain: defaults, sampling, and the guarantees nya_terrain3d_height_at makes.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

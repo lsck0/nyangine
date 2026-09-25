@@ -3,8 +3,8 @@
  * onto a buffer. All pure, so none of it needs an audio device.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define PAN_RATE 48000.0F
 

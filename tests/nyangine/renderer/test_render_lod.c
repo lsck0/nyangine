@@ -3,8 +3,8 @@
  * draw through.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 // arrays rather than literals: the tests compare handles by address, and two equal literals need not share one.
 static const char TREE[]     = "mesh_tree";

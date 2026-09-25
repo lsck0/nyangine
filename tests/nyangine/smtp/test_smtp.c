@@ -9,9 +9,9 @@
  * credentials are checked against exactly the bytes that would go on the wire, with no socket involved.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* A SCRIPTED FAKE SERVER OVER AN IN-MEMORY CHANNEL */
 

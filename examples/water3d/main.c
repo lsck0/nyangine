@@ -26,9 +26,9 @@
  * into a render texture (through the post chain) so the refraction has a resolved image to sample.
  * */
 #include "genyarated/assets.h"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

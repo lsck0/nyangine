@@ -3,8 +3,8 @@
  * fullness, and the registry's own overflow.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* Counts warnings the overflow test expects, without caring what any other sink does with them. */
 static u32 warning_count = 0;

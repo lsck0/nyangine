@@ -33,9 +33,9 @@
  * image to refract, and the light shafts and bloom are scene features nya_post_end runs over that same target.
  * */
 #include "genyarated/assets.h"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* CONSTANTS */
 

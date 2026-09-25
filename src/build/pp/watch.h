@@ -43,7 +43,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 /* CONSTANTS */
 
@@ -71,7 +71,7 @@
 #define NYA_WATCH_INCLUDE_PREFIX "genyarated/watches/"
 
 /** Trees scanned, each walked sorted so the output is a function of the tree alone. */
-#define NYA_WATCH_TREE_ENGINE   "./src/nyangine"
+#define NYA_WATCH_TREE_ENGINE   "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui"
 #define NYA_WATCH_TREE_GAME     "./src/gnyame"
 #define NYA_WATCH_TREE_EXAMPLES "./examples"
 #define NYA_WATCH_TREE_TESTS    "./tests"

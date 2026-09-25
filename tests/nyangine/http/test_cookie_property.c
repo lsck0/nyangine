@@ -17,8 +17,8 @@
 // engine is included, which is what a file naming a NYA_INTERNAL parser does anyway.
 #define NYA_PROPERTY_ENTROPY_MAX 4096
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Cases per law. Thousands, so a rare byte in a name or a value has room to turn up. */
 #define CASES 4000

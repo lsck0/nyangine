@@ -21,8 +21,8 @@
  * pinned key gets one loaded. */
 #define NYA_PLUGIN_REQUIRE_SIGNATURE true
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* FIXTURES */
 

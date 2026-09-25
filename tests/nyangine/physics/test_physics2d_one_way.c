@@ -8,8 +8,8 @@
  * the contact turns solid with the body inside and pushes it back on top.
  * */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

@@ -8,13 +8,13 @@ nya_derive_dict(b8);
 /* PRIVATE API DECLARATION */
 
 /*
- * The engine a test links when it takes the engine as it is. Its own `#include "nyangine/nyangine.c"`
+ * The engine a test links when it takes the engine as it is. Its own `#include "nyangine-core/nyangine.c"`
  * then resolves to the shim under TEST_ENGINE_SHIM_DIRECTORY, which includes the headers only.
  */
-#define TEST_ENGINE_SOURCE         "./src/nyangine/nyangine.c"
+#define TEST_ENGINE_SOURCE         "./src/nyangine-core/nyangine.c"
 #define TEST_ENGINE_OBJECT         OBJECT_DIRECTORY "/nyangine.test" OBJECT_SUFFIX
 #define TEST_ENGINE_SHIM_DIRECTORY "./src/build/prebuilt_engine"
-#define TEST_ENGINE_SHIM           TEST_ENGINE_SHIM_DIRECTORY "/nyangine/nyangine.c"
+#define TEST_ENGINE_SHIM           TEST_ENGINE_SHIM_DIRECTORY "/nyangine-core/nyangine.c"
 
 /** Most lines the engine sharing scan reads from one test. */
 #define TEST_SCAN_MAX_LINES 4096
@@ -23,7 +23,7 @@ nya_derive_dict(b8);
 #define TEST_SCAN_MAX_NAME 256
 
 /** The headers that decide which internal identifiers a test can name and still share the engine. */
-#define TEST_ENGINE_HEADER_DIRECTORY "./src/nyangine"
+#define TEST_ENGINE_HEADER_DIRECTORY "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui"
 
 #if OS_WINDOWS
 #define TEST_VENDORS NYA_PROJECT_VENDORS_WINDOWS_X86_64
@@ -456,7 +456,11 @@ NYA_INTERNAL b8 _test_token_is_internal_name(const NYA_Lexer* lexer, const NYA_T
 
 NYA_INTERNAL NYA_Dictᐸb8ᐳ* _test_scan_header_identifiers(void) {
     NYA_ArrayᐸNYA_Stringᐳ* headers = nya_array_create(nya_arena_global, NYA_String);
-    NYA_EXPECT(nya_filesystem_walk(nya_arena_global, TEST_ENGINE_HEADER_DIRECTORY, _test_collect_headers, headers));
+    // The engine is three subprojects now; scan each so a test may name an internal from any of them.
+    NYA_ConstCString roots[] = { TEST_ENGINE_HEADER_DIRECTORY };
+    for (u32 root = 0; root < nya_carray_length(roots); root++) {
+        NYA_EXPECT(nya_filesystem_walk(nya_arena_global, roots[root], _test_collect_headers, headers));
+    }
 
     NYA_Dictᐸb8ᐳ* identifiers = nya_dict_create(nya_arena_global, b8);
 
@@ -537,7 +541,7 @@ NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source, NYA_Dictᐸb8ᐳ* h
         NYA_CString directive = nya_string_to_cstring(nya_arena_global, line) + 1;
         while (*directive == ' ' || *directive == '\t') directive++;
 
-        if (nya_string_starts_with(directive, "include \"nyangine/nyangine.c\"")) return true;
+        if (nya_string_starts_with(directive, "include \"nyangine-core/nyangine.c\"")) return true;
         if (nya_string_starts_with(directive, "define") || nya_string_starts_with(directive, "undef")) return false;
     }
 

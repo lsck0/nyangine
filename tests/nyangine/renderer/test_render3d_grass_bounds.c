@@ -8,8 +8,8 @@
  * the scale and a field of tall blades loses its tips to the frustum as the camera turns.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** An instance at `position` with a uniform `scale` and no rotation — the placement the bounds read. */
 static NYA_Render3DInstance blade_at(f32x3 position, f32 scale) {

@@ -7,9 +7,9 @@
  * hierarchy rules.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** A program's own permissions, which is what every bit below the reserved three is for. */
 #define TEST_KICK   (1ULL << 0)

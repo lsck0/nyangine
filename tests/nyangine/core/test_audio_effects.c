@@ -3,8 +3,8 @@
  * timing, the compressor's ratio, a bypassed chain being exact, and a moving cutoff not clicking.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define RATE   48000
 #define FRAMES 24000

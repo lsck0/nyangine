@@ -1,0 +1,7 @@
+#include "nyangine-core/debug/debug_crash.c"
+#include "nyangine-core/debug/debug_metrics.c"
+#include "nyangine-core/debug/debug_nn.c"
+#include "nyangine-core/debug/debug_nn_neat.c"
+#include "nyangine-core/debug/debug_overlay.c"
+#include "nyangine-core/debug/debug_physics.c"
+#include "nyangine-core/debug/debug_trace.c"

@@ -4,9 +4,9 @@
  * which must be refused with the bytes left as they came; then the round trip and the refusal as laws.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Cases per law. */
 #define CASES 2000

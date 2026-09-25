@@ -1,8 +1,8 @@
 /**
  * Regression tests for the container and arena edge cases found alongside the three larger bugs.
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 nya_derive_heap(u32);
 nya_derive_ring(u32);

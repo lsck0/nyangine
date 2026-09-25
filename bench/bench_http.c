@@ -7,8 +7,8 @@
  * Content-Length. Throughput here bounds how fast a worker can turn bytes off a socket into work.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 static const char GET_REQUEST[] =
     "GET /api/notes?limit=20&order=desc HTTP/1.1\r\n"

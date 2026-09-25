@@ -13,8 +13,8 @@
  * key.pem` would sign them, so nya_crypto_rsa_verify_sha256 is exercised for real rather than stubbed.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Replies the fake holds before a test has to drain it. */
 #define SCRIPT_MAX 8

@@ -6,8 +6,8 @@
  * past the input or a mishandled length. The statement text is fixed; the input is only ever data.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define FUZZ_TARGET "db_sql"
 

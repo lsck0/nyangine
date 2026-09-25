@@ -4,9 +4,9 @@
  * ]]> is split, and a non-web link refusing the build.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Balanced <>, every & a known entity; CDATA regions are skipped whole, since their content is raw by design. */
 static void assert_xml_wellformed(NYA_ConstCString xml) {

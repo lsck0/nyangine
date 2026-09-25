@@ -2,8 +2,8 @@
  * Where a cascaded shadow volume goes: the frustum fit, the split, and the texel snap.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A camera at `x` looking down positive z, which keeps the forward axis easy to reason about. */
 static NYA_Camera3DPerspective camera_at(f32 x) {

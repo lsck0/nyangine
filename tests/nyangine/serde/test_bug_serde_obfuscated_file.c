@@ -1,8 +1,8 @@
 /**
  * Regression test for nya_serde_save_file truncating an obfuscated document.
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);

@@ -5,8 +5,8 @@
  * tests/nyangine/base/test_command.c.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Longest output one of these children writes, with room to notice if it wrote more. */
 #define OUTPUT_MAX 256

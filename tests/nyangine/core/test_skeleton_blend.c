@@ -2,8 +2,8 @@
  * Blend trees: 1D bracketing, 2D gradient bands, the shared phase, and nesting.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 enum { BONE_ROOT = 0, BONE_COUNT = 1 };
 enum { PARAM_SPEED = 0, PARAM_TURN = 1 };

@@ -8,8 +8,8 @@
  * cases, so the formats are comparable to each other.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* Rows in the array of objects, so the document is a list rather than a single record. */
 #define ROWS 32

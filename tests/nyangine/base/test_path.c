@@ -2,8 +2,8 @@
  * Path manipulation. Purely textual: nothing here touches the filesystem.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Shorthand: run `fn(arena, input)` and compare the resulting string to `expected`. */
 #define ASSERT_PATH(fn, input, expected)                                                                                                             \

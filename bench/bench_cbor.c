@@ -8,8 +8,8 @@
  * The buffer is a real ES256 COSE key: kty, alg, curve, and the two 32-byte coordinates.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Appends `count` bytes of a fixed pattern, standing in for a coordinate's bytes. */
 static u64 fill_pattern(u8* out, u64 at, u64 count) {

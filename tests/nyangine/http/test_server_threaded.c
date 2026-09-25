@@ -9,7 +9,7 @@
  **/
 
 // first, and before any libc or SDL header: base_basic.h is what settles which POSIX this translation unit asks for, and a thread sanitizer build of this file compiles the engine into it rather than linking one that was compiled on its own.
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +17,7 @@
 
 #include "SDL3/SDL_init.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* Under ThreadSanitizer the crash prevention below is skipped: it is a setjmp in one frame and a longjmp out of the crash sink, and tsan's interceptor cannot follow that pair across a thread it did not start the stack of ("can't find longjmp buf"). Everything else in this file is exactly what the ordinary build runs, which is the point of running it under tsan at all. */
 #if defined(__has_feature)

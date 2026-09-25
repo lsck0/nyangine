@@ -39,9 +39,9 @@
  * can lean on them directly.
  * */
 // nyangine.h first, always: base_basic.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE before it pulls in libc, and a system header included ahead of it has already fixed them at another value.
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* THE DATA One invoice, built in memory so the example needs no input file. The strings are chosen to carry exactly the metacharacters each output language reserves: the ampersands, angle brackets and the `<100% uptime>` all have to survive as data, never as markup or a command. */
 

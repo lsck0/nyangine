@@ -33,9 +33,9 @@
  * The repository side of Dalamud's model: adding a repository by URL, an index served over HTTP,
  * per-plugin install and update from inside the game. TODO.md has it.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #ifndef NYA_PLUGIN_LUA
 #error "This example needs -DNYA_PLUGIN_LUA, which ./build run example passes. See src/build/flags.h."

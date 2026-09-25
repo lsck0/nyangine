@@ -1,8 +1,8 @@
 /**
  * Regression test for nya_backtrace_format overrunning its documented return contract.
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Long enough that a small capacity is too small for it. */
 #define NO_TRACE_TEXT "  <no stack trace available>\n"

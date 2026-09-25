@@ -3,7 +3,7 @@
  * the terrain, and a whole run through the job system, the save file and the sqlite history.
  **/
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"

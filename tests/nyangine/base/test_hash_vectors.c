@@ -2,8 +2,8 @@
  * Known-answer vectors for FNV-1a, wyhash and SipHash-2-4.
  */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Key bytes 00..0f read little endian, which is what the reference implementation does. */
 #define SIPHASH_KEY_LOW  0x0706050403020100ULL

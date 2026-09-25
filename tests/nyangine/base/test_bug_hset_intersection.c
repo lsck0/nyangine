@@ -1,8 +1,8 @@
 /**
  * Regression test for nya_hset_intersection removing while iterating (base_hset.h).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 nya_derive_hset(u32);
 

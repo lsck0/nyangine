@@ -4,9 +4,9 @@
  * law over generated documents is in tests/nyangine/testing/test_property.c.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /* BUILDING DOCUMENTS BY HAND */
 

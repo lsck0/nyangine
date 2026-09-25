@@ -7,8 +7,8 @@
  * them, and a few rooms carrying overwrites.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* A program's own permissions live below the reserved three. A guild-sized set of them. */
 #define P_SPEAK   (1ULL << 0)

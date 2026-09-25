@@ -2,8 +2,8 @@
  * Gamepads with no gamepad attached: the queries every game makes before anyone plugs one in.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_init.h"

@@ -1,8 +1,8 @@
 /**
  * Regression test for the insertion order in _nya_arena_free_list_add (base_arena.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define BLOCK_SIZE 128
 

@@ -3,8 +3,8 @@
  * boundary a savegame, a settings file and a network document all arrive through.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define FUZZ_TARGET "serde_nya"
 

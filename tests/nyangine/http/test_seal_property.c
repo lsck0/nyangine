@@ -15,8 +15,8 @@
 // engine is included, which is also what makes this file compile its own unity build.
 #define NYA_PROPERTY_ENTROPY_MAX 2048
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Cases per law. Thousands, so a rare byte pattern the crypto mishandles has room to turn up. */
 #define CASES 4000

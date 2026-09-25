@@ -2,8 +2,8 @@
  * Localization: loading a locale, falling back, and formatting through the generated accessors.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "genyarated/strings.h"
 

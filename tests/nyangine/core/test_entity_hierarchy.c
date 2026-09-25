@@ -2,8 +2,8 @@
  * The scene graph over the flat entity table: parenting, propagation, and what despawn does to it.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

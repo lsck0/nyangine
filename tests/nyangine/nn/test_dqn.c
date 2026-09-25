@@ -1,7 +1,7 @@
 /** The DQN agent, judged on whether it learns to act, not on whether the loss falls. */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Cells in the corridor. Odd, so there is a true middle to start from. */
 #define TEST_DQN_CORRIDOR 7

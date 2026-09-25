@@ -13,8 +13,8 @@
  */
 #define NYA_CODE_HOT_RELOAD 1
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Which generation of the code last ran. What the whole test reads. */
 static u32 generation_ran = 0;

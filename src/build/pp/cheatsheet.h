@@ -11,12 +11,12 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 /* CONSTANTS */
 
 /** Where the public headers live. Every `.h` under it is scanned. */
-#define NYA_CHEATSHEET_DIRECTORY "./src/nyangine"
+#define NYA_CHEATSHEET_DIRECTORY "./src"
 
 /** The generated reference. Regenerated whenever a header changes; do not edit it. */
 #define NYA_CHEATSHEET_OUTPUT "./docs/CHEATSHEET.md"

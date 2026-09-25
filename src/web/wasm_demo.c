@@ -152,38 +152,38 @@ const char* nyangine_demo(void) {
  * build has one definition of each symbol, so a file is included exactly once and after what it needs.
  */
 #define NYA_NO_SDL
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/os/os_wasm.c"
+#include "nyangine-std/os/os_wasm.c"
 
 // The web platform primitives, beside os_wasm.c: the clock, CSPRNG, storage and the fetch/WebSocket
 // seams the client path stands on. Each is behind OS_WASM and takes its browser backend here, the same
 // way os_wasm.c is the wasm page/time/random. nyangine_web_probe below drives every one of them.
-#include "nyangine/platform/web/web.c"
+#include "nyangine-std/platform/web/web.c"
 
-#include "nyangine/base/base_arena.c"
+#include "nyangine-std/base/base_arena.c"
 // NYA_BACKTRACE_SUPPORTED is 0 here (it needs OS_LINUX or OS_WINDOWS), so this compiles to the same
 // no-op capture/format the build tool itself links against — no libbacktrace, which wasm has none of.
-#include "nyangine/base/base_backtrace.c"
-#include "nyangine/base/base_ceiling.c"
-#include "nyangine/base/base_error.c"
-#include "nyangine/base/base_hash.c"
-#include "nyangine/base/base_logging.c"
+#include "nyangine-std/base/base_backtrace.c"
+#include "nyangine-std/base/base_ceiling.c"
+#include "nyangine-std/base/base_error.c"
+#include "nyangine-std/base/base_hash.c"
+#include "nyangine-std/base/base_logging.c"
 // base_logging's fatal path calls _nya_supervisor_on_fatal; the definition lives here (a no-op off Linux).
-#include "nyangine/base/base_supervisor.c"
-#include "nyangine/base/base_object.c"
-#include "nyangine/base/base_reflection.c"
-#include "nyangine/base/base_string.c"
-#include "nyangine/base/base_types.c"
+#include "nyangine-std/base/base_supervisor.c"
+#include "nyangine-std/base/base_object.c"
+#include "nyangine-std/base/base_reflection.c"
+#include "nyangine-std/base/base_string.c"
+#include "nyangine-std/base/base_types.c"
 
 // serde.c's leaves, minus serde_nya_binary.c: its wire format hardcodes x87 80-bit long double, which
 // wasm's IEEE-quad f128 is not, so the binary format is not built for this target. serde_dispatch.c's
 // two binary arms are gated off under OS_WASM to match.
-#include "nyangine/serde/serde_dispatch.c"
-#include "nyangine/serde/serde_json.c"
-#include "nyangine/serde/serde_jsonc.c"
-#include "nyangine/serde/serde_nya.c"
-#include "nyangine/serde/serde_reflect.c"
+#include "nyangine-std/serde/serde_dispatch.c"
+#include "nyangine-std/serde/serde_json.c"
+#include "nyangine-std/serde/serde_jsonc.c"
+#include "nyangine-std/serde/serde_nya.c"
+#include "nyangine-std/serde/serde_reflect.c"
 
 /**
  * The real export. Builds a small NYA_Object on the engine's arena and returns the string

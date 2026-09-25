@@ -1,4 +1,4 @@
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include "build/build.h"
 

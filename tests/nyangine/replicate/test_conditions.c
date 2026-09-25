@@ -3,8 +3,8 @@
  * reordering. Prediction, replication and interpolation have to converge anyway, and the bytes have to stay bounded.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

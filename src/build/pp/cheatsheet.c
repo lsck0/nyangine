@@ -1,4 +1,4 @@
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include "build/build.h"
 
@@ -91,24 +91,24 @@ NYA_INTERNAL void _nya_cheatsheet_file_blurb(NYA_ConstCString text, u64 length, 
 /* CONSTANTS */
 
 NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
-    { "base",     "base",     "Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No SDL." },
-    { "core",     "core",     "The application loop: entities, systems, events, input, audio, assets, config, saves." },
-    { "math",     "math",     "Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens."     },
-    { "renderer", "renderer", "2D and 3D drawing, cameras, text, particles, post processing and render targets."        },
-    { "ui",       "ui",       "Immediate mode widgets: panels, rows, buttons, sliders, toggles and focus navigation."   },
-    { "physics",  "physics",  "Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller." },
-    { "net",      "net",      "The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback pair."  },
-    { "replicate", "replicate", "A world on the wire: commands, delta snapshots, prediction, lag compensation, chat." },
-    { "http",     "http",     "An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both."    },
-    { "serde",    "serde",    "One dynamic value type, serialized to and from json, jsonc and the engine's own format."  },
-    { "crypto",   "crypto",   "Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors." },
-    { "nn",       "nn",       "Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else."        },
-    { "permission", "permission", "Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit."  },
-    { "db",       "db",       "One database file: bound statements, a reflected struct as a row, derived migrations." },
-    { "debug",    "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
-    { "plugins",  "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
-    { "platform", "platform", "What the host is, and how to talk to it: signals, the terminal and ipc."                 },
-    { "os",       "os",       "The syscalls themselves: files, pages, the two clocks, random bytes, processes."          },
+    { "nyangine-std/base",       "base",     "Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No SDL." },
+    { "nyangine-core/core",      "core",     "The application loop: entities, systems, events, input, audio, assets, config, saves." },
+    { "nyangine-std/math",       "math",     "Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens."     },
+    { "nyangine-core/renderer",  "renderer", "2D and 3D drawing, cameras, text, particles, post processing and render targets."        },
+    { "nyangine-ui",             "ui",       "Immediate mode widgets: panels, rows, buttons, sliders, toggles and focus navigation."   },
+    { "nyangine-core/physics",   "physics",  "Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller." },
+    { "nyangine-core/net",       "net",      "The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback pair."  },
+    { "nyangine-core/replicate", "replicate", "A world on the wire: commands, delta snapshots, prediction, lag compensation, chat." },
+    { "nyangine-core/http",      "http",     "An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both."    },
+    { "nyangine-std/serde",      "serde",    "One dynamic value type, serialized to and from json, jsonc and the engine's own format."  },
+    { "nyangine-core/crypto",    "crypto",   "Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors." },
+    { "nyangine-core/nn",        "nn",       "Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else."        },
+    { "nyangine-core/permission", "permission", "Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit."  },
+    { "nyangine-core/db",        "db",       "One database file: bound statements, a reflected struct as a row, derived migrations." },
+    { "nyangine-core/debug",     "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
+    { "nyangine-core/plugins",   "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
+    { "nyangine-std/platform",   "platform", "What the host is, and how to talk to it: signals, the terminal and ipc."                 },
+    { "nyangine-std/os",         "os",       "The syscalls themselves: files, pages, the two clocks, random bytes, processes."          },
 };
 
 /* PUBLIC API IMPLEMENTATION */

@@ -6,8 +6,8 @@
  * hand where a rotation or an expiry has to be provoked. Everything else runs on the real clock.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);

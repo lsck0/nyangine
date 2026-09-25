@@ -4,9 +4,9 @@
  * secret everyone knows, each of which must be refused; then agreement as a law.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Cases per law. Each is four scalar multiplications, so fewer than the cheap laws get. */
 #define CASES 300

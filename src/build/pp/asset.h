@@ -3,7 +3,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // For SHADERCROSS_BINARY: the shader rules invoke the tool the vendor build produces, so the path belongs to whoever builds it. Spelling it out here is how it silently went stale when the vendor build directories were renamed.
 #include "build/vendor/vendor_sdl_shadercross.h"

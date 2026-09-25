@@ -10,9 +10,9 @@
  * scope. See base_lambda.h.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** What the walk lambda writes into through the `void*` it is handed. */
 typedef struct {

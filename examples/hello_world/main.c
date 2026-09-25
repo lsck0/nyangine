@@ -1,6 +1,6 @@
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 s32 main(s32 argc, NYA_CString* argv) {
     nya_unused(argc, argv);

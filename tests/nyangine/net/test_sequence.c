@@ -2,8 +2,8 @@
  * The sequence and acknowledgement arithmetic, at unit level.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** How many packets back the bitfield reaches, restated so the test breaks if the field changes width. */
 #define ACK_WINDOW 32

@@ -8,8 +8,8 @@
  * buffer and an arena, the same property that makes the rest of this backend checkable. See ui_present_html.h.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 static NYA_UIHtml html;
 

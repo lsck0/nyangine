@@ -9,8 +9,8 @@
  * missing dependency and the feature that wanted it.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** A name nothing on any PATH is called, so the "absent" answer is not a flake about the test box. */
 #define BOGUS_PROGRAM "nyangine-nonexistent-preflight-xyzzy"

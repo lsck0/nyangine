@@ -7,9 +7,9 @@
 
 #include "SDL3/SDL_init.h"
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Every listener in this file is named after the process, so two runs at once do not fight. */
 static NYA_IpcName unique_name(NYA_Arena* arena, NYA_ConstCString suffix) {

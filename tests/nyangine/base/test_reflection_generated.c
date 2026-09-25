@@ -2,10 +2,10 @@
  * The generated reflection tables, against the real types they describe.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "gnyame/gnyame.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 s32 main(void) {

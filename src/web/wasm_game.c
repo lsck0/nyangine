@@ -48,41 +48,41 @@
 // The full header graph, for NYA_Vertex2D, NYA_App/NYA_Window and the SDL_GPU types (renderer.h includes
 // SDL3/SDL_gpu.h). Headers only: nothing GPU, physics or SDL is compiled from a vendored library here.
 #define NYA_HEADLESS
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // The os backend first: page/time/random for a module with no OS under it, as wasm_ui/wasm_demo do.
-#include "nyangine/os/os_wasm.c"
+#include "nyangine-std/os/os_wasm.c"
 
 // ── base: the arena → logging leaves the shim, the 2D module and this demo reach (as wasm_ui.c links). ──
-#include "nyangine/base/base_arena.c"
-#include "nyangine/base/base_backtrace.c"
-#include "nyangine/base/base_ceiling.c"
-#include "nyangine/base/base_clock.c"
-#include "nyangine/base/base_error.c"
-#include "nyangine/base/base_hash.c"
-#include "nyangine/base/base_logging.c"
-#include "nyangine/base/base_object.c"
-#include "nyangine/base/base_reflection.c"
-#include "nyangine/base/base_string.c"
+#include "nyangine-std/base/base_arena.c"
+#include "nyangine-std/base/base_backtrace.c"
+#include "nyangine-std/base/base_ceiling.c"
+#include "nyangine-std/base/base_clock.c"
+#include "nyangine-std/base/base_error.c"
+#include "nyangine-std/base/base_hash.c"
+#include "nyangine-std/base/base_logging.c"
+#include "nyangine-std/base/base_object.c"
+#include "nyangine-std/base/base_reflection.c"
+#include "nyangine-std/base/base_string.c"
 // base_logging.c's fatal path calls _nya_supervisor_on_fatal; off Linux (this wasm build) that is a no-op,
 // but the symbol must still be defined, so the supervisor leaf compiles in alongside the other base leaves.
-#include "nyangine/base/base_supervisor.c"
-#include "nyangine/base/base_types.c"
+#include "nyangine-std/base/base_supervisor.c"
+#include "nyangine-std/base/base_types.c"
 
 // ── math: the 2D flush's projection (math_matrix, now that it compiles on wasm — NYA_F16_IS_F32), the
 // vectors shapes are built in, and the rectangle overlap/union the range merge sorts by. ──
-#include "nyangine/math/math_matrix.c"
-#include "nyangine/math/math_shapes.c"
-#include "nyangine/math/math_vector.c"
+#include "nyangine-std/math/math_matrix.c"
+#include "nyangine-std/math/math_shapes.c"
+#include "nyangine-std/math/math_vector.c"
 
 // ── the SDL_GPU → GLES3 shim: in this one translation unit the SDL_Create* calls below and the ones the
 // 2D flush issues resolve to the shim, not to a vendored SDL. ──
-#include "nyangine/renderer/gpu_gles/gpu_gles.c"
+#include "nyangine-core/renderer/gpu_gles/gpu_gles.c"
 
 // ── the canvas input seam: the browser's pointer and key events, queued and drained the way a device is.
 // The scene below turns each drained event into an engine NYA_Event, so the browser drives the same input
 // vocabulary a native game reads. clang-format is handled inside the file (its EM_JS bodies are wrapped). ──
-#include "nyangine/platform/web/web_input.c"
+#include "nyangine-std/platform/web/web_input.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -177,11 +177,11 @@ void nya_asset_missing_report(NYA_ConstCString handle) {
 // bodies (and render2d's whole text/font path) reach TTF and the on-disk cache, which no wasm slice links
 // — but nothing this file calls reaches them either, so wasm-ld's dead-code pass drops the lot. The 2D
 // sprite path needs no glyphs; this is only here to let the file compile.
-#include "nyangine/renderer/render_glyph_atlas.c"
+#include "nyangine-core/renderer/render_glyph_atlas.c"
 
-#include "nyangine/renderer/render_camera.c"
-#include "nyangine/renderer/render_sort.c"
-#include "nyangine/renderer/render2d.c"
+#include "nyangine-core/renderer/render_camera.c"
+#include "nyangine-core/renderer/render_sort.c"
+#include "nyangine-core/renderer/render2d.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

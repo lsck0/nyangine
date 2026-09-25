@@ -48,7 +48,7 @@ typedef struct {
 
 /** The directories and files the rules read. Vendors are not ours to judge; corpora are not source. */
 NYA_INTERNAL const NYA_ConstCString _LINT_ROOTS[] = {
-    "./src/nyangine", "./src/gnyame", "./src/build", "./src/genyarated", "./examples", "./tests", "./bench",
+    "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui", "./src/gnyame", "./src/build", "./src/genyarated", "./examples", "./tests", "./bench",
 };
 NYA_INTERNAL const NYA_ConstCString _LINT_FILES[] = { "./src/main.c", "./build.c" };
 
@@ -240,7 +240,7 @@ void _lint_rule_lexed(Lint* lint) {
  */
 void _lint_rule_banned_calls(Lint* lint) {
     nya_array_foreach (lint->files, file) {
-        if (file->generated || nya_string_contains(file->path, "src/nyangine/platform/") || nya_string_contains(file->path, "tests/cbmc/")) continue;
+        if (file->generated || nya_string_contains(file->path, "src/nyangine-std/platform/") || nya_string_contains(file->path, "tests/cbmc/")) continue;
 
         NYA_ArrayᐸNYA_Tokenᐳ* tokens = file->lexer.tokens;
         for (u64 i = 0; i + 1 < tokens->length; i++) {
@@ -331,7 +331,7 @@ void _lint_rule_verb_pairs(Lint* lint) {
     b8 used[nya_carray_length(_LINT_VERB_PAIRS_ALLOWED)] = {};
 
     nya_array_foreach (lint->files, file) {
-        if (!nya_string_ends_with(file->path, ".h") || !nya_string_contains(file->path, "src/nyangine/")) continue;
+        if (!nya_string_ends_with(file->path, ".h") || !nya_string_contains(file->path, "src/nyangine-")) continue;
 
         NYA_ArrayᐸNYA_Stringᐳ* names = _lint_api_names(file);
 
@@ -428,7 +428,7 @@ void _lint_rule_callers(Lint* lint) {
     b8 used[nya_carray_length(_LINT_CALLERS_ALLOWED)] = {};
 
     nya_array_foreach (lint->files, file) {
-        if (!nya_string_ends_with(file->path, ".h") || !nya_string_contains(file->path, "src/nyangine/")) continue;
+        if (!nya_string_ends_with(file->path, ".h") || !nya_string_contains(file->path, "src/nyangine-")) continue;
 
         NYA_ArrayᐸNYA_Stringᐳ* names = _lint_api_names(file);
         nya_array_foreach (names, name) {
@@ -541,7 +541,7 @@ void _lint_rule_clangd(Lint* lint) {
 void _lint_rule_redact(Lint* lint) {
     nya_array_foreach (lint->files, file) {
         if (file->generated || !nya_string_ends_with(file->path, ".h")) continue;
-        if (!nya_string_contains(file->path, "src/nyangine/") && !nya_string_contains(file->path, "src/gnyame/")) continue;
+        if (!nya_string_contains(file->path, "src/nyangine-") && !nya_string_contains(file->path, "src/gnyame/")) continue;
 
         NYA_ArrayᐸNYA_Tokenᐳ* tokens = file->lexer.tokens;
 
@@ -658,7 +658,7 @@ void _lint_rule_web_profile(Lint* lint) {
 
         if ((is_model || is_so) && !guarded) {
             _lint_report(lint, "web-profile", file->path, 1,
-                         "a server-only header must include \"nyangine/base/base_web_profile.h\" first, so the web profile refuses to compile it");
+                         "a server-only header must include \"nyangine-std/base/base_web_profile.h\" first, so the web profile refuses to compile it");
         }
     }
 }
@@ -811,14 +811,24 @@ const _LintModule* _lint_module_find(const NYA_String* name) {
 }
 
 NYA_String* _lint_module_of(NYA_Arena* arena, const NYA_String* path) {
-    NYA_ConstCString text   = nya_string_to_cstring(arena, path);
-    NYA_ConstCString marker = strstr(text, "src/nyangine/");
+    NYA_ConstCString text = nya_string_to_cstring(arena, path);
+
+    // The ui toolkit is one module in its own subproject: every file under it is module "ui".
+    if (strstr(text, "src/nyangine-ui/") != nullptr) return nya_string_from(arena, "ui");
+
+    // std and core keep the module as the first path segment under the subproject root.
+    NYA_ConstCString marker     = strstr(text, "src/nyangine-std/");
+    u64              marker_len = strlen("src/nyangine-std/");
+    if (marker == nullptr) {
+        marker     = strstr(text, "src/nyangine-core/");
+        marker_len = strlen("src/nyangine-core/");
+    }
     if (marker == nullptr) return nullptr;
 
-    NYA_ConstCString start = marker + strlen("src/nyangine/");
+    NYA_ConstCString start = marker + marker_len;
     NYA_ConstCString slash = strchr(start, '/');
 
-    // src/nyangine/nyangine.h is the umbrella, not a module.
+    // the umbrella nyangine.h/.c sits at the subproject root, not in a module.
     if (slash == nullptr) return nullptr;
 
     return nya_string_sprintf(arena, "%.*s", (int)(slash - start), start);

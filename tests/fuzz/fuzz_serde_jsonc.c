@@ -6,8 +6,8 @@
  * much of a boundary as the readers are.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define FUZZ_TARGET "serde_jsonc"
 

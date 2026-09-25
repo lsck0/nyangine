@@ -13,10 +13,10 @@
  * */
 #pragma once
 
-#include "nyangine/base/base_types.h"
+#include "nyangine-std/base/base_types.h"
 
 // For NYA_RENDER3D_MAX_POINT_LIGHTS and NYA_RENDER3D_SHADOW_CASCADES, which size the arrays below.
-#include "nyangine/renderer/render3d.h"
+#include "nyangine-core/renderer/render3d.h"
 
 typedef struct NYA_ShaderBlurUniform     NYA_ShaderBlurUniform;
 typedef struct NYA_ShaderPixelateUniform NYA_ShaderPixelateUniform;

@@ -3,8 +3,8 @@
  * plural message picking the right variant through the generated accessor.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "genyarated/strings.h"
 

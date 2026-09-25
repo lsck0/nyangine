@@ -15,9 +15,9 @@
  * stand for every token that does not open, which is the case the layer has to refuse.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #define GUARDED_PATH "/api/guarded"
 #define NOW_S        1700000000ULL

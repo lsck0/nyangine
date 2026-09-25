@@ -4,8 +4,8 @@
  * cut the last one short, and stop at the most there may be.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Whether the pieces cover the destination edge to edge, with nothing overlapping. */
 static b8 covers(const NYA_NineSliceAxis* axis, f32 start, f32 length) {

@@ -7,9 +7,9 @@
  * factor that accepts is only half of one: what it refuses, and what its refusal says, is the rest.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** A plausible wall clock, far enough from the epoch that a step either side is an ordinary number. */
 #define NOW 1700000000ULL

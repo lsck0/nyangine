@@ -38,57 +38,57 @@
 // SDL3/box2d/ufbx headers resolve it on the include line. NYA_HEADLESS keeps any GPU-device path in the
 // headers compiled out, matching how a test build runs the engine without a device.
 #define NYA_HEADLESS
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // The os backend first, exactly as wasm_demo.c does: page/time/random for a module with no OS under it.
-#include "nyangine/os/os_wasm.c"
+#include "nyangine-std/os/os_wasm.c"
 
 // The web platform primitives beside os_wasm.c: the clock, CSPRNG, storage and the fetch/WebSocket
 // seams the client path stands on. Included here too so the CSR bridge builds against the same seam the
 // headless demo does; the UI does not drive them yet, but a client-side component that persists state or
 // talks to a server reaches for exactly these.
-#include "nyangine/platform/web/web.c"
+#include "nyangine-std/platform/web/web.c"
 
 // ── base: the arena → string → object → reflection leaves the UI and its systems reach ──
-#include "nyangine/base/base_arena.c"
-#include "nyangine/base/base_backtrace.c"
-#include "nyangine/base/base_ceiling.c"
-#include "nyangine/base/base_clock.c"
-#include "nyangine/base/base_error.c"
-#include "nyangine/base/base_hash.c"
-#include "nyangine/base/base_logging.c"
+#include "nyangine-std/base/base_arena.c"
+#include "nyangine-std/base/base_backtrace.c"
+#include "nyangine-std/base/base_ceiling.c"
+#include "nyangine-std/base/base_clock.c"
+#include "nyangine-std/base/base_error.c"
+#include "nyangine-std/base/base_hash.c"
+#include "nyangine-std/base/base_logging.c"
 // base_logging's fatal path calls _nya_supervisor_on_fatal; the definition lives here (a no-op off Linux).
-#include "nyangine/base/base_supervisor.c"
-#include "nyangine/base/base_object.c"
-#include "nyangine/base/base_reflection.c"
-#include "nyangine/base/base_string.c"
-#include "nyangine/base/base_types.c"
+#include "nyangine-std/base/base_supervisor.c"
+#include "nyangine-std/base/base_object.c"
+#include "nyangine-std/base/base_reflection.c"
+#include "nyangine-std/base/base_string.c"
+#include "nyangine-std/base/base_types.c"
 
 // ── math: the vectors and shapes the layout computes in. math_matrix.c is left out: its constructors are
 // overloaded on f16 and f32, which are the same type once base_types.h widens f16 to float on wasm, so it
 // will not compile there — and the UI's layout is all rectangles and 2-vectors, no matrices. ──
-#include "nyangine/math/math_shapes.c"
-#include "nyangine/math/math_tween.c" // nya_ease, which the ui animates hovers and panels with
-#include "nyangine/math/math_vector.c"
+#include "nyangine-std/math/math_shapes.c"
+#include "nyangine-std/math/math_tween.c" // nya_ease, which the ui animates hovers and panels with
+#include "nyangine-std/math/math_vector.c"
 
 // ── core: only the three systems the UI reads through — callbacks, events, input. Not settings, asset,
 // window, audio, world or the app loop; those are SDL/GPU/box2d and the UI does not need them here. ──
-#include "nyangine/core/core_callback.c"
-#include "nyangine/core/core_event.c"
-#include "nyangine/core/core_input.c"
+#include "nyangine-core/core/core_callback.c"
+#include "nyangine-core/core/core_event.c"
+#include "nyangine-core/core/core_input.c"
 
 // ── the ui module and the HTML presenter. The other presenters (cell, record, shape) are left out;
 // ui_present_shape.c is also the one ui file that reaches the asset system, which is not compiled here. ──
-#include "nyangine/ui/ui.c"
-#include "nyangine/ui/ui_present.c"
-#include "nyangine/ui/ui_present_html.c"
-#include "nyangine/ui/ui_layout.c"
-#include "nyangine/ui/ui_style.c"
-#include "nyangine/ui/ui_text.c"
-#include "nyangine/ui/ui_widgets.c"
-#include "nyangine/ui/ui_window.c"
-#include "nyangine/ui/ui_draw.c"
-#include "nyangine/ui/ui_input.c"
+#include "nyangine-ui/ui.c"
+#include "nyangine-ui/ui_present.c"
+#include "nyangine-ui/ui_present_html.c"
+#include "nyangine-ui/ui_layout.c"
+#include "nyangine-ui/ui_style.c"
+#include "nyangine-ui/ui_text.c"
+#include "nyangine-ui/ui_widgets.c"
+#include "nyangine-ui/ui_window.c"
+#include "nyangine-ui/ui_draw.c"
+#include "nyangine-ui/ui_input.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -22,8 +22,8 @@
  */
 #define NYA_PLUGIN_REQUIRE_SIGNATURE false
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* WRITING PLUGINS TO DISK */
 

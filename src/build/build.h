@@ -15,7 +15,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 // First, and it includes the host's toolchain: everything below expands its macros.
 #include "build/flags.h"

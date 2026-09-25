@@ -10,8 +10,8 @@
  * so what is asserted is the ordering the header promises and not an absolute number of milliseconds.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define CASES 4000
 

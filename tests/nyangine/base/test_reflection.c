@@ -2,8 +2,8 @@
  * The reflection runtime, driven by hand written tables.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /* THE TYPES UNDER TEST */
 

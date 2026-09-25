@@ -2,8 +2,8 @@
  * Structural invariants of every genome, across a real evolutionary run.
  */
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 static u32 genomes_checked = 0;
 static u32 max_nodes_seen = 0;

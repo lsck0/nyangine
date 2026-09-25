@@ -6,8 +6,8 @@
  * NYA_SceneEntity without naming one, so a field added to the record is covered the day it is added.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 

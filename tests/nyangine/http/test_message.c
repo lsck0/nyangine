@@ -6,9 +6,9 @@
  * covers the shapes nobody thought to write down.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #ifdef NYA_HTTP_COMPRESSION
 #include <zlib.h>

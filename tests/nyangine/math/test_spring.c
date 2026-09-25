@@ -2,8 +2,8 @@
  * Damped springs: convergence, the damping ratio's effect, and stability under a bad timestep.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define TICK (1.0F / 60.0F)
 

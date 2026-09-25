@@ -4,9 +4,9 @@
  * including a signature whose scalar is not reduced; then signing and refusing as laws.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Cases per law. Each signs and verifies, so fewer than the cheap laws get. */
 #define CASES 300

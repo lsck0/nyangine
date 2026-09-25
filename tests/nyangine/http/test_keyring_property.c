@@ -11,8 +11,8 @@
  * whether it opens turns only on which key is present — which is the thing under test.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #define CASES 3000
 

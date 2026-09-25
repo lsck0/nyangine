@@ -82,9 +82,9 @@
  * session, the compression, the scrape — is exactly what a real server does.
  * */
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 #include "SDL3/SDL_init.h"
 

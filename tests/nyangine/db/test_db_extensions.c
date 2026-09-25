@@ -2,8 +2,8 @@
  * The extensions every connection gets for free: sqlite-vec and the sqlean bundle.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** Opens a fresh in memory database. Each test gets its own, so none can pollute another. */
 static NYA_Database* open_memory(NYA_Arena* arena) {

@@ -1,0 +1,120 @@
+/**
+ * @file base_lexer.h
+ *
+ * Example:
+ * ```c
+ * NYA_Lexer lexer = nya_lexer_create("name = \"hello world\";");
+ * nya_lexer_run(&lexer);
+ *
+ * nya_array_foreach (lexer.tokens, token) { ... }
+ *
+ * nya_lexer_destroy(&lexer);
+ * ```
+ *
+ * ```c
+ * NYA_Lexer lexer = nya_lexer_create(source, NYA_LEXER_UTF8_IDENTS);
+ * ```
+ * */
+#pragma once
+
+#include "nyangine-std/base/base_arena.h"
+#include "nyangine-std/base/base_array.h"
+#include "nyangine-std/base/base_string.h"
+
+// TYPES
+
+typedef enum NYA_TokenType  NYA_TokenType;
+typedef enum NYA_LexerFlags NYA_LexerFlags;
+typedef struct NYA_Token    NYA_Token;
+typedef struct NYA_Lexer    NYA_Lexer;
+nya_derive_array(NYA_Token);
+
+enum NYA_TokenType {
+    NYA_TOKEN_INVALID,
+
+    NYA_TOKEN_EOF,
+    NYA_TOKEN_SYMBOL,
+    NYA_TOKEN_IDENT,
+    NYA_TOKEN_NUMBER_INTEGER,
+    NYA_TOKEN_NUMBER_FLOAT,
+    NYA_TOKEN_STRING,
+
+    /**
+     * A character literal, only with NYA_LEXER_CHAR_LITERALS. Covers what is between the quotes, like a string.
+     * */
+    NYA_TOKEN_CHARACTER,
+
+    /**
+     * A line or block comment. `source_location` and `length` cover the *body*, not the delimiters.
+     * */
+    NYA_TOKEN_COMMENT,
+
+    NYA_TOKEN_COUNT,
+};
+
+/** Opt in lexer behaviour. See the dialect note at the top of this file. */
+enum NYA_LexerFlags {
+    NYA_LEXER_DEFAULT = 0,
+
+    /**
+     * Let bytes at or above 0x80 start and continue an identifier.
+     * */
+    NYA_LEXER_UTF8_IDENTS = 1U << 0,
+
+    /**
+     * Lex `'x'` as one NYA_TOKEN_CHARACTER, as C does. Without it a quote is a symbol, and in C source the
+     * `'"'` in `c == '"'` would open a string that runs to the next quote in the file.
+     * */
+    NYA_LEXER_CHAR_LITERALS = 1U << 1,
+};
+
+struct NYA_Token {
+    NYA_TokenType type;
+    u32           source_location;
+    u32           length;
+    u32           line_number;
+    u32           char_number;
+
+    union {
+        /** only present if type == NYA_TOKEN_SYMBOL */
+        u8 symbol;
+
+        /**
+         * only present if type == NYA_TOKEN_COMMENT: true for slash-star, false for `//`.
+         * */
+        b8 is_block_comment;
+    };
+
+    /**
+     * For NYA_TOKEN_STRING: source_location points to the first character after the
+     * opening quote, and length is the raw content length (not including quotes).
+     * Escape sequences (e.g. \", \\) are preserved as-is in the source and must be
+     * processed when consuming the token value.
+     * */
+};
+
+struct NYA_Lexer {
+    NYA_Arena* arena;
+
+    NYA_ConstCString source;
+    u32              cursor;
+
+    NYA_LexerFlags flags;
+
+    u32 current_line_number;
+    u32 current_char_number;
+
+    /* will be filled after running */
+
+    NYA_ArrayᐸNYA_Tokenᐳ* tokens;
+};
+
+// FUNCTIONS AND MACROS
+
+NYA_API NYA_Lexer nya_lexer_create(NYA_ConstCString source) __attr_overloaded;
+
+/** The same, with opt in behaviour. See NYA_LexerFlags. */
+NYA_API NYA_Lexer nya_lexer_create(NYA_ConstCString source, NYA_LexerFlags flags) __attr_overloaded;
+
+NYA_API void nya_lexer_run(NYA_Lexer* lexer);
+NYA_API void nya_lexer_destroy(NYA_Lexer* lexer);

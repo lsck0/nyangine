@@ -14,8 +14,8 @@
 // The engine defines the feature test macros this whole build needs, so it comes first. Sorted into
 // any other order, a libc header arrives before base_basic.h and the build fails on a redefinition
 // of _POSIX_C_SOURCE and on half of <signal.h> being missing.
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 // clang-format on
 
 #define FUZZ_TARGET "http_request"

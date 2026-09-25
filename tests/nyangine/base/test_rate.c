@@ -7,8 +7,8 @@
  * server asked for is never shortened, and a bucket that is still spent is never given away.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);

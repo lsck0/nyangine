@@ -8,7 +8,7 @@
  **/
 
 // the game, not the engine alone: the generated reflection table describes the game's types next to the engine's, and the simulation's reflection action needs all of them. gnyame.c is what compiles it, so this test lives here rather than under tests/nyangine.
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"

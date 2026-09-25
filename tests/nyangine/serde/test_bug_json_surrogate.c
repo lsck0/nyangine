@@ -1,8 +1,8 @@
 /**
  * Regression test for unpaired surrogate escapes in the JSON parser (serde_json.c).
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 /** U+FFFD in UTF-8. */
 #define REPLACEMENT "\xEF\xBF\xBD"

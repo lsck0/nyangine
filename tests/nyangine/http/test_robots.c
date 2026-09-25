@@ -3,9 +3,9 @@
  * keep a newline in a field from becoming a directive of its own.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 int main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_http_robots");

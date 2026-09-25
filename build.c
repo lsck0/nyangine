@@ -9,10 +9,10 @@
  *
  * Bootstrap it with the command in the README. It recompiles itself from then on.
  * */
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 #include "build/build.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 #include "build/build.c"
 
 s32 main(s32 argc, NYA_CString argv[]) {

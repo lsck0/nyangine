@@ -11,7 +11,7 @@
  * */
 #pragma once
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
 #include "build/hooks.h"
 #include "build/vendor/vendor_box2d.h"

@@ -1,0 +1,64 @@
+/**
+ * @file serde_types.h
+ * */
+#pragma once
+
+#include "nyangine-std/base/base_attributes.h"
+#include "nyangine-std/base/base_types.h"
+
+// ───────────────────────────────────── TYPES ─────────────────────────────────────
+
+typedef enum NYA_SerdeFormat NYA_SerdeFormat;
+typedef enum NYA_SerdeFlags  NYA_SerdeFlags;
+
+enum NYA_SerdeFormat {
+    /** The native format. Lossless, checksummed. */
+    NYA_SERDE_FORMAT_NYA,
+
+    /** Standard JSON. Portable, but loses the distinction between the integer and float widths. */
+    NYA_SERDE_FORMAT_JSON,
+
+    /**
+     * JSON with comments and trailing commas, as editors and config files use it.
+     * */
+    NYA_SERDE_FORMAT_JSONC,
+
+    /**
+     * The native format as compact bytes, untyped through this dispatch. See serde_nya_binary.h for the
+     * typed form a DTO travels in.
+     * */
+    NYA_SERDE_FORMAT_NYA_BINARY,
+
+    NYA_SERDE_FORMAT_COUNT,
+};
+
+__attr_allow_unused static NYA_ConstCString NYA_SERDE_FORMAT_NAME_MAP[NYA_SERDE_FORMAT_COUNT] = {
+    [NYA_SERDE_FORMAT_NYA]   = "nya",
+    [NYA_SERDE_FORMAT_JSON]  = "json",
+    [NYA_SERDE_FORMAT_JSONC] = "jsonc",
+    [NYA_SERDE_FORMAT_NYA_BINARY] = "nya-binary",
+};
+
+enum NYA_SerdeFlags {
+    NYA_SERDE_NONE = 0,
+
+    /** Indentation and newlines. Without it the output is compact, which is the default. */
+    NYA_SERDE_PRETTY = 1 << 0,
+
+    /**
+     * Base64 the output and XOR it with a fixed key, so it is not casually editable in a text
+     * editor. nya format only.
+     * */
+    NYA_SERDE_OBFUSCATE = 1 << 1,
+
+    /**
+     * Do not verify the checksum when reading. Use for data that is expected to be edited by hand,
+     * where a mismatch is normal rather than evidence of corruption.
+     * */
+    NYA_SERDE_NO_CHECKSUM = 1 << 2,
+
+    /* internal */
+
+    /** Set while writing array elements, whose type is already named by the array header. */
+    _NYA_SERDE_NO_TYPE_SPECIFIER = 1 << 3,
+};

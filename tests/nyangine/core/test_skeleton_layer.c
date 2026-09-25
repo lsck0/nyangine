@@ -2,8 +2,8 @@
  * Crossfades, bone masks, animation events and two-bone IK.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 enum { BONE_ROOT = 0, BONE_MID = 1, BONE_END = 2, BONE_COUNT = 3 };
 

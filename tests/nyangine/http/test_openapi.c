@@ -6,9 +6,9 @@
  * the schema for a DTO has to describe what the serializer actually writes rather than the C layout.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 /** Starts the server on a port the system chose; see test_server.c's copy for why not a fixed window. */
 static u16 start_server(void) {

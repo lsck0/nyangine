@@ -4,9 +4,9 @@
  * (gustiness zero) so the push is a known constant and the check is arithmetic.
  **/
 
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
 
-#include "nyangine/nyangine.c"
+#include "nyangine-core/nyangine.c"
 
 int main(void) {
     setvbuf(stdout, nullptr, _IONBF, 0);

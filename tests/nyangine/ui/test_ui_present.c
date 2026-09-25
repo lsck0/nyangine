@@ -4,8 +4,8 @@
  * the presenter's own measurement, and that a UI can be driven and read with no GPU and no font at all.
  **/
 
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.c"
+#include "nyangine-core/nyangine.h"
 
 #include "SDL3/SDL_init.h"
 
