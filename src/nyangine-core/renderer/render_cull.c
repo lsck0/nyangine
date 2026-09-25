@@ -93,21 +93,35 @@ void _nya_render3d_frustum_build(NYA_Render3DFrustum* frustum, f32_4x4 view_proj
 
         frustum->planes[i] = plane / length;
     }
+
+    // Transpose the six planes so _nya_render3d_visible tests them all at once. The two spare lanes carry a plane every
+    // point is inside of (zero normal, F32_MAX offset), so they never contribute a rejection.
+    f32x8 x = { 0 }, y = { 0 }, z = { 0 }, w = { 0, 0, 0, 0, 0, 0, F32_MAX, F32_MAX };
+
+    for (u32 i = 0; i < 6; i++) {
+        x[i] = frustum->planes[i][0];
+        y[i] = frustum->planes[i][1];
+        z[i] = frustum->planes[i][2];
+        w[i] = frustum->planes[i][3];
+    }
+
+    frustum->plane_x = x;
+    frustum->plane_y = y;
+    frustum->plane_z = z;
+    frustum->plane_w = w;
 }
 
 b8 _nya_render3d_visible(const NYA_Render3DFrustum* frustum, f32x3 center, f32 radius) {
-    for (u32 i = 0; i < 6; i++) {
-        f32x4 plane = frustum->planes[i];
+    // Signed distance to all eight lanes at once. The products are materialised before the sum so the arithmetic and its
+    // rounding match the plane-at-a-time loop this replaced exactly; planes are normalized, so a distance is in world units.
+    f32x8 dx = frustum->plane_x * center.x;
+    f32x8 dy = frustum->plane_y * center.y;
+    f32x8 dz = frustum->plane_z * center.z;
 
-        f32x3 normal = { plane[0], plane[1], plane[2] };
+    f32x8 distance = dx + dy + dz + frustum->plane_w;
 
-        // planes are normalized, so this is a signed distance.
-        f32 distance = nya_vector_dot(normal, center) + plane[3];
-
-        if (distance < -radius) return false;
-    }
-
-    return true;
+    // Outside a plane when it is more than a radius behind it; wholly outside any one plane culls the sphere.
+    return !__builtin_reduce_or(distance < -radius);
 }
 
 u8 _nya_render3d_passes_seeing(NYA_Window* window, f32x3 center, f32 radius) {

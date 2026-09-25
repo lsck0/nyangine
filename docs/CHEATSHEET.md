@@ -3501,6 +3501,7 @@ typedef f128 f128x3
 typedef f128 f128x4
 typedef u32 u32x8
 typedef u64 u64x4
+typedef f32 f32x8
 
 // functions
 f32 nya_vector_dot(f32x2 a, f32x2 b)
@@ -4444,7 +4445,7 @@ struct NYA_Render3DRegisteredMesh { SDL_GPUBuffer* vertices; u32 vertex_count; S
 struct NYA_Render3DMeshGroup { NYA_ConstCString handle; u32 first_instance; u32 instance_count; b8 transparent; f32 depth; }
 struct NYA_Render3DStream { NYA_Vertex3D* vertices; u32 vertex_count; u16* indices; u32 index_count; NYA_Render3DObject* objects; u32 object_count; }  // One run of CPU-staged geometry.
 struct NYA_Render3DObject { u32 first_index; u8 passes; }  // A run of a stream's indices seen by the same passes: one culled primitive, or neighbours that agree.
-struct NYA_Render3DFrustum { f32x4 planes[6]; }  // The six inward-facing clip planes of a view-projection.
+struct NYA_Render3DFrustum { f32x4 planes[6]; f32x8 plane_x, plane_y, plane_z, plane_w; }  // The six inward-facing clip planes of a view-projection.
 typedef struct { u32 first; u32 count; } NYA_Render3DIndexRange  // A run of the uploaded index buffer.
 typedef struct { f32x3 position; f32 radius; f32 strength; } NYA_Render3DDisturber  // One foliage disturber: a sphere in world space the plants bend away from.
 struct NYA_Render3DSegment { u32 opaque_objects; u32 transparent_objects; u32 first_group; u32 group_count; u32 first_decal; u32 decal_count; NYA_Render3DIndexRange opaque[NYA_RENDER3D_PASSES]; NYA_Render3DIndexRange transparent[NYA_RENDER3D_PASSES]; SDL_GPUTexture* texture; SDL_GPUSampler* sampler; NYA_ConstCString decal_texture; NYA_ConstCString skinned; const struct NYA_ShaderSkinUniform* skin; NYA_ConstCString foliage; const struct NYA_ShaderFoliageUniform* foliage_uniform; NYA_ConstCString grass; u32 grass_first_instance; u32 grass_count; NYA_ConstCString water; const struct NYA_ShaderWaterVertexUniform* water_vertex_uniform; const struct NYA_ShaderWaterFragUniform* water_frag_uniform; b8 water_reflect; f32 water_plane_y; u8 skinned_passes; NYA_Render3DMaterial material; NYA_Render3DBlend blend; NYA_Render3DDepth depth; b8 casts_shadow; }

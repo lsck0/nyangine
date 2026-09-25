@@ -47,6 +47,7 @@ nya_derive_array(f128x4);
 // Integer lanes, for code that works on a whole register at once rather than on a point in space.
 typedef u32 u32x8 __attr_vector(8);
 typedef u64 u64x4 __attr_vector(4);
+typedef f32 f32x8 __attr_vector(8);
 
 // PRODUCTS: dot, cross, length, normalize — the four operations elementwise `a * b` cannot express (f32 only).
 

@@ -589,6 +589,13 @@ struct NYA_Render3DObject {
 /** The six inward-facing clip planes of a view-projection. See _nya_render3d_frustum_build. */
 struct NYA_Render3DFrustum {
     f32x4 planes[6];
+
+    /**
+     * The same six planes transposed to structure-of-arrays, one lane per plane, so one sphere tests against all of them
+     * at once. Filled by _nya_render3d_frustum_build alongside `planes`; the two spare lanes hold a plane nothing is ever
+     * outside of, so they never reject. See _nya_render3d_visible.
+     * */
+    f32x8 plane_x, plane_y, plane_z, plane_w;
 };
 
 /** A run of the uploaded index buffer. */
