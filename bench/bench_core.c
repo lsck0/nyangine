@@ -125,5 +125,21 @@ s32 main(void) {
         nya_arena_destroy(arena);
     });
 
+    /* Isolates the in-region bump path: free_all keeps the region, so every round after the warmup is pure bump allocation with no malloc. */
+    NYA_Arena* bump = nya_arena_create(.name = "bench_bump_arena");
+    nya_bench("bump 4096 x 64B into one region", 4096, {
+        for (u32 i = 0; i < 4096; i++) {
+            void* block = nya_arena_alloc(bump, 64);
+            nya_bench_keep(block);
+        }
+        nya_arena_free_all(bump);
+    });
+
+    /* Memory overhead of the bump path: bytes reserved for 4096 x 64B against the 262144 bytes asked for. */
+    for (u32 i = 0; i < 4096; i++) nya_bench_keep(nya_arena_alloc(bump, 64));
+    NYA_ArenaStats bump_stats = nya_arena_stats(bump);
+    nya_log_info("Arena bump: %" PRIu64 " bytes used, %" PRIu64 " reserved for 262144 requested.", bump_stats.used_bytes, bump_stats.reserved_bytes);
+    nya_arena_destroy(bump);
+
     return nya_bench_end();
 }

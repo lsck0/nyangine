@@ -110,7 +110,11 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
 
     _nya_arena_align_and_pad_size(arena, &size);
 
-    if (size > arena->options.region_size) goto skip_search;
+    // Hoisted out of the walk: the options never move while we bump, but the compiler cannot prove the stores to region->used leave them alone.
+    const u64 region_size = arena->options.region_size;
+    const u64 align_mask  = (u64)arena->options.alignment - 1;
+
+    if (size > region_size) goto skip_search;
 
     nya_dll_foreach (arena, region) {
         if (region->free_list != nullptr && region->free_list->average_free_size >= (f32)size) {
@@ -123,36 +127,31 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
             }
         }
 
-        if (region->capacity - region->used >= size) {
-            u8* ptr = region->memory + region->used;
+        // Align the bump cursor, then claim the region in one bounds check: `capacity - used >= size + padding` folds the original pair and cannot underflow, since size + padding never overflows (size <= region_size, padding < alignment).
+        uintptr_t cursor      = (uintptr_t)(region->memory + region->used);
+        uintptr_t aligned_ptr = (cursor + align_mask) & ~align_mask;
+        u64       padding     = aligned_ptr - cursor;
 
-            uintptr_t aligned_ptr = ((uintptr_t)ptr + (arena->options.alignment - 1)) & ~(arena->options.alignment - 1);
-            u64       padding     = aligned_ptr - (uintptr_t)ptr;
+        if (region->capacity - region->used >= size + padding) {
+            u8* ptr       = (u8*)aligned_ptr;
+            region->used += size + padding;
 
-            // enough space after the alignment padding too?
-            if (region->capacity - region->used - padding >= size) {
-                ptr           = (u8*)aligned_ptr;
-                region->used += size + padding;
+            asan_unpoison_memory_region(ptr, size - ASAN_PADDING);
+            asan_poison_memory_region(ptr + size - ASAN_PADDING, ASAN_PADDING);
 
-                asan_unpoison_memory_region(ptr, size - ASAN_PADDING);
-                asan_poison_memory_region(ptr + size - ASAN_PADDING, ASAN_PADDING);
-
-                return ptr;
-            }
+            return ptr;
         }
-
-        continue;
     }
 
 skip_search:
     /* No region had space. The new region holds the allocation plus alignment padding, since nya_malloc only guarantees max_align_t. */
-    u64              new_region_size   = nya_max(arena->options.region_size, size + arena->options.alignment - 1);
+    u64              new_region_size   = nya_max(region_size, size + align_mask);
     NYA_ArenaRegion* new_region        = nya_malloc(sizeof(NYA_ArenaRegion));
     u8*              new_region_memory = nya_malloc(new_region_size);
     nya_assert(new_region != nullptr);
     nya_assert(new_region_memory != nullptr);
 
-    uintptr_t aligned_memory  = ((uintptr_t)new_region_memory + (arena->options.alignment - 1)) & ~(arena->options.alignment - 1);
+    uintptr_t aligned_memory  = ((uintptr_t)new_region_memory + align_mask) & ~align_mask;
     u64       initial_padding = aligned_memory - (uintptr_t)new_region_memory;
 
     *new_region = (NYA_ArenaRegion){
