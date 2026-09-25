@@ -15,7 +15,7 @@
  *   nya_jobs_open / _close      create or migrate the queue's table in a database, then let go of it
  *   nya_job_enqueue             put a job on the queue: a kind, opaque payload bytes, and options
  *   nya_job_claim               atomically take the next due job, leased so a dead worker's is reclaimed
- *   nya_job_complete            mark a claimed job done
+ *   nya_job_complete            mark a claimed job done, or reschedule it when it recurs
  *   nya_job_fail                a failed job retries with exponential backoff, or dead-letters
  *   nya_job_get                 read one job back by id, for a status page or a test
  *   nya_jobs_count              how many jobs are in a given state
@@ -83,6 +83,27 @@
  * a duplicate enqueue while one is still outstanding is a no-op rather than a second copy — the "send
  * one welcome email per user", "rebuild this index once" case. Once a keyed job is done, dead or
  * expired the key is free again, so the next real request enqueues normally.
+ *
+ * ─────────────────────────────────────────────────────────
+ * RECURRING JOBS
+ * ─────────────────────────────────────────────────────────
+ *
+ * An enqueue with a `recur` interval makes the job reschedule itself the instant it completes: instead
+ * of becoming a done tombstone, nya_job_complete flips it back to pending with a fresh run_at and its
+ * attempt count reset. It is the "every hour, run the backup" job — a cache warm, a metrics roll-up, a
+ * cleanup — kept in one row that fires again and again, not a new row per firing that would grow
+ * without bound.
+ *
+ * The next run_at is advanced by whole intervals from the last one to the first moment strictly after
+ * now, so a worker that ran an occurrence late lands back on the interval's grid rather than drifting a
+ * little further behind each time, and a queue that was down for a while fires once on the next tick
+ * rather than a burst to catch up on every occurrence it missed.
+ *
+ * A recurring job that fails its way to the dead-letter state stops recurring and stays there: a
+ * schedule whose work cannot succeed is a thing to look at, not to keep firing blind. Retries between
+ * occurrences are the ordinary backoff — a recurring job is retryable within one firing and rescheduled
+ * after a successful one. Pair `recur` with a `unique_key` so a restart or a duplicate enqueue can
+ * never start the same schedule twice.
  * */
 #pragma once
 
@@ -206,6 +227,13 @@ struct NYA_JobOptions {
      * but only while it is still pending, never while a worker holds it. Ignored without a unique_key.
      * */
     b8 replace;
+
+    /**
+     * A recurrence interval: a positive span makes the job reschedule itself on every completion instead
+     * of finishing, its next run advanced by whole intervals to the first one after now. Zero (the
+     * default) or negative is a one-shot job. See the recurring note in this file's block.
+     * */
+    NYA_Duration recur;
 };
 
 /**
@@ -239,6 +267,9 @@ struct NYA_QueuedJob {
 
     /** When this claim's lease runs out and the job is claimable again. */
     NYA_Instant lease_expiry;
+
+    /** The recurrence interval, or a zero span when the job is one-shot. See the recurring note. */
+    NYA_Duration recur;
 };
 
 /** The count of jobs in each state, as nya_jobs_stats fills it in one query. */
@@ -289,6 +320,7 @@ NYA_API void nya_jobs_close(NYA_JobQueue* queue);
  * NYA_TRY(nya_job_enqueue(queue, "resize_image", bytes, size, &id));
  * NYA_TRY(nya_job_enqueue(queue, "welcome", bytes, size, &id, .unique_key = user_id, .max_attempts = 3));
  * NYA_TRY(nya_job_enqueue(queue, "report", bytes, size, &id, .run_at = midnight, .deadline = noon));
+ * NYA_TRY(nya_job_enqueue(queue, "backup", bytes, size, &id, .recur = nya_duration_from_s(3600), .unique_key = "backup"));
  * ```
  * */
 // job_kind and the rest are named so nothing collides with an option field substituted after a dot.
@@ -315,8 +347,10 @@ NYA_API NYA_Error nya_job_claim(
 ) __attr_no_discard;
 
 /**
- * Marks a claimed job done. NYA_ERROR_NOT_FOUND when no job has that id or it was not in a state a
- * completion applies to, so a caller can tell a real completion from a no-op.
+ * Marks a claimed job done, or — when the job was enqueued with a `recur` interval — reschedules it to
+ * its next occurrence (pending again, attempts reset) rather than finishing it, so one row carries a
+ * recurring schedule. NYA_ERROR_NOT_FOUND when no job has that id or it was not in a state a completion
+ * applies to, so a caller can tell a real completion from a no-op. See the recurring note in this file's block.
  * */
 NYA_API NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id) __attr_no_discard;
 

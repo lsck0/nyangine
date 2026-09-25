@@ -30,6 +30,12 @@ NYA_INTERNAL u64 _nya_jobs_hash(u64 x) __attr_no_discard;
 /** The backoff delay in ns for a job that has been tried `attempts` times: base * 2^(attempt-1), capped. */
 NYA_INTERNAL s64 _nya_jobs_backoff_ns(const NYA_JobQueue* queue, u32 attempts, s64 job_id, s64 now) __attr_no_discard;
 
+/** Whether the queue's table already has a column of this name, read from PRAGMA table_info for the upgrade path. */
+NYA_INTERNAL NYA_Error _nya_jobs_has_column(NYA_JobQueue* queue, NYA_ConstCString column, OUT b8* out_has) __attr_no_discard;
+
+/** The next run_at for a recurring job: `run_at` advanced by whole `interval`s to the first moment after `now`. */
+NYA_INTERNAL s64 _nya_jobs_next_occurrence(s64 run_at, s64 interval, s64 now) __attr_no_discard;
+
 /** Reads a result row — the columns nya_job_claim and nya_job_get select — into `out_job`, copying into `out_arena`. */
 NYA_INTERNAL void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT NYA_QueuedJob* out_job);
 
@@ -88,11 +94,20 @@ NYA_Error nya_jobs_open_with_options(NYA_Arena* arena, NYA_Database* database, N
         "unique_key TEXT, "
         "created INTEGER NOT NULL, "
         "updated INTEGER NOT NULL, "
-        "last_error TEXT"
+        "last_error TEXT, "
+        "recur_interval INTEGER NOT NULL DEFAULT 0"
         ")",
         queue->table
     );
     NYA_TRY(nya_sql_exec(database, nya_string_to_cstring(scratch, create)));
+
+    // The upgrade path: a table left by a build before recurring jobs has no recur_interval, and CREATE ... IF NOT EXISTS never alters an existing one, so add the column (defaulting to zero, one-shot) when it is missing.
+    b8 has_recur = false;
+    NYA_TRY(_nya_jobs_has_column(queue, "recur_interval", &has_recur));
+    if (!has_recur) {
+        NYA_String* alter = nya_string_sprintf(scratch, "ALTER TABLE %s ADD COLUMN recur_interval INTEGER NOT NULL DEFAULT 0", queue->table);
+        NYA_TRY(nya_sql_exec(database, nya_string_to_cstring(scratch, alter)));
+    }
 
     // The claim reads by (state, run_at), so an index on that pair keeps a busy queue from scanning.
     NYA_String* due_index = nya_string_sprintf(scratch, "CREATE INDEX IF NOT EXISTS %s_due ON %s (state, run_at)", queue->table, queue->table);
@@ -133,6 +148,7 @@ NYA_Error nya_job_enqueue_with_options(
     s64 run_at       = options.run_at.ns != 0 ? options.run_at.ns : now;
     s64 deadline     = options.deadline.ns;  // zero means none
     u32 max_attempts = options.max_attempts != 0 ? options.max_attempts : queue->default_max_attempts;
+    s64 recur        = options.recur.ns > 0 ? options.recur.ns : 0;  // negative or zero: a one-shot job
 
     // A zero-length payload binds a non-null pointer so SQLite stores an empty blob rather than the forbidden NULL, which would come back null, not empty.
     const u8* data = payload != nullptr ? payload : (const u8*)"";
@@ -144,8 +160,8 @@ NYA_Error nya_job_enqueue_with_options(
         // No key: every call is a new row. RETURNING is not needed — an INSERT sets last_insert_id.
         NYA_String* sql = nya_string_sprintf(
             scratch,
-            "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error) "
-            "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, NULL, ?, ?, NULL)",
+            "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error, recur_interval) "
+            "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, NULL, ?, ?, NULL, ?)",
             queue->table,
             NYA_JOB_STATE_PENDING
         );
@@ -153,7 +169,7 @@ NYA_Error nya_job_enqueue_with_options(
         NYA_SqlValue values[] = {
             nya_sql_text(kind),        nya_sql_blob(data, payload_size), nya_sql_s64((s64)max_attempts),
             nya_sql_s64(run_at),       nya_sql_s64(deadline),            nya_sql_s64(now),
-            nya_sql_s64(now),
+            nya_sql_s64(now),          nya_sql_s64(recur),
         };
         NYA_SqlResult result = { 0 };
         NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, sql), values, nya_carray_length(values), &result));
@@ -169,7 +185,7 @@ NYA_Error nya_job_enqueue_with_options(
             scratch,
             "DO UPDATE SET payload = excluded.payload, max_attempts = excluded.max_attempts, "
             "run_at = excluded.run_at, deadline = excluded.deadline, updated = excluded.updated, "
-            "attempts = 0, last_error = NULL WHERE %s.state = %d",
+            "recur_interval = excluded.recur_interval, attempts = 0, last_error = NULL WHERE %s.state = %d",
             queue->table,
             NYA_JOB_STATE_PENDING
         );
@@ -179,8 +195,8 @@ NYA_Error nya_job_enqueue_with_options(
 
     NYA_String* sql = nya_string_sprintf(
         scratch,
-        "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error) "
-        "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, ?, ?, ?, NULL) "
+        "INSERT INTO %s (kind, payload, state, attempts, max_attempts, run_at, deadline, lease_expiry, worker, unique_key, created, updated, last_error, recur_interval) "
+        "VALUES (?, ?, %d, 0, ?, ?, ?, 0, NULL, ?, ?, ?, NULL, ?) "
         "ON CONFLICT (unique_key) WHERE unique_key IS NOT NULL AND state IN (%d, %d) %.*s",
         queue->table,
         NYA_JOB_STATE_PENDING,
@@ -193,6 +209,7 @@ NYA_Error nya_job_enqueue_with_options(
     NYA_SqlValue values[] = {
         nya_sql_text(kind),  nya_sql_blob(data, payload_size), nya_sql_s64((s64)max_attempts), nya_sql_s64(run_at),
         nya_sql_s64(deadline), nya_sql_text(options.unique_key), nya_sql_s64(now),               nya_sql_s64(now),
+        nya_sql_s64(recur),
     };
     NYA_TRY(nya_sql_exec_bound(queue->database, nya_string_to_cstring(scratch, sql), values, nya_carray_length(values)));
 
@@ -241,7 +258,7 @@ NYA_Error nya_job_claim(NYA_JobQueue* queue, NYA_ConstCString worker_id, NYA_Are
         "AND (state = %d OR (state = %d AND lease_expiry <= ?)) "
         "ORDER BY run_at ASC, id ASC LIMIT 1"
         ") "
-        "RETURNING id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry",
+        "RETURNING id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry, recur_interval",
         queue->table,
         NYA_JOB_STATE_CLAIMED,
         queue->table,
@@ -270,13 +287,40 @@ NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id) {
     NYA_Arena* scratch = nya_arena_create(.name = "jobs_complete");
     defer      nya_arena_destroy(scratch);
 
-    // Only a claimed job completes: a completion for one not in flight affects no row and is reported as not found, so a real completion is told from a no-op.
+    s64 now = _nya_jobs_now();
+
+    // A recurring job reschedules rather than finishing, so its interval and last run_at decide the next fire; read them for the one claimed job, since a job not in flight is not one this call completes.
+    NYA_String* read_sql = nya_string_sprintf(scratch, "SELECT run_at, recur_interval FROM %s WHERE id = ? AND state = %d", queue->table, NYA_JOB_STATE_CLAIMED);
+    NYA_SqlValue  key[]  = { nya_sql_s64(job_id) };
+    NYA_SqlResult read   = { 0 };
+    NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, read_sql), key, 1, &read));
+
+    // No claimed row: a completion for one not in flight affects nothing and is reported as not found, so a real completion is told from a no-op.
+    if (read.rows->length == 0) return nya_error(NYA_ERROR_NOT_FOUND, "no claimed job " FMTs64, job_id);
+
+    s64 run_at   = nya_object_get(read.rows->items[0], "run_at")->as_s64;
+    s64 interval = nya_object_get(read.rows->items[0], "recur_interval")->as_s64;
+
+    if (interval > 0) {
+        // Recurring: back to pending at the next occurrence, attempts reset so the next fire gets its full retry budget, lease and error cleared. The row (and its unique key) stays exactly one.
+        s64         next_run = _nya_jobs_next_occurrence(run_at, interval, now);
+        NYA_String* recur_sql = nya_string_sprintf(
+            scratch, "UPDATE %s SET state = %d, worker = NULL, lease_expiry = 0, attempts = 0, run_at = ?, updated = ?, last_error = NULL WHERE id = ? AND state = %d",
+            queue->table, NYA_JOB_STATE_PENDING, NYA_JOB_STATE_CLAIMED
+        );
+        NYA_SqlValue  values[] = { nya_sql_s64(next_run), nya_sql_s64(now), nya_sql_s64(job_id) };
+        NYA_SqlResult result   = { 0 };
+        NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, recur_sql), values, nya_carray_length(values), &result));
+        return NYA_OK;
+    }
+
+    // One-shot: a done tombstone, kept rather than deleted so a caller can see it ran.
     NYA_String* sql = nya_string_sprintf(
         scratch, "UPDATE %s SET state = %d, worker = NULL, lease_expiry = 0, updated = ? WHERE id = ? AND state = %d", queue->table,
         NYA_JOB_STATE_DONE, NYA_JOB_STATE_CLAIMED
     );
 
-    NYA_SqlValue  values[] = { nya_sql_s64(_nya_jobs_now()), nya_sql_s64(job_id) };
+    NYA_SqlValue  values[] = { nya_sql_s64(now), nya_sql_s64(job_id) };
     NYA_SqlResult result   = { 0 };
     NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, sql), values, nya_carray_length(values), &result));
 
@@ -342,7 +386,7 @@ NYA_Error nya_job_get(NYA_JobQueue* queue, s64 job_id, NYA_Arena* out_arena, OUT
     defer      nya_arena_destroy(scratch);
 
     NYA_String* sql = nya_string_sprintf(
-        scratch, "SELECT id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry FROM %s WHERE id = ?", queue->table
+        scratch, "SELECT id, kind, payload, attempts, max_attempts, run_at, deadline, created, lease_expiry, recur_interval FROM %s WHERE id = ?", queue->table
     );
 
     NYA_SqlValue  key[]  = { nya_sql_s64(job_id) };
@@ -472,6 +516,47 @@ s64 _nya_jobs_backoff_ns(const NYA_JobQueue* queue, u32 attempts, s64 job_id, s6
     return delay;
 }
 
+NYA_Error _nya_jobs_has_column(NYA_JobQueue* queue, NYA_ConstCString column, OUT b8* out_has) {
+    nya_assert(out_has != nullptr);
+
+    *out_has = false;
+
+    NYA_Arena* scratch = nya_arena_create(.name = "jobs_column");
+    defer      nya_arena_destroy(scratch);
+
+    // The table name is a checked identifier (validated at open) and cannot be bound, exactly as db_orm.c reads its own schema; nothing here comes from outside the module.
+    NYA_String*   sql    = nya_string_sprintf(scratch, "PRAGMA table_info(%s)", queue->table);
+    NYA_SqlResult result = { 0 };
+    NYA_TRY(nya_sql_query(queue->database, scratch, nya_string_to_cstring(scratch, sql), nullptr, 0, &result));
+
+    nya_array_foreach (result.rows, row) {
+        NYA_Value* name = nya_object_get(*row, "name");
+        if (name != nullptr && name->type == NYA_TYPE_STRING && nya_string_equals(name->as_string, column)) {
+            *out_has = true;
+            break;
+        }
+    }
+
+    return NYA_OK;
+}
+
+s64 _nya_jobs_next_occurrence(s64 run_at, s64 interval, s64 now) {
+    nya_assert(interval > 0, "a recurring job has a positive interval");
+
+    // The next tick on the interval's grid: one interval past the last run. When that already sits at or before now — a worker that ran late, a queue that was down — skip whole intervals to the first tick strictly after now, so the schedule lands back on the grid rather than firing a burst to catch up on every missed occurrence.
+    s64 next = run_at + interval;
+    if (next > now) return next;
+
+    s64 elapsed = now - run_at;         // >= 0, since next <= now means run_at <= now - interval < now
+    s64 periods = elapsed / interval;   // whole intervals since the last run; >= 1 here
+
+    // ahead = (periods + 1) * interval is at most elapsed + interval, so run_at + ahead lands at most one interval past now and cannot overflow for any real recurrence. Guard both multiplies anyway, saturating to S64_MAX, for an interval so large (centuries) that the arithmetic would wrap — a caller's mistake, not a schedule.
+    if (periods + 1 > S64_MAX / interval) return S64_MAX;
+    s64 ahead = (periods + 1) * interval;
+    if (run_at > S64_MAX - ahead) return S64_MAX;
+    return run_at + ahead;
+}
+
 void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT NYA_QueuedJob* out_job) {
     nya_assert(row != nullptr);
     nya_assert(out_arena != nullptr);
@@ -484,6 +569,7 @@ void _nya_jobs_row_read(NYA_Object* row, NYA_Arena* out_arena, OUT NYA_QueuedJob
     out_job->deadline     = (NYA_Instant){ .ns = nya_object_get(row, "deadline")->as_s64 };
     out_job->created      = (NYA_Instant){ .ns = nya_object_get(row, "created")->as_s64 };
     out_job->lease_expiry = (NYA_Instant){ .ns = nya_object_get(row, "lease_expiry")->as_s64 };
+    out_job->recur        = (NYA_Duration){ .ns = nya_object_get(row, "recur_interval")->as_s64 };
 
     NYA_ConstCString kind = nya_object_get(row, "kind")->as_string;
     out_job->kind         = nya_string_to_cstring(out_arena, nya_string_sprintf(out_arena, "%s", kind != nullptr ? kind : ""));

@@ -447,6 +447,131 @@ s32 main(void) {
     }
   }
 
+  // TEST: a recurring job reschedules itself on completion instead of finishing, and keeps one row
+  {
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
+    defer nya_sql_close(db);
+
+    NYA_JobQueue* queue = nullptr;
+    NYA_EXPECT(nya_jobs_open(arena, db, &queue, .default_max_attempts = 3, .lease = nya_duration_from_s(30)));
+    defer nya_jobs_close(queue);
+
+    // A heartbeat every ten seconds, keyed so it is a single schedule that a duplicate enqueue never forks.
+    s64 enqueued_at = g_now_ns;
+    s64 id          = 0;
+    NYA_EXPECT(nya_job_enqueue(queue, "beat", (const u8*)"tick", 4, &id, .recur = nya_duration_from_s(10), .unique_key = "hb"));
+
+    // First firing: claim carries the interval back, complete reschedules rather than finishing.
+    NYA_QueuedJob job     = { 0 };
+    b8            claimed = false;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &job, &claimed));
+    nya_assert(claimed && job.id == id && job.attempts == 1, "the recurring job is claimed");
+    nya_assert(job.recur.ns == 10 * NYA_NS_PER_SECOND, "the claim carries the recurrence interval");
+    NYA_EXPECT(nya_job_complete(queue, id));
+
+    // It is pending again, not done: one row, its next run one interval on, its attempts reset.
+    NYA_JobStats stats = { 0 };
+    NYA_EXPECT(nya_jobs_stats(queue, &stats));
+    nya_assert(stats.pending == 1 && stats.done == 0 && stats.total == 1, "a completed recurring job is pending again, not a done tombstone");
+
+    NYA_QueuedJob next = { 0 };
+    NYA_EXPECT(nya_job_get(queue, id, arena, &next));
+    nya_assert(next.run_at.ns == enqueued_at + 10 * NYA_NS_PER_SECOND, "the next run is one interval past the last");
+    nya_assert(next.attempts == 0, "the reschedule resets the attempt count for the next firing");
+
+    // Not due until its next run_at: the reschedule actually holds it back.
+    NYA_QueuedJob early         = { 0 };
+    b8            early_claimed = true;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &early, &early_claimed));
+    nya_assert(!early_claimed, "a rescheduled recurring job is not claimable before its next run");
+
+    // A duplicate enqueue under the same key while it waits is still a no-op: one schedule, one row.
+    s64 dup = 0;
+    NYA_EXPECT(nya_job_enqueue(queue, "beat", (const u8*)"tick", 4, &dup, .recur = nya_duration_from_s(10), .unique_key = "hb"));
+    nya_assert(dup == id, "a duplicate enqueue keeps the one recurring row");
+
+    // Second firing on time: claim, complete, and the next run is two intervals from the first.
+    g_now_ns = next.run_at.ns;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &job, &claimed));
+    nya_assert(claimed && job.id == id && job.attempts == 1, "the recurring job fires again on its next run");
+    NYA_EXPECT(nya_job_complete(queue, id));
+
+    NYA_QueuedJob third = { 0 };
+    NYA_EXPECT(nya_job_get(queue, id, arena, &third));
+    nya_assert(third.run_at.ns == enqueued_at + 20 * NYA_NS_PER_SECOND, "each firing advances the schedule by one interval");
+  }
+
+  // TEST: a recurring job run late catches up to the interval grid, firing once, not a burst
+  {
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
+    defer nya_sql_close(db);
+
+    NYA_JobQueue* queue = nullptr;
+    NYA_EXPECT(nya_jobs_open(arena, db, &queue));
+    defer nya_jobs_close(queue);
+
+    s64 base = g_now_ns;
+    s64 id   = 0;
+    NYA_EXPECT(nya_job_enqueue(queue, "roll", (const u8*)"", 0, &id, .recur = nya_duration_from_s(10)));
+
+    // Claim on time, but the worker (or the whole queue) is down and the completion lands 55s late.
+    NYA_QueuedJob job     = { 0 };
+    b8            claimed = false;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &job, &claimed));
+    nya_assert(claimed, "claimed the first firing");
+
+    g_now_ns = base + 55 * NYA_NS_PER_SECOND;
+    NYA_EXPECT(nya_job_complete(queue, id));
+
+    // The next run is the first grid tick strictly after now (base + 60s), not base + 10s and not a backlog of five missed firings.
+    NYA_QueuedJob next = { 0 };
+    NYA_EXPECT(nya_job_get(queue, id, arena, &next));
+    nya_assert(next.run_at.ns == base + 60 * NYA_NS_PER_SECOND, "a late completion lands on the next grid tick after now");
+    nya_assert(next.run_at.ns > g_now_ns, "and strictly in the future, so it does not immediately re-fire");
+
+    // Exactly one job is due at the catch-up tick, not one per missed interval.
+    g_now_ns = next.run_at.ns;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &job, &claimed));
+    nya_assert(claimed && job.id == id, "the caught-up job is claimable at its tick");
+    NYA_QueuedJob none = { 0 };
+    b8            more = true;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &none, &more));
+    nya_assert(!more, "there is no backlog of missed firings queued behind it");
+  }
+
+  // TEST: a recurring job that fails to death stops recurring and stays for inspection
+  {
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
+    defer nya_sql_close(db);
+
+    NYA_JobQueue* queue = nullptr;
+    NYA_EXPECT(nya_jobs_open(arena, db, &queue, .default_max_attempts = 1));
+    defer nya_jobs_close(queue);
+
+    s64 id = 0;
+    NYA_EXPECT(nya_job_enqueue(queue, "doomed", (const u8*)"", 0, &id, .recur = nya_duration_from_s(10)));
+
+    NYA_QueuedJob job     = { 0 };
+    b8            claimed = false;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &job, &claimed));
+    nya_assert(claimed && job.attempts == 1, "claimed the only allowed attempt");
+
+    // Out of attempts: it dead-letters rather than rescheduling, so a broken schedule stops instead of firing blind.
+    NYA_EXPECT(nya_job_fail(queue, id, true));
+
+    NYA_JobStats stats = { 0 };
+    NYA_EXPECT(nya_jobs_stats(queue, &stats));
+    nya_assert(stats.dead == 1 && stats.pending == 0, "a recurring job out of attempts dead-letters and does not reschedule");
+
+    NYA_QueuedJob revived      = { 0 };
+    b8            revived_flag = true;
+    NYA_EXPECT(nya_job_claim(queue, "w", arena, &revived, &revived_flag));
+    nya_assert(!revived_flag, "the dead recurring job is never handed out again");
+  }
+
   printf("PASSED: test_db_jobs\n");
   return 0;
 }
