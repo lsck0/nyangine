@@ -1300,6 +1300,12 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   the produced binary rather than trusted from the flag list. Landed 2026-09-24 (`2c758ee8`, ELF-verified).
 - `[ ]` Pinned releases: SDL is at `release-3.4.0-1237`, an untagged commit on main, and Box3D is pre-1.0. Pin
   each vendor to a release tag, or write down beside the submodule why not.
+- `[ ]` Bump box2d off its current pin: the newer API changes the pre-solve callback from a bool-returning
+  `(shapeA, shapeB, point, normal)` veto to a void `(shapeA, shapeB, b2Manifold*)` one (veto by clearing
+  `manifold->pointCount`), and a bump also regresses the box-on-chain rest test — the crate tunnels the chain,
+  so `b2WorldDef`/sub-step/contact defaults or chain-segment collision need re-tuning. Port `physics2d.c`'s
+  `_nya_physics2d_pre_solve` and re-verify `tests/nyangine/core/test_physics2d` before bumping. Every other
+  vendor was updated 2026-09-25 (`fa7de17c`).
 - `[x]` An SBOM and a licence allowlist generated from the vendor rules, and a CVE check against it in CI.
   `./build sbom` (src/nyangine-build/sbom.c) reads `.gitmodules` and the commit HEAD pins each submodule to, detects
   each dependency's licence from its LICENSE/COPYING file, and writes a CycloneDX 1.5 document plus a human
