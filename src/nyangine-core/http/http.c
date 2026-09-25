@@ -20,6 +20,8 @@
 #include "nyangine-core/http/http_health.c"
 // after the router, whose exchange it reads and whose chain it wraps, and the message layer whose bodies it decodes: the one layer the engine ships.
 #include "nyangine-core/http/http_log.c"
+// after http_log.c, which feeds it the duration it measures: the RED histogram and the OTLP span ring, read by the Prometheus render and drained by an exporter a program wires.
+#include "nyangine-core/http/http_observe.c"
 // after the router, whose chain it wraps, and the message layer whose response it captures and replays: a layer a program installs to make a retried unsafe request run once.
 #include "nyangine-core/http/http_idempotency.c"
 // after the router, whose chain it wraps, and seal/crypto, which it mints and opens a sealed challenge through: the abuse layer a public server installs where there's no IP to rate-limit.

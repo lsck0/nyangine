@@ -7,6 +7,7 @@
 #include "nyangine-std/base/base_ceiling.h"
 #include "nyangine-core/core/core_app.h"
 #include "nyangine-core/debug/debug_metrics.h"
+#include "nyangine-core/http/http_observe.h"
 #include "nyangine-core/http/http_server.h"
 #include "nyangine-std/base/base_clock.h"
 
@@ -80,6 +81,43 @@ NYA_INTERNAL b8 _nya_prom_labeled_u64(_NYA_PromBuffer* buffer, NYA_ConstCString 
 /** A whole family — `# HELP`, `# TYPE`, one bare `metric number` line — for a scalar, on overflow rolled back. */
 NYA_INTERNAL void _nya_prom_scalar_u64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, u64 number);
 NYA_INTERNAL void _nya_prom_scalar_f64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_ConstCString help, f64 number);
+
+/*
+ * ── the RED render ──
+ *
+ * The request histogram and error counter http_observe.c accumulates, rendered as their own families
+ * here beside the ceilings and gauges: one place produces the whole `/metrics` body, and the appender's
+ * escaping and bounding are the same for these numbers as for the rest. Labelled by method and status
+ * class and nothing else, which is what keeps the series count fixed.
+ */
+
+/** "1xx" … "5xx", or "unknown" for a status outside those. Written into `out`. */
+NYA_INTERNAL void _nya_prom_status_class(u32 status_class, OUT char* out, u64 capacity);
+
+/**
+ * One histogram bucket line — `metric{method="…",status="…",le="…"} number` — rolled back whole on
+ * overflow. Returns overflow, so a caller stops the family at a line boundary.
+ * */
+NYA_INTERNAL b8 _nya_prom_red_bucket(_NYA_PromBuffer* buffer, NYA_ConstCString method, NYA_ConstCString status, NYA_ConstCString le, u64 number);
+
+/** One `metric{method="…",status="…"} number` line for a `u64` or an `f64`, rolled back whole on overflow. */
+NYA_INTERNAL void _nya_prom_red_pair_u64(
+    _NYA_PromBuffer* buffer,
+    NYA_ConstCString metric,
+    NYA_ConstCString method,
+    NYA_ConstCString status,
+    u64              number
+);
+NYA_INTERNAL void _nya_prom_red_pair_f64(
+    _NYA_PromBuffer* buffer,
+    NYA_ConstCString metric,
+    NYA_ConstCString method,
+    NYA_ConstCString status,
+    f64              number
+);
+
+/** The whole RED render: `http_request_duration_seconds` and `http_request_errors_total`. */
+NYA_INTERNAL void _nya_prom_red(_NYA_PromBuffer* buffer);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -259,6 +297,10 @@ u64 nya_http_metrics_prometheus(char* out, u64 capacity) {
     for (u32 index = 0; index < gauges; index++) {
         if (_nya_prom_labeled_u64(&buffer, metric, label, nya_gauge_name_at(index), nya_gauge_bytes_at(index))) break;
     }
+
+    // The RED families last: the request histogram and the error counter http_observe.c keeps, rendered
+    // only while the histogram is switched on so a disabled one leaves no family behind.
+    _nya_prom_red(&buffer);
 
     return buffer.size;
 }
@@ -645,5 +687,144 @@ void _nya_prom_scalar_f64(_NYA_PromBuffer* buffer, NYA_ConstCString name, NYA_Co
     if (buffer->overflow) {
         buffer->size       = mark;
         buffer->data[mark] = '\0';
+    }
+}
+
+void _nya_prom_status_class(u32 status_class, OUT char* out, u64 capacity) {
+    if (status_class >= 1 && status_class <= 5) {
+        (void)snprintf(out, capacity, "%uxx", status_class);
+    } else {
+        (void)snprintf(out, capacity, "%s", "unknown");
+    }
+}
+
+b8 _nya_prom_red_bucket(_NYA_PromBuffer* buffer, NYA_ConstCString method, NYA_ConstCString status, NYA_ConstCString le, u64 number) {
+    u64 mark = buffer->size;
+
+    _nya_prom_put(buffer, "http_request_duration_seconds_bucket{method=\"");
+    _nya_prom_put_label_value(buffer, method);
+    _nya_prom_put(buffer, "\",status=\"");
+    _nya_prom_put_label_value(buffer, status);
+    _nya_prom_put(buffer, "\",le=\"");
+    _nya_prom_put_label_value(buffer, le);
+    _nya_prom_put(buffer, "\"} ");
+    _nya_prom_put_u64(buffer, number);
+    _nya_prom_put(buffer, "\n");
+
+    if (buffer->overflow) {
+        buffer->size       = mark;
+        buffer->data[mark] = '\0';
+        return true;
+    }
+
+    return false;
+}
+
+void _nya_prom_red_pair_u64(_NYA_PromBuffer* buffer, NYA_ConstCString metric, NYA_ConstCString method, NYA_ConstCString status, u64 number) {
+    u64 mark = buffer->size;
+
+    _nya_prom_put(buffer, metric);
+    _nya_prom_put(buffer, "{method=\"");
+    _nya_prom_put_label_value(buffer, method);
+    _nya_prom_put(buffer, "\",status=\"");
+    _nya_prom_put_label_value(buffer, status);
+    _nya_prom_put(buffer, "\"} ");
+    _nya_prom_put_u64(buffer, number);
+    _nya_prom_put(buffer, "\n");
+
+    if (buffer->overflow) {
+        buffer->size       = mark;
+        buffer->data[mark] = '\0';
+    }
+}
+
+void _nya_prom_red_pair_f64(_NYA_PromBuffer* buffer, NYA_ConstCString metric, NYA_ConstCString method, NYA_ConstCString status, f64 number) {
+    u64 mark = buffer->size;
+
+    _nya_prom_put(buffer, metric);
+    _nya_prom_put(buffer, "{method=\"");
+    _nya_prom_put_label_value(buffer, method);
+    _nya_prom_put(buffer, "\",status=\"");
+    _nya_prom_put_label_value(buffer, status);
+    _nya_prom_put(buffer, "\"} ");
+    _nya_prom_put_f64(buffer, number);
+    _nya_prom_put(buffer, "\n");
+
+    if (buffer->overflow) {
+        buffer->size       = mark;
+        buffer->data[mark] = '\0';
+    }
+}
+
+void _nya_prom_red(_NYA_PromBuffer* buffer) {
+    // Nothing while the histogram is off, so a disabled RED leaves no family in the body at all.
+    if (!nya_http_observe_metrics_enabled()) return;
+
+    u32 buckets = nya_http_observe_bucket_count();
+
+    // A family's `# TYPE` line is written only when it has at least one series: an empty histogram or
+    // error counter is left out entirely, so a scrape before the first request is the ceilings and gauges
+    // alone rather than a lone header, and the body carries only the routes that have run.
+    b8 any_duration = false;
+    b8 any_errors   = false;
+
+    for (u32 method = 0; method < NYA_HTTP_METHOD_COUNT; method++) {
+        for (u32 status_class = 0; status_class < NYA_HTTP_OBSERVE_CLASS_COUNT; status_class++) {
+            if (nya_http_observe_count((NYA_HttpMethod)method, status_class) > 0) any_duration = true;
+        }
+        if (nya_http_observe_errors((NYA_HttpMethod)method) > 0) any_errors = true;
+    }
+
+    if (any_duration) {
+        _nya_prom_put(buffer, "# HELP http_request_duration_seconds HTTP request latency in seconds.\n");
+        _nya_prom_put(buffer, "# TYPE http_request_duration_seconds histogram\n");
+
+        for (u32 method = 0; method < NYA_HTTP_METHOD_COUNT; method++) {
+            NYA_ConstCString method_text = nya_http_method_text((NYA_HttpMethod)method);
+
+            for (u32 status_class = 0; status_class < NYA_HTTP_OBSERVE_CLASS_COUNT; status_class++) {
+                u64 total = nya_http_observe_count((NYA_HttpMethod)method, status_class);
+                if (total == 0) continue;
+
+                char class_text[8];
+                _nya_prom_status_class(status_class, class_text, sizeof(class_text));
+
+                b8 overflowed = false;
+
+                for (u32 bucket = 0; bucket < buckets && !overflowed; bucket++) {
+                    char le[32];
+                    (void)snprintf(le, sizeof(le), "%g", nya_http_observe_bucket_bound_s(bucket));
+
+                    overflowed = _nya_prom_red_bucket(buffer, method_text, class_text, le,
+                                                      nya_http_observe_bucket_cumulative((NYA_HttpMethod)method, status_class, bucket));
+                }
+
+                // The `+Inf` bucket is the total; a histogram's last cumulative bucket always equals its count.
+                if (!overflowed) overflowed = _nya_prom_red_bucket(buffer, method_text, class_text, "+Inf", total);
+
+                if (overflowed) return;
+
+                _nya_prom_red_pair_f64(buffer, "http_request_duration_seconds_sum", method_text, class_text,
+                                       (f64)nya_http_observe_sum_ns((NYA_HttpMethod)method, status_class) / 1.0e9);
+                _nya_prom_red_pair_u64(buffer, "http_request_duration_seconds_count", method_text, class_text, total);
+            }
+        }
+    }
+
+    if (any_errors) {
+        _nya_prom_put(buffer, "# HELP http_request_errors_total HTTP requests answered with a 5xx status.\n");
+        _nya_prom_put(buffer, "# TYPE http_request_errors_total counter\n");
+
+        char metric[64];
+        char label[16];
+        _nya_prom_name(metric, sizeof(metric), "http_request_errors_total");
+        _nya_prom_name(label, sizeof(label), "method");
+
+        for (u32 method = 0; method < NYA_HTTP_METHOD_COUNT; method++) {
+            u64 errors = nya_http_observe_errors((NYA_HttpMethod)method);
+            if (errors == 0) continue;
+
+            if (_nya_prom_labeled_u64(buffer, metric, label, nya_http_method_text((NYA_HttpMethod)method), errors)) return;
+        }
     }
 }

@@ -82,6 +82,7 @@
 #include "nyangine-core/http/http_keyring.h"
 #include "nyangine-core/http/http_log.h"
 #include "nyangine-core/http/http_message.h"
+#include "nyangine-core/http/http_observe.h"
 #include "nyangine-core/http/http_attestation.h"
 #include "nyangine-core/http/http_openapi.h"
 #include "nyangine-core/http/http_pow.h"

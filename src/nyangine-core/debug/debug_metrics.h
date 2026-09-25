@@ -116,11 +116,13 @@
  * Bytes the Prometheus render may produce, terminator included.
  *
  * The worst case is every ceiling and every gauge with a name that is all escapable characters, plus
- * the frame counters and every family's two header lines. Well inside the response buffer; a render
- * that would pass it is truncated at a sample boundary rather than growing, because a scrape body is
- * something a bounded server answers on one buffer and not a stream.
+ * the frame counters, plus the RED families — a request-latency histogram whose series are the method
+ * and status-class pairs that have actually been seen, each with a dozen buckets and a sum and a count,
+ * and a per-method error counter — and every family's two header lines. Well inside the response buffer;
+ * a render that would pass it is truncated at a sample boundary rather than growing, because a scrape
+ * body is something a bounded server answers on one buffer and not a stream.
  * */
-#define NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES 32768
+#define NYA_HTTP_METRICS_PROMETHEUS_MAX_BYTES 65536
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -268,9 +270,10 @@ struct NYA_HttpAccountingDto {
 NYA_API const NYA_HttpRouter* nya_http_metrics_router(void) __attr_no_discard;
 
 /**
- * Renders the ceiling registry, the gauge registry and the frame counters into `out` as the Prometheus
- * text exposition format, null terminated, and returns how many bytes were written before the
- * terminator.
+ * Renders the ceiling registry, the gauge registry, the frame counters and the RED request families
+ * (`http_request_duration_seconds` and `http_request_errors_total`, fed by http_observe.c) into `out` as
+ * the Prometheus text exposition format, null terminated, and returns how many bytes were written before
+ * the terminator.
  *
  * The whole render is one read of numbers the program already keeps: it counts nothing and allocates
  * nothing, exactly like the QUERY handlers. It is bounded by `capacity` and by the registries' own

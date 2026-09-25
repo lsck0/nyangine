@@ -8,6 +8,8 @@
 #include "nyangine-std/base/base_string.h"
 #include "nyangine-core/crypto/crypto_hash.h"
 #include "nyangine-core/http/http_log.h"
+#include "nyangine-core/http/http_message.h"
+#include "nyangine-core/http/http_observe.h"
 #include "nyangine-std/serde/serde.h"
 
 static_assert(NYA_HTTP_LOG_MAX_RECORD_BYTES <= NYA_LOG_MESSAGE_MAX_LENGTH,
@@ -113,7 +115,28 @@ NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* nex
 
     NYA_HttpStatus status = nya_http_chain_next(exchange, next);
 
-    u64 elapsed_us = (nya_clock_get_monotonic_ns() - started_ns) / 1000;
+    u64 elapsed_ns = nya_clock_get_monotonic_ns() - started_ns;
+    u64 elapsed_us = elapsed_ns / 1000;
+
+    // The one duration this layer measures, handed on rather than dropped: into the RED histogram always,
+    // and into an OTLP span when a program has turned tracing on. Both are bounded, hold no PII — a method,
+    // a status class, a route pattern — and cost a flag read while their own switch is off. The route's
+    // own pattern, never the request's path, for the same reason the log line below uses it.
+    nya_http_observe_request(exchange->request->method, status, elapsed_ns);
+
+    if (nya_http_trace_config_get().enabled) {
+        u64 end_unix_ns   = nya_clock_get_timestamp_ns();
+        u64 start_unix_ns = end_unix_ns > elapsed_ns ? end_unix_ns - elapsed_ns : end_unix_ns;
+
+        nya_http_trace_record(
+            exchange->request->method,
+            status,
+            exchange->route != nullptr ? exchange->route->path : "",
+            start_unix_ns,
+            elapsed_ns,
+            nya_http_request_header(exchange->request, "traceparent")
+        );
+    }
 
     char address[NYA_HTTP_MAX_ADDRESS] = { 0 };
 
