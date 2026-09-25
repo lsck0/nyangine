@@ -68,7 +68,9 @@
     "-DCURL_DISABLE_HEADERS_API=ON",        \
     "-DCURL_DISABLE_PROGRESS_METER=ON",     \
     "-DCURL_DISABLE_BINDLOCAL=ON",          \
-    "-DCURL_DISABLE_IPFS=ON"
+    "-DCURL_DISABLE_IPFS=ON",                \
+    "-DCURL_DISABLE_LDAP=ON",               \
+    "-DCURL_DISABLE_LDAPS=ON"
 
 // clang-format on
 
