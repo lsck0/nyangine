@@ -10,7 +10,9 @@
  *
  * nya_http_chain_next        a layer calls this to run the rest of the chain
  *
- * nya_http_response_problem  the error body every refusal here carries
+ * nya_http_response_problem  the error body every refusal here carries, negotiated HTML or JSON
+ * nya_http_status_from_error the HTTP status an NYA_Error maps to
+ * nya_http_response_error    answers with that status and a negotiated body, the message safe for it
  * ```
  *
  * The one layer the engine ships is `nya_http_layer_log`, and it lives in http_log.h with the levels
@@ -445,9 +447,37 @@ typedef NYA_HttpIdentifiedFn (*NYA_HttpIdentifiedResolver)(u64 token);
 NYA_API void nya_http_router_resolvers_set(NYA_HttpHandlerResolver handler, NYA_HttpIdentifiedResolver identified);
 
 /**
- * Replaces the response body with a NYA_HttpProblem for `status`.
+ * Replaces the response body with a problem for `status`, in whichever of HTML and JSON the request's
+ * Accept prefers: an escaped error page for a browser (Accept names text/html), the JSON NYA_HttpProblem
+ * for everything else, which is what an API client and a wildcard Accept get.
  *
  * `detail` is shown to the caller, so it says what they did rather than what went wrong inside: "the
- * body is not JSON", never a file name or an internal error chain.
+ * body is not JSON", never a file name or an internal error chain. It is escaped before it reaches the
+ * HTML page, so a `<` in it is text and not a tag.
  * */
 NYA_API NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail);
+
+/**
+ * The HTTP status an NYA_Error's kind maps to: NYA_ERROR_NOT_FOUND is 404, an argument or a parse the
+ * caller got wrong is 400, a denied permission is 403, an existing thing is 409, an unsupported one is
+ * 501, a timeout is 503, and anything that says this program itself is broken is 500. NYA_ERROR_NONE,
+ * which is not an error, is 200.
+ *
+ * The table a handler forwarding a call's failure would otherwise write by hand every time; see
+ * nya_http_response_error.
+ * */
+NYA_API NYA_HttpStatus nya_http_status_from_error(NYA_ErrorKind kind) __attr_no_discard;
+
+/**
+ * Answers `exchange` with the status nya_http_status_from_error gives `error`, and a problem body
+ * negotiated the same way nya_http_response_problem negotiates one.
+ *
+ * A 4xx carries `error`'s own message, which describes what the caller did; a 5xx never does, because
+ * that message is about what broke inside and telling a stranger the shape of an internal failure only
+ * helps them probe it — a 5xx says no more than its reason phrase. Pass an `error` that is `ok` and it
+ * asserts: this is the failure path, and a success has a body of its own to write.
+ *
+ * The one line a handler returns when a call it forwarded failed:
+ * `return nya_http_response_error(exchange, err);`
+ * */
+NYA_API NYA_HttpStatus nya_http_response_error(NYA_HttpExchange* exchange, NYA_Error error);

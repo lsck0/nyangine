@@ -19,6 +19,19 @@
  * */
 NYA_INTERNAL const NYA_HttpMethod _NYA_HTTP_HEAD_FALLBACK[] = { NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_QUERY };
 
+/**
+ * The escaped detail on the HTML error page. A problem detail is a short human phrase; this is generous
+ * for one, and a detail whose escaped form is longer is truncated here rather than growing the page.
+ * */
+#define _NYA_HTTP_ERROR_DETAIL_ESCAPED 512
+
+/**
+ * The escaped error page a browser is answered with: a title, a heading and one line. Big enough for the
+ * skeleton, the status line twice and a full _NYA_HTTP_ERROR_DETAIL_ESCAPED of escaped detail, so the
+ * page always fits and is never handed back cut off mid-tag.
+ * */
+#define _NYA_HTTP_ERROR_HTML_MAX 1024
+
 // PRIVATE API DECLARATION
 
 /** The table every route's permission is resolved against, and how an identity becomes a subject in it. */
@@ -35,6 +48,15 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* 
 
 /** Whether `route` declares `status`. Debug only; see the assertion in nya_http_router_dispatch. */
 NYA_INTERNAL b8 _nya_http_route_declares(const NYA_HttpRoute* route, NYA_HttpStatus status) __attr_no_discard;
+
+/** Whether the request's Accept prefers an HTML error page over the JSON problem: a browser, not an API client. */
+NYA_INTERNAL b8 _nya_http_request_prefers_html(const NYA_HttpRequest* request) __attr_no_discard;
+
+/** HTML-escapes `text`'s & < > into `out` for element content, always terminating and never past `capacity`. */
+NYA_INTERNAL void _nya_http_html_escape(char* out, u64 capacity, NYA_ConstCString text);
+
+/** Writes the escaped HTML error page for `status` and `detail` into the response. */
+NYA_INTERNAL NYA_Error _nya_http_response_problem_html(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail) __attr_no_discard;
 
 /**
  * Whether a request that changes something came from another site, which is the CSRF case. A browser says so in
@@ -332,17 +354,24 @@ NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* ch
 
 NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail) {
     nya_assert(exchange != nullptr);
+    nya_assert(exchange->request != nullptr);
     nya_assert(exchange->response != nullptr);
     nya_assert(nya_http_status_is_valid(status));
 
-    NYA_HttpProblem problem = { .status = (u32)status };
-
-    (void)snprintf(problem.error, sizeof(problem.error), "%s", nya_http_status_text(status));
-    (void)snprintf(problem.detail, sizeof(problem.detail), "%s", detail != nullptr ? detail : "");
-
     nya_http_response_reset(exchange->response);
 
-    NYA_Error written = nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpProblem), &problem);
+    NYA_Error written;
+
+    if (_nya_http_request_prefers_html(exchange->request)) {
+        written = _nya_http_response_problem_html(exchange, status, detail != nullptr ? detail : "");
+    } else {
+        NYA_HttpProblem problem = { .status = (u32)status };
+
+        (void)snprintf(problem.error, sizeof(problem.error), "%s", nya_http_status_text(status));
+        (void)snprintf(problem.detail, sizeof(problem.detail), "%s", detail != nullptr ? detail : "");
+
+        written = nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpProblem), &problem);
+    }
 
     if (!written.ok) {
         // the error body itself wouldn't fit or wouldn't serialize, our bug not the caller's; the status still goes out, there's just nothing to read with it.
@@ -351,6 +380,41 @@ NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpSta
     }
 
     return status;
+}
+
+NYA_HttpStatus nya_http_status_from_error(NYA_ErrorKind kind) {
+    switch (kind) {
+        case NYA_ERROR_NONE:              return NYA_HTTP_STATUS_OK;
+        case NYA_ERROR_NOT_FOUND:         return NYA_HTTP_STATUS_NOT_FOUND;
+        case NYA_ERROR_PERMISSION_DENIED: return NYA_HTTP_STATUS_FORBIDDEN;
+        case NYA_ERROR_ALREADY_EXISTS:    return NYA_HTTP_STATUS_CONFLICT;
+        case NYA_ERROR_INVALID_ARGUMENT:
+        case NYA_ERROR_PARSE:             return NYA_HTTP_STATUS_BAD_REQUEST;
+        case NYA_ERROR_NOT_SUPPORTED:     return NYA_HTTP_STATUS_NOT_IMPLEMENTED;
+        case NYA_ERROR_TIMEOUT:           return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+
+        // everything left says this program is broken rather than that the caller did anything wrong: an exhausted arena, a failed read, a corrupt store, an unclassified failure. All 500.
+        case NYA_ERROR_NOT_OK:
+        case NYA_ERROR_OUT_OF_MEMORY:
+        case NYA_ERROR_IO:
+        case NYA_ERROR_CORRUPT:
+        case NYA_ERROR_COUNT:
+        default:                          return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    }
+}
+
+NYA_HttpStatus nya_http_response_error(NYA_HttpExchange* exchange, NYA_Error error) {
+    nya_assert(exchange != nullptr);
+    nya_assert(!error.ok, "nya_http_response_error is the failure path; a success has a body of its own to write");
+
+    NYA_HttpStatus status = nya_http_status_from_error(error.kind);
+
+    // A 5xx is this program's own failure, so the caller is told the reason phrase and nothing about the shape of what broke, which would only help someone probe it; a 4xx is about the request, so the error's own message is safe and specific. The negotiator escapes whichever it is before any of it reaches an HTML page.
+    NYA_ConstCString detail = nya_http_status_text(status);
+
+    if (status < NYA_HTTP_STATUS_INTERNAL_ERROR && error.message[0] != '\0') detail = (NYA_ConstCString)error.message;
+
+    return nya_http_response_problem(exchange, status, detail);
 }
 
 // PRIVATE API IMPLEMENTATION
@@ -505,4 +569,68 @@ b8 _nya_http_route_declares(const NYA_HttpRoute* route, NYA_HttpStatus status) {
     }
 
     return false;
+}
+
+b8 _nya_http_request_prefers_html(const NYA_HttpRequest* request) {
+    nya_assert(request != nullptr);
+
+    // A browser's Accept names text/html; an API client's names application/json or a native type, and a wildcard names neither. Both of those get JSON, the same conservative default nya_http_request_accepts takes: a client that did not ask for a page must not be handed one.
+    NYA_ConstCString accept = nya_http_request_header(request, "accept");
+
+    return accept != nullptr && strstr(accept, "text/html") != nullptr;
+}
+
+void _nya_http_html_escape(char* out, u64 capacity, NYA_ConstCString text) {
+    nya_assert(out != nullptr && capacity > 0);
+
+    // Its own escaper rather than http_doc's: that module is built on this one, and reaching back into it would be a dependency cycle for the sake of three cases.
+    u64 used = 0;
+
+    for (u64 index = 0; text != nullptr && text[index] != '\0'; index++) {
+        NYA_ConstCString entity = nullptr;
+        u64              size   = 1;
+
+        switch (text[index]) {
+            case '&': entity = "&amp;"; size = 5; break;
+            case '<': entity = "&lt;";  size = 4; break;
+            case '>': entity = "&gt;";  size = 4; break;
+            default:  break;
+        }
+
+        // one past the last byte is the terminator, so an entity that would not fit whole stops the copy rather than being cut.
+        if (used + size >= capacity) break;
+
+        if (entity != nullptr) memcpy(out + used, entity, size);
+        else out[used] = text[index];
+
+        used += size;
+    }
+
+    out[used] = '\0';
+}
+
+NYA_Error _nya_http_response_problem_html(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail) {
+    nya_assert(exchange != nullptr && exchange->arena != nullptr);
+
+    char escaped[_NYA_HTTP_ERROR_DETAIL_ESCAPED] = { 0 };
+    _nya_http_html_escape(escaped, sizeof(escaped), detail);
+
+    char* page = nya_arena_alloc(exchange->arena, _NYA_HTTP_ERROR_HTML_MAX);
+    if (page == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for an error page");
+
+    // The status number and its reason phrase are this server's own, so they go in as they are; `escaped` is the only caller-derived text and it has already been escaped.
+    NYA_ConstCString reason = nya_http_status_text(status);
+
+    (void)snprintf(
+        page,
+        _NYA_HTTP_ERROR_HTML_MAX,
+        "<!doctype html>\n<meta charset=\"utf-8\">\n<title>%d %s</title>\n<h1>%d %s</h1>\n<p>%s</p>\n",
+        (s32)status,
+        reason,
+        (s32)status,
+        reason,
+        escaped
+    );
+
+    return nya_http_response_text(exchange->response, page, NYA_HTTP_MEDIA_HTML);
 }
