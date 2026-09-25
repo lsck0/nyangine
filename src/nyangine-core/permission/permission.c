@@ -113,7 +113,13 @@ NYA_Permissions* nya_permissions_create(NYA_Arena* arena) {
 void nya_permissions_destroy(NYA_Permissions* permissions) {
     nya_assert(permissions != nullptr);
 
-    // the ceilings keep pointing at the same counters, which is why this clears rather than reallocates.
+    // Unregister the ceilings before the caller frees this struct (it is usually arena-allocated): they
+    // point at counters inside it, so leaving them registered is a dangling read the next /metrics scrape
+    // or overlay draw would make. See nya_permissions_create.
+    nya_ceiling_unregister("permission_roles");
+    nya_ceiling_unregister("permission_subjects");
+    nya_ceiling_unregister("permission_overwrites");
+
     nya_memset(permissions->roles, 0, sizeof(permissions->roles));
     nya_memset(permissions->subjects, 0, sizeof(permissions->subjects));
     nya_memset(permissions->overwrites, 0, sizeof(permissions->overwrites));
