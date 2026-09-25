@@ -33,11 +33,6 @@ struct NYA_NNOptimizer {
 
 NYA_INTERNAL NYA_NNOptimizer* _nya_nn_optimizer_create(NYA_Arena* arena, NYA_NNOptimizerKind kind, NYA_NNOptimizerConfig config) __attr_no_discard;
 
-/**
- * The gradient for one element, after weight decay and clipping.
- * */
-NYA_INTERNAL f32 _nya_nn_optimizer_gradient(const NYA_NNOptimizer* optimizer, const NYA_NNTensor* parameter, u32 index) __attr_no_discard;
-
 // PUBLIC API IMPLEMENTATION
 
 NYA_NNOptimizer* nya_nn_optimizer_sgd(NYA_Arena* arena, NYA_NNOptimizerConfig config) {
@@ -104,34 +99,52 @@ void nya_nn_optimizer_step(NYA_NNOptimizer* optimizer) {
         corrected_rate = (f32)((f64)learning_rate * sqrt(bias2) / bias1);
     }
 
+    // Kind and both gradient modifiers are the same for every element, so they are read once here and the inner loop, split by kind, carries no
+    // per-element branch on them: a straight-line body over contiguous buffers, which the vectoriser can take. Decay is the classic L2 form (not
+    // AdamW), added onto the gradient; the clip is elementwise, not by global norm.
+    f32 weight_decay  = optimizer->config.weight_decay;
+    f32 gradient_clip = optimizer->config.gradient_clip;
+    b8  decays        = weight_decay > 0.0F;
+    b8  clips         = gradient_clip > 0.0F;
+
     for (u32 i = 0; i < optimizer->slot_count; i++) {
         _NYA_NNOptimizerSlot* slot      = &optimizer->slots[i];
         NYA_NNTensor*         parameter = slot->parameter;
 
-        for (u32 j = 0; j < parameter->count; j++) {
-            f32 gradient = _nya_nn_optimizer_gradient(optimizer, parameter, j);
+        f32* restrict data           = parameter->data;
+        const f32* restrict gradient = parameter->grad;
+        u32 count                    = parameter->count;
 
-            switch (optimizer->kind) {
-                case NYA_NN_OPTIMIZER_SGD: {
-                    // With momentum zero this reduces to plain descent, so there is no second path to keep in step with this one.
-                    slot->moment1[j] = (optimizer->config.momentum * slot->moment1[j]) + gradient;
+        if (optimizer->kind == NYA_NN_OPTIMIZER_SGD) {
+            // With momentum zero this reduces to plain descent, so there is no second path to keep in step with this one.
+            f32 momentum          = optimizer->config.momentum;
+            f32* restrict moment1 = slot->moment1;
 
-                    parameter->data[j] -= learning_rate * slot->moment1[j];
-                } break;
+            for (u32 j = 0; j < count; j++) {
+                f32 g = gradient[j];
+                if (decays) g += weight_decay * data[j];
+                if (clips) g = nya_clamp(g, -gradient_clip, gradient_clip);
 
-                case NYA_NN_OPTIMIZER_ADAM: {
-                    f32 beta1 = optimizer->config.beta1;
-                    f32 beta2 = optimizer->config.beta2;
+                moment1[j]  = (momentum * moment1[j]) + g;
+                data[j]    -= learning_rate * moment1[j];
+            }
+        } else if (optimizer->kind == NYA_NN_OPTIMIZER_ADAM) {
+            f32 beta1             = optimizer->config.beta1;
+            f32 beta2             = optimizer->config.beta2;
+            f32 epsilon           = optimizer->config.epsilon;
+            f32* restrict moment1 = slot->moment1;
+            f32* restrict moment2 = slot->moment2;
 
-                    slot->moment1[j] = (beta1 * slot->moment1[j]) + ((1.0F - beta1) * gradient);
-                    slot->moment2[j] = (beta2 * slot->moment2[j]) + ((1.0F - beta2) * gradient * gradient);
+            for (u32 j = 0; j < count; j++) {
+                f32 g = gradient[j];
+                if (decays) g += weight_decay * data[j];
+                if (clips) g = nya_clamp(g, -gradient_clip, gradient_clip);
 
-                    // The sqrt of the second moment estimates each parameter's recent gradient size; dividing by it makes the step scale-independent.
-                    parameter->data[j] -= corrected_rate * slot->moment1[j] / (sqrtf(slot->moment2[j]) + optimizer->config.epsilon);
-                } break;
+                moment1[j] = (beta1 * moment1[j]) + ((1.0F - beta1) * g);
+                moment2[j] = (beta2 * moment2[j]) + ((1.0F - beta2) * g * g);
 
-                case NYA_NN_OPTIMIZER_KIND_COUNT:
-                default:                          break;
+                // The sqrt of the second moment estimates each parameter's recent gradient size; dividing by it makes the step scale-independent.
+                data[j] -= corrected_rate * moment1[j] / (sqrtf(moment2[j]) + epsilon);
             }
         }
     }
@@ -164,16 +177,4 @@ NYA_NNOptimizer* _nya_nn_optimizer_create(NYA_Arena* arena, NYA_NNOptimizerKind 
     *optimizer                 = (NYA_NNOptimizer){ .kind = kind, .config = config, .allocator = arena };
 
     return optimizer;
-}
-
-f32 _nya_nn_optimizer_gradient(const NYA_NNOptimizer* optimizer, const NYA_NNTensor* parameter, u32 index) {
-    f32 gradient = parameter->grad[index];
-
-    // Decay applied to the gradient, the classic L2 form (not AdamW): it interacts with Adam's per-parameter scaling, but matches the textbook.
-    if (optimizer->config.weight_decay > 0.0F) gradient += optimizer->config.weight_decay * parameter->data[index];
-
-    // Elementwise, not by global norm: cheaper, needs no second pass, and it is the part that matters for bounding a catastrophic update.
-    if (optimizer->config.gradient_clip > 0.0F) gradient = nya_clamp(gradient, -optimizer->config.gradient_clip, optimizer->config.gradient_clip);
-
-    return gradient;
 }
