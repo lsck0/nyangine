@@ -1490,6 +1490,15 @@ NYA_Error nya_percent_encode(const u8* data, u64 size, OUT char* buffer, u64 cap
 NYA_Error nya_percent_decode(const char* text, u64 size, OUT u8* buffer, u64 capacity, OUT u64* out_length)
 ```
 
+### base_validate.h
+
+Declarative validation of a value against the rules its own type carries. The reflection table already
+
+```c
+// functions
+NYA_Error nya_validate(const NYA_TypeReflection* type, const void* value)  // Checks `value` against the validation attributes on `type`'s fields, returning the first broken rule.
+```
+
 ### base_version.h
 
 What this binary is: version, commit, build kind, and when it was built.

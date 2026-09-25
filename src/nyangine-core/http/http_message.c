@@ -520,6 +520,9 @@ NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* ar
 
     NYA_TRY(nya_reflect_from_object(type, out_dto, document));
 
+    // The DTO's own validation rules, run once it is filled: a broken one is NYA_ERROR_INVALID_ARGUMENT, which the router answers 400.
+    NYA_TRY(nya_validate(type, out_dto));
+
     return NYA_OK;
 }
 

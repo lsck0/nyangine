@@ -208,6 +208,10 @@ NYA_API NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Aren
  * `out_dto` is zeroed first, so a field the document omits reads as zero rather than as whatever the
  * last request left there. Every failure of nya_http_request_json, plus NYA_ERROR_PARSE when the
  * document does not fit the type, which nya_reflect_check reports field by field into the log.
+ *
+ * Once filled, the DTO is run against its own validation attributes (see base_validate.h): a field that
+ * breaks a `@required`, `@min`/`@max`, `@len`, `@email` or `@pattern` rule is NYA_ERROR_INVALID_ARGUMENT,
+ * which the router answers 400. A type with no such attributes validates trivially.
  * */
 NYA_API NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT void* out_dto)
     __attr_no_discard;

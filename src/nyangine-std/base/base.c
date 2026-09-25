@@ -32,6 +32,8 @@
 #include "nyangine-std/base/base_preflight.c"
 #include "nyangine-std/base/base_object.c"
 #include "nyangine-std/base/base_reflection.c"
+// after base_reflection.c, whose attribute table it reads, and base_newtype.h, whose email rule it reuses.
+#include "nyangine-std/base/base_validate.c"
 #include "nyangine-std/base/base_path.c"
 #include "nyangine-std/base/base_perf.c"
 #include "nyangine-std/base/base_string.c"
