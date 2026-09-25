@@ -147,6 +147,11 @@
  * - **An enum value with no variant name is refused** on the way in, naming the field and the value,
  *   because storing the number in a column declared TEXT would not survive the trip back. Give the
  *   enum a variant for the value, including zero.
+ * - **`@created_at` and `@updated_at` stamp themselves.** A field carrying either attribute takes the
+ *   engine clock's now (nya_instant_now, so a test clock drives it), as signed nanoseconds since the
+ *   epoch — the field is an integer. nya_orm_insert sets both, writing them back into the struct as it
+ *   does an assigned key; nya_orm_update advances `@updated_at` only, so `@created_at` is preserved. A
+ *   type carrying neither pays nothing for this, not even a clock read.
  * - **A NULL column leaves its field alone.** nya_orm_select zeroes each struct first, so in practice
  *   a NULL loads as zero; that is nya_reflect_from_object's rule, not a choice made here.
  * */
@@ -223,6 +228,12 @@ struct NYA_OrmTable {
 
     /** Whether the key is `INTEGER PRIMARY KEY`, and so assigned by sqlite when it is zero. */
     b8 key_is_integer;
+
+    /**
+     * Whether any column carries `@created_at` or `@updated_at`, so insert and update read the clock and
+     * stamp them. False for the common row, which then pays neither a clock read nor a walk for them.
+     * */
+    b8 has_stamps;
 
     /** Every field that became a column, in the type's order. `columns[key_index]` is `key`. */
     const NYA_ReflectField* columns[NYA_ORM_COLUMN_MAX];

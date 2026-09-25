@@ -129,6 +129,9 @@ NYA_Error nya_orm_open(
             table->key_is_integer = column == NYA_ORM_COLUMN_INTEGER;
         }
 
+        // A timestamp column is an ordinary integer column that insert and update also stamp with the clock.
+        if (nya_reflect_field_has_attribute(field, "created_at") || nya_reflect_field_has_attribute(field, "updated_at")) table->has_stamps = true;
+
         table->columns[table->column_count] = field;
         table->column_count++;
     }
@@ -313,6 +316,20 @@ NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance) {
 
     if (instance == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no instance to insert");
 
+    // A @created_at and a @updated_at both take the clock's now on the way in, written back into the
+    // struct as an assigned key is, so the caller holds the row's timestamps too. See db_orm.h.
+    if (table->has_stamps) {
+        s64 now_ns = nya_instant_now().ns;
+
+        for (u32 i = 0; i < table->column_count; i++) {
+            const NYA_ReflectField* field = table->columns[i];
+
+            if (!nya_reflect_field_has_attribute(field, "created_at") && !nya_reflect_field_has_attribute(field, "updated_at")) continue;
+
+            (void)nya_reflect_write(field->type, nya_reflect_field_pointer(instance, field), (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = now_ns });
+        }
+    }
+
     NYA_SqlValue key = { 0 };
     NYA_TRY(_nya_orm_bind(table, table->key, instance, &key));
 
@@ -360,6 +377,10 @@ NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance) {
         return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s' is nothing but its key, so there is no column to update", table->type->name);
     }
 
+    // The struct is const here, so a @updated_at is stamped by overriding its bound value rather than by
+    // writing the field; a @created_at binds from the struct unchanged and so is preserved. See db_orm.h.
+    s64 now_ns = table->has_stamps ? nya_instant_now().ns : 0;
+
     NYA_SqlValue values[NYA_ORM_COLUMN_MAX] = { 0 };
     u32          value_count                = 0;
 
@@ -367,6 +388,9 @@ NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance) {
         if (i == table->key_index) continue;
 
         NYA_TRY(_nya_orm_bind(table, table->columns[i], instance, &values[value_count]));
+
+        if (table->has_stamps && nya_reflect_field_has_attribute(table->columns[i], "updated_at")) values[value_count] = nya_sql_s64(now_ns);
+
         value_count++;
     }
 

@@ -6902,7 +6902,7 @@ A reflected struct, stored as a row. The schema comes from the `@reflect` table,
 // types
 enum NYA_OrmColumnType { NYA_ORM_COLUMN_INTEGER, NYA_ORM_COLUMN_REAL, NYA_ORM_COLUMN_TEXT, NYA_ORM_COLUMN_COUNT, }  // The sqlite storage classes a described field can map to.
 typedef void (*NYA_OrmReportFn)(NYA_ConstCString column, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One difference between the table and the struct.
-struct NYA_OrmTable { NYA_Database* database; const NYA_TypeReflection* type; char name[NYA_ORM_NAME_MAX]; const NYA_ReflectField* key; b8 key_is_integer; const NYA_ReflectField* columns[NYA_ORM_COLUMN_MAX]; u32 column_count; u32 key_index; NYA_ConstCString sql_create; NYA_ConstCString sql_insert; NYA_ConstCString sql_insert_assigned; NYA_ConstCString sql_update; NYA_ConstCString sql_delete; NYA_ConstCString sql_select; NYA_ConstCString sql_find; }  // One described type bound to one table.
+struct NYA_OrmTable { NYA_Database* database; const NYA_TypeReflection* type; char name[NYA_ORM_NAME_MAX]; const NYA_ReflectField* key; b8 key_is_integer; b8 has_stamps; const NYA_ReflectField* columns[NYA_ORM_COLUMN_MAX]; u32 column_count; u32 key_index; NYA_ConstCString sql_create; NYA_ConstCString sql_insert; NYA_ConstCString sql_insert_assigned; NYA_ConstCString sql_update; NYA_ConstCString sql_delete; NYA_ConstCString sql_select; NYA_ConstCString sql_find; }  // One described type bound to one table.
 
 // macros
 NYA_ORM_COLUMN_MAX 64  // Columns one table may have, which is fields one described type may have.
