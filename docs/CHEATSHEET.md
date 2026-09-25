@@ -7001,10 +7001,14 @@ The overlay, the trace, the crash window, and drawing physics shapes and network
 The crash reporter: what a player sees when the engine dies.
 
 ```c
+// types
+typedef NYA_Error (*NYA_CrashReportTransportFn)(void* userdata, NYA_ConstCString url, const u8* report, u64 report_size)  // How a persisted crash report reaches its endpoint.
+
 // macros
 NYA_CRASH_REPORT_MAX_BYTES  // Largest report that can be composed, statically allocated once.
 NYA_CRASH_REPORT_LINE_MAX (NYA_LOG_RING_MAX + NYA_WATCH_RING_MAX + 128)  // Lines the window can index for scrolling.
 NYA_CRASH_REPORT_PATH_MAX (NYA_LOG_DIRECTORY_MAX + 64)  // Longest path a written report can have, terminator included.
+NYA_CRASH_REPORT_ENDPOINT_ENV "NYA_CRASH_REPORT_ENDPOINT"
 
 // functions
 NYA_Error nya_crash_reporter_init(void)  // Registers the crash observer.
@@ -7012,6 +7016,7 @@ void nya_crash_reporter_deinit(void)  // Removes the observer.
 u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capacity)
 u32 nya_crash_report_scrub(OUT u8* buffer, u32 length, u32 capacity, NYA_ConstCString home, NYA_ConstCString user, NYA_ConstCString host)  // Redacts the machine's identity from an already composed report, in place, and returns the new length.
 NYA_Error nya_crash_report_submit(NYA_ConstCString report, OUT u8* out_path, u32 path_capacity)  // Hands the report to the developer, and writes where it went into `out_path`.
+u32 nya_crash_reports_flush(NYA_CrashReportTransportFn transport, void* userdata)
 void nya_crash_window_show(const NYA_CrashInfo* info, NYA_ConstCString report)  // Opens the crash window on `report` and blocks until the player closes it.
 ```
 

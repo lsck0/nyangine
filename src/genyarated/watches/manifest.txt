@@ -27,11 +27,11 @@ _gny_cube3d_stone_build	src/gnyame/layers/layer_cube3d_stones.c:344
 	u32 at
 gny_robot_dqn_thrust	src/gnyame/robots.c:99
 	u32 action
-child_stone_face	tests/nyangine/debug/test_crash_report.c:84
+child_stone_face	tests/nyangine/debug/test_crash_report.c:118
 	u32 at
 	u32 wanted
 	u32 emitted
-child_stone_row	tests/nyangine/debug/test_crash_report.c:95
+child_stone_row	tests/nyangine/debug/test_crash_report.c:129
 	u32 sides
 	u32 segments
 	NYA_ConstCString shape

@@ -67,6 +67,40 @@ static b8 contains(NYA_ConstCString text) {
     return strstr((const char*)report, text) != nullptr;
 }
 
+/** Where nya_crash_reports_flush sends to in the tests, in place of a developer's real endpoint. */
+#define TEST_ENDPOINT "http://localhost:65535/crash"
+
+/* A stand-in for the transport a program wires over the curl plugin: it records what it was handed and
+ * answers success or failure on command, so a test holds the flush to account with no socket in sight. */
+static u32 stub_calls       = 0;
+static u8  stub_url[256]    = { 0 };
+static u32 stub_body_length = 0;
+static b8  stub_should_fail = false;
+
+static NYA_Error stub_transport(void* userdata, NYA_ConstCString url, const u8* report_body, u64 report_size) {
+    nya_unused(userdata);
+
+    stub_calls++;
+    (void)snprintf((char*)stub_url, sizeof(stub_url), "%s", url);
+    stub_body_length = (u32)report_size;
+
+    if (report_body == nullptr || report_size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an empty report reached the transport");
+
+    return stub_should_fail ? nya_error(NYA_ERROR_NOT_OK, "the sink refused it") : NYA_OK;
+}
+
+/** How many crash reports are left on disk under `directory`, the files a flush acts on. */
+static u32 crash_files_in(NYA_Arena* arena, NYA_ConstCString directory) {
+    NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;
+    if (!nya_filesystem_list(arena, directory, &entries).ok) return 0;
+
+    u32 count = 0;
+    nya_array_foreach (entries, entry)
+        if (nya_string_starts_with(entry->name, "crash-") && nya_string_ends_with(entry->name, ".txt")) count++;
+
+    return count;
+}
+
 /** A crash as the funnel would hand it to an observer, minus the process actually dying. */
 static NYA_CrashInfo crash_of(NYA_CrashSource source, NYA_ConstCString message) {
     NYA_CrashInfo info = {
@@ -283,6 +317,61 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
         nya_check(written->length == length, "the file should hold the whole report, %u bytes against " FMTu64, length, (u64)written->length);
         nya_check(nya_memcmp(written->items, report, length) == 0, "the file should hold the report verbatim");
+    }
+
+    /* The submit above left exactly one crash report under TEST_DIRECTORY, which the flush tests below act
+     * on: they run here, with the log directory still open, so a real file is on disk to send. */
+    {
+        NYA_Arena* arena = nya_arena_create(.name = "test_crash_flush");
+        defer      nya_arena_destroy(arena);
+
+        nya_check(crash_files_in(arena, TEST_DIRECTORY) == 1, "the submit above should have left one report on disk");
+
+        // TEST: off by default. With no endpoint in the environment nothing is sent, the transport is never
+        // called, and the report stays the local file it already is.
+        (void)nya_host_environment_remove(NYA_CRASH_REPORT_ENDPOINT_ENV);
+        stub_calls = 0;
+        {
+            const u32 sent = nya_crash_reports_flush(stub_transport, nullptr);
+            nya_check(sent == 0, "with no endpoint nothing is sent, sent %u", sent);
+            nya_check(stub_calls == 0, "and the transport is never reached");
+            nya_check(crash_files_in(arena, TEST_DIRECTORY) == 1, "the report is kept when there is nowhere to send it");
+        }
+
+        // TEST: a null transport is a no-op too, even once an endpoint is set: no local network fallback.
+        nya_check(nya_host_environment_add(NYA_CRASH_REPORT_ENDPOINT_ENV, TEST_ENDPOINT), "the test endpoint should set in the environment");
+        {
+            const u32 sent = nya_crash_reports_flush(nullptr, nullptr);
+            nya_check(sent == 0, "with no transport nothing is sent, sent %u", sent);
+            nya_check(crash_files_in(arena, TEST_DIRECTORY) == 1, "and the report is still on disk");
+        }
+
+        // TEST: a report the sink refuses is offered once and kept on disk for the next run, never lost.
+        stub_calls       = 0;
+        stub_should_fail = true;
+        {
+            const u32 sent = nya_crash_reports_flush(stub_transport, nullptr);
+            nya_check(sent == 0, "a refused report does not count as sent, sent %u", sent);
+            nya_check(stub_calls == 1, "but the sink was offered it once");
+            nya_check(crash_files_in(arena, TEST_DIRECTORY) == 1, "and it stays on disk to try again");
+        }
+
+        // TEST: with an endpoint and a sink that accepts, the flush reads the report, posts it to the
+        // configured url with its bytes, and deletes the file it sent.
+        stub_calls       = 0;
+        stub_body_length = 0;
+        stub_should_fail = false;
+        stub_url[0]      = '\0';
+        {
+            const u32 sent = nya_crash_reports_flush(stub_transport, nullptr);
+            nya_check(sent == 1, "the one report on disk is sent, sent %u", sent);
+            nya_check(stub_calls == 1, "the sink was called once");
+            nya_check(strcmp((const char*)stub_url, TEST_ENDPOINT) == 0, "with the endpoint the environment named, got '%s'", (const char*)stub_url);
+            nya_check(stub_body_length > 0, "and the report's bytes, %u of them", stub_body_length);
+            nya_check(crash_files_in(arena, TEST_DIRECTORY) == 0, "an accepted report is deleted from disk");
+        }
+
+        (void)nya_host_environment_remove(NYA_CRASH_REPORT_ENDPOINT_ENV);
     }
 
     // TEST: the window declines to open where there is no video subsystem, rather than failing. A headless build and a test are both that case.

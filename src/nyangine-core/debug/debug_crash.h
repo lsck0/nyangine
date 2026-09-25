@@ -90,6 +90,14 @@
 /** Longest path a written report can have, terminator included. */
 #define NYA_CRASH_REPORT_PATH_MAX (NYA_LOG_DIRECTORY_MAX + 64)
 
+/**
+ * The environment variable that names where crash reports are sent, read by nya_crash_reports_flush on an
+ * ordinary run — never on the crash path. Unset or empty means nowhere: reports stay the local files
+ * nya_crash_report_submit wrote, and nothing leaves the machine. Kept in the environment rather than
+ * compiled in so the destination is the operator's to set and a build ships pointing at nobody.
+ * */
+#define NYA_CRASH_REPORT_ENDPOINT_ENV "NYA_CRASH_REPORT_ENDPOINT"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LIFETIME
@@ -145,11 +153,39 @@ NYA_API u32 nya_crash_report_scrub(OUT u8* buffer, u32 length, u32 capacity, NYA
 /**
  * Hands the report to the developer, and writes where it went into `out_path`.
  *
- * Today that means a file under nya_log_directory, because the engine sends nothing anywhere without
- * being asked: no endpoint is compiled in and none is reachable from here. This is the single function a
- * transport would replace, so nothing above it, the window's button included, has to know the difference.
+ * Always a file under nya_log_directory: submitting persists the report where the player can find it and
+ * where nya_crash_reports_flush picks it up on a later run. This runs on the crash path, a signal handler
+ * included, so it touches no allocator and no network — only the raw file write below it. The network step
+ * is deliberately a separate, later thing; see nya_crash_reports_flush.
  * */
 NYA_API NYA_Error nya_crash_report_submit(NYA_ConstCString report, OUT u8* out_path, u32 path_capacity) __attr_no_discard;
+
+/**
+ * How a persisted crash report reaches its endpoint. POSTs `report_size` bytes of `report` (the same text
+ * the file holds) to `url`, and returns NYA_OK only when the endpoint accepted it — a 2xx. Anything else,
+ * a refused connection or a non-2xx, is an error, and the report is kept on disk for the next run.
+ *
+ * The reporter is module `debug` and does not include a network transport, so a program that wants reports
+ * sent supplies one of these over whatever HTTP client it links — the curl plugin, most likely. The
+ * transport owns the round trip and the timeout; this module owns the file's lifetime around it.
+ * */
+typedef NYA_Error (*NYA_CrashReportTransportFn)(void* userdata, NYA_ConstCString url, const u8* report, u64 report_size);
+
+/**
+ * Submits every crash report left on disk from an earlier run to the endpoint the environment names, and
+ * deletes each one the endpoint accepted. Returns how many were sent.
+ *
+ * Off by default: with NYA_CRASH_REPORT_ENDPOINT_ENV unset or empty, or `transport` null, this does
+ * nothing and every report stays the local file it already is — the engine sends nothing anywhere the
+ * operator did not point it. What travels is exactly the file: a backtrace, the build id, the machine's
+ * kind and the tail of the log, already scrubbed of the home directory, user and host by compose. No
+ * player data, no identity.
+ *
+ * Meant for an ordinary later startup, not the crash path: it allocates an arena, lists a directory and
+ * makes a blocking round trip per report, none of which is safe from a signal handler and none of which
+ * the crashing run does. A report the endpoint refuses is left on disk to try again next time.
+ * */
+NYA_API u32 nya_crash_reports_flush(NYA_CrashReportTransportFn transport, void* userdata);
 
 /**
  * Opens the crash window on `report` and blocks until the player closes it. `info` fills the header band,

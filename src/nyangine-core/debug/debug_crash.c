@@ -496,6 +496,50 @@ NYA_Error nya_crash_report_submit(NYA_ConstCString report, OUT u8* out_path, u32
     return NYA_OK;
 }
 
+u32 nya_crash_reports_flush(NYA_CrashReportTransportFn transport, void* userdata) {
+    /*
+     * Off by default, in two ways that both mean "send nowhere": no transport wired, or no endpoint in the
+     * environment. Either way every report stays the local file submit wrote, and this is a no-op that
+     * touched no network. Read here, on this ordinary run, rather than on the crash path, where getenv is
+     * not something to call from a signal handler.
+     */
+    NYA_ConstCString url = getenv(NYA_CRASH_REPORT_ENDPOINT_ENV);
+    if (transport == nullptr || url == nullptr || url[0] == '\0') return 0;
+
+    NYA_ConstCString directory = nya_log_directory();
+    if (directory[0] == '\0') return 0;
+
+    NYA_Arena* arena = nya_arena_create(.name = "crash_report_flush");
+    if (arena == nullptr) return 0;
+    defer nya_arena_destroy(arena);
+
+    NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;
+    if (!nya_filesystem_list(arena, directory, &entries).ok) return 0;
+
+    u32 sent = 0;
+    nya_array_foreach (entries, entry) {
+        // The names submit writes: "crash-<stamp>.txt". Anything else in the log directory is not ours.
+        if (entry->type != NYA_FILE_TYPE_FILE) continue;
+        if (!nya_string_starts_with(entry->name, "crash-") || !nya_string_ends_with(entry->name, ".txt")) continue;
+
+        NYA_ConstCString path = nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s/%s", directory, nya_string_to_cstring(arena, entry->name)));
+
+        NYA_String* body = nya_string_create(arena);
+        if (!nya_file_read(path, body).ok) continue;
+
+        /*
+         * The round trip may block and may fail, and neither is this run's problem to recover from: a
+         * report the endpoint refused, or that could not be reached, is left on disk exactly as it was so
+         * the next run tries it again. Only an accepted report is deleted, so nothing is lost to a transport
+         * that answered "no".
+         */
+        if (!transport(userdata, url, (const u8*)body->items, body->length).ok) continue;
+        if (nya_filesystem_delete(path).ok) sent++;
+    }
+
+    return sent;
+}
+
 void _nya_crash_report_index(NYA_ConstCString report) {
     nya_assert(report != nullptr);
 

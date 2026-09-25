@@ -7,7 +7,7 @@
  */
 #pragma once
 
-/* child_stone_face (tests/nyangine/debug/test_crash_report.c:84) */
+/* child_stone_face (tests/nyangine/debug/test_crash_report.c:118) */
 #define _nya_watch_child_stone_face() \
     const u32 _nya_watch_frame = nya_watch_frame_begin(); \
     nya_watch_record(_nya_watch_frame, "child_stone_face", "at", "u32", _nya_watch_type_of(at), (u32)sizeof(typeof(at)), &at); \
@@ -15,7 +15,7 @@
     nya_watch_record(_nya_watch_frame, "child_stone_face", "emitted", "u32", _nya_watch_type_of(emitted), (u32)sizeof(typeof(emitted)), &emitted); \
     defer nya_watch_frame_end(_nya_watch_frame)
 
-/* child_stone_row (tests/nyangine/debug/test_crash_report.c:95) */
+/* child_stone_row (tests/nyangine/debug/test_crash_report.c:129) */
 #define _nya_watch_child_stone_row() \
     const u32 _nya_watch_frame = nya_watch_frame_begin(); \
     nya_watch_record(_nya_watch_frame, "child_stone_row", "sides", "u32", _nya_watch_type_of(sides), (u32)sizeof(typeof(sides)), &sides); \
