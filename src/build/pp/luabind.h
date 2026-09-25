@@ -47,7 +47,8 @@
 /* CONSTANTS */
 
 /** The tree scanned for annotations. Headers for `@lua`, sources for `@lua_manual`. */
-#define NYA_LUABIND_DIRECTORY "./src/nyangine-core"
+#define NYA_LUABIND_DIRECTORY         "./src/nyangine-core"
+#define NYA_LUABIND_DIRECTORY_PLUGINS "./src/nyangine-plugins"
 
 /** The generated C: one marshalling function per binding, and the table they are registered from. */
 #define NYA_LUABIND_OUTPUT_SOURCE "./src/genyarated/lua_bindings.c"

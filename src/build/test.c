@@ -23,7 +23,7 @@ nya_derive_dict(b8);
 #define TEST_SCAN_MAX_NAME 256
 
 /** The headers that decide which internal identifiers a test can name and still share the engine. */
-#define TEST_ENGINE_HEADER_DIRECTORY "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui"
+#define TEST_ENGINE_HEADER_DIRECTORY "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui", "./src/nyangine-plugins"
 
 #if OS_WINDOWS
 #define TEST_VENDORS NYA_PROJECT_VENDORS_WINDOWS_X86_64

@@ -52,7 +52,7 @@
 #define NYA_LAMBDA_INCLUDE_PREFIX "genyarated/lambdas/"
 
 /** Trees scanned for call sites. Each is walked sorted, so the output is a function of the tree alone. */
-#define NYA_LAMBDA_TREE_ENGINE   "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui"
+#define NYA_LAMBDA_TREE_ENGINE   "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui", "./src/nyangine-plugins"
 #define NYA_LAMBDA_TREE_GAME     "./src/gnyame"
 #define NYA_LAMBDA_TREE_EXAMPLES "./examples"
 #define NYA_LAMBDA_TREE_TESTS    "./tests"

@@ -121,6 +121,7 @@ void nya_reflection_generate(void) {
         NYA_REFLECT_ENGINE_STD,
         NYA_REFLECT_ENGINE_CORE,
         NYA_REFLECT_ENGINE_UI,
+        NYA_REFLECT_ENGINE_PLUGINS,
         NYA_REFLECT_GAME_DIRECTORY,
         "./src/build/pp/reflection.c",
         nullptr,
@@ -145,6 +146,7 @@ void nya_reflection_generate(void) {
     _nya_reflect_scan_tree(&set, NYA_REFLECT_ENGINE_STD);
     _nya_reflect_scan_tree(&set, NYA_REFLECT_ENGINE_CORE);
     _nya_reflect_scan_tree(&set, NYA_REFLECT_ENGINE_UI);
+    _nya_reflect_scan_tree(&set, NYA_REFLECT_ENGINE_PLUGINS);
     set.engine_type_count = set.type_count;
 
     _nya_reflect_scan_tree(&set, NYA_REFLECT_GAME_DIRECTORY);

@@ -154,7 +154,7 @@ NYA_INTERNAL void _nya_luabind_emit_definitions(const _NYA_LuaBindSet* set, NYA_
 /* PUBLIC API IMPLEMENTATION */
 
 void nya_luabind_generate(void) {
-    NYA_ConstCString inputs[]  = { NYA_LUABIND_DIRECTORY, "./src/build/pp/luabind.c", nullptr };
+    NYA_ConstCString inputs[]  = { NYA_LUABIND_DIRECTORY, NYA_LUABIND_DIRECTORY_PLUGINS, "./src/build/pp/luabind.c", nullptr };
     NYA_ConstCString outputs[] = { NYA_LUABIND_OUTPUT_SOURCE, NYA_LUABIND_OUTPUT_DEFINITIONS, nullptr };
     if (nya_pp_is_current("generate_lua_bindings", inputs, outputs)) return;
 
@@ -163,6 +163,8 @@ void nya_luabind_generate(void) {
 
     NYA_ArrayᐸNYA_Stringᐳ* files = nya_array_create(arena, NYA_String);
     NYA_EXPECT(nya_filesystem_walk(arena, NYA_LUABIND_DIRECTORY, _nya_luabind_collect, files), "while listing the engine sources");
+    // Plugins are their own subproject now; the lua plugin itself carries @lua bindings, so scan it too.
+    NYA_EXPECT(nya_filesystem_walk(arena, NYA_LUABIND_DIRECTORY_PLUGINS, _nya_luabind_collect, files), "while listing the plugin sources");
 
     // Sorted, so the generated file is a function of the tree rather than of the order the filesystem happened to hand it over. A diff of a generated file has to mean something changed.
     nya_array_sort(files, _nya_luabind_compare);

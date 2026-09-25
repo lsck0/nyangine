@@ -106,7 +106,7 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "nyangine-core/permission", "permission", "Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit."  },
     { "nyangine-core/db",        "db",       "One database file: bound statements, a reflected struct as a row, derived migrations." },
     { "nyangine-core/debug",     "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
-    { "nyangine-core/plugins",   "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
+    { "nyangine-plugins",        "plugins",  "Optional dependencies behind a flag: curl, lua, discord, steam, oidc, pgp, and the ACME client."  },
     { "nyangine-std/platform",   "platform", "What the host is, and how to talk to it: signals, the terminal and ipc."                 },
     { "nyangine-std/os",         "os",       "The syscalls themselves: files, pages, the two clocks, random bytes, processes."          },
 };

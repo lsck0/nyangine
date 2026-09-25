@@ -48,7 +48,7 @@ typedef struct {
 
 /** The directories and files the rules read. Vendors are not ours to judge; corpora are not source. */
 NYA_INTERNAL const NYA_ConstCString _LINT_ROOTS[] = {
-    "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui", "./src/gnyame", "./src/build", "./src/genyarated", "./examples", "./tests", "./bench",
+    "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui", "./src/nyangine-plugins", "./src/gnyame", "./src/build", "./src/genyarated", "./examples", "./tests", "./bench",
 };
 NYA_INTERNAL const NYA_ConstCString _LINT_FILES[] = { "./src/main.c", "./build.c" };
 
@@ -815,6 +815,9 @@ NYA_String* _lint_module_of(NYA_Arena* arena, const NYA_String* path) {
 
     // The ui toolkit is one module in its own subproject: every file under it is module "ui".
     if (strstr(text, "src/nyangine-ui/") != nullptr) return nya_string_from(arena, "ui");
+
+    // Plugins are their own subproject; every file under it — acme included, now that it is a plugin — is module "plugins".
+    if (strstr(text, "src/nyangine-plugins/") != nullptr) return nya_string_from(arena, "plugins");
 
     // std and core keep the module as the first path segment under the subproject root.
     NYA_ConstCString marker     = strstr(text, "src/nyangine-std/");

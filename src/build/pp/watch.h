@@ -71,7 +71,7 @@
 #define NYA_WATCH_INCLUDE_PREFIX "genyarated/watches/"
 
 /** Trees scanned, each walked sorted so the output is a function of the tree alone. */
-#define NYA_WATCH_TREE_ENGINE   "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui"
+#define NYA_WATCH_TREE_ENGINE   "./src/nyangine-std", "./src/nyangine-core", "./src/nyangine-ui", "./src/nyangine-plugins"
 #define NYA_WATCH_TREE_GAME     "./src/gnyame"
 #define NYA_WATCH_TREE_EXAMPLES "./examples"
 #define NYA_WATCH_TREE_TESTS    "./tests"

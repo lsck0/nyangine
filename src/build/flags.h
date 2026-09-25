@@ -157,7 +157,7 @@
  * itself is target independent; only the modules that ride along with it differ, so the Windows target
  * rules pass FLAGS_PLUGINS_WINDOWS_X86_64 to pin the Windows module set no matter the building host.
  */
-#define FLAGS_PLUGIN_LIST "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
+#define FLAGS_PLUGIN_LIST "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", "-DNYA_PLUGIN_ACME", FLAGS_PLUGIN_PERMISSIONS
 #define FLAGS_PLUGINS               FLAGS_MODULES, FLAGS_PLUGIN_LIST
 #define FLAGS_PLUGINS_WINDOWS_X86_64 FLAGS_MODULES_WINDOWS_X86_64, FLAGS_PLUGIN_LIST
 
