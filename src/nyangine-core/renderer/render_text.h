@@ -50,6 +50,11 @@
 #define NYA_TEXT_RUN_LINES_MAX 64
 #endif
 
+/** Directional runs one line is split into for bidi reordering. Bounded; a longer line keeps its first runs. */
+#ifndef NYA_BIDI_RUNS_MAX
+#define NYA_BIDI_RUNS_MAX 32
+#endif
+
 /** Longest derived font asset handle: a path, an '@', and a point size. */
 #define NYA_TEXT_FONT_HANDLE_MAX 256
 
@@ -81,6 +86,18 @@
 typedef struct NYA_TextGlyph NYA_TextGlyph;
 typedef struct NYA_TextLine  NYA_TextLine;
 typedef struct NYA_TextRun   NYA_TextRun;
+typedef struct NYA_BidiRun   NYA_BidiRun;
+
+/**
+ * One directional run of a single line: a byte range of the source and its bidi embedding level. An even level
+ * reads left-to-right, an odd one right-to-left. The runs a line splits into come back in visual (left-to-right)
+ * order, so laying them out is a plain left-to-right walk that offsets each by the width of those before it.
+ * */
+struct NYA_BidiRun {
+    u32 offset;
+    u32 length;
+    u8  level;
+};
 
 /** One positioned glyph. Everything is in pixels, relative to the run's top-left. */
 struct NYA_TextGlyph {
@@ -139,9 +156,22 @@ struct NYA_TextRun {
  */
 
 /**
- * Shapes `text` with `font` into `out_run`.
+ * Shapes `text` with `font` into `out_run`. A line holding a right-to-left script is split into directional runs,
+ * each shaped in its own direction and placed in visual order (see nya_text_bidi_runs); a purely left-to-right
+ * line takes the shaper's own single-pass layout unchanged.
  * */
 NYA_API b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_width, OUT NYA_TextRun* out_run);
+
+/**
+ * Splits one line of `text` into directional runs and orders them left-to-right in visual order, a reduced UAX #9.
+ * `length` is bytes, or 0 for a NUL-terminated string. Returns the run count, at most `capacity`.
+ *
+ * Covered: the base direction from the first strong character (P2/P3), Hebrew and Arabic as right-to-left, digits
+ * kept left-to-right, neutral runs resolved toward their neighbours (a reduced N1/N2), and the visual reordering
+ * (L1/L2). Not covered: explicit embedding and override controls, isolates, mirrored brackets, and the full
+ * weak-type resolution; folding Arabic letters into plain right-to-left is enough for those cases and no more.
+ * */
+NYA_API u32 nya_text_bidi_runs(NYA_ConstCString text, u64 length, OUT NYA_BidiRun* out_runs, u32 capacity);
 
 /**
  * The size `text` would occupy, without keeping the glyphs.

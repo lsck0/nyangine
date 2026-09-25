@@ -4350,6 +4350,7 @@ void nya_render2d_draws_indices_write(const NYA_Render2DDrawRange* ranges, NYA_R
 
 ```c
 // types
+struct NYA_BidiRun { u32 offset; u32 length; u8 level; }  // One directional run of a single line: a byte range of the source and its bidi embedding level.
 struct NYA_TextGlyph { u32 glyph_index; s32 x, y, width, height; s32 source_x, source_y; u32 line; }  // One positioned glyph.
 struct NYA_TextLine { u32 first_glyph; u32 glyph_count; s32 x, y, width, height; u32 offset; u32 length; }  // One line of a run: the glyphs on it, its box, and the bytes of the source string it covers.
 struct NYA_TextRun { NYA_TextGlyph glyphs[NYA_TEXT_RUN_GLYPHS_MAX]; u32 glyph_count; NYA_TextLine lines[NYA_TEXT_RUN_LINES_MAX]; u32 line_count; s32 width; s32 height; b8 overflowed; }  // A shaped string.
@@ -4357,6 +4358,7 @@ struct NYA_TextRun { NYA_TextGlyph glyphs[NYA_TEXT_RUN_GLYPHS_MAX]; u32 glyph_co
 // macros
 NYA_TEXT_RUN_GLYPHS_MAX 1024  // Glyphs one run holds.
 NYA_TEXT_RUN_LINES_MAX 64  // Lines one run holds.
+NYA_BIDI_RUNS_MAX 32  // Directional runs one line is split into for bidi reordering.
 NYA_TEXT_FONT_HANDLE_MAX 256  // Longest derived font asset handle: a path, an '@', and a point size.
 NYA_TEXT_SDF_SPREAD 8  // How far SDL_ttf extends a distance field past the ink on every side, in pixels.
 NYA_TEXT_RUN_CACHE_CAPACITY 128  // Laid out strings kept by nya_text_shape_with_font, across every face.
@@ -4364,6 +4366,7 @@ NYA_TEXT_RUN_CACHE_KEY_MAX 256  // Longest cache key: the wrap width, the face h
 
 // functions
 b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_width, OUT NYA_TextRun* out_run)  // Shapes `text` with `font` into `out_run`.
+u32 nya_text_bidi_runs(NYA_ConstCString text, u64 length, OUT NYA_BidiRun* out_runs, u32 capacity)
 f32x2 nya_text_measure_font(TTF_Font* font, NYA_ConstCString text, s32 wrap_width)  // The size `text` would occupy, without keeping the glyphs.
 f32 nya_text_line_height(TTF_Font* font)  // Baseline to baseline: what to advance y by for the next line.
 f32 nya_text_ascent(TTF_Font* font)  // Top of the line box to the baseline.

@@ -45,6 +45,15 @@ NYA_INTERNAL TTF_Text* _nya_text_run_resolve(NYA_ConstCString path, f32 point_si
 /** The cache's destructor. */
 NYA_INTERNAL void _nya_text_run_destroy(void* value, void* user_data);
 
+/** Whether a line could hold a right-to-left script: any lead byte at or past U+0590's, a cheap gate for the ASCII path. */
+NYA_INTERNAL b8 _nya_text_maybe_rtl(NYA_ConstCString text, u64 length) __attr_no_discard;
+
+/** The visual runs of a line, and whether any is right-to-left. False leaves the fast left-to-right path to run. */
+NYA_INTERNAL b8 _nya_text_bidi_needed(NYA_ConstCString text, u64 length, OUT NYA_BidiRun* runs, OUT u32* out_count) __attr_no_discard;
+
+/** Shapes each visual run in its own direction and lays them out left-to-right into one line of `out_run`, which is reset. */
+NYA_INTERNAL b8 _nya_text_shape_runs(TTF_Font* font, NYA_ConstCString text, u64 length, const NYA_BidiRun* runs, u32 count, OUT NYA_TextRun* out_run);
+
 /**
  * Fills in the run's per-line boxes from the laid-out text.
  * */
@@ -112,6 +121,14 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
         out_run->lines[0]   = (NYA_TextLine){ .height = out_run->height };
 
         return true;
+    }
+
+    // A right-to-left script needs the bidi pass; wrapping stays on the shaper's own path, which breaks the lines.
+    NYA_BidiRun runs[NYA_BIDI_RUNS_MAX];
+    u32         count = 0;
+
+    if (wrap_width <= 0 && _nya_text_bidi_needed(text, length, runs, &count)) {
+        return _nya_text_shape_runs(font, text, length, runs, count, out_run);
     }
 
     // A null engine: shaping, kerning and line breaking run without a device (in `internal->ops`), matching headless.
@@ -205,6 +222,20 @@ b8 nya_text_shape_with_font(NYA_ConstCString path, f32 point_size, NYA_ConstCStr
     nya_assert(out_run != nullptr);
 
     if (text == nullptr || text[0] == '\0') return nya_text_shape(nya_text_font_for(path, point_size), text, 0, wrap_width, out_run);
+
+    // A right-to-left line is shaped fresh through the bidi pass rather than the single-text cache below, which
+    // holds one TTF_Text per string and so cannot store the several a bidi line shapes into.
+    NYA_BidiRun runs[NYA_BIDI_RUNS_MAX];
+    u32         count = 0;
+
+    if (wrap_width <= 0 && _nya_text_bidi_needed(text, 0, runs, &count)) {
+        TTF_Font* font = nya_text_font_for(path, point_size);
+
+        _nya_text_run_reset(out_run);
+        if (font == nullptr) return false;
+
+        return _nya_text_shape_runs(font, text, 0, runs, count, out_run);
+    }
 
     b8        owned  = false;
     TTF_Text* shaped = _nya_text_run_resolve(path, point_size, text, wrap_width, &owned);
@@ -470,4 +501,261 @@ void _nya_text_run_destroy(void* value, void* user_data) {
     nya_unused(user_data);
 
     TTF_DestroyText(*(TTF_Text**)value);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * BIDI (UAX #9, reduced)
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** A character's bidi class, folded to the four the reordering below needs. */
+typedef enum _NYA_BidiClass {
+    _NYA_BIDI_L,       /**< strong left-to-right */
+    _NYA_BIDI_R,       /**< strong right-to-left; Arabic letters fold in here too */
+    _NYA_BIDI_EN,      /**< a digit: runs left-to-right, but resolves a neutral like an R */
+    _NYA_BIDI_NEUTRAL, /**< whitespace, punctuation, and anything with no strong direction */
+} _NYA_BidiClass;
+
+/** `codepoint`'s bidi class from a compact range table, not the Unicode database. */
+NYA_INTERNAL _NYA_BidiClass _nya_bidi_class(u32 codepoint) {
+    if (codepoint < 0x80U) {
+        if (codepoint >= '0' && codepoint <= '9') return _NYA_BIDI_EN;
+        if ((codepoint | 0x20U) >= 'a' && (codepoint | 0x20U) <= 'z') return _NYA_BIDI_L;
+        return _NYA_BIDI_NEUTRAL;
+    }
+
+    // Hebrew, and the Hebrew presentation forms.
+    if ((codepoint >= 0x0590U && codepoint <= 0x05FFU) || (codepoint >= 0xFB1DU && codepoint <= 0xFB4FU)) return _NYA_BIDI_R;
+
+    // Arabic across its blocks and both presentation-form ranges; its own digits are numbers, not letters.
+    if ((codepoint >= 0x0600U && codepoint <= 0x06FFU) || (codepoint >= 0x0750U && codepoint <= 0x077FU) ||
+        (codepoint >= 0x08A0U && codepoint <= 0x08FFU) || (codepoint >= 0xFB50U && codepoint <= 0xFDFFU) ||
+        (codepoint >= 0xFE70U && codepoint <= 0xFEFFU)) {
+        if ((codepoint >= 0x0660U && codepoint <= 0x0669U) || (codepoint >= 0x06F0U && codepoint <= 0x06F9U)) return _NYA_BIDI_EN;
+        return _NYA_BIDI_R;
+    }
+
+    // Everything else (Latin, CJK, and the rest) reads left-to-right.
+    return _NYA_BIDI_L;
+}
+
+/** Appends [offset, offset + length) at `level`, extending the last run when the level and bytes run straight on. */
+NYA_INTERNAL void _nya_bidi_emit(NYA_BidiRun* runs, u32* count, u32 capacity, u32 offset, u32 length, u8 level) {
+    if (length == 0) return;
+
+    if (*count > 0 && runs[*count - 1].level == level && runs[*count - 1].offset + runs[*count - 1].length == offset) {
+        runs[*count - 1].length += length;
+        return;
+    }
+
+    // Bounded: a line with more runs than the cap keeps the ones it has, the way a run keeps its first glyphs.
+    if (*count >= capacity) return;
+
+    runs[(*count)++] = (NYA_BidiRun){ .offset = offset, .length = length, .level = level };
+}
+
+u32 nya_text_bidi_runs(NYA_ConstCString text, u64 length, OUT NYA_BidiRun* out_runs, u32 capacity) {
+    nya_assert(out_runs != nullptr);
+
+    if (text == nullptr || capacity == 0) return 0;
+
+    u64 len = length > 0 ? length : (u64)strlen(text);
+    if (len == 0) return 0;
+
+    // P2/P3: the base direction is the first strong character's, left-to-right when there is none.
+    b8 base_rtl = false;
+    for (u64 i = 0; i < len;) {
+        u32 codepoint = 0;
+        i += nya_utf8_next(text + i, &codepoint);
+
+        _NYA_BidiClass first = _nya_bidi_class(codepoint);
+        if (first == _NYA_BIDI_L) break;
+        if (first == _NYA_BIDI_R) {
+            base_rtl = true;
+            break;
+        }
+    }
+
+    // A left-to-right run sits one level above a right-to-left paragraph, so digits and Latin nest inside it.
+    u8 even_level = base_rtl ? 2U : 0U;
+
+    u32 count       = 0;
+    u8  prev_strong = base_rtl ? 1U : 0U; // the side (0 left, 1 right) neutrals lean toward; a number counts as right.
+    u64 pending     = 0;                  // the byte a still-open neutral run began at.
+    b8  has_pending = false;
+
+    for (u64 i = 0; i < len;) {
+        u64 start     = i;
+        u32 codepoint = 0;
+        i += nya_utf8_next(text + i, &codepoint);
+
+        _NYA_BidiClass character = _nya_bidi_class(codepoint);
+
+        if (character == _NYA_BIDI_NEUTRAL) {
+            if (!has_pending) {
+                pending     = start;
+                has_pending = true;
+            }
+            continue;
+        }
+
+        u8 side  = character == _NYA_BIDI_L ? 0U : 1U;                     // L leans left; R and a digit lean right.
+        u8 level = character == _NYA_BIDI_R ? 1U : even_level;            // a digit runs left-to-right within the line.
+
+        if (has_pending) {
+            // N1/N2: a neutral run between two equal sides takes that side, otherwise the paragraph's.
+            u8 neutral_side  = prev_strong == side ? side : (base_rtl ? 1U : 0U);
+            u8 neutral_level = neutral_side == 1U ? 1U : even_level;
+
+            _nya_bidi_emit(out_runs, &count, capacity, (u32)pending, (u32)(start - pending), neutral_level);
+            has_pending = false;
+        }
+
+        _nya_bidi_emit(out_runs, &count, capacity, (u32)start, (u32)(i - start), level);
+        prev_strong = side;
+    }
+
+    // A trailing neutral run takes the paragraph side: its far neighbour is the paragraph, so the two never agree away from it.
+    if (has_pending) _nya_bidi_emit(out_runs, &count, capacity, (u32)pending, (u32)(len - pending), base_rtl ? 1U : even_level);
+
+    // L1/L2: from the highest level down to the lowest odd one, reverse each maximal stretch of runs at that level or above.
+    u8 max_level = 0;
+    u8 min_odd   = 0xFFU;
+
+    for (u32 r = 0; r < count; r++) {
+        if (out_runs[r].level > max_level) max_level = out_runs[r].level;
+        if ((out_runs[r].level & 1U) != 0 && out_runs[r].level < min_odd) min_odd = out_runs[r].level;
+    }
+
+    for (u8 level = max_level; min_odd != 0xFFU && level >= min_odd; level--) {
+        for (u32 r = 0; r < count;) {
+            if (out_runs[r].level < level) {
+                r++;
+                continue;
+            }
+
+            u32 end = r;
+            while (end < count && out_runs[end].level >= level) end++;
+
+            for (u32 a = r, b = end - 1; a < b; a++, b--) {
+                NYA_BidiRun swap = out_runs[a];
+                out_runs[a]      = out_runs[b];
+                out_runs[b]      = swap;
+            }
+
+            r = end;
+        }
+    }
+
+    return count;
+}
+
+b8 _nya_text_maybe_rtl(NYA_ConstCString text, u64 length) {
+    if (text == nullptr) return false;
+
+    u64 len = length > 0 ? length : (u64)strlen(text);
+
+    // The right-to-left blocks begin at U+0590, whose first UTF-8 byte is 0xD6; below that no byte can open one.
+    for (u64 i = 0; i < len; i++) {
+        if ((u8)text[i] >= 0xD6U) return true;
+    }
+
+    return false;
+}
+
+b8 _nya_text_bidi_needed(NYA_ConstCString text, u64 length, OUT NYA_BidiRun* runs, OUT u32* out_count) {
+    nya_assert(runs != nullptr && out_count != nullptr);
+
+    *out_count = 0;
+
+    // The byte gate keeps Latin and ASCII off the codepoint walk entirely; only a possible right-to-left line pays it.
+    if (!_nya_text_maybe_rtl(text, length)) return false;
+
+    u32 count = nya_text_bidi_runs(text, length, runs, NYA_BIDI_RUNS_MAX);
+
+    // A false alarm (a non-Latin left-to-right script like CJK) shapes as one left-to-right run, so keep the fast path.
+    for (u32 r = 0; r < count; r++) {
+        if ((runs[r].level & 1U) != 0) {
+            *out_count = count;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+b8 _nya_text_shape_runs(TTF_Font* font, NYA_ConstCString text, u64 length, const NYA_BidiRun* runs, u32 count, OUT NYA_TextRun* out_run) {
+    nya_assert(font != nullptr && text != nullptr && runs != nullptr && out_run != nullptr);
+
+    _nya_text_run_reset(out_run);
+
+    if (count == 0) return false;
+
+    s32 pen_x  = 0;
+    s32 height = (s32)nya_text_line_height(font);
+
+    for (u32 r = 0; r < count; r++) {
+        b8 rtl = (runs[r].level & 1U) != 0;
+
+        // Each run shapes on its own, in its own direction: harfbuzz then orders an RTL run's glyphs right-to-left for us.
+        TTF_Text* shaped = TTF_CreateText(nullptr, font, text + runs[r].offset, (size_t)runs[r].length);
+        if (shaped == nullptr) continue;
+
+        (void)TTF_SetTextDirection(shaped, rtl ? TTF_DIRECTION_RTL : TTF_DIRECTION_LTR);
+
+        if (!TTF_UpdateText(shaped)) {
+            TTF_DestroyText(shaped);
+            continue;
+        }
+
+        s32 width = 0, run_height = 0;
+        (void)TTF_GetTextSize(shaped, &width, &run_height);
+        if (run_height > height) height = run_height;
+
+        const TTF_TextData* data = shaped->internal;
+
+        for (s32 i = 0; data != nullptr && i < data->num_ops; i++) {
+            const TTF_DrawOperation* op = &data->ops[i];
+
+            if (op->cmd != TTF_DRAW_COMMAND_COPY) continue;
+
+            if (out_run->glyph_count >= NYA_TEXT_RUN_GLYPHS_MAX) {
+                out_run->overflowed = true;
+                break;
+            }
+
+            // The run's glyphs are already visually ordered; only the run's left edge shifts, by every run before it.
+            out_run->glyphs[out_run->glyph_count++] = (NYA_TextGlyph){
+                .glyph_index = op->copy.glyph_index,
+                .x           = op->copy.dst.x + pen_x,
+                .y           = op->copy.dst.y,
+                .width       = op->copy.dst.w,
+                .height      = op->copy.dst.h,
+                .source_x    = op->copy.src.x,
+                .source_y    = op->copy.src.y,
+                .line        = 0,
+            };
+        }
+
+        pen_x += width;
+        TTF_DestroyText(shaped);
+    }
+
+    out_run->width      = pen_x;
+    out_run->height     = height;
+    out_run->line_count = 1;
+    out_run->lines[0]   = (NYA_TextLine){
+        .first_glyph = 0,
+        .glyph_count = out_run->glyph_count,
+        .width       = pen_x,
+        .height      = height,
+        .offset      = 0,
+        .length      = (u32)(length > 0 ? length : strlen(text)),
+    };
+
+    if (out_run->glyph_count > _nya_text_run_glyph_count_worst) _nya_text_run_glyph_count_worst = out_run->glyph_count;
+    if (out_run->line_count > _nya_text_run_line_count_worst) _nya_text_run_line_count_worst = out_run->line_count;
+
+    return true;
 }
