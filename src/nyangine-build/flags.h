@@ -414,6 +414,31 @@
 #define FLAGS_RELEASE_LINK_WINDOWS_X86_64 "-Xlinker", "-Xlink=-debug:dwarf,nosymtab"
 
 /*
+ * Reproducible builds: the same commit must give the same bytes on any machine, which is what lets a
+ * signed release be checked by someone who did not build it. See TODO.md and `./build reproduce`.
+ *
+ * -ffile-prefix-map rewrites the one absolute path clang would otherwise bake into a release binary: the
+ * compilation directory (DWARF DW_AT_comp_dir), which is wherever the build happened to run. Mapping it
+ * to `.` makes a build under /home/alice and one under /build/ci come out identical. The flag also covers
+ * -fdebug-prefix-map and -fmacro-prefix-map, but the project's own source and include paths are already
+ * relative ("./src/..."), so only comp_dir actually changes. The %CWD% token is expanded to the absolute
+ * working directory by hook_expand_cwd, so every rule that carries this must register that hook.
+ *
+ * The compile half rides both the compile and the link: under -flto codegen happens at link time, so the
+ * map has to be on the link command too or the debug info generated there keeps the absolute path. The
+ * link half additionally pins the build-id off — lld is otherwise free to stamp a note that need not be
+ * reproducible, and the shipped binary carries its own integrity CRC and inline -g1 DWARF, so nothing
+ * here reads a build-id. ELF only: build-id is meaningless for the mingw PE target, so it is not added to
+ * the Windows link, and -ffile-prefix-map is the whole of what the Windows rules can share here.
+ *
+ * No SOURCE_DATE_EPOCH is needed for the binary: it embeds no build timestamp by design — base_version.c
+ * reads the executable's own mtime at runtime rather than baking __DATE__ in. SOURCE_DATE_EPOCH governs
+ * the archive mtimes instead; see dist.c.
+ */
+#define FLAGS_REPRODUCIBLE_COMPILE "-ffile-prefix-map=%CWD%=."
+#define FLAGS_REPRODUCIBLE_LINK    "-ffile-prefix-map=%CWD%=.", "-Wl,--build-id=none"
+
+/*
  * Steam is release plus the Steamworks plugin. Same shipping flags, a mode of its own, so the mode can gate overlay and
  * achievements without a second set of build rules.
  */

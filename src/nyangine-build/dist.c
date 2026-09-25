@@ -135,6 +135,9 @@ NYA_INTERNAL NYA_CString _dist_make_directory(NYA_Arena* arena, NYA_ConstCString
 /** The lowercase hex SHA-256 of `path`. */
 NYA_INTERNAL NYA_CString _dist_sha256(NYA_Arena* arena, NYA_ConstCString path);
 
+/** The Unix timestamp reproducible archive mtimes are pinned to. See the implementation. */
+NYA_INTERNAL NYA_ConstCString _dist_source_date_epoch(NYA_Arena* arena) __attr_no_discard;
+
 /** Copies `source` to `directory`, keeping its basename. */
 NYA_INTERNAL void _dist_copy_into(NYA_Arena* arena, NYA_ConstCString source, NYA_ConstCString directory);
 
@@ -372,6 +375,33 @@ NYA_CString _dist_make_directory(NYA_Arena* arena, NYA_ConstCString name) {
     return path;
 }
 
+/**
+ * The Unix timestamp reproducible archive mtimes are pinned to.
+ *
+ * SOURCE_DATE_EPOCH when the environment sets it — the reproducible-builds.org contract a release CI
+ * honours — and HEAD's commit time otherwise, so a tree archived twice from the same commit comes out
+ * byte-for-byte identical whoever runs it. "0" only when there is no git to ask, which dist_runner
+ * already treats as fatal above, so it is defensive rather than reached.
+ * */
+NYA_ConstCString _dist_source_date_epoch(NYA_Arena* arena) {
+    NYA_ConstCString from_env = getenv("SOURCE_DATE_EPOCH");
+    if (from_env != nullptr && from_env[0] != '\0') {
+        // Digits only: a malformed value would otherwise reach tar as a bad --mtime and fail the archive.
+        b8 numeric = true;
+        for (NYA_ConstCString c = from_env; *c != '\0'; c++) {
+            if (*c < '0' || *c > '9') { numeric = false; break; }
+        }
+        if (numeric) return from_env;
+        nya_log_warn("SOURCE_DATE_EPOCH='%s' is not a Unix timestamp; falling back to HEAD's commit time.", from_env);
+    }
+
+    NYA_String* commit_time = build_capture(arena, "git", (const NYA_ConstCString[]){ "log", "-1", "--format=%ct", nullptr });
+    nya_string_trim_whitespace(commit_time);
+    if (commit_time->length > 0) return nya_string_to_cstring(arena, commit_time);
+
+    return "0";
+}
+
 NYA_CString _dist_sha256(NYA_Arena* arena, NYA_ConstCString path) {
     NYA_String* output = build_capture(arena, DIST_SHA256_PROGRAM, (const NYA_ConstCString[]){ path, nullptr });
 
@@ -459,7 +489,9 @@ void _dist_archive(NYA_Arena* arena, const DistTarget* target) {
 
         NYA_EXPECT(nya_build(&rule), "while archiving '%s'", target->name);
     } else {
-        /* Deterministic: entries sorted, ownership zeroed and every timestamp pinned, so the same tree archives to the same bytes and therefore the same checksum on any machine. Without it two runs of this command produce two digests for identical content, and a release that cannot be reproduced cannot be verified. The zip half above is not there yet: zip has no equivalent flag and stores an mtime per entry, so the Windows archives still differ run to run. */
+        /* Deterministic: entries sorted, ownership zeroed and every timestamp pinned to SOURCE_DATE_EPOCH (HEAD's commit time when it is unset), so the same tree archives to the same bytes and therefore the same checksum on any machine. Without it two runs of this command produce two digests for identical content, and a release that cannot be reproduced cannot be verified. The zip half above pins its own mtimes another way — zip has no --mtime, so it stores each entry's on-disk time — and would need the staged tree touched to the same epoch and its entries fed in sorted order to match; that remains for the Windows archive. */
+        NYA_CString mtime = nya_string_to_cstring(arena, nya_string_sprintf(arena, "--mtime=@%s", _dist_source_date_epoch(arena)));
+
         _dist_run(
             "dist_archive",
             "tar",
@@ -467,7 +499,7 @@ void _dist_archive(NYA_Arena* arena, const DistTarget* target) {
                 "-C", staged,
                 "--sort=name",
                 "--owner=0", "--group=0", "--numeric-owner",
-                "--mtime=@0",
+                mtime,
                 // gzip records the source mtime in its header unless told not to.
                 "--use-compress-program", "gzip -n",
                 "-cf", archive,

@@ -753,6 +753,12 @@ NYA_INTERNAL NYA_ArgCommand dist = {
     .parameters  = { &dist_target, },
 };
 
+NYA_INTERNAL NYA_ArgCommand reproduce = {
+    .name        = "reproduce",
+    .description = "Build the Linux release binary twice and assert the bytes match, then check no absolute build path leaked in. The reproducible-build guarantee, checkable.",
+    .handler     = &reproduce_runner,
+};
+
 NYA_INTERNAL NYA_ArgCommand changelog = {
     .name        = "changelog",
     .description = "Regenerate CHANGELOG.md from the conventional commits in the history.",
@@ -861,6 +867,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &project_command,
             &fmt_command,
             &dist,
+            &reproduce,
             &check,
             &typos,
             &verify,

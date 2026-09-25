@@ -175,6 +175,14 @@ void plugin_sign_runner(NYA_ArgCommand* command);
 void dist_runner(NYA_ArgCommand* command);
 
 /**
+ * Builds the Linux release binary twice and asserts the two are byte-for-byte identical, then scans the
+ * binary for the absolute build path -ffile-prefix-map is meant to have stripped. The reproducible-build
+ * guarantee, checkable. Linux only, and it rebuilds what is stale, so run it where assets may regenerate.
+ * See reproduce.c.
+ * */
+void reproduce_runner(NYA_ArgCommand* command);
+
+/**
  * Name of the distribution target at `index`, or nullptr past the last one. Fits NYA_ArgCompletion.choices_fn.
  * */
 NYA_ConstCString dist_completion_target(u32 index);

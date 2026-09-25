@@ -208,10 +208,12 @@ NYA_INTERNAL NYA_BuildRule compile_project_windows_x86_64 = {
             FLAGS_RELEASE,
             FLAGS_HARDEN_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
+            FLAGS_REPRODUCIBLE_COMPILE,
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    // hook_expand_cwd resolves %CWD% in FLAGS_REPRODUCIBLE_COMPILE. No build-id here: PE images have none.
+    .pre_build_hooks = { &hook_expand_cwd, &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &bundle_assets, }, // index_assets comes with it, in the right order
@@ -235,9 +237,12 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
             FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
             WINDOWS_X86_64_RESOURCES,
+            FLAGS_REPRODUCIBLE_COMPILE,
         },
     },
 
+    // The map rides the link too, for the debug info -flto emits here. build-id is ELF only, so it is not added.
+    .pre_build_hooks  = { &hook_expand_cwd, },
     .vendors          = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies     = { &compile_project_windows_x86_64, &build_windows_resources, },
@@ -268,10 +273,11 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_windows_x86_64 = {
             FLAGS_STEAM,
             FLAGS_HARDEN_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
+            FLAGS_REPRODUCIBLE_COMPILE,
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_expand_cwd, &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &bundle_assets, },
@@ -295,10 +301,11 @@ NYA_INTERNAL NYA_BuildRule link_project_steam_windows_x86_64 = {
             FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
             WINDOWS_X86_64_RESOURCES,
+            FLAGS_REPRODUCIBLE_COMPILE,
         },
     },
 
-    .pre_build_hooks  = { &hook_create_output_directory, },
+    .pre_build_hooks  = { &hook_expand_cwd, &hook_create_output_directory, },
     .vendors          = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, &vendor_steam_windows_x86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies     = { &compile_project_steam_windows_x86_64, &build_windows_resources, },

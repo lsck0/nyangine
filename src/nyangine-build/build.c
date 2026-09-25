@@ -30,6 +30,8 @@
 // After changelog.c: it calls build_capture, which changelog.c defines.
 #include "nyangine-build/sbom.c"
 #include "nyangine-build/dist.c"
+// After dist.c: it reuses build_capture and the release rule dist.c and build_linux.h define.
+#include "nyangine-build/reproduce.c"
 #include "nyangine-build/example.c"
 #include "nyangine-build/plugin.c"
 // After test.c: both name the host flags and the sanitizer environment a test binary runs under.

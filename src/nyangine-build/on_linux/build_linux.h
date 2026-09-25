@@ -243,10 +243,12 @@ NYA_INTERNAL NYA_BuildRule compile_project_linux_x86_64 = {
             FLAGS_PLUGINS,
             FLAGS_RELEASE,
             FLAGS_HARDEN_LINUX_X86_64,
+            FLAGS_REPRODUCIBLE_COMPILE,
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    // hook_expand_cwd resolves the %CWD% in FLAGS_REPRODUCIBLE_COMPILE to the absolute build directory.
+    .pre_build_hooks = { &hook_expand_cwd, &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &bundle_assets, }, // index_assets comes with it, in the right order
@@ -268,9 +270,12 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
             FLAGS_RELEASE_LINK,
             FLAGS_RELEASE_LINK_LINUX_X86_64,
             FLAGS_LINUX_X86_64,
+            FLAGS_REPRODUCIBLE_LINK,
         },
     },
 
+    // The map has to be on the link too, because -flto defers codegen (and its debug info) to here.
+    .pre_build_hooks  = { &hook_expand_cwd, },
     .vendors          = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies     = { &compile_project_linux_x86_64, },
@@ -316,10 +321,11 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_linux_x86_64 = {
             FLAGS_STEAM,
             FLAGS_HARDEN_LINUX_X86_64,
             FLAGS_STEAMRT,
+            FLAGS_REPRODUCIBLE_COMPILE,
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_expand_cwd, &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_STEAMRT_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &build_steamrt_vendors, &bundle_assets, },
@@ -343,10 +349,11 @@ NYA_INTERNAL NYA_BuildRule link_project_steam_linux_x86_64 = {
             FLAGS_RELEASE_LINK,
             FLAGS_RELEASE_LINK_LINUX_X86_64,
             FLAGS_LINUX_X86_64,
+            FLAGS_REPRODUCIBLE_LINK,
         },
     },
 
-    .pre_build_hooks  = { &hook_create_output_directory, },
+    .pre_build_hooks  = { &hook_expand_cwd, &hook_create_output_directory, },
     .vendors          = { NYA_PROJECT_VENDORS_STEAMRT_X86_64, &vendor_steam_linux_x86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies     = { &compile_project_steam_linux_x86_64, },

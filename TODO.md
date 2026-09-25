@@ -1379,9 +1379,14 @@ Accepted:
 - `[ ]` **Player accessibility:** colour blind palettes (applied through the grading LUT), subtitles and
   captions for positional sound with a direction indicator, remappable everything (bindings exist), controller
   glyphs per pad type, and reduced motion (the speed lines and camera shake off). Phase 5.
-- `[ ]` **Reproducible builds:** the same commit gives the same bytes. No timestamps or absolute paths in the
-  binary (`-ffile-prefix-map`, `SOURCE_DATE_EPOCH` for the build info), a sorted link order, and pinned
-  toolchains. CI builds twice and compares. It is what makes a signed binary checkable by someone else.
+- `[~]` **Reproducible builds:** the same commit gives the same bytes. Done for the Linux release/Steam/dist
+  binary: `-ffile-prefix-map` strips the absolute build directory from the debug info, the build-id is pinned
+  off, the binary carries no build timestamp by design (base_version.c reads the executable's mtime at
+  runtime), and `./build reproduce` builds it twice, compares the SHA-256, and scans the bytes for a leaked
+  build path. Archive mtimes honour `SOURCE_DATE_EPOCH` (falling back to HEAD's commit time) in dist.c's tar.
+  The Windows compile/link carry the same `-ffile-prefix-map` (build-id is ELF only), but remain unverified
+  here, and the Windows `.zip` still needs its entries fed in sorted order and its mtimes touched to the epoch
+  (zip has no `--mtime`); the tar half already does both. CI wiring of `./build reproduce` is the last step.
   Phase 7.
 - `[ ]` **Soak and load tests:** a server under sustained load for hours under ASan and LSan, recording RSS,
   open descriptors and p99 latency; a desktop program and a game left running for a day. Memory or
