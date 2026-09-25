@@ -232,8 +232,8 @@
  * pull in uses both and emcc's clang accepts both.
  */
 #define EMCC                   "emcc"
-#define WASM_OUTPUT_DIRECTORY  "./web"
-#define WASM_DEMO_SOURCE       "./src/web/wasm_demo.c"
+#define WASM_OUTPUT_DIRECTORY  "./examples/web_wasm"
+#define WASM_DEMO_SOURCE       "./examples/web_wasm/wasm_demo.c"
 // emcc derives the .wasm from the .js stem, so naming the .js names both; the verifier checks each.
 #define WASM_JS_OUTPUT         WASM_OUTPUT_DIRECTORY "/nyangine.js"
 #define WASM_WASM_OUTPUT       WASM_OUTPUT_DIRECTORY "/nyangine.wasm"
@@ -275,9 +275,9 @@
  * The second WebAssembly target, the CSR bridge: the immediate-mode UI component compiled to wasm and
  * driven from the DOM, no server round trip. Its own command and rule beside `./build wasm`, for the same
  * reason — emcc is off the default toolchain — and its own source, outputs and exports so the two never
- * collide. See wasm_ui_runner and src/web/wasm_ui.c.
+ * collide. See wasm_ui_runner and examples/web_wasm/wasm_ui.c.
  */
-#define WASM_UI_SOURCE     "./src/web/wasm_ui.c"
+#define WASM_UI_SOURCE     "./examples/web_wasm/wasm_ui.c"
 #define WASM_UI_JS_OUTPUT  WASM_OUTPUT_DIRECTORY "/nyangine_ui.js"
 #define WASM_UI_WASM_OUTPUT WASM_OUTPUT_DIRECTORY "/nyangine_ui.wasm"
 // The two C symbols the page calls, named here so the -sEXPORTED_FUNCTIONS below and the verifier that
@@ -316,16 +316,16 @@
  * textured sprite — drawn to a real WebGL2 canvas through the SDL_GPU → GLES3 shim in
  * src/nyangine/renderer/gpu_gles, driven by emscripten_set_main_loop. Its own command, source, outputs
  * and exports beside `./build wasm` and `./build wasm-ui`, for the same reason the other two stand apart:
- * emcc is off the default toolchain. See wasm_game_runner and src/web/wasm_game.c.
+ * emcc is off the default toolchain. See wasm_game_runner and examples/web_wasm/wasm_game.c.
  */
-#define WASM_GAME_SOURCE      "./src/web/wasm_game.c"
+#define WASM_GAME_SOURCE      "./examples/web_wasm/wasm_game.c"
 #define WASM_GAME_JS_OUTPUT   WASM_OUTPUT_DIRECTORY "/nyangine_game.js"
 #define WASM_GAME_WASM_OUTPUT WASM_OUTPUT_DIRECTORY "/nyangine_game.wasm"
 // The self-check export the loader must name (the frame-sequence assertion, callable from node). main()
 // runs setup + the browser main loop; this is what a headless node run calls to prove the shim ran.
 #define WASM_GAME_SYMBOL      "nyangine_game_selfcheck"
 // The 3D self-check export: the off-screen depth/MSAA/resolve frame's call-sequence assertion, callable from
-// node beside the 2D one. See nyangine_game3d_selfcheck in src/web/wasm_game.c.
+// node beside the 2D one. See nyangine_game3d_selfcheck in examples/web_wasm/wasm_game.c.
 #define WASM_GAME_SYMBOL_3D   "nyangine_game3d_selfcheck"
 // The live-scene self-check export: one deterministic frame of the moving, interactive scene (the orbit ring
 // plus the player, across both 2D pipelines), asserting the batch's own vertex/index/draw-call counts.
@@ -437,10 +437,12 @@
 #define FLAGS_DEV_WINDOWS_X86_64       FLAGS_HOTRELOAD_WINDOWS_X86_64, "-Wl,--out-implib," WINDOWS_X86_64_DEV_IMPLIB
 
 /* Authenticode signing of the shipped .exe. See hook_sign_windows_executable. */
-// Deliberately not under assets/: that tree is walked by the asset indexer and embedded into
-// assets.c, which would put the private key inside the shipped binary.
-#define SIGNING_PFX_PATH      "./.signing/sample.pfx"
-#define SIGNING_PFX_PASSWORD  "nyangine-sample-certificate"
+// No certificate is bundled: the real one lives encrypted in secrets/signing.pfx.enc, which CI decrypts
+// to a temporary file and names through NYA_SIGNING_PFX below. With neither the env var nor a file here,
+// hook_sign_windows_executable leaves the binary unsigned rather than failing — visibly unsigned beats
+// silently unsigned. See secrets/README.md.
+#define SIGNING_PFX_PATH      ""
+#define SIGNING_PFX_PASSWORD  ""
 #define SIGNING_TIMESTAMP_URL "http://timestamp.digicert.com"
 
 /** Overrides for the three above, so CI can sign with a real certificate without editing this file. */
@@ -477,9 +479,9 @@
 
 /** Sanitizer configuration shared by everything that runs an instrumented binary. */
 #define SANITIZER_ENVIRONMENT                                                                                                                        \
-    "ASAN_OPTIONS=suppressions=./.sanitizers/asan.supp:detect_leaks=1:strict_string_checks=1:halt_on_error=1",                                       \
-        "LSAN_OPTIONS=suppressions=./.sanitizers/lsan.supp", "TSAN_OPTIONS=suppressions=./.sanitizers/tsan.supp",                                    \
-        "UBSAN_OPTIONS=suppressions=./.sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1"
+    "ASAN_OPTIONS=suppressions=./src/nyangine-build/sanitizers/asan.supp:detect_leaks=1:strict_string_checks=1:halt_on_error=1",                     \
+        "LSAN_OPTIONS=suppressions=./src/nyangine-build/sanitizers/lsan.supp", "TSAN_OPTIONS=suppressions=./src/nyangine-build/sanitizers/tsan.supp", \
+        "UBSAN_OPTIONS=suppressions=./src/nyangine-build/sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1"
 
 /* HOST NATIVE ARTIFACTS */
 

@@ -22,6 +22,8 @@ extend-exclude = [
     ".claude/",                  # agent scratch and worktrees, not part of the engine.
     "tests/fuzz/corpus/",        # fuzz seeds: encoded and random bytes, not prose.
     "tests/fuzz/crashes/",       # kept fuzz crashes: the same.
+    "src/nyangine-plugins/treesitter/src/",  # tree-sitter's generated parser and runtime, not ours.
+    "src/nyangine-plugins/treesitter/test/", # grammar corpus: parser inputs, not prose.
 ]
 
 [default.extend-words]

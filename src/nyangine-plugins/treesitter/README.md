@@ -32,7 +32,7 @@ src/                    the generated parser — committed, so no CLI is needed 
 With the tree-sitter CLI installed:
 
 ```sh
-cd tools/tree-sitter-nya
+cd src/nyangine-plugins/treesitter
 tree-sitter generate        # regenerate src/ after editing grammar.js
 tree-sitter test            # run test/corpus
 tree-sitter build           # compile to nya.so
@@ -51,7 +51,7 @@ nvim-treesitter's `main` branch and registers parsers with `vim.treesitter.langu
 1. Build the parser and put the library where nvim looks for parsers (`<runtime>/parser/nya.so`):
 
    ```sh
-   cd tools/tree-sitter-nya
+   cd src/nyangine-plugins/treesitter
    tree-sitter generate && tree-sitter build -o "$HOME/.local/share/nvim/site/parser/nya.so"
    ```
 
@@ -59,7 +59,7 @@ nvim-treesitter's `main` branch and registers parsers with `vim.treesitter.langu
    `system_parsers` block:
 
    ```lua
-   local nya_so = vim.fn.expand("~/projects/nyangine/tools/tree-sitter-nya/nya.so")
+   local nya_so = vim.fn.expand("~/projects/nyangine/src/nyangine-plugins/treesitter/nya.so")
    if vim.uv.fs_stat(nya_so) then
      vim.treesitter.language.add("nya", { path = nya_so })
    end
@@ -83,7 +83,7 @@ nvim-treesitter's `main` branch and registers parsers with `vim.treesitter.langu
 
    ```sh
    mkdir -p ~/projects/arch-dotfiles/configs/nvim/after/queries/nya
-   cp tools/tree-sitter-nya/queries/highlights.scm \
+   cp src/nyangine-plugins/treesitter/queries/highlights.scm \
       ~/projects/arch-dotfiles/configs/nvim/after/queries/nya/highlights.scm
    ```
 

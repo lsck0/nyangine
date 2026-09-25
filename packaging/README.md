@@ -59,8 +59,10 @@ names, descriptions, urls and identifiers in the manifests.
 
 ## Signing the Windows executable
 
-The build signs `gnyame.exe` with `.signing/sample.pfx` when the signing tool is installed, and
-leaves it unsigned when it is not. A self-signed certificate for local use:
+The build signs `gnyame.exe` with the certificate named by `NYA_SIGNING_PFX` (in CI, the real one that
+`secrets/signing.pfx.enc` decrypts to; see `secrets/README.md`) when the signing tool is installed, and
+leaves it unsigned when the variable is empty or the file is absent. Nothing is bundled in the tree. A
+self-signed certificate for local use:
 
 ```bash
 openssl req -x509 -newkey rsa:3072 -nodes -days 3650 \
@@ -71,8 +73,12 @@ openssl req -x509 -newkey rsa:3072 -nodes -days 3650 \
     -addext "basicConstraints=critical,CA:FALSE"
 
 openssl pkcs12 -export -inkey sample.key -in sample.crt \
-    -out .signing/sample.pfx -name "nyangine sample" \
+    -out sample.pfx -name "nyangine sample" \
     -passout pass:nyangine-sample-certificate
+
+# point the build at it for this shell; keep the .pfx out of the tree
+export NYA_SIGNING_PFX="$PWD/sample.pfx"
+export NYA_SIGNING_PASSWORD="nyangine-sample-certificate"
 ```
 
 A self-signed certificate is not a real one: a browser download of an executable signed with it

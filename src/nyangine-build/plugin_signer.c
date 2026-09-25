@@ -10,10 +10,10 @@
  *   plugin_signer sign <directory> --seed <file> [--publisher <name>]  write <directory>/plugin.sig
  *
  * The only private key involved is the seed in the file named by `--seed`; it never enters a binary, and
- * this program prints only the public half. See src/nyangine/core/core_plugin_signature.h.
+ * this program prints only the public half. See src/nyangine-core/core/core_plugin_signature.h.
  * */
-#include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
+#include "nyangine-core/nyangine.h"
+#include "nyangine-core/nyangine.c"
 
 /** Where keygen writes its seed and sign reads one, unless --seed says otherwise. */
 #define PLUGIN_SEED_DEFAULT "plugin_signing.seed"

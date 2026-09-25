@@ -353,7 +353,7 @@ browser, from the same `component()` function.
   `serde_nya_binary.c` excluded (x87 f128 wire format is unshimmable on wasm's IEEE-quad long double). Native
   build byte-identical (every change guarded).
 - `[x]` **CSR UI in wasm — the whole component, no server** — `./build wasm-ui` compiles the `ui` module +
-  `ui_present_html` + input + their base/math leaves under emscripten (`src/web/wasm_ui.c`), `web/ui.html`
+  `ui_present_html` + input + their base/math leaves under emscripten (`examples/web_wasm/wasm_ui.c`), `examples/web_wasm/ui.html`
   mounts it. Exports `nyangine_ui_render()` (one settled draw pass to DOM body) and `nyangine_ui_event(id,event)`
   (parses `wN`, looks the widget rect up via `nya_ui_html_rect`, injects a synthetic pointer, re-renders); state
   lives in wasm globals. node-verified: click +1 → `count` 1→2, tab switch, toggle flips theme. `NYA_App` embeds
@@ -410,7 +410,7 @@ browser, from the same `component()` function.
        2D frame sequence (PASS). Engine `.c` and `SDL_gpu.h` byte-identical. Only a browser can confirm pixels.
        **Now routed through the real `nya_render2d_*` API (landed `f826b80`).** Both blockers cleared: (a)
        `math_matrix.c` compiles on wasm via `NYA_F16_IS_F32` (`c553c98`); (b) the 2D-only bring-up seam lives
-       entirely in `src/web/wasm_game.c` (a twin of `wasm_ui.c`'s app/window backend) — `game_bringup()` stands up
+       entirely in `examples/web_wasm/wasm_game.c` (a twin of `wasm_ui.c`'s app/window backend) — `game_bringup()` stands up
        the shim device, allocates the 2D batch buffers, builds the shape+textured pipelines from the GLSL-ES
        shaders, and a 5-function wasm asset backend answers `nya_asset_get`/`_graphics_pipeline`/`_is_missing`/
        `_missing_report` + `_nya_render_sampler_for` — so `render2d.c` and `renderer.c` are compiled UNCHANGED
@@ -450,7 +450,7 @@ Small, and first, because every later phase trusts these numbers.
     `platform` needs. Everything on Windows after it is skipped.
   - `test-linux`: `test_asset_missing` exits 1 on LeakSanitizer, 66825 bytes in 2051 allocations, all from
     `ALSA_OpenDevice` through `OpenPhysicalAudioDevice`. The test opens a real audio device on a runner. Either
-    it should not open audio at all, or the leak is ALSA's and wants a justified entry in `.sanitizers/`.
+    it should not open audio at all, or the leak is ALSA's and wants a justified entry in `src/nyangine-build/sanitizers/`.
   Done when a push goes green on both platforms. Pushing one doc commit per minute cancels the previous run
   before its vendor cache is saved, which is how a red run hid behind "cancelled" all day; batch pushes until
   CI is green again.

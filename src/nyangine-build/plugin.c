@@ -1,16 +1,16 @@
 #include "nyangine-build/build.h"
 
-/* `./build plugin keygen` and `./build plugin sign`, which are code that compiles and runs another program. Signing needs the engine's Ed25519, and this build tool is compiled without the crypto module (see nyangine.c: crypto is on the project's include line, not the tool's). So the signing itself lives in tools/plugin_signer.c — a full-engine program — and these handlers build it the way an example is built and run it with the arguments the parser already checked. */
+/* `./build plugin keygen` and `./build plugin sign`, which are code that compiles and runs another program. Signing needs the engine's Ed25519, and this build tool is compiled without the crypto module (see nyangine.c: crypto is on the project's include line, not the tool's). So the signing itself lives in plugin_signer.c beside this file — a full-engine program — and these handlers build it the way an example is built and run it with the arguments the parser already checked. */
 
 /* CONSTANTS */
 
 /** The signing program's source, and the binary it compiles to at the repository root. */
-#define PLUGIN_SIGNER_SOURCE "./tools/plugin_signer.c"
+#define PLUGIN_SIGNER_SOURCE "./src/nyangine-build/plugin_signer.c"
 #define PLUGIN_SIGNER_BINARY "nya_plugin_signer" HOST_EXECUTABLE_SUFFIX
 
 /* PRIVATE API DECLARATION */
 
-/** The rule that compiles tools/plugin_signer.c into PLUGIN_SIGNER_BINARY, exactly as an example is built. */
+/** The rule that compiles plugin_signer.c into PLUGIN_SIGNER_BINARY, exactly as an example is built. */
 NYA_INTERNAL NYA_BuildRule _plugin_signer_build_rule(void);
 
 /** Runs the built signer with `arguments` (nullptr terminated), and ends the process on a non-zero exit. */

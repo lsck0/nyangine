@@ -73,15 +73,14 @@ overrides `flags.h` documents:
     echo "NYA_SIGNING_PFX=${RUNNER_TEMP}/signing.pfx" >> "$GITHUB_ENV"
 ```
 
-Without those secrets set the step is skipped, the build falls back to the sample certificate in
-`.signing/`, and the release is unsigned rather than failing. A fork has no secrets and has to keep
-building.
+Without those secrets set the step is skipped and, with no certificate bundled in the tree, the release
+is left unsigned rather than failing. A fork has no secrets and has to keep building.
 
 ## Plugin signing keys
 
 Separate from the Authenticode certificate above, and simpler. A plugin is signed with an Ed25519 key
 so a build that requires it (the default; see `NYA_PLUGIN_REQUIRE_SIGNATURE` in
-`src/nyangine/core/core_plugin_signature.h`) will load it and refuse an unsigned one.
+`src/nyangine-core/core/core_plugin_signature.h`) will load it and refuse an unsigned one.
 
 ```sh
 ./build plugin keygen --seed my.seed        # draws a key, writes the seed, prints the public key

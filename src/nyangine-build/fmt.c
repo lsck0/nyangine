@@ -20,7 +20,7 @@
  *
  * The result: fmt is a validator for every `.nya`, and a formatter for the comment-free ones — saves and
  * generated data. Formatting a commented file with comments preserved needs a CST formatter over the
- * tree-sitter grammar under tools/tree-sitter-nya, which is a separate path from this one.
+ * tree-sitter grammar under src/nyangine-plugins/treesitter, which is a separate path from this one.
  */
 #include "nyangine-build/build.h"
 

@@ -688,6 +688,9 @@ b8 _lint_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* u
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
     if (nya_string_contains(path, "/corpus/") || nya_string_contains(path, "/crashes/")) return true;
 
+    // The .nya tree-sitter grammar's generated parser and vendored runtime headers under treesitter/src/ are tree-sitter's own C, not the engine's, and follow none of its conventions.
+    if (nya_string_contains(path, "/treesitter/src/")) return true;
+
     if (nya_string_ends_with(entry->name, ".c") || nya_string_ends_with(entry->name, ".h")) _lint_file_add(lint, path);
 
     return true;

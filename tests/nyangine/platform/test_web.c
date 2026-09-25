@@ -1,7 +1,7 @@
 /**
  * The platform/web primitives through their native fallbacks: the clock and CSPRNG answer for real from
  * os/, the store round-trips in its run-lifetime table, and the two async I/O seams refuse off wasm the
- * way the header says they do. The browser backends run under node from src/web/wasm_demo.c's
+ * way the header says they do. The browser backends run under node from examples/web_wasm/wasm_demo.c's
  * nyangine_web_probe; this is what the native tree can prove.
  */
 #include "nyangine-core/nyangine.c"

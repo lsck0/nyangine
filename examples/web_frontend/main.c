@@ -42,7 +42,7 @@
  *
  * The `component` function below reads and writes only its `Ctx` argument — it makes no HTTP or database
  * call of its own — which is exactly what lets the *same* function be compiled to WebAssembly and run in
- * the browser with no server round trip, the way `src/web/wasm_ui.c` compiles `ui_ssr`'s component today.
+ * the browser with no server round trip, the way `examples/web_wasm/wasm_ui.c` compiles `ui_ssr`'s component today.
  * That file is the working CSR harness: it includes the hand-picked leaf translation units the UI needs
  * (the arena → object chain, the math the layout measures in, the callback/event/input systems and the
  * `ui` module with the HTML presenter), answers the few window/app symbols a windowless surface needs,
@@ -52,7 +52,7 @@
  * To ship *this* component as CSR you would do the same three things, and only these:
  *
  *   1. Compile this `component` (and its `Ctx`/`Todo` types) into a wasm translation unit shaped like
- *      `src/web/wasm_ui.c` — the include list there is the whole recipe and does not change.
+ *      `examples/web_wasm/wasm_ui.c` — the include list there is the whole recipe and does not change.
  *   2. Where the SSR path calls `load_todos` to fill `Ctx` from the database, the CSR module has no
  *      database under it: it fills `Ctx` from a JSON list the page `fetch()`ed from this server. This
  *      example serves exactly that list at `GET /api/todos` (see below) so the wasm client has a real

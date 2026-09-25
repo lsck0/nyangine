@@ -26,7 +26,7 @@ NYA_INTERNAL void wasm_runner(NYA_ArgCommand* command) {
     NYA_Arena* arena = nya_arena_create(.name = "wasm_runner");
     defer nya_arena_destroy(arena);
 
-    // emcc writes web/nyangine.js and .wasm but does not create web/ itself. Idempotent: an existing directory is not an error.
+    // emcc writes examples/web_wasm/nyangine.js and .wasm but does not create the directory itself. Idempotent: an existing directory is not an error.
     NYA_EXPECT(nya_filesystem_create_directory(WASM_OUTPUT_DIRECTORY), "while creating %s", WASM_OUTPUT_DIRECTORY);
 
     NYA_BuildRule build_wasm = {
@@ -798,19 +798,19 @@ NYA_INTERNAL NYA_ArgCommand update = {
 
 NYA_INTERNAL NYA_ArgCommand wasm = {
     .name        = "wasm",
-    .description = "Compile the headless demo to web/nyangine.wasm + .js for the browser. Needs emcc; the seed of the CSR path.",
+    .description = "Compile the headless demo to examples/web_wasm/nyangine.wasm + .js for the browser. Needs emcc; the seed of the CSR path.",
     .handler     = &wasm_runner,
 };
 
 NYA_INTERNAL NYA_ArgCommand wasm_ui = {
     .name        = "wasm-ui",
-    .description = "Compile the client-side UI to web/nyangine_ui.wasm + .js. Needs emcc; the CSR bridge, driven by web/ui.html.",
+    .description = "Compile the client-side UI to examples/web_wasm/nyangine_ui.wasm + .js. Needs emcc; the CSR bridge, driven by examples/web_wasm/ui.html.",
     .handler     = &wasm_ui_runner,
 };
 
 NYA_INTERNAL NYA_ArgCommand wasm_game = {
     .name        = "wasm-game",
-    .description = "Compile the 2D game slice to web/nyangine_game.wasm + .js: a textured sprite on a WebGL2 canvas via the SDL_GPU→GLES3 shim. Needs emcc; driven by web/game.html.",
+    .description = "Compile the 2D game slice to examples/web_wasm/nyangine_game.wasm + .js: a textured sprite on a WebGL2 canvas via the SDL_GPU→GLES3 shim. Needs emcc; driven by examples/web_wasm/game.html.",
     .handler     = &wasm_game_runner,
 };
 

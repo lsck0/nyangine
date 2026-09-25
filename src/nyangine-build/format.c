@@ -145,6 +145,9 @@ b8 _format_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void*
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
     if (nya_string_contains(path, "/corpus/") || nya_string_contains(path, "/crashes/")) return true;
 
+    // The .nya tree-sitter grammar's generated parser and vendored runtime headers under treesitter/src/ are tree-sitter's own C, formatted its way, not the engine's. Skipped exactly as the linter skips them.
+    if (nya_string_contains(path, "/treesitter/src/")) return true;
+
     NYA_String* file = nya_string_from(nya_arena_global, path);
     if (!nya_string_ends_with(file, ".c") && !nya_string_ends_with(file, ".h")) return true;
 
