@@ -99,7 +99,8 @@ NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     { "acme",     5 },
     { "http",     6 }, { "core",     7 },
     // replicate is net's other half: a world on the wire rather than bytes on it, so it is written in entities and sits above the app loop where net sits below it. See replicate.h.
-    { "replicate", 8 }, { "renderer", 8 }, { "ui",      9 }, { "physics", 10 }, { "debug",   11 },
+    // desktop_shell is beside the renderer: an SDL leaf (native dialogs and a tray) that names only base and SDL and nothing above it, so it shares the renderer's rank without depending on it, and neither includes the other.
+    { "replicate", 8 }, { "renderer", 8 }, { "desktop_shell", 8 }, { "ui",      9 }, { "physics", 10 }, { "debug",   11 },
     { "testing",  12 }, { "plugins", 12 },
 };
 

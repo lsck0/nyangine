@@ -96,6 +96,7 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "nyangine-std/math",       "math",     "Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens."     },
     { "nyangine-core/renderer",  "renderer", "2D and 3D drawing, cameras, text, particles, post processing and render targets."        },
     { "nyangine-ui",             "ui",       "Immediate mode widgets: panels, rows, buttons, sliders, toggles and focus navigation."   },
+    { "nyangine-core/desktop_shell", "desktop_shell", "Native desktop furniture: open and save file dialogs, message boxes, and a system tray with a menu." },
     { "nyangine-core/physics",   "physics",  "Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller." },
     { "nyangine-core/net",       "net",      "The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback pair."  },
     { "nyangine-core/replicate", "replicate", "A world on the wire: commands, delta snapshots, prediction, lag compensation, chat." },

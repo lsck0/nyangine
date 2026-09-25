@@ -109,6 +109,10 @@
 // no compute stage — so both are empty on the web build; see render_compute.h and the renderer-web wall.
 #include "nyangine-core/renderer/render_compute.h"
 #include "nyangine-core/renderer/render_compute_particles.h"
+// beside the renderer as an independent SDL leaf: native dialogs and a system tray. It names only base and
+// SDL, so it sits at the renderer's rank without depending on it, and a headless server (NYA_NO_SDL) is
+// excluded from the whole block and never links it. See desktop_shell.h.
+#include "nyangine-core/desktop_shell/desktop_shell.h"
 #include "nyangine-ui/ui.h"
 #include "nyangine-ui/ui_present.h"
 #include "nyangine-ui/ui_present_cell.h"

@@ -152,6 +152,10 @@
 #include "nyangine-core/renderer/render_compute_particles.c"
 #include "nyangine-core/renderer/render_compute_volumetric.c"
 #endif
+// After the renderer and in both its real and headless flavours: the dialog and tray wrappers are SDL
+// calls a headless test drives to prove they fail cleanly with no display. Only base and SDL, so it needs
+// nothing above it; a headless server (NYA_NO_SDL) drops the whole block and never links it.
+#include "nyangine-core/desktop_shell/desktop_shell.c"
 // ui.c first: it defines the module's one static state, which every other ui_*.c file reads. The rest are
 // independent of each other and only ordered to read alphabetically.
 #include "nyangine-ui/ui.c"

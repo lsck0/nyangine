@@ -18,6 +18,7 @@ See also the [prose](README.md) for why things are shaped the way they are, and 
 - [`math`](#math) — Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens.
 - [`renderer`](#renderer) — 2D and 3D drawing, cameras, text, particles, post processing and render targets.
 - [`ui`](#ui) — Immediate mode widgets: panels, rows, buttons, sliders, toggles and focus navigation.
+- [`desktop_shell`](#desktop_shell) — Native desktop furniture: open and save file dialogs, message boxes, and a system tray with a menu.
 - [`physics`](#physics) — Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller.
 - [`net`](#net) — The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback pair.
 - [`replicate`](#replicate) — A world on the wire: commands, delta snapshots, prediction, lag compensation, chat.
@@ -4780,6 +4781,43 @@ b8 nya_ui_page_meta_url_ok(NYA_ConstCString url)  // Whether `url` is a URL safe
 NYA_Error nya_ui_page_meta_oembed(NYA_Arena* arena, const NYA_PageMeta* meta, OUT NYA_Object** out_object)  // Builds the oEmbed response document for `meta` into `*out_object`, allocated from `arena`.
 ```
 
+## desktop_shell
+
+Native desktop furniture: open and save file dialogs, message boxes, and a system tray with a menu.
+
+### desktop_shell.h
+
+The desktop's own furniture, behind one component so a game or a headless server does not pay for
+
+```c
+// types
+typedef enum NYA_DesktopMessageLevel { NYA_DESKTOP_MESSAGE_INFO, NYA_DESKTOP_MESSAGE_WARNING, NYA_DESKTOP_MESSAGE_ERROR, } NYA_DesktopMessageLevel  // A message box's severity, which picks its icon.
+typedef struct NYA_DesktopFileFilter { NYA_ConstCString name; NYA_ConstCString pattern; } NYA_DesktopFileFilter  // One dialog filter: a human name and a semicolon-separated list of extensions, SDL's own form ("png;jpg").
+typedef struct NYA_DesktopFileResult { b8 cancelled; u32 count; NYA_ConstCString paths[NYA_DESKTOP_DIALOG_MAX_FILES]; } NYA_DesktopFileResult  // What a file dialog hands its callback.
+typedef void (*NYA_DesktopFileCallback)(void* user, const NYA_DesktopFileResult* result)  // Answers a file dialog once the user has chosen or cancelled.
+typedef void (*NYA_DesktopTrayCallback)(void* user)  // Runs when a tray entry is chosen.
+typedef struct NYA_DesktopTrayIcon { const void* rgba; u32 width; u32 height; } NYA_DesktopTrayIcon  // An RGBA8 image for a tray icon, row-major, one byte per channel.
+
+// macros
+NYA_DESKTOP_NO_BUTTON U32_MAX  // What a message-box prompt returns when the box was dismissed without a button (escape, close).
+
+// functions
+NYA_Error nya_desktop_shell_init(void)  // Brings up the video subsystem the dialogs and the tray rest on.
+void nya_desktop_shell_deinit(void)  // Releases the reference init took and destroys any tray still open, so the process leaves nothing behind.
+b8 nya_desktop_shell_ready(void)  // Whether init succeeded and the desktop is available.
+NYA_Error nya_desktop_message_show(NYA_DesktopMessageLevel level, NYA_ConstCString title, NYA_ConstCString message)  // Shows a modal message box with a single dismiss button and blocks until it is closed.
+NYA_Error nya_desktop_message_prompt(NYA_DesktopMessageLevel level, NYA_ConstCString title, NYA_ConstCString message, const NYA_ConstCString* buttons, u32 button_count, OUT u32* out_chosen)
+NYA_Error nya_desktop_open_files(const NYA_DesktopFileFilter* filters, u32 filter_count, NYA_ConstCString default_location, b8 allow_many, NYA_DesktopFileCallback callback, void* user)  // Opens a dialog to choose one existing file, or several when `allow_many`.
+NYA_Error nya_desktop_save_file(const NYA_DesktopFileFilter* filters, u32 filter_count, NYA_ConstCString default_location, NYA_DesktopFileCallback callback, void* user)  // Opens a dialog to choose a destination file to save to.
+NYA_Error nya_desktop_open_folder(NYA_ConstCString default_location, b8 allow_many, NYA_DesktopFileCallback callback, void* user)  // Opens a dialog to choose one folder, or several when `allow_many`.
+NYA_Error nya_desktop_tray_create(const NYA_DesktopTrayIcon* icon, NYA_ConstCString tooltip, OUT NYA_DesktopTray** out_tray)  // Creates a tray icon with an empty menu.
+void nya_desktop_tray_destroy(NYA_DesktopTray* tray)  // Destroys a tray and frees its menu.
+NYA_Error nya_desktop_tray_add_button(NYA_DesktopTray* tray, NYA_ConstCString label, NYA_DesktopTrayCallback callback, void* user)  // Appends a clickable menu entry that runs `callback(user)` when chosen.
+NYA_Error nya_desktop_tray_add_checkbox(NYA_DesktopTray* tray, NYA_ConstCString label, b8 checked, NYA_DesktopTrayCallback callback, void* user)  // Appends a checkable menu entry, initially `checked`.
+NYA_Error nya_desktop_tray_add_separator(NYA_DesktopTray* tray)  // Appends a separator line to the menu.
+void nya_desktop_tray_update(void)  // Pumps the trays so their menus repaint and their callbacks fire.
+```
+
 ## physics
 
 Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller.
@@ -5730,7 +5768,9 @@ const NYA_HttpRoute* nya_http_router_find(const NYA_HttpRouter* const* routers, 
 NYA_HttpStatus nya_http_router_dispatch( NYA_HttpExchange* exchange, const NYA_HttpRouter* const* routers, u32 router_count, const NYA_HttpLayerFn* layers, u32 layer_count )
 NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain)  // Runs the rest of the chain.
 void nya_http_router_resolvers_set(NYA_HttpHandlerResolver handler, NYA_HttpIdentifiedResolver identified)  // Installs how a `handler_callback` / `handler_identified_callback` token becomes a function pointer.
-NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail)  // Replaces the response body with a NYA_HttpProblem for `status`.
+NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail)
+NYA_HttpStatus nya_http_status_from_error(NYA_ErrorKind kind)
+NYA_HttpStatus nya_http_response_error(NYA_HttpExchange* exchange, NYA_Error error)
 ```
 
 ### http_seal.h
@@ -6665,8 +6705,8 @@ A background job queue that lives in a SQLite table, so the work a program still
 // types
 enum NYA_JobState { NYA_JOB_STATE_PENDING = 0, NYA_JOB_STATE_CLAIMED = 1, NYA_JOB_STATE_DONE = 2, NYA_JOB_STATE_DEAD = 3, NYA_JOB_STATE_EXPIRED = 4, NYA_JOB_STATE_COUNT, }  // Where a job is in its life.
 struct NYA_JobQueueOptions { NYA_ConstCString table; u32 default_max_attempts; NYA_Duration backoff_base; NYA_Duration backoff_cap; NYA_Duration lease; f64 jitter; s64 busy_timeout_ms; }  // What nya_jobs_open takes besides the arena, the database, and where to put the queue.
-struct NYA_JobOptions { NYA_Instant run_at; NYA_Instant deadline; u32 max_attempts; NYA_ConstCString unique_key; b8 replace; }  // What nya_job_enqueue takes besides the queue, the kind, and the payload.
-struct NYA_QueuedJob { s64 id; NYA_ConstCString kind; const u8* payload; u64 payload_size; u32 attempts; u32 max_attempts; NYA_Instant run_at; NYA_Instant deadline; NYA_Instant created; NYA_Instant lease_expiry; }  // A claimed job, as nya_job_claim hands it back.
+struct NYA_JobOptions { NYA_Instant run_at; NYA_Instant deadline; u32 max_attempts; NYA_ConstCString unique_key; b8 replace; NYA_Duration recur; }  // What nya_job_enqueue takes besides the queue, the kind, and the payload.
+struct NYA_QueuedJob { s64 id; NYA_ConstCString kind; const u8* payload; u64 payload_size; u32 attempts; u32 max_attempts; NYA_Instant run_at; NYA_Instant deadline; NYA_Instant created; NYA_Instant lease_expiry; NYA_Duration recur; }  // A claimed job, as nya_job_claim hands it back.
 struct NYA_JobStats { u64 pending; u64 claimed; u64 done; u64 dead; u64 expired; u64 total; }  // The count of jobs in each state, as nya_jobs_stats fills it in one query.
 
 // macros
@@ -6681,7 +6721,7 @@ NYA_Error nya_jobs_open_with_options( NYA_Arena* arena, NYA_Database* database, 
 void nya_jobs_close(NYA_JobQueue* queue)  // Lets go of the queue.
 NYA_Error nya_job_enqueue_with_options( NYA_JobQueue* queue, NYA_ConstCString kind, const u8* payload, u64 payload_size, OUT s64* out_id, NYA_JobOptions options )  // What nya_job_enqueue expands to.
 NYA_Error nya_job_claim( NYA_JobQueue* queue, NYA_ConstCString worker_id, NYA_Arena* out_arena, OUT NYA_QueuedJob* out_job, OUT b8* out_claimed )
-NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id)  // Marks a claimed job done.
+NYA_Error nya_job_complete(NYA_JobQueue* queue, s64 job_id)
 NYA_Error nya_job_fail(NYA_JobQueue* queue, s64 job_id, b8 retryable)  // Reports a claimed job as failed.
 NYA_Error nya_job_get(NYA_JobQueue* queue, s64 job_id, NYA_Arena* out_arena, OUT NYA_QueuedJob* out_job)  // Reads the job `job_id` names into `out_arena` and writes it to `out_job`.
 NYA_Error nya_jobs_count(NYA_JobQueue* queue, NYA_JobState state, OUT u64* out_count)  // Writes the number of jobs in `state` to `out_count`.
@@ -7385,6 +7425,25 @@ u64 nya_telegram_offset(const NYA_Telegram* bot)  // The offset the next poll wi
 u64 nya_telegram_cooldown_ms(const NYA_Telegram* bot, u64 now_ms)  // Milliseconds until the client may send again, zero when it may now.
 b8 nya_telegram_webhook_verify(const NYA_HttpExchange* exchange, NYA_ConstCString secret)  // Whether this request carries the secret the bot registered with its webhook.
 b8 nya_telegram_update_read(const NYA_Object* object, OUT NYA_TelegramUpdate* out_update)  // Reads one update out of a parsed webhook body, which is the same object `getUpdates` returns in its array.
+```
+
+### parser.h
+
+```c
+// types
+typedef uint16_t TSStateId
+typedef uint16_t TSSymbol
+typedef uint16_t TSFieldId
+typedef struct TSLanguageMetadata { uint8_t major_version; uint8_t minor_version; uint8_t patch_version; } TSLanguageMetadata
+typedef struct { TSFieldId field_id; uint8_t child_index; bool inherited; } TSFieldMapEntry
+typedef struct { uint16_t index; uint16_t length; } TSMapSlice
+typedef struct { bool visible; bool named; bool supertype; } TSSymbolMetadata
+typedef enum { TSParseActionTypeShift, TSParseActionTypeReduce, TSParseActionTypeAccept, TSParseActionTypeRecover, } TSParseActionType
+typedef union { struct { uint8_t type; TSStateId state; bool extra; bool repetition; } shift; struct { uint8_t type; uint8_t child_count; TSSymbol symbol; int16_t dynamic_precedence; uint16_t production_id; } reduce; uint8_t type; } TSParseAction
+typedef struct { uint16_t lex_state; uint16_t external_lex_state; } TSLexMode
+typedef struct { uint16_t lex_state; uint16_t external_lex_state; uint16_t reserved_word_set_id; } TSLexerMode
+typedef union { TSParseAction action; struct { uint8_t count; bool reusable; } entry; } TSParseActionEntry
+typedef struct { int32_t start; int32_t end; } TSCharacterRange
 ```
 
 ### twitch_eventsub.h
