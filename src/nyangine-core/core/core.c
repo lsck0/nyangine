@@ -43,6 +43,7 @@
 // After core_plugin.c: it is what nya_plugin_load calls to prove a plugin's signature before running it.
 #include "nyangine-core/core/core_plugin_signature.c"
 #include "nyangine-core/core/core_tilemap.c"
+#include "nyangine-core/core/core_transition.c"
 #include "nyangine-core/core/core_nav.c"
 #include "nyangine-core/core/core_tween.c"
 #include "nyangine-core/core/core_undo.c"

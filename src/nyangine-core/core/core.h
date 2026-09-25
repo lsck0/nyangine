@@ -41,6 +41,7 @@
 #include "nyangine-core/core/core_system.h"
 #include "nyangine-core/core/core_taskgroup.h"
 #include "nyangine-core/core/core_tilemap.h"
+#include "nyangine-core/core/core_transition.h"
 #include "nyangine-core/core/core_nav.h"
 #include "nyangine-core/core/core_plugin.h"
 #include "nyangine-core/core/core_plugin_signature.h"

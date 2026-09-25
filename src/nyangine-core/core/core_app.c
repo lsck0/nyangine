@@ -208,6 +208,9 @@ NYA_INTERNAL_CALLBACK void _nya_app_tick_layers(f32 delta_time_s) {
  */
 NYA_INTERNAL_CALLBACK void _nya_app_tick_tween(f32 delta_time_s) { nya_system_tween_update(delta_time_s); }
 
+/* The screen transition's clock, after the tweens: both are timelines the frame advances once. */
+NYA_INTERNAL_CALLBACK void _nya_app_tick_transition(f32 delta_time_s) { nya_system_transition_update(delta_time_s); }
+
 /* entities after the layers, so something a layer spawns is simulated this tick. */
 NYA_INTERNAL_CALLBACK void _nya_app_tick_entity(f32 delta_time_s) { nya_system_entity_update(delta_time_s); }
 
@@ -239,6 +242,9 @@ NYA_INTERNAL_CALLBACK void _nya_app_render_layers(f32 delta_time_s) {
 
             on_render_fn(window);
         }
+
+        // The screen transition's overlay sits over everything the layers drew, still inside their pass.
+        nya_transition_draw(window);
 
         nya_render_end(window);
     }
@@ -371,7 +377,8 @@ void _nya_app_register_subsystems(void) {
                                            .render = nya_callback(_nya_app_render_layers) });
 
     nya_system_register((NYA_SystemEntry){ .name = "tween_tick", .after = "layers", .tick = nya_callback(_nya_app_tick_tween) });
-    nya_system_register((NYA_SystemEntry){ .name = "entity", .after = "tween_tick", .tick = nya_callback(_nya_app_tick_entity) });
+    nya_system_register((NYA_SystemEntry){ .name = "transition_tick", .after = "tween_tick", .tick = nya_callback(_nya_app_tick_transition) });
+    nya_system_register((NYA_SystemEntry){ .name = "entity", .after = "transition_tick", .tick = nya_callback(_nya_app_tick_entity) });
 
 #ifndef NYA_NO_SDL
     // The HTTP drain, in the frame phase, which puts it beside the control socket and just before the

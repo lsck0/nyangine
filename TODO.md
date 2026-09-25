@@ -1871,7 +1871,7 @@ the packager ones.
 - `[ ]` SVG buttons.
 - `[x]` A large text editor widget for writing code in-game, with treesitter syntax highlighting. Needed for
   in-game scripting, and again for the ruey rewrite.
-- `[ ]` Transitions between screens.
+- `[x]` Transitions between screens.
 
 ## `[ ]` Renderer
 
