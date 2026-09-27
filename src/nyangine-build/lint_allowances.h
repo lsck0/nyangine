@@ -98,6 +98,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_trace_frame_end", "named for when in the frame or tick it runs, not for a bracket it closes; AGENTS.md excuses it from begin/end" },
     { "nya_net_transport_destroy", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_net_transport_loopback_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
+    { "nya_net_transport_loopback_wire_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_net_transport_steam_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_net_transport_udp_create", "one destroy for every kind of transport, nya_net_transport_destroy" },
     { "nya_net_transport_ws_create", "one destroy for every kind of transport, nya_net_transport_destroy" },

@@ -319,8 +319,6 @@ NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) {
         default:                         return nya_error(NYA_ERROR_NOT_SUPPORTED, "that transport cannot accept players");
     }
 
-    transport->allowlist = _NYA_NET_SERVER.config.allowlist;
-
     NYA_Error listening = nya_net_transport_listen(transport, port);
 
     if (!listening.ok) {
@@ -329,7 +327,19 @@ NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) {
         return listening;
     }
 
-    _NYA_NET_SERVER.udp = transport;
+    return nya_net_server_listen_transport(transport);
+}
+
+NYA_Error nya_net_server_listen_transport(NYA_NetTransport* transport) {
+    if (transport == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no transport");
+    if (!_NYA_NET_SERVER.running) return nya_error(NYA_ERROR_NOT_OK, "no server is running");
+    if (_NYA_NET_SERVER.udp != nullptr) return nya_error(NYA_ERROR_NOT_OK, "the server is already listening");
+
+    // a local end is nya_net_server_attach_local's: its peer is the host, who is sent no snapshots.
+    if (nya_net_transport_is_local(transport)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a loopback end is attached, not listened on");
+
+    transport->allowlist = _NYA_NET_SERVER.config.allowlist;
+    _NYA_NET_SERVER.udp  = transport;
 
     return NYA_OK;
 }

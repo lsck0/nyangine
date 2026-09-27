@@ -353,6 +353,14 @@ void nya_os_socket_close(NYA_OsSocket socket) {
     (void)close(descriptor);
 }
 
+void nya_os_socket_close_send(NYA_OsSocket socket) {
+    s32 descriptor = _nya_os_socket_fd(socket);
+
+    if (descriptor < 0) return;
+
+    (void)shutdown(descriptor, SHUT_WR);
+}
+
 // MOVING BYTES
 
 NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size) {

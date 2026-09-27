@@ -2003,11 +2003,19 @@ the packager ones.
     places (register, login, the TOTP and passkey routes); each wants `nya_http_response_error`. And the
     session check reads the wall clock (`nya_clock_get_timestamp_s`) where it should read `nya_instant_now`,
     so a simulated run cannot age a session.
-- `[ ]` Captured traffic in the simulation. The transport conditioner (loss, duplication, reordering),
-  `test_attack`'s replay and tamper cases and the fuzzers each cover a piece, with no seed tying them
-  together. Record the datagrams and HTTP requests a seeded session really sends, then replay them dropped,
-  duplicated, reordered, bit flipped, truncated, delayed and spliced across sessions, as fault actions. The
-  oracle: rejected or handled, never a crash, and both ends converge.
+- `[x]` Captured traffic in the simulation. `testing_traffic.h`: a replicate server and a remote client over
+  an in-process loopback wire, each in its own world, and the HTTP server over a real socket, with a
+  `base_capture.h` tap on what the loopback carried and on the bytes each parsed request arrived as, test
+  builds only. Fault actions drop, duplicate, reorder and delay what is in flight, and replay captured bytes
+  bit flipped, truncated, pipelined twice, split across passes and spliced across sessions. The oracle: no
+  assertion, a session only the network touched converges to within two steps of the position grid, a
+  snapshot cut short moves the client's rejected count, and the HTTP server answers or closes every
+  connection, frees its slot and never answers hostile bytes with a 500. It found two bugs on its first
+  long runs, both of which left a player's slot held by nobody, so the index answered FULL to every later
+  player: a joined peer's second HELLO, when broken, dropped the transport peer and kept the slot (seed
+  0x1234; now ignored before it is read), and a bad HELLO and a good one in one batch had the good one
+  delivered under an id the transport had just dropped (seed 0x6; UDP and loopback now deliver nothing
+  from a peer they let go).
 
 ## `[ ]` Docs and examples
 

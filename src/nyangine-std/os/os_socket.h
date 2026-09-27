@@ -253,6 +253,12 @@ NYA_API NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, OUT NYA_
 /** Closes a socket. A socket that was never opened is a no-op, so a zeroed struct is safe to close. */
 NYA_API void nya_os_socket_close(NYA_OsSocket socket);
 
+/**
+ * Says this end will send nothing more, and keeps reading. The peer's next read past what was sent is the end of the
+ * stream, which is how a client with a whole request says so without closing before the answer comes back.
+ * */
+NYA_API void nya_os_socket_close_send(NYA_OsSocket socket);
+
 // MOVING BYTES
 
 /**

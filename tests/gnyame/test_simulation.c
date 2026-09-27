@@ -32,6 +32,9 @@ static u32 run_seed(u64 seed, u64 steps, b8 verbose) {
     nya_simulation_actions_add(run);
     defer nya_simulation_actions_remove();
 
+    nya_simulation_traffic_add(run);
+    defer nya_simulation_traffic_remove();
+
     // the generated table, which only something above the engine can name; see testing_actions.h.
     nya_simulation_actions_reflect_add(run, NYA_REFLECT_TYPES, NYA_REFLECT_TYPE_COUNT);
 

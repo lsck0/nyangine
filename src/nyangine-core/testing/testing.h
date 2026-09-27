@@ -14,6 +14,7 @@
 #include "nyangine-core/testing/testing_simulation.h"
 /**/
 #include "nyangine-core/testing/testing_actions.h"
+#include "nyangine-core/testing/testing_traffic.h"
 #include "nyangine-core/testing/testing_session.h"
 /**/
 #include "nyangine-core/testing/testing_agent.h"

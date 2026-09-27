@@ -81,6 +81,9 @@ typedef struct {
     /** The newest snapshot's payload size, for the stats. */
     u32 snapshot_bytes;
 
+    /** Snapshots dropped unread: malformed, or a delta against a baseline no longer held. Reported as the stats' packets_rejected. */
+    u64 snapshots_rejected;
+
     /* prediction */
 
     /**
@@ -318,6 +321,7 @@ NYA_NetPeerStats nya_net_client_stats(void) {
     NYA_NetPeerStats stats = nya_net_transport_stats(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer);
 
     stats.snapshot_bytes         = _NYA_NET_CLIENT.snapshot_bytes;
+    stats.packets_rejected      += _NYA_NET_CLIENT.snapshots_rejected;
     stats.interpolation_delay_ms = _NYA_NET_CLIENT.delay_ticks * (f32)nya_time_ns_to_s(nya_app_get()->options.time_step_ns) * 1000.0F;
 
     return stats;
@@ -582,8 +586,12 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     u64 tick          = 0;
     u64 baseline_tick = 0;
 
+    if (!nya_net_snapshot_peek(body, size, &tick, &baseline_tick)) {
+        _NYA_NET_CLIENT.snapshots_rejected++;
+        return;
+    }
+
     // older than what was applied, or a duplicate: applying it would move the world backwards.
-    if (!nya_net_snapshot_peek(body, size, &tick, &baseline_tick)) return;
     if (tick <= _NYA_NET_CLIENT.server_tick) return;
 
     const NYA_NetSnapshot* baseline = nullptr;
@@ -592,7 +600,10 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
         const _NYA_NetClientBaseline* slot = &_NYA_NET_CLIENT.baselines[baseline_tick % NYA_NET_SNAPSHOT_HISTORY];
 
         // gone from the ring: this delta cannot be read, and the server falls back to a whole snapshot once its own ring moves on.
-        if (slot->snapshot.tick != baseline_tick) return;
+        if (slot->snapshot.tick != baseline_tick) {
+            _NYA_NET_CLIENT.snapshots_rejected++;
+            return;
+        }
 
         baseline = &slot->snapshot;
     }
@@ -604,6 +615,7 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     if (!decoded.ok) {
         // dropped. a malformed snapshot is peer data, and the next one is a tick away.
         nya_log_debug("Discarding a malformed snapshot: %s", (NYA_ConstCString)decoded.message);
+        _NYA_NET_CLIENT.snapshots_rejected++;
         return;
     }
 

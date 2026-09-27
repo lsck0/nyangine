@@ -11,4 +11,5 @@
 0x6E79616E67696E65  # a long mixed run over every action and fault
 0x00000000DEADBEEF  # spawn-heavy, reaches the entity ceiling and keeps going
 0xFFFFFFFFFFFFFFFF  # the opposite corner of the seed space from 1
-0x0000000000001234  # a disk fault behind a session cookie answered 401, and a failed read or sync 500
+0x0000000000001234  # a disk fault behind a session cookie answered 401, and a failed read or sync 500; a flipped HELLO replayed on a joined connection left the player's slot behind
+0x0000000000000006  # a bad HELLO and a good one in one batch: the server admitted a peer its transport had already dropped

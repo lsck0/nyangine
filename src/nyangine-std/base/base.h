@@ -12,6 +12,7 @@
 #include "nyangine-std/base/base_bits.h"
 #include "nyangine-std/base/base_build.h"
 #include "nyangine-std/base/base_cache.h"
+#include "nyangine-std/base/base_capture.h"
 #include "nyangine-std/base/base_ceiling.h"
 #include "nyangine-std/base/base_command.h"
 #include "nyangine-std/base/base_compare.h"

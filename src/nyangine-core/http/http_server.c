@@ -113,6 +113,11 @@ struct _NYA_HttpConnection {
      * nothing queued still has to be woken on writability. See _nya_http_wait.
      * */
     b8 tls_wants_write;
+
+#ifdef NYA_TESTING
+    /** Which connection this is, counted from one across the server's life, as nya_http_server_capture numbers them. */
+    u32 session;
+#endif
 };
 
 /**
@@ -260,6 +265,12 @@ NYA_INTERNAL _NYA_HttpState* _NYA_HTTP = nullptr;
  * because the handler must not dereference a pointer that deinit may be clearing under it.
  * */
 NYA_INTERNAL atomic b8 _NYA_HTTP_SHUTDOWN_SIGNALLED = false;
+
+#ifdef NYA_TESTING
+/** Written on the thread that parses, like the connection table. */
+NYA_INTERNAL NYA_Capture _NYA_HTTP_CAPTURE  = { 0 };
+NYA_INTERNAL u32         _NYA_HTTP_SESSIONS = 0;
+#endif
 
 // PRIVATE API DECLARATION
 
@@ -778,6 +789,12 @@ b8 nya_http_server_shutdown_is_complete(void) {
     return nya_clock_get_monotonic_ns() >= atomic_load_explicit(&_NYA_HTTP->drain_deadline_ns, memory_order_acquire);
 }
 
+#ifdef NYA_TESTING
+NYA_Capture* nya_http_server_capture(void) {
+    return &_NYA_HTTP_CAPTURE;
+}
+#endif
+
 // SECRETS
 
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, u8* buffer, u64 capacity, u64* out_size) {
@@ -948,6 +965,11 @@ void _nya_http_accept(void) {
 
         slot->socket       = socket;
         slot->active_at_ns = nya_clock_get_monotonic_ns();
+
+#ifdef NYA_TESTING
+        slot->session = ++_NYA_HTTP_SESSIONS;
+#endif
+
         (void)snprintf(slot->address, sizeof(slot->address), "%s", address);
 
         // Nothing is read or written here: the handshake happens on the drain passes that follow, so one peer opening a connection slowly can't hold up the accept loop.
@@ -1135,6 +1157,10 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
         }
 
         nya_assert(consumed > 0 && consumed <= connection->received_size, "the parser reported consuming more than it was given");
+
+#ifdef NYA_TESTING
+        nya_capture_record(&_NYA_HTTP_CAPTURE, connection->session, 0, connection->received, consumed);
+#endif
 
         // shifted before the answer, so a handler can't see a half-consumed stream and a pipelined second request is already at the front when the first one's answer is queued.
         connection->received_size -= consumed;

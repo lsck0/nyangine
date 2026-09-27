@@ -372,6 +372,14 @@ void nya_os_socket_close(NYA_OsSocket socket) {
     (void)closesocket(handle);
 }
 
+void nya_os_socket_close_send(NYA_OsSocket socket) {
+    SOCKET handle = _nya_os_socket_handle(socket);
+
+    if (handle == INVALID_SOCKET) return;
+
+    (void)shutdown(handle, SD_SEND);
+}
+
 // MOVING BYTES
 
 NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size) {

@@ -115,6 +115,7 @@
 #pragma once
 
 #include "nyangine-std/base/base_attributes.h"
+#include "nyangine-std/base/base_capture.h"
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/http/http_auth.h"
@@ -383,6 +384,14 @@ NYA_API b8 nya_http_server_is_shutting_down(void) __attr_no_discard;
  * does not spin.
  * */
 NYA_API b8 nya_http_server_shutdown_is_complete(void) __attr_no_discard;
+
+#ifdef NYA_TESTING
+/**
+ * Every request the server parsed, as the bytes it arrived as, for a simulation to replay corrupted. The session is
+ * the connection, counted from one; the lane is always zero, since a request only ever goes one way.
+ * */
+NYA_API NYA_Capture* nya_http_server_capture(void) __attr_no_discard;
+#endif
 
 // SECRETS
 

@@ -4,7 +4,9 @@
 #pragma once
 
 #include "nyangine-std/base/base_arena.h"
+#include "nyangine-std/base/base_array.h"
 #include "nyangine-std/base/base_attributes.h"
+#include "nyangine-std/base/base_capture.h"
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/net/net_crypto.h"
@@ -160,6 +162,15 @@ struct NYA_NetAllowlist {
     b8 closed;
 };
 
+/** One message a loopback end was sent and has not polled yet. `data` is out of the transport's allocator. */
+typedef struct {
+    u8*            data;
+    u64            size;
+    NYA_NetChannel channel;
+} NYA_NetLoopbackMessage;
+
+nya_derive_array(NYA_NetLoopbackMessage);
+
 /**
  * What every transport implements. See the contract at the top of this file.
  * */
@@ -308,3 +319,32 @@ NYA_API b8 nya_net_allowlist_admits(const NYA_NetAllowlist* allowlist, const u8*
  * Whether this transport's peers are in the same process.
  * */
 NYA_API b8 nya_net_transport_is_local(const NYA_NetTransport* transport) __attr_no_discard;
+
+#ifdef NYA_TESTING
+
+// SIMULATION
+
+/**
+ * A loopback pair that answers nya_net_transport_is_local with false, so a replicate client on it takes a remote
+ * client's path (snapshots, replicas, prediction) in the same process and thread as its server, one call at a time.
+ * Nothing but a simulation wants that: a real remote peer is in another process.
+ * */
+NYA_API NYA_Error nya_net_transport_loopback_wire_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b)
+    __attr_no_discard;
+
+/**
+ * What is in flight to `transport`, a loopback end, oldest first: a simulation drops, reorders, delays and corrupts
+ * messages here. Bytes put in come out of `transport->allocator`, which is what a poll frees them back to.
+ * */
+NYA_API NYA_ArrayᐸNYA_NetLoopbackMessageᐳ* nya_net_loopback_inbox(NYA_NetTransport* transport) __attr_no_discard;
+
+/**
+ * Every message a loopback end has sent, as it was sent. The session is the pair, numbered from one as pairs are
+ * made; the lane is the end that sent it, zero for the first a create hands out and one for the second.
+ * */
+NYA_API NYA_Capture* nya_net_loopback_capture(void) __attr_no_discard;
+
+/** The session `transport`'s pair records under in nya_net_loopback_capture. */
+NYA_API u32 nya_net_loopback_session(const NYA_NetTransport* transport) __attr_no_discard;
+
+#endif // NYA_TESTING

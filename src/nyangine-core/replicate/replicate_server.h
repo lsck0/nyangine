@@ -213,6 +213,12 @@ NYA_API NYA_Error nya_net_server_listen(u16 port) __attr_no_discard;
  * */
 NYA_API NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) __attr_no_discard;
 
+/**
+ * Starts accepting players over `transport`, one the caller already made and listened with. The server owns it from
+ * here and destroys it on stop. nya_net_server_listen_on ends in this; a simulation's in-process wire starts here.
+ * */
+NYA_API NYA_Error nya_net_server_listen_transport(NYA_NetTransport* transport) __attr_no_discard;
+
 /** Whether a socket is open. False for single player, true once opened to the LAN. */
 NYA_API b8 nya_net_server_is_listening(void) __attr_no_discard;
 
