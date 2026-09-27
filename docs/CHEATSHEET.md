@@ -3039,17 +3039,17 @@ NYA_Error nya_tilemap_save(const NYA_Tilemap* map, NYA_ConstCString path)  // Th
 
 ### core_transition.h
 
-A screen transition: a full-frame overlay that eases in over a fixed duration, for covering the
+A screen transition: a full-frame overlay that covers or reveals the frame over a fixed duration, for
 
 ```c
 // types
-typedef enum NYA_TransitionKind { NYA_TRANSITION_NONE = 0, NYA_TRANSITION_FADE, NYA_TRANSITION_WIPE, } NYA_TransitionKind  // Which shape the overlay takes.
+typedef enum NYA_TransitionKind { NYA_TRANSITION_NONE = 0, NYA_TRANSITION_FADE_OUT, NYA_TRANSITION_FADE_IN, NYA_TRANSITION_WIPE_OUT, NYA_TRANSITION_WIPE_IN, NYA_TRANSITION_COUNT, } NYA_TransitionKind  // Which shape the overlay takes.
 
 // functions
 void nya_transition_begin(NYA_TransitionKind kind, f32 duration_s, NYA_Color color, NYA_EaseType ease)  // Starts a transition, replacing any already running.
 void nya_transition_end(void)  // Ends whatever is running, if anything, at once.
 b8 nya_transition_active(void)  // Whether a transition is running.
-f32 nya_transition_alpha(void)  // The eased progress in [0, 1]: the overlay's alpha for a FADE, the covered fraction of the width for a WIPE.
+f32 nya_transition_alpha(void)  // The eased progress in [0, 1], zero when nothing is running.
 NYA_TransitionKind nya_transition_kind(void)  // The running kind, or NYA_TRANSITION_NONE when idle.
 NYA_Color nya_transition_color(void)  // The colour the running transition was begun with.
 void nya_system_transition_update(f32 delta_time_s)  // Advances the running transition by `delta_time_s`, completing it when the duration is reached.
