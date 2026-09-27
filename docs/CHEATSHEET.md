@@ -4685,6 +4685,7 @@ void nya_ui_table_row_end(NYA_UI* ui)
 void nya_ui_label(NYA_UI* ui, NYA_ConstCString text)  // Text at the container's size, in the style's text colour or in `color`.
 void nya_ui_label(NYA_UI* ui, NYA_ConstCString text, NYA_Color color)
 b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label)  // True on the pass it is activated: confirm while focused, or a left click released over it.
+b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label, NYA_UIIcon icon)
 b8 nya_ui_selectable(NYA_UI* ui, NYA_ConstCString label, b8 selected)  // A button marked when `selected`, for picking one of several.
 b8 nya_ui_toggle(NYA_UI* ui, NYA_ConstCString label, b8* value)  // Activating flips `*value`; left and right set it off and on.
 b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min, f32 max, f32 step)

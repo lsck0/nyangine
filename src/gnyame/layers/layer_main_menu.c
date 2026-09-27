@@ -43,9 +43,13 @@ void _gny_main_menu(NYA_Window* window, NYA_UIPass pass) {
     if (nya_ui_panel_begin(ui, "main_menu", panel)) {
         nya_ui_label(ui, nya_string_menu_subtitle(), nya_ui_style_get(window).text_dim);
 
-        if (nya_ui_button(ui, nya_string_menu_2d_scene())) gny_screen_request(GNY_SCREEN_START_GAME);
-        if (nya_ui_button(ui, nya_string_menu_3d_scene())) gny_screen_request(GNY_SCREEN_CUBE3D);
-        if (nya_ui_button(ui, nya_string_menu_quit())) gny_screen_request(GNY_SCREEN_QUIT);
+        NYA_UIIcon play  = { .texture = NYA_ASSET_UI_ICONS_PLAY_SVG };
+        NYA_UIIcon cube  = { .texture = NYA_ASSET_UI_ICONS_CUBE_SVG };
+        NYA_UIIcon power = { .texture = NYA_ASSET_UI_ICONS_POWER_SVG };
+
+        if (nya_ui_button(ui, nya_string_menu_2d_scene(), play)) gny_screen_request(GNY_SCREEN_START_GAME);
+        if (nya_ui_button(ui, nya_string_menu_3d_scene(), cube)) gny_screen_request(GNY_SCREEN_CUBE3D);
+        if (nya_ui_button(ui, nya_string_menu_quit(), power)) gny_screen_request(GNY_SCREEN_QUIT);
 
         nya_ui_panel_end(ui);
     }

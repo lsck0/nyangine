@@ -20,7 +20,7 @@
  *   nya_ui_table_begin, nya_ui_table_end        rows whose cells line up in columns
  *   nya_ui_table_row_begin, nya_ui_table_row_end  one row of a table, a cell per widget
  *   nya_ui_label                                text, wrapped or shrunk to fit when the container says so
- *   nya_ui_button                               true on the pass it is activated
+ *   nya_ui_button                               true on the pass it is activated, with or without an icon
  *   nya_ui_selectable                           a button that shows whether it is the chosen one
  *   nya_ui_radio                                one choice of a set, owning the variable
  *   nya_ui_tabs                                 a row of pages, one chosen
@@ -792,7 +792,10 @@ struct NYA_UIChart {
 typedef struct NYA_UIIcon NYA_UIIcon;
 
 struct NYA_UIIcon {
-    /** A texture asset handle, loaded on first use. Empty cuts the region from the style's `icon_sheet`. */
+    /**
+     * A texture asset handle, loaded on first use. Empty cuts the region from the style's `icon_sheet`. An `.svg` is
+     * rasterised at the size it is drawn, again whenever it is drawn larger, and taken whole: a vector has no sheet.
+     * */
     NYA_ConstCString texture;
 
     /** The region of the sheet, in its pixels. A zero size is the whole texture. */
@@ -1114,8 +1117,12 @@ NYA_API void nya_ui_table_row_end(NYA_UI* ui);
 NYA_API void nya_ui_label(NYA_UI* ui, NYA_ConstCString text) __attr_overloaded;
 NYA_API void nya_ui_label(NYA_UI* ui, NYA_ConstCString text, NYA_Color color) __attr_overloaded;
 
-/** True on the pass it is activated: confirm while focused, or a left click released over it. */
-NYA_API b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label) __attr_no_discard;
+/**
+ * True on the pass it is activated: confirm while focused, or a left click released over it. With `icon`, the icon
+ * sits left of the centred label and the same room is kept on its right, so a column of them keeps its words aligned.
+ * */
+NYA_API b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label) __attr_overloaded __attr_no_discard;
+NYA_API b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label, NYA_UIIcon icon) __attr_overloaded __attr_no_discard;
 
 /** A button marked when `selected`, for picking one of several. True when activated. */
 NYA_API b8 nya_ui_selectable(NYA_UI* ui, NYA_ConstCString label, b8 selected) __attr_no_discard;

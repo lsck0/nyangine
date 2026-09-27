@@ -14,6 +14,12 @@
 #include "nyangine-ui/ui_internal.h"
 
 
+// CONSTANTS
+
+/** An icon texture ending in this is a vector, rasterised by the asset system at whatever size it is asked for. */
+NYA_INTERNAL const char _NYA_UI_SHAPE_VECTOR_SUFFIX[] = ".svg";
+
+
 // TYPES
 
 /** One depth of the style stack: what the layout reads back, and the faces only this file needs. */
@@ -618,9 +624,27 @@ void _nya_ui_shape_icon(NYA_Window* window, const NYA_UIIcon* icon, NYA_Rectf re
 
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture);
 
+    // a vector is rasterised at the side it is drawn, so it stays crisp at any scale; a smaller raster is dropped and redone.
+    u64 suffix = sizeof(_NYA_UI_SHAPE_VECTOR_SUFFIX) - 1;
+    u64 length = strlen(texture);
+    b8  vector = length >= suffix && strcmp(&texture[length - suffix], _NYA_UI_SHAPE_VECTOR_SUFFIX) == 0;
+    u32 side   = vector ? (u32)ceilf(nya_max(rect.width, rect.height)) : 0;
+
+    // never below an earlier raster, or one icon drawn at two sizes would take turns reloading itself.
+    if (vector && asset != nullptr) side = nya_max(side, asset->load_parameters.as_texture_load.width);
+
+    if (vector && asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED && asset->as_texture.width < side) {
+        (void)nya_asset_unload((NYA_CString)texture);
+        return;
+    }
+
     // loaded on first use, and drawn as nothing until it is.
-    if (asset == nullptr) {
-        (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = (NYA_CString)texture });
+    if (asset == nullptr || asset->status == NYA_ASSET_STATUS_UNLOADED) {
+        (void)nya_asset_load((NYA_AssetLoadParameters){
+            .type            = NYA_ASSET_TYPE_TEXTURE,
+            .handle          = (NYA_CString)texture,
+            .as_texture_load = { .width = side, .height = side },
+        });
         return;
     }
 
@@ -629,7 +653,12 @@ void _nya_ui_shape_icon(NYA_Window* window, const NYA_UIIcon* icon, NYA_Rectf re
     NYA_Color own = icon->tint;
     b8        set = own.r != 0.0F || own.g != 0.0F || own.b != 0.0F || own.a != 0.0F;
 
-    nya_render2d_texture_rect(window, texture, icon->source_x, icon->source_y, icon->source_width, icon->source_height, rect.x, rect.y, rect.width, rect.height,
+    // a zero region is the whole texture, which render2d would read as an empty one.
+    b8        whole  = icon->source_width == 0.0F || icon->source_height == 0.0F;
+    NYA_Rectf source = whole ? (NYA_Rectf){ 0.0F, 0.0F, (f32)asset->as_texture.width, (f32)asset->as_texture.height }
+                             : (NYA_Rectf){ icon->source_x, icon->source_y, icon->source_width, icon->source_height };
+
+    nya_render2d_texture_rect(window, texture, source.x, source.y, source.width, source.height, rect.x, rect.y, rect.width, rect.height,
                               _nya_ui_shape_fade(set ? own : tint));
 }
 

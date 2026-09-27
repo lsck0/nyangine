@@ -43,26 +43,12 @@ void nya_ui_label(NYA_UI* ui, NYA_ConstCString text, NYA_Color color) __attr_ove
     _nya_ui_draw(ui, &widget);
 }
 
-b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label) {
-    nya_assert(ui != nullptr && ui == _nya_ui.open);
-    nya_assert(label != nullptr);
+b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label) __attr_overloaded {
+    return _nya_ui_button(ui, label, nullptr);
+}
 
-    const _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
-    const NYA_UILook*    look   = _nya_ui_look();
-
-    f32       text_width = _nya_ui_text_width(layout->text, label);
-    NYA_Rectf rect       = _nya_ui_place((NYA_UISize){ 0 }, (f32x2){ ceilf(text_width) + (look->padding * 2.0F), _nya_ui_item_height(layout) }, true);
-
-    _NYA_UIWidget widget = _nya_ui_widget(ui, label, rect, false);
-    if (widget.refused) return false;
-
-    if (_nya_ui_drawn(rect)) {
-        NYA_UIWidgetDraw draw = { .kind = NYA_UI_WIDGET_BUTTON, .rect = rect, .state = _nya_ui_state(ui, widget), .label = label };
-
-        _nya_ui_draw(ui, &draw);
-    }
-
-    return widget.activated;
+b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label, NYA_UIIcon icon) __attr_overloaded {
+    return _nya_ui_button(ui, label, &icon);
 }
 
 b8 nya_ui_selectable(NYA_UI* ui, NYA_ConstCString label, b8 selected) {
@@ -817,6 +803,44 @@ void nya_ui_captions(NYA_UI* ui) {
 
 
 // INTERNAL
+
+b8 _nya_ui_button(NYA_UI* ui, NYA_ConstCString label, const NYA_UIIcon* icon) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(label != nullptr);
+
+    const _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
+    const NYA_UILook*    look   = _nya_ui_look();
+
+    f32 height     = _nya_ui_item_height(layout);
+    f32 text_width = ceilf(_nya_ui_text_width(layout->text, label));
+    f32 side       = icon != nullptr ? look->line_heights[layout->text] : 0.0F;
+    f32 slot       = icon != nullptr ? side + look->padding : 0.0F;
+
+    // the slot is kept on both sides, so the label stays centred and never runs under the icon.
+    NYA_Rectf rect = _nya_ui_place((NYA_UISize){ 0 }, (f32x2){ text_width + (look->padding * 2.0F) + (slot * 2.0F), height }, true);
+
+    _NYA_UIWidget widget = _nya_ui_widget(ui, label, rect, false);
+    if (widget.refused) return false;
+
+    if (_nya_ui_drawn(rect)) {
+        NYA_UIWidgetDraw draw = { .kind = NYA_UI_WIDGET_BUTTON, .rect = rect, .state = _nya_ui_state(ui, widget), .label = label };
+        _nya_ui_draw(ui, &draw);
+
+        if (icon != nullptr) {
+            f32 left = rect.x + (rect.width * 0.5F) - (text_width * 0.5F) - slot;
+
+            NYA_UIWidgetDraw mark = {
+                .kind    = NYA_UI_WIDGET_ICON,
+                .rect    = { roundf(left), roundf(rect.y + ((height - side) * 0.5F)), side, side },
+                .state   = { .disabled = draw.state.disabled },
+                .as_icon = { .icon = icon },
+            };
+            _nya_ui_draw(ui, &mark);
+        }
+    }
+
+    return widget.activated;
+}
 
 b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width, b8 enter) {
     nya_assert(ui != nullptr && id != nullptr && labels != nullptr && selected != nullptr);

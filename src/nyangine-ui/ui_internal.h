@@ -645,6 +645,9 @@ NYA_INTERNAL f32 _nya_ui_item_height(const _NYA_UILayout* layout);
 /** The bar for `axis` of a scrolling container, placed in the padding after its content and sent to the presenter. */
 NYA_INTERNAL void _nya_ui_scrollbar_draw(NYA_UI* ui, const _NYA_UILayout* layout, u32 axis);
 
+/** nya_ui_button, with `icon` left of the label when it is not null. */
+NYA_INTERNAL b8 _nya_ui_button(NYA_UI* ui, NYA_ConstCString label, const NYA_UIIcon* icon);
+
 /**
  * A row of `count` cells sharing the container, each named by `id` and its index, with the chosen one marked. True
  * when `*selected` changed.
