@@ -7,3 +7,5 @@ leak:_xcb_in_read
 leak:asan_thread_start
 # the crash window's SDL renderer: the vulkan driver allocates once under pthread_once at device creation and never frees
 leak:VULKAN_CreateDeviceResources
+# SDL_GPU picking a physical device: the vulkan driver allocates once under pthread_once and never frees
+leak:VULKAN_INTERNAL_DeterminePhysicalDevice
