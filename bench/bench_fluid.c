@@ -2,7 +2,7 @@
  * The Navier-Stokes step: grid size against time per step and bytes held, which is the pair of numbers
  * TODO.md's budget section records for every renderer change.
  *
- * Each row is one whole step at the default twenty pressure sweeps: forces, vorticity confinement,
+ * Each row is one whole step at the default pressure sweep count: forces, vorticity confinement,
  * two projections, four advections and the scalar pass. The grids are the ones a scene would actually
  * use, since the cost is linear in cells and a number taken on a toy grid predicts nothing.
  **/
@@ -58,6 +58,37 @@ static f32 worst_divergence_beyond(const NYA_Fluid* fluid, u32 margin) {
     }
 
     return worst;
+}
+
+/**
+ * How far the last pressure solve is from solving its Poisson equation, |b + sum(p_n) - 6p| over |b|,
+ * with a solid neighbour reading as the centre the way the solve reads it. Unlike the divergence above
+ * this falls with every sweep, so it is what compares two sweep orders.
+ * */
+static f64 pressure_residual(const NYA_Fluid* fluid) {
+    u32 offsets[3] = { 1, fluid->stride_x, fluid->stride_x * fluid->stride_y };
+    f64 residual   = 0.0;
+    f64 source     = 0.0;
+
+    for (u32 index = offsets[2]; index + offsets[2] < fluid->cell_count; index++) {
+        u32 i = index % offsets[1];
+        u32 j = (index / offsets[1]) % fluid->stride_y;
+
+        if (i == 0 || i > fluid->width || j == 0 || j > fluid->height || fluid->obstacle[index] != 0) continue;
+
+        f32 centre = fluid->pressure[index];
+        f64 error  = (f64)fluid->divergence[index] - (6.0 * (f64)centre);
+
+        for (u32 axis = 0; axis < 3; axis++) {
+            error += fluid->obstacle[index - offsets[axis]] != 0 ? centre : fluid->pressure[index - offsets[axis]];
+            error += fluid->obstacle[index + offsets[axis]] != 0 ? centre : fluid->pressure[index + offsets[axis]];
+        }
+
+        residual += error * error;
+        source += (f64)fluid->divergence[index] * (f64)fluid->divergence[index];
+    }
+
+    return source > 0.0 ? sqrt(residual / source) : 0.0;
 }
 
 /** Everywhere, walls included. */
@@ -145,9 +176,9 @@ s32 main(void) {
         nya_fluid_destroy(fluid);
     }
 
-    /* What the pressure iteration count buys. The residual is the divergence the projection failed to remove, as a share of the fastest thing in the field, which is what decides whether the smoke swirls or piles up against nothing. This is the measurement NYA_FLUID_PRESSURE_ITERATIONS is chosen from, so it lives beside the step cost rather than in a comment nobody can re-run. */
+    /* What the pressure iteration count buys: the divergence the projection failed to remove, which floors early (see render_fluid.h), and the pressure residual, which keeps falling and is what NYA_FLUID_PRESSURE_ITERATIONS is chosen from. It lives beside the step cost rather than in a comment nobody can re-run. */
     {
-        const u32 sweeps[] = { 4, 8, 20, 40, 80 };
+        const u32 sweeps[] = { 4, 8, 20, 30, 40, 80 };
 
         NYA_Arena* arena = nya_arena_create(.name = "bench_fluid_sweeps");
         defer      nya_arena_destroy(arena);
@@ -200,8 +231,8 @@ s32 main(void) {
             f32 residual = worst_divergence(fluid);
             f32 speed    = worst_speed(fluid);
 
-            printf("    %u sweeps: divergence %.4f into the step, %.4f out (%.4f away from the walls), speed %.2f\n", sweeps[s],
-                   (f64)before, (f64)residual, (f64)worst_divergence_beyond(fluid, 3), (f64)speed);
+            printf("    %u sweeps: divergence %.4f into the step, %.4f out (%.4f away from the walls), speed %.2f, pressure residual %.4f\n",
+                   sweeps[s], (f64)before, (f64)residual, (f64)worst_divergence_beyond(fluid, 3), (f64)speed, pressure_residual(fluid));
 
             nya_fluid_destroy(fluid);
         }

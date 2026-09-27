@@ -20,6 +20,9 @@
  * */
 #define DIVERGENCE_SHARE_MAX 0.10F
 
+/** What the solve below may leave of its own equation: the lexicographic 20 sweep solve left 0.21 here, red-black at 30 leaves 0.14. */
+#define PRESSURE_RESIDUAL_MAX 0.21
+
 /** Steps the simulation section takes. Long enough for a plume to cross the grid several times. */
 #define SIMULATION_STEPS 600
 
@@ -76,6 +79,33 @@ static f32 worst_divergence(const NYA_Fluid* fluid) {
   }
 
   return worst;
+}
+
+/** |b + sum(p_n) - 6p| over |b| for the last pressure solve: what the sweeps converge, which the divergence above is not. */
+static f64 pressure_residual(const NYA_Fluid* fluid) {
+  u32 offsets[3] = { 1, fluid->stride_x, fluid->stride_x * fluid->stride_y };
+  f64 residual   = 0.0;
+  f64 source     = 0.0;
+
+  for (u32 index = offsets[2]; index + offsets[2] < fluid->cell_count; index++) {
+    u32 i = index % offsets[1];
+    u32 j = (index / offsets[1]) % fluid->stride_y;
+
+    if (i == 0 || i > fluid->width || j == 0 || j > fluid->height || fluid->obstacle[index] != 0) continue;
+
+    f32 centre = fluid->pressure[index];
+    f64 error  = (f64)fluid->divergence[index] - (6.0 * (f64)centre);
+
+    for (u32 axis = 0; axis < 3; axis++) {
+      error += fluid->obstacle[index - offsets[axis]] != 0 ? centre : fluid->pressure[index - offsets[axis]];
+      error += fluid->obstacle[index + offsets[axis]] != 0 ? centre : fluid->pressure[index + offsets[axis]];
+    }
+
+    residual += error * error;
+    source += (f64)fluid->divergence[index] * (f64)fluid->divergence[index];
+  }
+
+  return source > 0.0 ? sqrt(residual / source) : 0.0;
 }
 
 /** The fastest anything is moving, which the divergence left behind is judged against. */
@@ -423,8 +453,11 @@ s32 main(void) {
     nya_assert(speed > 0.0F, "the field is moving at all");
     nya_assert(divergence < speed * DIVERGENCE_SHARE_MAX, "the field is nearly divergence free, worst is " FMTf32 " of " FMTf32,
                (f64)divergence, (f64)speed);
-    nya_assert(divergence < worst_divergence(barely), "twenty sweeps beat one, " FMTf32 " against " FMTf32, (f64)divergence,
+    nya_assert(divergence < worst_divergence(barely), "the default sweeps beat one, " FMTf32 " against " FMTf32, (f64)divergence,
                (f64)worst_divergence(barely));
+
+    nya_assert(pressure_residual(solved) < PRESSURE_RESIDUAL_MAX, "the solve converged, residual " FMTf64, pressure_residual(solved));
+    nya_assert(pressure_residual(solved) < pressure_residual(barely), "and further than one sweep gets");
 
     // semi-Lagrangian advection loses mass at the walls and never invents any. That is the whole trade for unconditional stability, so the assertion is one-sided on purpose.
     f32 remaining = interior_density(solved);

@@ -1260,7 +1260,7 @@ static const f32 GNY_CUBE3D_BENDER_FADE_S = 0.3F;
 
 /**
  * The 2D vent's grid. 48x32 cells at 14 world pixels is a 672x448 region, which covers the middle of
- * the tilemap at the starting zoom, and costs 0.30 ms a step at the default twenty sweeps.
+ * the tilemap at the starting zoom, and costs 0.14 ms a step at the default thirty sweeps.
  * */
 #define GNY_FLUID2D_WIDTH     48
 #define GNY_FLUID2D_HEIGHT    32
@@ -1297,7 +1297,7 @@ static const f32 GNY_CUBE3D_BENDER_FADE_S = 0.3F;
 
 /**
  * The 3D column's grid, in metres. 12x18x12 at 0.6 m is a 7.2x10.8x7.2 m box over the bonfire and
- * costs 0.33 ms a step, which is what a demo can pay beside everything else in the scene.
+ * costs 0.28 ms a step, which is what a demo can pay beside everything else in the scene.
  * */
 #define GNY_FLUID3D_WIDTH     12
 #define GNY_FLUID3D_HEIGHT    18

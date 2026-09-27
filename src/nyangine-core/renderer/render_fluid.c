@@ -409,6 +409,7 @@ void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
                                 fluid->options.pressure_iterations);
     }
 
+    // before advection as well, so advection rides a divergence-free field; dropping it measured cheaper but visibly worse, see TODO.md.
     _nya_fluid_project(fluid);
 
     // advection reads the whole velocity field while writing it, so it advects out of the previous copy.
@@ -840,29 +841,34 @@ void _nya_fluid_linear_solve(NYA_Fluid* fluid, f32* field, const f32* field_sour
     // Hoisted out of the loop so a volume with no obstacles never touches the mask, keeping this one function instead of two copies.
     b8 walled = fluid->obstacle_count > 0;
 
+    u32 width = fluid->width;
+
     for (u32 iteration = 0; iteration < iterations; iteration++) {
-        for (u32 k = 1; k <= fluid->depth; k++) {
-            for (u32 j = 1; j <= fluid->height; j++) {
-                u32 row = (k * step_z) + (j * step_y);
+        // Red-black: a cell's six neighbours are all the other colour, so a half sweep carries no dependency from cell to cell.
+        for (u32 colour = 0; colour < 2; colour++) {
+            for (u32 k = 1; k <= fluid->depth; k++) {
+                for (u32 j = 1; j <= fluid->height; j++) {
+                    u32 row = (k * step_z) + (j * step_y);
 
-                nya_assert(row + fluid->width + step_z < fluid->cell_count, "a solve row runs past the grid");
+                    nya_assert(row + width + step_z < fluid->cell_count, "a solve row runs past the grid");
 
-                for (u32 i = 1; i <= fluid->width; i++) {
-                    u32 index = row + i;
+                    for (u32 i = 1 + ((j + k + colour) & 1); i <= width; i += 2) {
+                        u32 index = row + i;
 
-                    if (walled && obstacle[index] != 0) continue;
+                        if (walled && obstacle[index] != 0) continue;
 
-                    f32 centre = field[index];
+                        f32 centre = field[index];
 
-                    f32 neighbours =
-                        (walled && obstacle[index - 1] != 0 ? centre : field[index - 1]) +
-                        (walled && obstacle[index + 1] != 0 ? centre : field[index + 1]) +
-                        (walled && obstacle[index - step_y] != 0 ? centre : field[index - step_y]) +
-                        (walled && obstacle[index + step_y] != 0 ? centre : field[index + step_y]) +
-                        (walled && obstacle[index - step_z] != 0 ? centre : field[index - step_z]) +
-                        (walled && obstacle[index + step_z] != 0 ? centre : field[index + step_z]);
+                        f32 neighbours =
+                            (walled && obstacle[index - 1] != 0 ? centre : field[index - 1]) +
+                            (walled && obstacle[index + 1] != 0 ? centre : field[index + 1]) +
+                            (walled && obstacle[index - step_y] != 0 ? centre : field[index - step_y]) +
+                            (walled && obstacle[index + step_y] != 0 ? centre : field[index + step_y]) +
+                            (walled && obstacle[index - step_z] != 0 ? centre : field[index - step_z]) +
+                            (walled && obstacle[index + step_z] != 0 ? centre : field[index + step_z]);
 
-                    field[index] = (field_source[index] + (a * neighbours)) * c_inverse;
+                        field[index] = (field_source[index] + (a * neighbours)) * c_inverse;
+                    }
                 }
             }
         }

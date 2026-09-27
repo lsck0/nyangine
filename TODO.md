@@ -2142,9 +2142,9 @@ box obstacles. `render_fluid.h` carries the reasoning; the short version is belo
   asserts it, which is why the third axis is flattened once in `nya_fluid_create` and `nya_fluid_emit`
   rather than branched on per cell: a ternary inside a loop lets the compiler contract the two
   branches differently and the two spaces then disagree in the last bits.
-- `NYA_FLUID_PRESSURE_ITERATIONS` is 20. On the 32x48x32 bench grid with confinement off, divergence
-  entering a step is 2.09 and leaving it 2.36 at 4 sweeps, 1.39 at 8, 0.93 at 20, 0.87 at 40 and 0.89
-  at 80. Twenty is where another sweep stops changing the picture.
+- `NYA_FLUID_PRESSURE_ITERATIONS` is 30 red-black sweeps, chosen from the Poisson residual
+  `|b + sum(p_n) - 6p| / |b|` rather than the velocity divergence, which floors at 0.84 by 30 sweeps
+  (see findings) and so cannot tell two sweep counts apart.
 - Drawing is off until a window asks. `NYA_FluidRenderOptions` sits on the window beside the post
   chain's scene features and is zeroed, so `nya_fluid_draw` returns before it reads the grid. 2D draws
   one bilinearly shaded quad per live cell through render2d, 3D additive camera-facing splats through
@@ -2157,12 +2157,21 @@ box obstacles. `render_fluid.h` carries the reasoning; the short version is belo
 - gnyame: a 48x32 steam vent over the 2D tilemap, and a 12x18x12 column over the 3D bonfire whose
   obstacles are the pile's crates. `9` toggles the drawing in either scene.
 
-- `[ ]` The step is the cost, not the draw: 40 Gauss-Seidel sweeps a step (20 per projection, two
-  projections) over the whole grid, single threaded and serially dependent along x so it does not
-  vectorize. Red-black ordering would vectorize it and keep the convergence; a multigrid V-cycle would
-  beat both and is a lot more code. Measure before choosing.
-- `[ ]` Dropping the first projection, the one before advection, halves the solve. Stam keeps it so
-  advection rides a divergence-free field; nobody has measured what it is worth here.
+- `[x]` Red-black Gauss-Seidel. The lexicographic sweep waited on `field[index - 1]` every cell; one colour
+  has no dependency from cell to cell, so a sweep costs a quarter (0.363 to 0.087 ms per sweep on
+  32x48x32). It is not SIMD: the stride 2 loop is countable and clang declines it, and forcing it, or
+  solving whole rows and blending one colour back, both measured slower than scalar. Red-black converges
+  slower per sweep (residual 0.303 against 0.216 at 20), so the default went to 30: 0.204. Averaged
+  over 240 steps it is 0.0455 to 0.0298 on gnyame's 2D grid, 0.0157 to 0.0145 on its 3D one, 0.0627 to
+  0.0571 on 32x48x32. Step time 0.319 to 0.143 ms, 0.357 to 0.277, 8.68 to 4.06, 54.3 to 20.6 at 64^3.
+  SOR on top was rejected: around obstacles it stops converging, the walled 3D grid at omega 1.7 ends
+  128 sweeps at 0.077 against 0.006 unrelaxed. A multigrid V-cycle is the next step past this.
+- `[x]` The first projection stays. Measured at 28 red-black sweeps, dropping it saves 34 to 45% of the
+  step, but the divergence left (rms over rms speed) doubles, 0.023 to 0.050 in 2D and 0.039 to 0.061 on
+  gnyame's 3D grid, and advecting through the divergent field invents density: 2D mass after 300 steps
+  rises from 15.9 to 24.0. Against a 128 sweep reference the density field is about twice as far off,
+  and dropping it while doubling the sweeps to the same cost is still worse on every grid (2D 0.89
+  against 0.50 relative L2, 3D 0.055 against 0.027).
 - `[ ]` A raymarched 3D volume instead of splats. It needs a 3D texture uploaded every frame, a
   pipeline and a shader per backend, so it waits for compute passes.
 - `[ ]` No obstacle comes from a collider's actual shape, only from an axis-aligned box the caller
@@ -2407,27 +2416,27 @@ At 4x this was 77.5 and 107.0 MiB before. The debug overlay's `gpu_textures`, `g
 
 ### Fluid volumes
 
-Release, -O2, one whole step at 20 pressure sweeps: forces, confinement, two projections, four
+Release, -O2, one whole step at 30 red-black pressure sweeps: forces, confinement, two projections, four
 advections and the scalar pass. Held is `nya_fluid_memory_bytes`, thirteen f32 fields plus a byte of
 obstacle mask per cell; resident is the volume's arena. Allocated once at `nya_fluid_create`, and a
 step allocates nothing.
 
 | Grid        |  Cells | ms/step | MiB held | MiB resident |
 | :---------- | -----: | ------: | -------: | -----------: |
-| 2D 48x32    |   5100 |   0.300 |     0.26 |         0.26 |
-| 2D 64x48    |   9900 |   0.612 |     0.50 |         0.51 |
-| 2D 128x96   |  38220 |   2.598 |     1.93 |         1.95 |
-| 2D 192x144  |  84972 |   5.946 |     4.30 |         4.33 |
-| 3D 12x18x12 |   3920 |   0.333 |     0.20 |         0.21 |
-| 3D 16x24x16 |   8424 |   0.875 |     0.43 |         0.43 |
-| 3D 32x48x32 |  57800 |   8.089 |     2.92 |         2.95 |
-| 3D 48x48x48 | 125000 |  20.220 |     6.32 |         6.37 |
-| 3D 64x64x64 | 287496 |  50.197 |    14.53 |        14.55 |
+| 2D 48x32    |   5100 |   0.143 |     0.26 |         0.26 |
+| 2D 64x48    |   9900 |   0.264 |     0.50 |         0.51 |
+| 2D 128x96   |  38220 |   0.990 |     1.93 |         1.95 |
+| 2D 192x144  |  84972 |   2.181 |     4.30 |         4.33 |
+| 3D 12x18x12 |   3920 |   0.277 |     0.20 |         0.98 |
+| 3D 16x24x16 |   8424 |   0.597 |     0.43 |         0.98 |
+| 3D 32x48x32 |  57800 |   4.064 |     2.92 |         3.92 |
+| 3D 48x48x48 | 125000 |   8.889 |     6.32 |         6.45 |
+| 3D 64x64x64 | 287496 |  20.576 |    14.53 |        15.25 |
 
 Linear in cells, so the grid is the whole cost decision. The sweep count is the other half: the same
-32x48x32 grid is 2.75 ms at 4 sweeps, 4.09 at 8, 8.09 at 20, 14.75 at 40 and 28.10 at 80. gnyame runs
-48x32 in 2D and 12x18x12 in 3D, which is 0.30 and 0.33 ms a tick and what a demo can pay beside
-everything else in the scene. `bench/bench_fluid.c` is where all of this comes from.
+32x48x32 grid is 1.74 ms at 4 sweeps, 2.06 at 8, 3.11 at 20, 3.97 at 30, 4.84 at 40 and 8.30 at 80.
+gnyame runs 48x32 in 2D and 12x18x12 in 3D, which is 0.14 and 0.28 ms a tick and what a demo can pay
+beside everything else in the scene. `bench/bench_fluid.c` is where all of this comes from.
 
 - `[ ]` Drawing is not in these numbers. A 2D volume is one quad per live cell into the existing
   batch, a 3D one a splat per live cell into the mesh batch; neither has been measured against a
@@ -2747,9 +2756,10 @@ here at 12.8 ns per path; wyhash is 2.5 ns with the `strlen`.
 The fluid solver's divergence and pressure gradient are both central differences over two cells, while
 the pressure Laplacian it inverts spans one. The two do not compose, and what survives is the
 checkerboard mode the wide difference is blind to. It reads as an under-converged solve and is not
-one: on the 32x48x32 bench grid the residual is 0.93 at 20 sweeps, 0.87 at 40 and 0.89 at 80, a floor
-rather than a curve. Vorticity confinement makes it much worse, because its force is a cell-scale
-field and most of its divergence lands in exactly that mode: at `vorticity = 1` the floor goes from
+one: on the 32x48x32 bench grid the residual is 0.90 at 20 sweeps, 0.84 at 30 and 0.89 at 80, a floor
+rather than a curve, while the Poisson residual of the same solves falls 0.30, 0.20, 0.07. Vorticity
+confinement makes it much worse, because its force is a cell-scale field and most of its divergence
+lands in exactly that mode: at `vorticity = 1` the floor goes from
 1.6% of the fastest speed in the field to 5.5%. It does not accumulate, since advection and any
 dissipation at all remove the highest frequency the grid holds within a few steps. The cure is a
 staggered MAC grid, which is a different solver.

@@ -4051,7 +4051,7 @@ struct NYA_Fluid { NYA_Arena* allocator; NYA_FluidOptions options; u32 width; u3
 NYA_FLUID_VOLUMES_MAX 8  // Volumes that may exist at once.
 NYA_FLUID_DIMENSION_MAX 256  // The most cells an edge may have.
 NYA_FLUID_CELLS_MAX (4ULL * 1024ULL * 1024ULL)  // The most cells one volume may hold, borders included.
-NYA_FLUID_PRESSURE_ITERATIONS 20  // Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations is zero.
+NYA_FLUID_PRESSURE_ITERATIONS 30  // Red-black Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations is zero.
 NYA_FLUID_PRESSURE_ITERATIONS_MAX 128  // The most sweeps the solve will ever run, whatever it is asked for.
 NYA_FLUID_STEP_SECONDS_MAX 0.1F  // The largest timestep one call to nya_fluid_step integrates, in seconds.
 NYA_FLUID_CELL_SIZE 1.0F  // World units per cell when NYA_FluidOptions.cell_size is zero.

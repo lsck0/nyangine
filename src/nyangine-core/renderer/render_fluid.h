@@ -121,7 +121,7 @@
  * with the sweep count is an under-converged solve, one that does not is this.
  *
  * Measured on the 32x48x32 benchmark grid, a rising plume, confinement off: the divergence entering
- * a step is 2.09, and leaving it 2.36 at 4 sweeps, 1.39 at 8, 0.93 at 20, 0.87 at 40 and 0.89 at 80.
+ * a step is 2.10, and leaving it 2.23 at 4 sweeps, 1.33 at 8, 0.90 at 20, 0.84 at 30 and 0.89 at 80.
  * That last 1.6% of the fastest speed in the field is the floor. With confinement at 1 the floor is
  * 5.5%, because the confinement force is a cell-scale field and most of its divergence lands in
  * exactly the mode the projection is blind to.
@@ -183,19 +183,20 @@ typedef struct NYA_Window NYA_Window;
 #endif
 
 /**
- * Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations is zero.
+ * Red-black Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations
+ * is zero.
  *
  * The solve is what makes the velocity field divergence free, and it is the whole cost centre: each
- * sweep touches every cell once, and the step runs two projections. Measured on the 32x48x32 demo
- * volume, 4 sweeps leaves visible compression (smoke piles up against nothing and the column stalls),
- * 8 still drifts, 20 is where another sweep stops changing the picture, and 40 costs twice as much
- * for a difference nobody can see. Stam's 1999 paper picks the same number for the same reason.
+ * sweep touches every cell once, and the step runs two projections. On the 32x48x32 bench grid 4
+ * sweeps leaves visible compression and 8 still drifts. Red-black converges slower per sweep than the
+ * lexicographic order it replaced, whose 20 sweeps left a 6.3% Poisson residual; 30 red-black sweeps
+ * leave 5.7% at 47% of the step time, since no cell waits on the one before it.
  *
  * Raise it for a grid much larger than 64 on an edge, where information has further to travel per
  * sweep; lower it for a volume that is decoration rather than motion.
  * */
 #ifndef NYA_FLUID_PRESSURE_ITERATIONS
-#define NYA_FLUID_PRESSURE_ITERATIONS 20
+#define NYA_FLUID_PRESSURE_ITERATIONS 30
 #endif
 
 /**
