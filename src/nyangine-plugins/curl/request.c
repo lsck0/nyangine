@@ -117,7 +117,10 @@ NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request r
     NYA_CString payload      = nullptr;
     b8          payload_form = request.body_kind == NYA_REQUEST_BODY_FORM;
 
-    if (request.body != nullptr && request.method != NYA_REQUEST_METHOD_GET) {
+    if (request.raw_body != nullptr && request.method != NYA_REQUEST_METHOD_GET) {
+        curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, (long)request.raw_body_size);
+        curl_easy_setopt(handle, CURLOPT_POSTFIELDS, request.raw_body);
+    } else if (request.body != nullptr && request.method != NYA_REQUEST_METHOD_GET) {
         NYA_String* serialized = nullptr;
 
         if (payload_form) {

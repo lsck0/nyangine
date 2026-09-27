@@ -102,6 +102,13 @@ struct NYA_Request {
     /** How to write `body`. Zero is JSON, which is what everything but a token endpoint wants. */
     NYA_RequestBody body_kind;
 
+    /**
+     * Bytes sent verbatim in place of `body`, for what an object cannot encode: a multipart upload, a file.
+     * Must outlive the call. Name the matching Content-Type in `headers`; nothing here guesses it.
+     * */
+    const u8* raw_body;
+    u64       raw_body_size;
+
     /** Terminated by the first entry with a null name. Overrides anything this module sets by default. */
     NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS];
 

@@ -7252,7 +7252,7 @@ NYA_Error nya_acme_needs_renewal(NYA_ConstCString chain_pem, u32 renew_before_da
 enum NYA_RequestMethod { NYA_REQUEST_METHOD_GET, NYA_REQUEST_METHOD_POST, NYA_REQUEST_METHOD_PUT, NYA_REQUEST_METHOD_PATCH, NYA_REQUEST_METHOD_DELETE, NYA_REQUEST_METHOD_COUNT, }
 enum NYA_RequestBody { NYA_REQUEST_BODY_JSON = 0, NYA_REQUEST_BODY_FORM, NYA_REQUEST_BODY_COUNT, }  // How `body` is written onto the wire, and what `Content-Type` says about it.
 struct NYA_RequestHeader { NYA_ConstCString name; NYA_ConstCString value; }
-struct NYA_Request { NYA_RequestMethod method; NYA_ConstCString url; const NYA_Object* body; NYA_RequestBody body_kind; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; struct { NYA_ConstCString user; NYA_ConstCString password; } basic_auth; u64 timeout_ms; b8 follow_redirects; b8 insecure_skip_tls_verify; u32 retries; b8 retry_unsafe_methods; NYA_RateLimiter* limiter; NYA_ConstCString rate_key; NYA_CircuitBreaker* breaker; }
+struct NYA_Request { NYA_RequestMethod method; NYA_ConstCString url; const NYA_Object* body; NYA_RequestBody body_kind; const u8* raw_body; u64 raw_body_size; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; struct { NYA_ConstCString user; NYA_ConstCString password; } basic_auth; u64 timeout_ms; b8 follow_redirects; b8 insecure_skip_tls_verify; u32 retries; b8 retry_unsafe_methods; NYA_RateLimiter* limiter; NYA_ConstCString rate_key; NYA_CircuitBreaker* breaker; }
 struct NYA_Response { u32 status; NYA_Object* body; NYA_String* raw_body; NYA_String* content_type; NYA_String* raw_headers; }
 
 // macros
