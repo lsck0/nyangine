@@ -132,7 +132,8 @@
  *   next widget whatever line it is on and shift-tab to the one before, which is the only way through a UI that is
  *   all rows and the only one a terminal, where there is no hover, can be driven by. Focus entering a top level
  *   panel raises it, so the keyboard and the pointer never disagree about which of two overlapping windows is in
- *   front. Cancel closes an open list before a layer sees it, so escape backs out one step at a time.
+ *   front. Cancel closes an open list before a layer sees it, so escape backs out one step at a time, and focus
+ *   inside an open list or menu wraps through its entries alone until it closes.
  * - A field types only after confirm or a click, because menu keys are letters too (W, A, S, D and space), and
  *   stops on return, cancel or a click elsewhere. A confirm that also typed text is the space bar, not confirm.
  * - The default look is flat and quiet: no outline, no shadow, no pop, neutral fills and one accent marking focus
@@ -1178,7 +1179,8 @@ NYA_API b8 nya_ui_tabs(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* 
 
 /**
  * A closed row showing `options[*selected]`; activating it opens the list, and picking closes it again. Cancel and
- * a press anywhere else close it too. True when `*selected` changed.
+ * a press anywhere else close it too. True when `*selected` changed. Opening puts focus on the selected option, so
+ * the keys alone drive it: the arrows move through the options, confirm picks one and cancel backs out to the row.
  *
  * The list floats: it hangs under the row over whatever follows, takes no room in the layout, is measured into
  * nothing and is cut by the window rather than by the panel holding it. It used to take room instead, because a

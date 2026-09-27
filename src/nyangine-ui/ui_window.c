@@ -112,7 +112,7 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
 
             width += (look->padding * 5.0F) + look->line_heights[layout->text];
 
-            if (_nya_ui_choice_list(ui, "menu", window.menu, window.menu_count, &picked, at, width)) {
+            if (_nya_ui_choice_list(ui, "menu", window.menu, window.menu_count, &picked, at, width, false)) {
                 state->menu_picked = picked;
                 ui->open           = 0;
             }

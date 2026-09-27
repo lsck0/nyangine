@@ -2443,9 +2443,10 @@ gnyame's menus and both HUDs use it, and the pause screen's widgets panel exerci
 frame times. Release: pause menu draw about 0.02 ms and 20 draw calls, input pass 0.004 ms, binary +41 KB.
 
 - `[ ]` Merge same-state 2D draw ranges after sorting, so a menu is a few draw calls instead of two per widget.
-- `[ ]` A dropdown's list takes room in the layout instead of floating over what follows. Ordering it last
-  would mean holding the caller's options pointer past the call.
-- `[ ]` No multi-line text field, and no navigation into an open dropdown with the keys alone.
+- `[x]` A dropdown's list floats over what follows instead of taking room in the layout.
+- `[x]` Navigation into an open dropdown with the keys alone: opening focuses the selected option, the arrows
+  wrap inside the list, confirm picks and cancel returns to the row.
+- `[ ]` No multi-line text field.
 - `[ ]` The German key hint line runs past a 1280 wide window.
 
 ## `[~]` Packaging and distribution

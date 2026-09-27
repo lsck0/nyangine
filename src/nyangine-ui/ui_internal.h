@@ -81,6 +81,9 @@ typedef struct {
     /** Placed at a rectangle of its own, taking no room in its container and cut by the window instead. */
     b8 floating;
 
+    /** A float's first widget, so its end can tell whether focus is inside it. */
+    u32 widget_first;
+
     /** The padding and outline before the content on each axis, and after it. */
     f32x2 before;
     f32x2 after;
@@ -368,6 +371,10 @@ typedef struct {
     u32 widget_count_worst;
     u32 focus_found;
 
+    /** The widgets of the float focus is in, first and one past the last, which the keys wrap inside. Empty outside one. */
+    u32 trap_first;
+    u32 trap_end;
+
     /** Rectangles floating containers took this pass. A pointer inside one never reaches what was declared after it. */
     NYA_Rectf claims[NYA_UI_CLAIMS_MAX];
     u32       claim_count;
@@ -561,6 +568,9 @@ NYA_INTERNAL _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NY
 
 NYA_INTERNAL void _nya_ui_focus_set(NYA_UI* ui, u64 id);
 
+/** Focus to the widget declared `index`th this pass, which nya_ui_end then keeps rather than the one found before. */
+NYA_INTERNAL void _nya_ui_focus_move(NYA_UI* ui, u32 index);
+
 /** Scrolls the innermost scrolling container so `rect` is inside its view, from the next pass on. */
 NYA_INTERNAL void _nya_ui_reveal(NYA_Rectf rect);
 
@@ -635,9 +645,10 @@ NYA_INTERNAL b8 _nya_ui_choice_row(NYA_UI* ui, NYA_ConstCString id, const NYA_Co
 
 /**
  * The same cells as a column floating at `at`, `width` wide, for a dropdown's list and a window's menu. True when
- * `*selected` changed, which is also when the caller closes the list.
+ * an option was picked, even the one already selected, which is also when the caller closes the list. `enter` moves
+ * focus onto the selected option, for the pass the list opens in.
  * */
-NYA_INTERNAL b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width);
+NYA_INTERNAL b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width, b8 enter);
 
 /** One square chrome button in a window's title bar, named `label` and drawn as `mark`. True when activated. */
 NYA_INTERNAL b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, NYA_UIMark mark) __attr_no_discard;

@@ -268,6 +268,12 @@ s32 main(void) {
         Taken covered = menu(NYA_UI_PASS_INPUT);
         nya_check(!covered.under_hit, "a click on the list does not fall through to the button under it");
 
+        // that click landed on the selected option, which closes the list unchanged; open it again.
+        nya_check(!covered.changed && option == 0, "picking the selected option changes nothing, got %u", option);
+        click_at(center_of(closed));
+        (void)menu(NYA_UI_PASS_INPUT);
+        for (u32 pass = 0; pass < 2; pass++) (void)menu(NYA_UI_PASS_DRAW);
+
         click_at(second_option);
         (void)menu(NYA_UI_PASS_INPUT);
         nya_check(option == 1, "clicking the second option picks it, got %u", option);
@@ -296,6 +302,35 @@ s32 main(void) {
         tap(NYA_KEY_ESCAPE);
         Taken plain = menu(NYA_UI_PASS_INPUT);
         nya_check(plain.cancelled, "with nothing open it reaches the layer as it did");
+
+        // The keys alone. Two clicks leave focus on the closed row, then the pointer rests off the panel.
+        for (u32 i = 0; i < 2; i++) {
+            click_at(center_of(closed));
+            (void)menu(NYA_UI_PASS_INPUT);
+        }
+        pointer_move((f32x2){ 790.0F, 590.0F });
+
+        // confirm opens onto "two", down twice passes "three" and wraps to "one" rather than leaving for the button.
+        NYA_Keycode keys[] = { NYA_KEY_RETURN, NYA_KEY_DOWN, NYA_KEY_DOWN, NYA_KEY_RETURN };
+        Taken       keyed  = { 0 };
+        for (u32 i = 0; i < nya_carray_length(keys); i++) {
+            tap(keys[i]);
+            keyed = menu(NYA_UI_PASS_INPUT);
+            nya_check(!keyed.under_hit, "the keys never reach the button under the list");
+        }
+        nya_check(keyed.changed && option == 0, "down wraps inside the list and confirm picks from it, got %u", option);
+
+        // escape backs out to the row without picking, so confirm opens it again and down then return picks "two".
+        NYA_Keycode back[] = { NYA_KEY_RETURN, NYA_KEY_UP, NYA_KEY_ESCAPE, NYA_KEY_RETURN, NYA_KEY_DOWN };
+        for (u32 i = 0; i < nya_carray_length(back); i++) {
+            tap(back[i]);
+            (void)menu(NYA_UI_PASS_INPUT);
+            nya_check(option == 0, "moving through the list and escaping it picks nothing, got %u", option);
+        }
+
+        tap(NYA_KEY_RETURN);
+        (void)menu(NYA_UI_PASS_INPUT);
+        nya_check(option == 1, "escape handed focus back to the row, got %u", option);
     }
 
     // A table sizes its cells by its columns, so one row lines up with the next, and never sizes anything else.

@@ -39,6 +39,8 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.pass_serial    += 1;
     _nya_ui.widget_count    = 0;
     _nya_ui.focus_found     = U32_MAX;
+    _nya_ui.trap_first      = 0;
+    _nya_ui.trap_end        = 0;
     _nya_ui.depth           = 0;
     _nya_ui.editing_seen    = false;
     _nya_ui.typing_at_begin = ui->editing != 0;
@@ -114,21 +116,25 @@ void nya_ui_end(NYA_UI* ui) {
         const u32* groups = _nya_ui.widget_groups;
         const b8*  press  = _nya_ui.presses;
 
+        // inside an open float the keys wrap through its widgets alone; see _nya_ui_float_end.
+        b8  trapped = index >= _nya_ui.trap_first && index < _nya_ui.trap_end;
+        u32 low     = trapped ? _nya_ui.trap_first : 0;
+        u32 high    = trapped ? _nya_ui.trap_end : count;
+
         // a group is one line: a lone widget, or every focusable cell of a row. up and down keep the position in it.
         u32 first    = groups[index];
         u32 position = index - first;
 
         if (press[_NYA_UI_UP]) {
-            // adding count - 1 wraps upward without an unsigned 0 - 1.
-            u32 last = (first + count - 1) % count;
+            u32 last = first > low ? first - 1 : high - 1;
             index    = nya_min(groups[last] + position, last);
         } else if (press[_NYA_UI_DOWN]) {
             u32 next = first;
-            while (next < count && groups[next] == first) next++;
-            if (next == count) next = 0;
+            while (next < high && groups[next] == first) next++;
+            if (next == high) next = low;
 
             u32 last = next;
-            while (last + 1 < count && groups[last + 1] == next) last++;
+            while (last + 1 < high && groups[last + 1] == next) last++;
 
             index = nya_min(next + position, last);
         } else if (press[_NYA_UI_LEFT] && !_nya_ui.widget_horizontal[index] && index > first) {
@@ -136,9 +142,10 @@ void nya_ui_end(NYA_UI* ui) {
         } else if (press[_NYA_UI_RIGHT] && !_nya_ui.widget_horizontal[index] && index + 1 < count && groups[index + 1] == first) {
             index += 1;
         } else if (press[_NYA_UI_TAB]) {
-            // every widget in declaration order, lines and panels alike: the one move that reaches a whole UI and the only one a terminal has; adding count - 1 wraps backward without an unsigned 0 - 1.
-            b8 backward = (nya_input_modifiers() & NYA_KEYMOD_SHIFT) != 0;
-            index       = (index + (backward ? count - 1 : 1)) % count;
+            // every widget in declaration order, lines and panels alike: the one move that reaches a whole UI and the only one a terminal has; adding span - 1 wraps backward without an unsigned 0 - 1.
+            b8  backward = (nya_input_modifiers() & NYA_KEYMOD_SHIFT) != 0;
+            u32 span     = high - low;
+            index        = low + ((index - low + (backward ? span - 1 : 1)) % span);
         }
 
         _nya_ui_focus_set(ui, _nya_ui.widgets[index]);

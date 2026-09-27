@@ -382,7 +382,11 @@ b8 _nya_ui_float_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, NYA_R
     // whatever the row before it asked for is the row's, not the list's.
     _nya_ui.next_set = false;
 
-    return _nya_ui_panel_open(ui, id, panel, &at);
+    if (!_nya_ui_panel_open(ui, id, panel, &at)) return false;
+
+    _nya_ui.layouts[_nya_ui.depth - 1].widget_first = _nya_ui.widget_count;
+
+    return true;
 }
 
 void _nya_ui_float_end(NYA_UI* ui) {
@@ -390,6 +394,13 @@ void _nya_ui_float_end(NYA_UI* ui) {
     nya_assert(_nya_ui.layouts[_nya_ui.depth - 1].floating, "_nya_ui_float_end without a _nya_ui_float_begin");
 
     NYA_Rectf bounds = _nya_ui.layouts[_nya_ui.depth - 1].bounds;
+    u32       first  = _nya_ui.layouts[_nya_ui.depth - 1].widget_first;
+
+    // focus in an open list stays there until it closes, the way a menu's does.
+    if (_nya_ui.focus_found >= first && _nya_ui.focus_found < _nya_ui.widget_count) {
+        _nya_ui.trap_first = first;
+        _nya_ui.trap_end   = _nya_ui.widget_count;
+    }
 
     nya_ui_panel_end(ui);
 

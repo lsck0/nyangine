@@ -51,6 +51,8 @@ void _nya_ui_input_read(NYA_UI* ui) {
 
     // escape backs out one step: it closes an open list here, before any widget or layer reads it as a cancel, so the key that leaves a dropdown doesn't also leave the menu the dropdown is in.
     if (_nya_ui.cancel && ui->open != 0) {
+        // back to what opened it: a dropdown's row or a window's menu button share its id.
+        _nya_ui_focus_set(ui, ui->open);
         ui->open       = 0;
         _nya_ui.cancel = false;
     }
@@ -195,6 +197,13 @@ void _nya_ui_focus_set(NYA_UI* ui, u64 id) {
 
     ui->focus           = id;
     ui->focus_changed_s = nya_app_uptime_s();
+}
+
+void _nya_ui_focus_move(NYA_UI* ui, u32 index) {
+    nya_assert(index < _nya_ui.widget_count);
+
+    _nya_ui_focus_set(ui, _nya_ui.widgets[index]);
+    _nya_ui.focus_found = index;
 }
 
 void _nya_ui_animate(_NYA_UIWidget* widget) {

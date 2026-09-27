@@ -366,10 +366,11 @@ b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* o
     _NYA_UIWidget widget = _nya_ui_widget(ui, label, rect, false);
     if (widget.refused) return false;
 
-    b8 open = ui->open == widget.id;
-
     // activating the closed row opens the list, and activating it again closes it without changing anything.
-    if (widget.activated) ui->open = open ? 0 : widget.id;
+    b8 opened = widget.activated && ui->open != widget.id;
+    if (widget.activated) ui->open = opened ? widget.id : 0;
+
+    b8 open = ui->open == widget.id;
 
     if (_nya_ui_drawn(rect)) {
         NYA_UIWidgetDraw draw = {
@@ -386,17 +387,25 @@ b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* o
     if (!open || widget.disabled) return false;
 
     // the list hangs under the row and over whatever follows it; see ui.h for what that costs and what it does not.
-    u32   picked  = chosen;
-    f32x2 at      = { rect.x, rect.y + rect.height };
-    b8    changed = _nya_ui_choice_list(ui, label, options, count, &picked, at, rect.width);
+    u32   row    = _nya_ui.widget_count - 1;
+    u32   picked = chosen;
+    f32x2 at     = { rect.x, rect.y + rect.height };
+    nya_assert(_nya_ui.widgets[row] == widget.id);
+
+    b8 taken = _nya_ui_choice_list(ui, label, options, count, &picked, at, rect.width, opened);
 
     // a press anywhere but the row and the list closes it, as every other menu does; the list claimed its own rectangle as it closed, so this reads that rather than guessing where it went.
     if (_nya_ui.pointer_pressed && !nya_rect_contains(rect, _nya_ui.pointer) && !_nya_ui_claimed(_nya_ui.pointer)) ui->open = 0;
 
-    if (!changed) return false;
+    if (!taken) return false;
+
+    // focus goes back to the row, not to whatever takes the vanished option's place.
+    _nya_ui_focus_move(ui, row);
+    ui->open = 0;
+
+    if (picked == chosen) return false;
 
     *selected = picked;
-    ui->open  = 0;
 
     return true;
 }
@@ -779,26 +788,31 @@ void nya_ui_toasts(NYA_UI* ui) {
 
 // INTERNAL
 
-b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width) {
+b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width, b8 enter) {
     nya_assert(ui != nullptr && id != nullptr && labels != nullptr && selected != nullptr);
     nya_assert(count > 0 && width > 0.0F);
 
     // framed, unlike the row, because a list hanging over other widgets has to hide them to be read at all.
     if (!_nya_ui_float_begin(ui, id, (NYA_UIPanel){ 0 }, (NYA_Rectf){ at.x, at.y, width, 0.0F })) return false;
 
-    u32 chosen  = nya_min(*selected, count - 1);
-    b8  changed = false;
+    u32 chosen = *selected;
+    b8  taken  = false;
 
     for (u32 i = 0; i < count; i++) {
-        if (nya_ui_selectable(ui, labels[i], i == chosen) && i != chosen) {
+        u32 index = _nya_ui.widget_count;
+
+        if (nya_ui_selectable(ui, labels[i], i == chosen)) {
             *selected = i;
-            changed   = true;
+            taken     = true;
         }
+
+        // after the option read this pass's confirm, so the key that opened the list does not also pick from it.
+        if (enter && i == chosen && _nya_ui.widget_count > index) _nya_ui_focus_move(ui, index);
     }
 
     _nya_ui_float_end(ui);
 
-    return changed;
+    return taken;
 }
 
 b8 _nya_ui_choice_row(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, b8 underline) {
