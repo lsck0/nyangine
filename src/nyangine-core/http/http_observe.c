@@ -61,6 +61,9 @@ NYA_INTERNAL u32          _NYA_OBSERVE_HEAD       = 0;
 NYA_INTERNAL u32          _NYA_OBSERVE_SPAN_COUNT = 0;
 NYA_INTERNAL atomic b8    _NYA_OBSERVE_LOCK       = false;
 
+/** Spans ever recorded, so the oldest held one is `_NYA_OBSERVE_RECORDED - _NYA_OBSERVE_SPAN_COUNT` and a flush can name what it exported. */
+NYA_INTERNAL u64 _NYA_OBSERVE_RECORDED = 0;
+
 /** A monotonic fallback for id bytes when the CSPRNG is unavailable: an id must be unique, not secret. */
 NYA_INTERNAL atomic u64 _NYA_OBSERVE_SEQUENCE = 0;
 
@@ -76,6 +79,12 @@ NYA_INTERNAL u32 _nya_observe_status_class(NYA_HttpStatus status) __attr_no_disc
 
 /** The finite bucket a duration falls in, or NYA_HTTP_OBSERVE_BUCKET_COUNT for the `+Inf` slot. */
 NYA_INTERNAL u32 _nya_observe_bucket_of(u64 duration_ns) __attr_no_discard;
+
+/** Serializes the held spans as OTLP/JSON; `first` is the sequence of the oldest and `written` how many fit. */
+NYA_INTERNAL u64 _nya_observe_export(char* out, u64 capacity, OUT u64* first, OUT u32* written);
+
+/** Removes the exported range `[first, first + written)` from the ring, leaving anything recorded after it. */
+NYA_INTERNAL void _nya_observe_consume(u64 first, u32 written);
 
 NYA_INTERNAL void _nya_observe_lock(void);
 NYA_INTERNAL void _nya_observe_unlock(void);
@@ -254,6 +263,7 @@ void nya_http_trace_record(
         _NYA_OBSERVE_RING[_NYA_OBSERVE_HEAD] = span;
         _NYA_OBSERVE_HEAD                  = (_NYA_OBSERVE_HEAD + 1) % NYA_HTTP_TRACE_SPAN_MAX;
     }
+    _NYA_OBSERVE_RECORDED++;
 }
 
 u32 nya_http_trace_span_count(void) {
@@ -285,8 +295,17 @@ void nya_http_trace_reset(void) {
 }
 
 u64 nya_http_trace_export_json(char* out, u64 capacity) {
+    u64 first   = 0;
+    u32 written = 0;
+    return _nya_observe_export(out, capacity, &first, &written);
+}
+
+u64 _nya_observe_export(char* out, u64 capacity, OUT u64* first, OUT u32* written) {
     nya_assert(out != nullptr);
     nya_assert(capacity > 0);
+    nya_assert(first != nullptr && written != nullptr);
+
+    *written = 0;
 
     _NYA_ObserveJson buffer = { .data = out, .capacity = capacity, .size = 0, .overflow = false };
     out[0]                 = '\0';
@@ -305,6 +324,7 @@ u64 nya_http_trace_export_json(char* out, u64 capacity) {
 
     _nya_observe_lock();
 
+    *first = _NYA_OBSERVE_RECORDED - _NYA_OBSERVE_SPAN_COUNT;
     for (u32 index = 0; index < _NYA_OBSERVE_SPAN_COUNT; index++) {
         u64 mark = buffer.size;
 
@@ -320,6 +340,7 @@ u64 nya_http_trace_export_json(char* out, u64 capacity) {
             buffer.overflow   = false;
             break;
         }
+        (*written)++;
     }
 
     _nya_observe_unlock();
@@ -342,12 +363,14 @@ NYA_Error nya_http_trace_flush(NYA_HttpTraceExportFn exporter, void* userdata, N
     char* json     = nya_arena_alloc(arena, capacity);
     if (json == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to serialize spans");
 
-    u64 size = nya_http_trace_export_json(json, capacity);
+    u64 first   = 0;
+    u32 written = 0;
+    u64 size    = _nya_observe_export(json, capacity, &first, &written);
 
     NYA_Error exported = exporter(json, size, userdata);
 
-    // Cleared only once the exporter took the bytes, so a failed export tries the same spans again.
-    if (exported.ok) nya_http_trace_reset();
+    // only what was written leaves the ring, and only once the exporter took it: a failed export retries, and a span recorded meanwhile stays.
+    if (exported.ok) _nya_observe_consume(first, written);
 
     return exported;
 }
@@ -405,6 +428,21 @@ u32 _nya_observe_bucket_of(u64 duration_ns) {
     }
 
     return NYA_HTTP_OBSERVE_BUCKET_COUNT; // the `+Inf` slot
+}
+
+void _nya_observe_consume(u64 first, u32 written) {
+    _nya_observe_lock();
+    defer _nya_observe_unlock();
+
+    // spans the ring dropped as oldest while the export ran are already gone; drop only what is still held of the exported range.
+    u64 oldest = _NYA_OBSERVE_RECORDED - _NYA_OBSERVE_SPAN_COUNT;
+    u64 end    = first + written;
+    if (end <= oldest) return;
+
+    u32 drop = (u32)nya_min(end - oldest, (u64)_NYA_OBSERVE_SPAN_COUNT);
+    _NYA_OBSERVE_HEAD        = (_NYA_OBSERVE_HEAD + drop) % NYA_HTTP_TRACE_SPAN_MAX;
+    _NYA_OBSERVE_SPAN_COUNT -= drop;
+    nya_assert(_NYA_OBSERVE_SPAN_COUNT <= NYA_HTTP_TRACE_SPAN_MAX);
 }
 
 void _nya_observe_lock(void) {

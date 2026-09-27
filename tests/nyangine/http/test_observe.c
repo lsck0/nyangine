@@ -140,6 +140,15 @@ static NYA_Error capture_export(const char* json, u64 size, void* userdata) {
     return NYA_OK;
 }
 
+/* records a span while the flush is exporting: the window a worker lands in between export and consume */
+static NYA_Error record_during_export(const char* json, u64 size, void* userdata) {
+    (void)json;
+    (void)size;
+    (void)userdata;
+    nya_http_trace_record(NYA_HTTP_METHOD_GET, NYA_HTTP_STATUS_OK, "/api/late", 1, 1000000ULL, nullptr);
+    return NYA_OK;
+}
+
 #define MS 1000000ULL
 #define S  1000000000ULL
 
@@ -334,6 +343,13 @@ int main(void) {
         EXPORTED_CALLS  = 0;
         NYA_Error empty = nya_http_trace_flush(capture_export, nullptr, arena);
         nya_check(empty.ok && EXPORTED_CALLS == 0, "flushing an empty ring calls nothing");
+
+        // a span recorded while the exporter runs was not exported, so the flush must not clear it.
+        nya_http_trace_record(NYA_HTTP_METHOD_GET, NYA_HTTP_STATUS_OK, "/api/thing", 1000, 5 * MS, nullptr);
+        nya_check(nya_http_trace_flush(record_during_export, nullptr, arena).ok, "the flush with a concurrent record succeeds");
+        nya_check(nya_http_trace_span_count() == 1, "the span recorded during the export survives, got %u", nya_http_trace_span_count());
+        NYA_HttpSpan late = { 0 };
+        nya_check(nya_http_trace_span_at(0, &late) && strcmp(late.name, "/api/late") == 0, "and it is the late one, not the exported one");
     }
 
     nya_http_trace_config_set((NYA_HttpTraceConfig){ .enabled = false });
