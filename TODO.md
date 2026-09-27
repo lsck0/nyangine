@@ -1391,7 +1391,14 @@ Accepted:
   glyphs per pad type, and reduced motion (the speed lines and camera shake off). Phase 5. Colour vision is
   done: `NYA_SettingsGraphics.color_vision` picks protanopia, deuteranopia or tritanopia, and
   `nya_lut_compose` bakes a daltonizing 3x3 (Machado 2009 simulation, Fidaner 2005 error shift) after the grade
-  into the table the grade pass already samples, so it costs no extra pass. Subtitles and captions are next.
+  into the table the grade pass already samples, so it costs no extra pass. Captions are done:
+  `NYA_SoundParams.caption` puts a sound's text into a four line ring in the audio system while
+  `NYA_SettingsGraphics.captions` is on (off, nothing is recorded), held for at least two seconds and then for as
+  long as the voice plays, a repeat folded into the line already up, and `nya_ui_captions` draws it at the bottom
+  centre with a `^ > v <` marker from the voice's listener-relative direction, followed every frame. Reduced motion
+  is done as far as the engine has motion: `NYA_SettingsGraphics.reduced_motion` zeroes the speed lines in
+  `nya_settings_graphics_apply`; there is no camera shake anywhere yet, and one must answer to it when it lands.
+  Left: dialogue subtitles with speaker names, controller glyphs per pad type.
 - `[~]` **Reproducible builds:** the same commit gives the same bytes. Done for the Linux release/Steam/dist
   binary: `-ffile-prefix-map` strips the absolute build directory from the debug info, the build-id is pinned
   off, the binary carries no build timestamp by design (base_version.c reads the executable's mtime at

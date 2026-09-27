@@ -134,6 +134,9 @@ void nya_system_audio_update(f32 delta_time_s) {
     NYA_AudioSystem*            system      = &_nya_audio_system;
     const NYA_AudioPropagation* propagation = &system->propagation;
 
+    // before the early out: captions come down on time whether or not anything is traced or even heard.
+    _nya_audio_captions_update(system);
+
     if (!propagation->enabled || !system->ready) return;
 
     nya_perf_time_this_scope("audio_propagation");

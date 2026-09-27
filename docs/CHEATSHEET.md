@@ -1649,7 +1649,10 @@ NYA_ASSET_BLOB_FRAME_OVERHEAD (NYA_CRYPTO_NONCE_BYTES + NYA_CRYPTO_TAG_BYTES)  /
 ```c
 // types
 struct NYA_SoundVoice { u32 index; u32 generation; }  // A sound that is playing, and can still be changed.
-struct NYA_SoundParams { f32 gain; f32 gain_variation_db; f32 pitch; f32 pitch_variation_semitones; f32 pan; b8 loop; u32 fade_in_ms; s32 priority; f32 radius; }  // Everything a sound can be started with, so it does not have to be corrected on the next frame.
+struct NYA_SoundParams { f32 gain; f32 gain_variation_db; f32 pitch; f32 pitch_variation_semitones; f32 pan; b8 loop; u32 fade_in_ms; s32 priority; f32 radius; NYA_ConstCString caption; }  // Everything a sound can be started with, so it does not have to be corrected on the next frame.
+enum NYA_AudioSide { NYA_AUDIO_SIDE_AHEAD, NYA_AUDIO_SIDE_RIGHT, NYA_AUDIO_SIDE_BEHIND, NYA_AUDIO_SIDE_LEFT, NYA_AUDIO_SIDE_COUNT, }  // Which way a sound is from the listener, to a quarter turn.
+struct NYA_AudioCaption { char text[NYA_AUDIO_CAPTION_TEXT_MAX]; f64 hold_until_s; NYA_SoundVoice voice; f32x3 direction; b8 positional; b8 shown; }  // A sound's text on screen.
+struct NYA_AudioCaptions { NYA_AudioCaption items[NYA_AUDIO_CAPTIONS_MAX]; u32 next; u32 live; }  // The captions up, a ring that overwrites the oldest when full.
 enum NYA_AudioBus { NYA_AUDIO_BUS_SOUND, NYA_AUDIO_BUS_MUSIC, NYA_AUDIO_BUS_MASTER, NYA_AUDIO_BUS_COUNT, }  // What effects are attached to.
 struct NYA_AudioFilter { f32 lowpass_hz; f32 glide_ms; }  // A one pole low pass on a voice.
 enum NYA_AudioPlane { NYA_AUDIO_PLANE_SIDE, NYA_AUDIO_PLANE_TOP_DOWN, NYA_AUDIO_PLANE_COUNT, }  // How a 2D world position is laid into the mixer's 3D space.
@@ -1677,6 +1680,10 @@ void nya_audio_listener_3d_set(NYA_AudioListener3D listener)  // Moves the ear i
 NYA_AudioListener3D nya_audio_listener_3d_get(void)
 NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f32x2 world_position, NYA_SoundParams params)  // Plays a sound at a point in the world, heard from wherever the listener is.
 NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle, f32x3 world_position, NYA_SoundParams params)  // Plays a sound at a point in a 3D world, heard from wherever the 3D listener is and however it faces.
+void nya_audio_captions_add(NYA_AudioCaptions* captions, NYA_ConstCString text, NYA_AudioCaption caption)  // Puts `text` up with `caption`'s placement, over the oldest when full.
+void nya_audio_captions_remove(NYA_AudioCaptions* captions, f64 now_s)  // Takes down every caption whose hold is over and whose voice has stopped.
+const NYA_AudioCaptions* nya_audio_captions(void)  // The captions up now, oldest first from `next`.
+NYA_AudioSide nya_audio_side(f32x3 listener_relative)  // The quarter a listener-relative direction falls in; see nya_audio_pan_azimuth for the frame.
 void nya_audio_play_music(NYA_ConstCString music_handle, b8 loop, u32 fade_in_ms)  // Starts `music_handle` on the music track, replacing whatever was playing.
 void nya_audio_play_music_with(NYA_ConstCString music_handle, NYA_MusicParams params)  // Starts music with loop points and a gain, for anything the three argument form cannot say.
 void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicParams params, u32 duration_ms)  // Fades the current track out while fading the new one in, over `duration_ms`.
@@ -2683,7 +2690,7 @@ typedef enum { NYA_VOLUME_CHANNEL_MASTER, NYA_VOLUME_CHANNEL_SOUND, NYA_VOLUME_C
 struct NYA_SettingsVolumes { f32 master; f32 sound; f32 music; f32 voice; f32 ui; }  // The mixes again, one named field each, in NYA_VolumeChannel order.
 enum NYA_GraphicsQuality { NYA_GRAPHICS_QUALITY_OFF = 0, NYA_GRAPHICS_QUALITY_LOW, NYA_GRAPHICS_QUALITY_MEDIUM, NYA_GRAPHICS_QUALITY_HIGH, NYA_GRAPHICS_QUALITY_COUNT, }  // How much of a costly feature a player asks for.
 enum NYA_ColorVision { NYA_COLOR_VISION_NONE = 0, NYA_COLOR_VISION_PROTANOPIA, NYA_COLOR_VISION_DEUTERANOPIA, NYA_COLOR_VISION_TRITANOPIA, NYA_COLOR_VISION_COUNT, }  // A colour vision deficiency the picture is corrected for, the complete (dichromat) form.
-struct NYA_SettingsGraphics { u32 msaa_samples; b8 fxaa; b8 ambient_occlusion; b8 bloom; b8 depth_of_field; b8 eye_adaptation; b8 light_shafts; b8 reflections; b8 motion_blur; b8 volumetric_fog; NYA_GraphicsQuality shadows; f32 fov; f32 render_scale; NYA_ColorVision color_vision; }
+struct NYA_SettingsGraphics { u32 msaa_samples; b8 fxaa; b8 ambient_occlusion; b8 bloom; b8 depth_of_field; b8 eye_adaptation; b8 light_shafts; b8 reflections; b8 motion_blur; b8 volumetric_fog; NYA_GraphicsQuality shadows; f32 fov; f32 render_scale; NYA_ColorVision color_vision; b8 reduced_motion; b8 captions; }
 struct NYA_SettingsSystem { f32 volumes[NYA_VOLUME_CHANNEL_COUNT]; NYA_SettingsGraphics graphics; NYA_InputBinding bindings[NYA_INPUT_ACTION_MAX][NYA_INPUT_BINDINGS_PER_ACTION]; char player_name[NYA_SETTINGS_NAME_MAX]; }
 
 // macros
@@ -4700,6 +4707,7 @@ b8 nya_ui_dialog_begin(NYA_UI* ui, NYA_ConstCString id, NYA_ConstCString title, 
 void nya_ui_dialog_end(NYA_UI* ui)
 void nya_ui_toast(NYA_UI* ui, NYA_ConstCString text)  // Posts a transient notification carrying `text`, kept per window so it outlives the pass that raised it.
 void nya_ui_toasts(NYA_UI* ui)
+void nya_ui_captions(NYA_UI* ui)
 b8 nya_ui_color_picker(NYA_UI* ui, NYA_ConstCString label, NYA_Color* color)
 b8 nya_ui_node_editor_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UINodeEditor* editor)  // A pannable, zoomable canvas for a node graph.
 void nya_ui_node_editor_end(NYA_UI* ui, NYA_UINodeEditor* editor)

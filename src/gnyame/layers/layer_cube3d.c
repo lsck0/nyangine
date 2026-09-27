@@ -531,6 +531,7 @@ void gny_layer_cube3d_on_collision(NYA_Entity* entity, NYA_Entity* other, const 
 
             // ranked by strength, so a heavy landing is heard over six light ones in sixteen voices.
             .priority = (s32)(strength * 100.0F),
+            .caption  = nya_string_caption_thud(),
         }
     );
 
@@ -830,6 +831,7 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
                 .fade_in_ms = GNY_CUBE3D_FIRE_FADE_MS,
                 .radius     = GNY_CUBE3D_FIRE_RADIUS,
                 .priority   = 100,
+                .caption    = nya_string_caption_fire(),
             }
         );
     }
@@ -1271,6 +1273,8 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     }
 
     if (scene->features_open) gny_layer_cube3d_features_draw(ui, window, &scene->show_hitboxes);
+
+    nya_ui_captions(ui);
 
     gny_ui_end(window, ui);
 

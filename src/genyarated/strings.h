@@ -11,6 +11,8 @@
  */
 
 typedef enum {
+    NYA_STRING_CAPTION_FIRE,
+    NYA_STRING_CAPTION_THUD,
     NYA_STRING_CUBE3D_CULLING,
     NYA_STRING_CUBE3D_DECALS,
     NYA_STRING_CUBE3D_FEATURES,
@@ -43,6 +45,7 @@ typedef enum {
     NYA_STRING_MENU_AUTO,
     NYA_STRING_MENU_BARS,
     NYA_STRING_MENU_BLOOM,
+    NYA_STRING_MENU_CAPTIONS,
     NYA_STRING_MENU_CHART,
     NYA_STRING_MENU_CLOSE,
     NYA_STRING_MENU_COLOR_VISION,
@@ -76,6 +79,7 @@ typedef enum {
     NYA_STRING_MENU_PAUSED,
     NYA_STRING_MENU_PROTAN,
     NYA_STRING_MENU_QUIT,
+    NYA_STRING_MENU_REDUCED_MOTION,
     NYA_STRING_MENU_RENDER_SCALE,
     NYA_STRING_MENU_RESET,
     NYA_STRING_MENU_RESTART,
@@ -108,6 +112,8 @@ typedef enum {
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
+    "caption_fire",
+    "caption_thud",
     "cube3d_culling",
     "cube3d_decals",
     "cube3d_features",
@@ -140,6 +146,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_auto",
     "menu_bars",
     "menu_bloom",
+    "menu_captions",
     "menu_chart",
     "menu_close",
     "menu_color_vision",
@@ -173,6 +180,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_paused",
     "menu_protan",
     "menu_quit",
+    "menu_reduced_motion",
     "menu_render_scale",
     "menu_reset",
     "menu_restart",
@@ -200,6 +208,16 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "social_join_request",
     "social_wants_to_join",
 };
+
+/** `caption_fire` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_caption_fire(void) {
+    return _nya_i18n_format(NYA_STRING_CAPTION_FIRE);
+}
+
+/** `caption_thud` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_caption_thud(void) {
+    return _nya_i18n_format(NYA_STRING_CAPTION_THUD);
+}
 
 /** `cube3d_culling` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_culling(u32 a0, u32 a1, u32 a2, u32 a3, u32 a4) {
@@ -359,6 +377,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_bars(void) {
 /** `menu_bloom` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_bloom(void) {
     return _nya_i18n_format(NYA_STRING_MENU_BLOOM);
+}
+
+/** `menu_captions` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_captions(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_CAPTIONS);
 }
 
 /** `menu_chart` */
@@ -524,6 +547,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_protan(void) 
 /** `menu_quit` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_quit(void) {
     return _nya_i18n_format(NYA_STRING_MENU_QUIT);
+}
+
+/** `menu_reduced_motion` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_reduced_motion(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_REDUCED_MOTION);
 }
 
 /** `menu_render_scale` */

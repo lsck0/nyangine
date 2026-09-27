@@ -698,6 +698,8 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsGraphics_FIELDS[] = {
     { .name = "fov", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, fov), .hint = NYA_HINT_NONE },
     { .name = "render_scale", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, render_scale), .hint = NYA_HINT_NONE },
     { .name = "color_vision", .type = &_NYA_REFLECT_NYA_ColorVision, .offset = nya_offsetof(NYA_SettingsGraphics, color_vision), .hint = NYA_HINT_NONE },
+    { .name = "reduced_motion", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, reduced_motion), .hint = NYA_HINT_NONE },
+    { .name = "captions", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SettingsGraphics, captions), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
@@ -706,7 +708,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
     .size = sizeof(NYA_SettingsGraphics),
     .alignment = alignof(NYA_SettingsGraphics),
     .fields = _NYA_REFLECT_NYA_SettingsGraphics_FIELDS,
-    .field_count = 14,
+    .field_count = 16,
 };
 
 /* NYA_HttpMetricsDto, src/nyangine-core/debug/debug_metrics.h */

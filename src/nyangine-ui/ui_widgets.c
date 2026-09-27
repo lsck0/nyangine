@@ -785,6 +785,36 @@ void nya_ui_toasts(NYA_UI* ui) {
     _nya_ui_float_end(ui);
 }
 
+void nya_ui_captions(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+
+    // in NYA_AudioSide order.
+    static const NYA_ConstCString markers[NYA_AUDIO_SIDE_COUNT] = { "^", ">", "v", "<" };
+
+    // nothing in them reacts, so the input pass has nothing to place.
+    const NYA_AudioCaptions* captions = nya_audio_captions();
+    if (ui->pass != NYA_UI_PASS_DRAW || captions->live == 0) return;
+
+    if (!nya_ui_panel_begin(ui, "captions", (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_BOTTOM, .align = NYA_UI_ALIGN_CENTER })) return;
+
+    for (u32 i = 0; i < NYA_AUDIO_CAPTIONS_MAX; i++) {
+        const NYA_AudioCaption* caption = &captions->items[(captions->next + i) % NYA_AUDIO_CAPTIONS_MAX];
+        if (!caption->shown) continue;
+
+        // the marker on the side the sound is on, so a glance reads the direction before the words.
+        NYA_AudioSide side = nya_audio_side(caption->direction);
+        b8            left = caption->positional && side != NYA_AUDIO_SIDE_RIGHT;
+
+        if (!nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) continue;
+        if (left) nya_ui_label(ui, markers[side]);
+        nya_ui_label(ui, caption->text);
+        if (caption->positional && !left) nya_ui_label(ui, markers[side]);
+        nya_ui_panel_end(ui);
+    }
+
+    nya_ui_panel_end(ui);
+}
+
 
 // INTERNAL
 

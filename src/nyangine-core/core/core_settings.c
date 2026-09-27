@@ -451,6 +451,8 @@ void nya_settings_graphics_apply(NYA_Window* window) {
     motion_blur.enabled            = motion_blur.enabled && graphics->motion_blur;
     nya_post_motion_blur_set(window, motion_blur);
 
+    if (graphics->reduced_motion) nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ 0 });
+
     if (!graphics->depth_of_field) {
         NYA_PostDepthOfField depth_of_field = nya_post_depth_of_field(window);
         depth_of_field.focus                = NYA_POST_FOCUS_OFF;

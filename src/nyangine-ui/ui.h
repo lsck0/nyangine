@@ -47,6 +47,7 @@
  *   nya_ui_tooltip                              a small popover shown while the pointer rests on a rectangle
  *   nya_ui_dialog_begin, nya_ui_dialog_end      a centred panel over a scrim, closed by escape
  *   nya_ui_toast, nya_ui_toasts                 post a transient notification, and draw the stack of them
+ *   nya_ui_captions                             the captions of the sounds playing, each marked with its direction
  *   nya_ui_disabled_begin, nya_ui_disabled_end  widgets between them are dimmed, skipped by focus, and never act
  *   nya_ui_style_push, nya_ui_style_pop         another look for what follows, until popped
  *   nya_ui_cancelled                            whether cancel was pressed this pass
@@ -1345,6 +1346,13 @@ NYA_API void nya_ui_toast(NYA_UI* ui, NYA_ConstCString text);
  * toast draws nothing. The stack floats over the rest of the UI, clamped to the window like every float.
  * */
 NYA_API void nya_ui_toasts(NYA_UI* ui);
+
+/**
+ * Draws the captions of the sounds playing at the bottom centre, oldest on top, a positioned one marked with the
+ * quarter it is heard from: `^` ahead, `v` behind, `<` left, `>` right. Call it once a frame, at the top level;
+ * with captions off or none up it draws nothing. See NYA_SoundParams.caption.
+ * */
+NYA_API void nya_ui_captions(NYA_UI* ui);
 
 /**
  * `label` and a swatch, a field of saturation across and value down with a hue bar beside it, an alpha bar under it,

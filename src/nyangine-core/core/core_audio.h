@@ -68,6 +68,14 @@
  * */
 #define NYA_AUDIO_FILTER_MAX_CHANNELS 8
 
+enum {
+    /** Captions up at once. Four lines fit under a scene without covering it; past that the oldest gives way. */
+    NYA_AUDIO_CAPTIONS_MAX = 4,
+
+    /** Longest caption kept, terminator included. A caption is a few words; longer is cut on a character boundary. */
+    NYA_AUDIO_CAPTION_TEXT_MAX = 64,
+};
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -129,6 +137,56 @@ struct NYA_SoundParams {
      * post cannot hide it. Zero takes NYA_AudioPropagation.radius.
      * */
     f32 radius;
+
+    /**
+     * Shown while the sound plays when the player has captions on, usually an i18n accessor's result. Copied, so a
+     * formatted string may be passed. Null is no caption. See nya_ui_captions.
+     * */
+    NYA_ConstCString caption;
+};
+
+typedef enum NYA_AudioSide       NYA_AudioSide;
+typedef struct NYA_AudioCaption  NYA_AudioCaption;
+typedef struct NYA_AudioCaptions NYA_AudioCaptions;
+
+/** Which way a sound is from the listener, to a quarter turn. What a caption's marker shows. */
+enum NYA_AudioSide {
+    NYA_AUDIO_SIDE_AHEAD,
+    NYA_AUDIO_SIDE_RIGHT,
+    NYA_AUDIO_SIDE_BEHIND,
+    NYA_AUDIO_SIDE_LEFT,
+
+    NYA_AUDIO_SIDE_COUNT,
+};
+
+/** A sound's text on screen. */
+struct NYA_AudioCaption {
+    char text[NYA_AUDIO_CAPTION_TEXT_MAX];
+
+    /** Up until at least this uptime, in seconds, and past it for as long as `voice` plays. */
+    f64 hold_until_s;
+
+    NYA_SoundVoice voice;
+
+    /** Where the sound is in the mixer's listener frame, +x right, -z ahead. Followed while the voice plays. */
+    f32x3 direction;
+
+    /** Placed in the world, so `direction` means something. */
+    b8 positional;
+
+    /** Still up. A slot that is not is free, whatever else it holds. */
+    b8 shown;
+};
+
+/** The captions up, a ring that overwrites the oldest when full. */
+struct NYA_AudioCaptions {
+    NYA_AudioCaption items[NYA_AUDIO_CAPTIONS_MAX];
+
+    /** Where the next one goes, which is the oldest. */
+    u32 next;
+
+    /** How many are shown. What the ceiling reads. */
+    u32 live;
 };
 
 typedef enum NYA_AudioBus          NYA_AudioBus;
@@ -328,6 +386,27 @@ NYA_API NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f3
  * ```
  * */
 NYA_API NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle, f32x3 world_position, NYA_SoundParams params);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * CAPTIONS
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Puts `text` up with `caption`'s placement, over the oldest when full. A caption with the same text still up is
+ * replaced rather than repeated, so a pile of landings reads as one line.
+ * */
+NYA_API void nya_audio_captions_add(NYA_AudioCaptions* captions, NYA_ConstCString text, NYA_AudioCaption caption);
+
+/** Takes down every caption whose hold is over and whose voice has stopped. The audio system does it every frame. */
+NYA_API void nya_audio_captions_remove(NYA_AudioCaptions* captions, f64 now_s);
+
+/** The captions up now, oldest first from `next`. Always empty while the player has captions off. */
+NYA_API const NYA_AudioCaptions* nya_audio_captions(void) __attr_no_discard;
+
+/** The quarter a listener-relative direction falls in; see nya_audio_pan_azimuth for the frame. */
+NYA_API NYA_AudioSide nya_audio_side(f32x3 listener_relative) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────

@@ -131,6 +131,12 @@ struct NYA_SettingsGraphics {
 
     /** What the picture is corrected for, composed into the game's grading table. See nya_lut_compose. */
     NYA_ColorVision color_vision;
+
+    /** No speed lines, for a player whom motion makes ill. The engine has no camera shake yet to still as well. */
+    b8 reduced_motion;
+
+    /** A sound played with a caption shows it while it plays. Off, nothing is recorded. See nya_ui_captions. */
+    b8 captions;
 };
 
 /** What a player starts with, and what nya_settings_reset puts back. */

@@ -126,6 +126,7 @@ void _gny_sim_impact_play(const GNY_SimImpact* impact) {
             // Still worth setting even though the observer has already picked the loudest few: those
             // few compete with whatever else is playing, and a hard landing should win.
             .priority = (s32)(strength * 100.0F),
+            .caption  = nya_string_caption_thud(),
         }
     );
 }

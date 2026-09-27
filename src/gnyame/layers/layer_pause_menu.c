@@ -561,6 +561,9 @@ void _gny_graphics_panel(NYA_UI* ui) {
     _gny_choice_row(ui, nya_string_menu_color_vision(), visions, nya_carray_length(visions), &vision);
     graphics.color_vision = (NYA_ColorVision)vision;
 
+    (void)nya_ui_toggle(ui, nya_string_menu_reduced_motion(), &graphics.reduced_motion);
+    (void)nya_ui_toggle(ui, nya_string_menu_captions(), &graphics.captions);
+
     nya_settings_graphics_set(graphics);
 
     nya_ui_panel_end(ui);

@@ -146,8 +146,14 @@ struct NYA_AudioSystem {
     f32 sound_gain;
     f32 music_gain;
 
+    /** Written only while the player has captions on. See nya_ui_captions. */
+    NYA_AudioCaptions captions;
+
     b8 ready;
 };
+
+/** The least a caption stays up, however short its sound: a 100 ms click cannot be read in 100 ms. */
+NYA_INTERNAL const f64 _NYA_AUDIO_CAPTION_HOLD_S = 2.0;
 
 /* Zero-initialized; the non-zero defaults are set in nya_system_audio_init. */
 NYA_INTERNAL NYA_AudioSystem _nya_audio_system;
@@ -166,9 +172,15 @@ NYA_INTERNAL void _nya_audio_apply_gain(u32 slot);
 
 /**
  * nya_audio_play_sound_with, with an optional placement applied before the first sample. Null plays
- * unplaced.
+ * unplaced. Puts the caption up too, when there is one and the player wants it.
  * */
 NYA_INTERNAL NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams params, const f32x3* position);
+
+/** _nya_audio_play without the caption. */
+NYA_INTERNAL NYA_SoundVoice _nya_audio_start(NYA_ConstCString sound_handle, NYA_SoundParams params, const f32x3* position);
+
+/** Takes down the captions that are done, and turns the rest's markers to where their voices are heard from now. */
+NYA_INTERNAL void _nya_audio_captions_update(NYA_AudioSystem* system);
 
 /** Records where a voice is in the world, for propagation to trace. A no-op for a dead handle. */
 NYA_INTERNAL void _nya_audio_voice_remember_position(NYA_SoundVoice voice, f32x3 world_position, b8 planar);
@@ -245,6 +257,7 @@ NYA_Error nya_system_audio_init(void) {
     NYA_AudioSystem* system = &_nya_audio_system;
 
     // defaults set before anything runs, since a zeroed gain would silence everything.
+    system->captions    = (NYA_AudioCaptions){ 0 };
     system->music_slot  = _NYA_AUDIO_MUSIC_A;
     system->master_gain = 1.0F;
     system->sound_gain  = 1.0F;
@@ -259,6 +272,7 @@ NYA_Error nya_system_audio_init(void) {
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("audio_rays", NYA_AUDIO_PROPAGATION_RAYS_MAX, &system->tracer.rays_cast);
+        nya_ceiling_register("audio_captions", NYA_AUDIO_CAPTIONS_MAX, &system->captions.live);
         ceiling_registered = true;
     }
 
@@ -424,6 +438,25 @@ NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle, f32x3 w
 }
 
 NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams params, const f32x3* position) {
+    NYA_SoundVoice voice = _nya_audio_start(sound_handle, params, position);
+
+    if (params.caption == nullptr || !nya_settings()->graphics.captions) return voice;
+
+    // whether or not it started: with no device or every voice taken the sound was still meant, and a player reading
+    // captions has nothing else to go on.
+    NYA_AudioCaption caption = {
+        .hold_until_s = nya_app_uptime_s() + _NYA_AUDIO_CAPTION_HOLD_S,
+        .voice        = voice,
+        .direction    = position != nullptr ? *position : (f32x3){ 0 },
+        .positional   = position != nullptr,
+    };
+
+    nya_audio_captions_add(&_nya_audio_system.captions, params.caption, caption);
+
+    return voice;
+}
+
+NYA_SoundVoice _nya_audio_start(NYA_ConstCString sound_handle, NYA_SoundParams params, const f32x3* position) {
     NYA_AudioSystem* system = &_nya_audio_system;
     if (!system->ready) return NYA_SOUND_VOICE_NONE;
 
@@ -548,6 +581,67 @@ void nya_audio_stop_sounds(void) {
     if (!system->ready) return;
 
     for (u32 i = 0; i < NYA_AUDIO_VOICES; i++) MIX_StopTrack(system->slots[i].track, 0);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * CAPTIONS
+ * ─────────────────────────────────────────────────────────
+ */
+
+void nya_audio_captions_add(NYA_AudioCaptions* captions, NYA_ConstCString text, NYA_AudioCaption caption) {
+    nya_assert(captions != nullptr && text != nullptr);
+    nya_assert(captions->next < NYA_AUDIO_CAPTIONS_MAX && captions->live <= NYA_AUDIO_CAPTIONS_MAX);
+
+    u64 length = nya_min(strlen(text), (u64)(NYA_AUDIO_CAPTION_TEXT_MAX - 1));
+
+    // a cut mid-character would show invalid UTF-8.
+    if (text[length] != '\0') {
+        while (length > 0 && ((u8)text[length] & 0xC0) == 0x80) length--;
+    }
+
+    nya_memcpy(caption.text, text, length);
+    caption.text[length] = '\0';
+    caption.shown        = true;
+
+    u32 slot = captions->next;
+    for (u32 i = 0; i < NYA_AUDIO_CAPTIONS_MAX; i++) {
+        if (captions->items[i].shown && strcmp(captions->items[i].text, caption.text) == 0) slot = i;
+    }
+
+    if (slot == captions->next) captions->next = (captions->next + 1) % NYA_AUDIO_CAPTIONS_MAX;
+    if (!captions->items[slot].shown) captions->live++;
+
+    captions->items[slot] = caption;
+
+    nya_assert(captions->live >= 1 && captions->live <= NYA_AUDIO_CAPTIONS_MAX);
+}
+
+void nya_audio_captions_remove(NYA_AudioCaptions* captions, f64 now_s) {
+    nya_assert(captions != nullptr && captions->live <= NYA_AUDIO_CAPTIONS_MAX);
+
+    captions->live = 0;
+
+    for (u32 i = 0; i < NYA_AUDIO_CAPTIONS_MAX; i++) {
+        NYA_AudioCaption* caption = &captions->items[i];
+
+        caption->shown  = caption->shown && (now_s < caption->hold_until_s || nya_audio_voice_valid(caption->voice));
+        captions->live += caption->shown ? 1 : 0;
+    }
+}
+
+const NYA_AudioCaptions* nya_audio_captions(void) {
+    return &_nya_audio_system.captions;
+}
+
+NYA_AudioSide nya_audio_side(f32x3 listener_relative) {
+    // quarter turns from ahead, rounded: -2 and +2 are both behind.
+    s32 quarter = (s32)lroundf(nya_audio_pan_azimuth(listener_relative) / (0.5F * (f32)M_PI));
+    s32 side    = ((quarter % NYA_AUDIO_SIDE_COUNT) + NYA_AUDIO_SIDE_COUNT) % NYA_AUDIO_SIDE_COUNT;
+
+    nya_assert(side >= 0 && side < NYA_AUDIO_SIDE_COUNT);
+
+    return (NYA_AudioSide)side;
 }
 
 /*
@@ -880,6 +974,19 @@ void _nya_audio_voice_remember_position(NYA_SoundVoice voice, f32x3 world_positi
     slot->world_position = world_position;
     slot->positional     = true;
     slot->planar         = planar;
+}
+
+void _nya_audio_captions_update(NYA_AudioSystem* system) {
+    nya_audio_captions_remove(&system->captions, nya_app_uptime_s());
+
+    for (u32 i = 0; i < NYA_AUDIO_CAPTIONS_MAX; i++) {
+        NYA_AudioCaption* caption = &system->captions.items[i];
+        NYA_AudioVoice*   slot    = caption->shown ? _nya_audio_resolve(caption->voice) : nullptr;
+        if (slot == nullptr || !slot->positional) continue;
+
+        f32x3 at           = slot->world_position;
+        caption->direction = slot->planar ? _nya_audio_world_to_audio((f32x2){ at.x, at.y }) : _nya_audio_world_to_audio_3d(at);
+    }
 }
 
 void _nya_audio_voice_place(u32 slot) {
