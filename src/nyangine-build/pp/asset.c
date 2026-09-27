@@ -42,6 +42,17 @@ NYA_INTERNAL b8 _nya_asset_shader_outdated(NYA_BuildRulePolicy policy, NYA_Const
 NYA_INTERNAL void _nya_asset_shader_prune(void);
 
 /**
+ * Where a shader output is written before it is renamed over `target`. Per process, so two builds sharing
+ * ./assets/shader/compiled/ (worktrees link it) never write the same file, and a reader only ever sees a
+ * complete one. Ends in `.tmp`, which _nya_asset_shader_prune never matches, so an in-flight one survives a
+ * concurrent prune.
+ * */
+NYA_INTERNAL NYA_CString _nya_asset_shader_temporary(NYA_ConstCString target) __attr_no_discard;
+
+/** Compiles `source` with shadercross to the `format` backend at `target`, through a temporary. `define` is an extra `-D`, or nullptr. */
+NYA_INTERNAL void _nya_asset_shader_compile(NYA_CString source, NYA_CString target, NYA_ConstCString format, NYA_BuildRulePolicy policy, NYA_ConstCString define);
+
+/**
  * Cross compiles the SPIR-V at `spirv` to GLSL ES 300, writing it to `glsl`. The point of stage 1 of the
  * web backend: a later GLES3/WebGL2 renderer loads these instead of the .spv Vulkan takes. Does nothing
  * when the tool was built without SPIRV-Cross (NYA_BUILD_HAS_SPIRV_CROSS). Returns whether a `.glsl` was
@@ -146,26 +157,7 @@ void nya_asset_compile_shaders(void) {
                               source, SHADERCROSS_BINARY);
             }
 
-            NYA_BuildRule rule = {
-                .name        = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%s -> %s", source, target)),
-                .policy      = policy,
-                .input_file  = source,
-                .output_file = target,
-                .command = {
-                    .program     = SHADERCROSS_BINARY,
-                    .environment = { SHADERCROSS_LIBRARY_PATH },
-                    .arguments = {
-                        source,
-                        "-o", target,
-                        "-s", "hlsl",
-                        "-d", _NYA_ASSET_SHADER_FORMATS[i][0],
-
-                        // shadercross compiles from a temporary file, so relative `#include`s need the source root.
-                        "-I", SHADER_SOURCE_DIRECTORY,
-                    },
-                },
-            };
-            NYA_EXPECT(nya_build(&rule));
+            _nya_asset_shader_compile(source, target, _NYA_ASSET_SHADER_FORMATS[i][0], policy, nullptr);
         }
 
         // Compute shaders are desktop only: WebGL2/GLES3, the GLSL ES 300 backend's target, has no compute stage at all, so there is nothing to cross-compile and no web variant to try. Skip the whole GLSL step for a `.comp` shader, which leaves `./build build shaders` green with no spurious `.comp.glsl` or `.comp.web.spv` beside it. The engine's compute path is gated the same way behind !OS_WASM; see render_compute_particles.c and the renderer-web wall.
@@ -178,28 +170,8 @@ void nya_asset_compile_shaders(void) {
             /* The desktop SPIR-V uses a feature GLSL ES 300 lacks — the four mesh3d lit fragment shaders reach mesh3d_shading.hlsli's textureGather shadow tap, which SPIRV-Cross refuses at version 300. Compile a web variant of the HLSL with NYA_WEB_SHADER defined, which takes the ESSL-300-safe four-tap path, and convert that in place of the gather one. The desktop .spv built above is untouched, so native keeps loading the gather build. The convention is by result, not a hardcoded list: any shader whose plain .spv will not lower to GLSL ES 300 gets a web variant, so a future ESSL-310 feature is handled the same way with no edit here. */
             NYA_CString web_spirv = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s" SHADER_WEB_SPIRV_SUFFIX, (int)shader->length, shader->items));
 
-            NYA_BuildRule web_rule = {
-                .name        = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%s -> %s", source, web_spirv)),
-                // Include-aware like the desktop compiles above: a changed shared .hlsli rebuilds this too.
-                .policy      = _nya_asset_shader_policy(newest_include, web_spirv),
-                .input_file  = source,
-                .output_file = web_spirv,
-                .command = {
-                    .program     = SHADERCROSS_BINARY,
-                    .environment = { SHADERCROSS_LIBRARY_PATH },
-                    .arguments = {
-                        source,
-                        "-o", web_spirv,
-                        "-s", "hlsl",
-                        "-d", "spirv",
-                        "-I", SHADER_SOURCE_DIRECTORY,
-
-                        // The one difference from the desktop compile: the shader's web path is taken.
-                        "-DNYA_WEB_SHADER",
-                    },
-                },
-            };
-            NYA_EXPECT(nya_build(&web_rule));
+            // include-aware like the desktop compiles above; the one difference is that the shader's web path is taken.
+            _nya_asset_shader_compile(source, web_spirv, "spirv", _nya_asset_shader_policy(newest_include, web_spirv), "-DNYA_WEB_SHADER");
 
             // Best effort like the desktop attempt above: a web variant that still will not convert is reported (warn_on_failure) and leaves no .glsl, rather than failing the whole step.
             (void)_nya_asset_shader_compile_glsl_es(web_spirv, glsl, true);
@@ -470,6 +442,33 @@ void _nya_asset_shader_prune(void) {
     }
 }
 
+NYA_CString _nya_asset_shader_temporary(NYA_ConstCString target) {
+    nya_assert(target != nullptr);
+    return nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%s.%u.tmp", target, nya_os_process_id()));
+}
+
+void _nya_asset_shader_compile(NYA_CString source, NYA_CString target, NYA_ConstCString format, NYA_BuildRulePolicy policy, NYA_ConstCString define) {
+    nya_assert(source != nullptr && target != nullptr && format != nullptr);
+
+    NYA_CString   temporary = _nya_asset_shader_temporary(target);
+    NYA_BuildRule rule      = {
+             .name        = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%s -> %s", source, target)),
+             .policy      = policy,
+             .input_file  = source,
+             .output_file = target,
+             .command = {
+                 .program     = SHADERCROSS_BINARY,
+                 .environment = { SHADERCROSS_LIBRARY_PATH },
+                 // shadercross compiles from a temporary file, so relative `#include`s need the source root; `define` is last so a nullptr ends the list.
+                 .arguments = { source, "-o", temporary, "-s", "hlsl", "-d", format, "-I", SHADER_SOURCE_DIRECTORY, define },
+        },
+    };
+    NYA_EXPECT(nya_build(&rule));
+
+    // an up to date rule ran nothing and left no temporary; only a fresh compile is moved over the old output.
+    if (nya_filesystem_exists(temporary)) NYA_EXPECT(nya_filesystem_move(temporary, target), "while moving %s into place", target);
+}
+
 #if NYA_BUILD_HAS_SPIRV_CROSS
 /**
  * Cross compiles `ir` to GLSL ES 300 and returns the source (owned by `context`), or nullptr on failure
@@ -538,7 +537,9 @@ b8 _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString gl
         return false;
     }
 
-    NYA_EXPECT(nya_file_write(glsl, source), "while writing %s", glsl);
+    NYA_CString temporary = _nya_asset_shader_temporary(glsl);
+    NYA_EXPECT(nya_file_write(temporary, source), "while writing %s", temporary);
+    NYA_EXPECT(nya_filesystem_move(temporary, glsl), "while moving %s into place", glsl);
     spvc_context_destroy(context);
     return true;
 }
