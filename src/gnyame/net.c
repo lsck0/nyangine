@@ -86,6 +86,7 @@ void gny_net_start(void) {
         .max_speed        = speed * GNY_NET_SPEED_HEADROOM,
         .position_bits    = GNY_NET_POSITION_BITS,
         .conditions       = GNY_LAUNCH.conditions,
+        .allowlist        = GNY_LAUNCH.allowlist,
     };
 
     // a listening server keeps its identity, so players who pinned its key can come back. Without one it makes a throwaway.

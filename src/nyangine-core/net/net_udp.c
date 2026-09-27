@@ -348,6 +348,9 @@ NYA_INTERNAL void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32
 /** A RESPONSE from a stranger: the only way a peer slot is ever taken on a server. */
 NYA_INTERNAL void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress address, const u8* data);
 
+/** Tells a stranger why it gets no slot. Unauthenticated, so the client only ever takes it as a reason to stop trying. */
+NYA_INTERNAL void _nya_net_udp_refuse(_NYA_NetUdpState* state, NYA_OsAddress address, NYA_NetDisconnect reason);
+
 /** A client's side of CHALLENGE and ACCEPT. */
 NYA_INTERNAL void _nya_net_udp_handle_challenge(NYA_NetTransport* transport, u32 peer_index, const u8* data);
 NYA_INTERNAL void _nya_net_udp_handle_accept(NYA_NetTransport* transport, u32 peer_index, const u8* data);
@@ -1175,13 +1178,7 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress add
     }
 
     if (full || same_address >= _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS) {
-        u8 refused[_NYA_NET_UDP_REFUSED_SIZE] = { 0 };
-
-        _nya_net_udp_write_u32(refused, _NYA_NET_UDP_PROTOCOL);
-        refused[4] = _NYA_NET_UDP_KIND_REFUSED;
-        refused[5] = (u8)NYA_NET_DISCONNECT_FULL;
-
-        _nya_net_udp_transmit(state, address, refused, sizeof(refused));
+        _nya_net_udp_refuse(state, address, NYA_NET_DISCONNECT_FULL);
         return;
     }
 
@@ -1212,6 +1209,16 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress add
     _nya_net_crypto_response_key(response_key, premaster);
 
     if (!_nya_net_crypto_open(response_key, 0, data, _NYA_NET_UDP_RESPONSE_TAGGED, nullptr, 0, mac)) return;
+
+    // after the tag, which proves the client holds the key it names: checked before it, anyone could name a listed key.
+    if (!nya_net_allowlist_admits(&transport->allowlist, client_static)) {
+        char hex[NYA_NET_KEY_HEX_SIZE] = { 0 };
+        nya_net_key_to_hex(client_static, hex);
+        nya_log_info("Refused a player whose key is not on the allowlist: %s", has_client_key ? hex : "(none)");
+
+        _nya_net_udp_refuse(state, address, NYA_NET_DISCONNECT_IDENTITY);
+        return;
+    }
 
     NYA_NetKeyPair server_ephemeral = { 0 };
     defer nya_crypto_wipe(&server_ephemeral, sizeof(server_ephemeral));
@@ -1245,6 +1252,18 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress add
         .kind = NYA_NET_TRANSPORT_EVENT_CONNECTED,
         .peer = { .index = added, .generation = connection->generation },
     });
+}
+
+void _nya_net_udp_refuse(_NYA_NetUdpState* state, NYA_OsAddress address, NYA_NetDisconnect reason) {
+    nya_assert((u32)reason < NYA_NET_DISCONNECT_COUNT);
+
+    u8 refused[_NYA_NET_UDP_REFUSED_SIZE] = { 0 };
+
+    _nya_net_udp_write_u32(refused, _NYA_NET_UDP_PROTOCOL);
+    refused[4] = _NYA_NET_UDP_KIND_REFUSED;
+    refused[5] = (u8)reason;
+
+    _nya_net_udp_transmit(state, address, refused, sizeof(refused));
 }
 
 void _nya_net_udp_handle_challenge(NYA_NetTransport* transport, u32 peer_index, const u8* data) {

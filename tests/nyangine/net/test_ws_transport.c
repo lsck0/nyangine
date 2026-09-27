@@ -336,20 +336,11 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_listen(TRANSPORT, port));
     nya_assert(nya_net_transport_port(TRANSPORT) == port, "the transport reports the HTTP server's port");
 
-    // The allowlist: the one key is allowed, the stranger is not, and it is idempotent.
-    NYA_EXPECT(nya_net_transport_ws_allow(TRANSPORT, allowed.public_key));
-    NYA_EXPECT(nya_net_transport_ws_allow(TRANSPORT, allowed.public_key));
-    nya_assert(nya_net_transport_ws_is_allowed(TRANSPORT, allowed.public_key));
-    nya_assert(!nya_net_transport_ws_is_allowed(TRANSPORT, stranger.public_key));
-
-    // A key can be taken off the list again: the stranger is allowed, then disallowed, and is out.
-    NYA_EXPECT(nya_net_transport_ws_allow(TRANSPORT, stranger.public_key));
-    nya_assert(nya_net_transport_ws_is_allowed(TRANSPORT, stranger.public_key));
-    nya_net_transport_ws_disallow(TRANSPORT, stranger.public_key);
-    nya_assert(!nya_net_transport_ws_is_allowed(TRANSPORT, stranger.public_key), "a disallowed key is out");
-
-    u8 zero[NYA_NET_KEY_SIZE] = { 0 };
-    nya_assert(nya_net_transport_ws_allow(TRANSPORT, zero).kind == NYA_ERROR_INVALID_ARGUMENT, "an all-zero key is not a key");
+    // The list starts closed on this transport; the one key is allowed and the stranger is not.
+    nya_assert(TRANSPORT->allowlist.closed && !nya_net_allowlist_admits(&TRANSPORT->allowlist, allowed.public_key), "a websocket transport starts closed");
+    NYA_EXPECT(nya_net_allowlist_add(&TRANSPORT->allowlist, allowed.public_key));
+    nya_assert(nya_net_allowlist_admits(&TRANSPORT->allowlist, allowed.public_key));
+    nya_assert(!nya_net_allowlist_admits(&TRANSPORT->allowlist, stranger.public_key));
 
     // TEST: an allowlisted key and the matching version connects and round-trips a message.
     {

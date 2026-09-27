@@ -5,8 +5,6 @@
  *
  * ```
  * nya_net_transport_ws_create   a server-side transport that mounts a route browsers dial into
- * nya_net_transport_ws_allow    a player key the server will accept; a join off the list is refused
- * nya_net_transport_ws_disallow the pair
  * nya_net_ws_join_encode        the join frame a client sends first, for a browser or a test
  * ```
  *
@@ -27,10 +25,14 @@
  *
  * The first WebSocket message a peer sends is a join frame (nya_net_ws_join_encode): a tag, the version
  * the client speaks, and the player key it presents. The server accepts the peer, and reports it as
- * NYA_NET_TRANSPORT_EVENT_CONNECTED, only when the version equals this server's and the key is one
- * nya_net_transport_ws_allow was given. A version that does not match is closed with
- * NYA_WEBSOCKET_CLOSE_POLICY and the reason "protocol version mismatch"; a key that is not on the list
- * with the reason "player key not on allowlist"; a malformed join with NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR.
+ * NYA_NET_TRANSPORT_EVENT_CONNECTED, only when the version equals this server's and the transport's
+ * allowlist admits the key (net_transport.h). The list starts closed here, unlike UDP's: the route is on a
+ * public web server and a join presents its key without proving it, so the key is a shared secret rather
+ * than an identity. Add keys with nya_net_allowlist_add, or set `closed = false` for an open server.
+ *
+ * A version that does not match is closed with NYA_WEBSOCKET_CLOSE_POLICY and the reason "protocol
+ * version mismatch"; a key the list refuses with the reason "player key not on allowlist"; a malformed
+ * join with NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR.
  * A refused peer is dropped at the join, before it is ever an established peer, so it is a close on the
  * wire the client reads and not a silent drop — and no CONNECTED or DISCONNECTED event above.
  *
@@ -61,9 +63,6 @@
 
 /** The route mounted when NYA_NetWsOptions.path is null. */
 #define NYA_NET_WS_DEFAULT_PATH "/ws/net"
-
-/** Player keys one server holds on its allowlist. A join off the list is refused. */
-#define NYA_NET_WS_MAX_ALLOWED NYA_NET_MAX_PEERS
 
 /** The first byte of every transport frame, telling control from data on one stream. */
 #define NYA_NET_WS_TAG_JOIN   0x01U /* client → server: version and player key, sent first */
@@ -105,20 +104,6 @@ struct NYA_NetWsOptions {
  * NYA_ERROR_ALREADY_EXISTS when a WebSocket net transport already exists in this process.
  * */
 NYA_API NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options, OUT NYA_NetTransport** out_transport) __attr_no_discard;
-
-/**
- * Adds a player key to the allowlist, so a peer presenting it in its join is accepted. Adding the same
- * key twice is a no-op.
- *
- * NYA_ERROR_INVALID_ARGUMENT for an all-zero key, and NYA_ERROR_OUT_OF_MEMORY past NYA_NET_WS_MAX_ALLOWED.
- * */
-NYA_API NYA_Error nya_net_transport_ws_allow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE]) __attr_no_discard;
-
-/** Removes a key from the allowlist. Already-connected peers keep their connection; the next join is checked afresh. A key that was never on it is a no-op. */
-NYA_API void nya_net_transport_ws_disallow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE]);
-
-/** Whether a key is on the allowlist right now. */
-NYA_API b8 nya_net_transport_ws_is_allowed(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE]) __attr_no_discard;
 
 /**
  * Writes the join frame a client sends first: NYA_NET_WS_TAG_JOIN, `version` little-endian, then `key`.

@@ -5084,7 +5084,7 @@ The wire: an encrypted session to a peer over UDP, Steam's relay or a loopback p
 
 ```c
 // types
-struct NYA_NetLaunchConfig { NYA_NetRole role; b8 dedicated; char address[NYA_NET_MAX_ADDRESS]; u16 port; char name[NYA_NET_MAX_NAME]; b8 named; u32 max_players; u16 listen_port; u32 tickrate; u64 world_seed; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetConditions conditions; NYA_NetTransportKind transport; }  // What the command line asked for.
+struct NYA_NetLaunchConfig { NYA_NetRole role; b8 dedicated; char address[NYA_NET_MAX_ADDRESS]; u16 port; char name[NYA_NET_MAX_NAME]; b8 named; u32 max_players; u16 listen_port; u32 tickrate; u64 world_seed; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; NYA_NetTransportKind transport; }  // What the command line asked for.
 
 // macros
 NYA_NET_DEFAULT_PORT 27015  // The port used when none is given.
@@ -5161,8 +5161,9 @@ struct NYA_NetTransportEvent { NYA_NetTransportEventKind kind; NYA_NetPeerId pee
 struct NYA_NetPeerStats { f32 rtt_ms; f32 jitter_ms; f32 packet_loss; u64 bytes_sent; u64 bytes_received; u64 packets_sent; u64 packets_received; u32 bytes_sent_per_second; u32 bytes_received_per_second; u64 retransmits; u64 packets_rejected; u32 snapshot_bytes; u32 violations; f32 interpolation_delay_ms; }  // What a connection is currently costing, for a debug overlay and for the client's clock sync.
 struct NYA_NetConditions { u32 latency_ms; u32 jitter_ms; f32 loss_percent; f32 duplicate_percent; f32 reorder_percent; }  // A bad network on purpose, applied to what one endpoint sends.
 struct NYA_NetUdpOptions { NYA_NetKeyPair identity; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetConditions conditions; }  // How a UDP transport identifies itself and whom it trusts.
+struct NYA_NetAllowlist { u8 keys[NYA_NET_ALLOWLIST_MAX][NYA_NET_KEY_SIZE]; u32 count; b8 closed; }  // The player keys a server admits, checked at the handshake before a peer gets a slot.
 struct NYA_NetTransportVTable { NYA_ConstCString name; NYA_NetTransportKind kind; NYA_Error (*listen)(NYA_NetTransport* transport, u16 port); u16 (*port)(NYA_NetTransport* transport); NYA_Error (*connect)(NYA_NetTransport* transport, NYA_ConstCString address, u16 port); NYA_Error (*send)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size); void (*flush)(NYA_NetTransport* transport); b8 (*poll)(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event); void (*disconnect)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason); NYA_NetPeerStats (*stats)(NYA_NetTransport* transport, NYA_NetPeerId peer); NYA_ConstCString (*peer_address)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*condition)(NYA_NetTransport* transport, NYA_NetConditions conditions); const u8* (*public_key)(NYA_NetTransport* transport); const u8* (*peer_key)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*destroy)(NYA_NetTransport* transport); }  // What every transport implements.
-struct NYA_NetTransport { const NYA_NetTransportVTable* vtable; NYA_Arena* allocator; void* state; }  // One transport instance.
+struct NYA_NetTransport { const NYA_NetTransportVTable* vtable; NYA_Arena* allocator; void* state; NYA_NetAllowlist allowlist; }  // One transport instance.
 
 // functions
 NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b)  // A transport that carries messages between two endpoints in the same process.
@@ -5182,6 +5183,10 @@ void nya_net_transport_condition(NYA_NetTransport* transport, NYA_NetConditions 
 b8 nya_net_conditions_active(NYA_NetConditions conditions)  // Whether any condition is set at all.
 const u8* nya_net_transport_public_key(NYA_NetTransport* transport)  // This endpoint's long term public key, or null.
 const u8* nya_net_transport_peer_key(NYA_NetTransport* transport, NYA_NetPeerId peer)  // The long term key `peer` proved it holds during the handshake, or null for an anonymous or local peer.
+NYA_Error nya_net_allowlist_add(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE])  // Admits `key` and closes the list to every other.
+void nya_net_allowlist_remove(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE])  // Takes `key` off the list.
+b8 nya_net_allowlist_contains(const NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE])  // Whether `key` is listed, whether or not the list is closed.
+b8 nya_net_allowlist_admits(const NYA_NetAllowlist* allowlist, const u8* key)  // Whether a peer presenting `key` may connect: anyone to an open list, a listed key to a closed one.
 b8 nya_net_transport_is_local(const NYA_NetTransport* transport)  // Whether this transport's peers are in the same process.
 ```
 
@@ -5297,7 +5302,7 @@ typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCS
 typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle entity)  // Called when a player leaves, before their entity is despawned.
 typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant)  // Whether `entity` is worth sending to `peer` this tick.
 typedef void (*NYA_NetServerEventFn)(NYA_NetPeerId peer, const NYA_Object* event)  // Called when a client sends a game-defined event.
-struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetConditions conditions; u32 lag_history_ticks; }
+struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; u32 lag_history_ticks; }
 struct NYA_NetServerPeer { NYA_NetPeerId peer; char name[NYA_NET_MAX_NAME]; NYA_EntityHandle entity; b8 accepted; b8 is_local; u8 public_key[NYA_NET_KEY_SIZE]; }  // One connected player, as the game sees them.
 
 // macros
@@ -5789,7 +5794,6 @@ struct NYA_NetWsOptions { NYA_ConstCString path; u32 version; }  // How a WebSoc
 
 // macros
 NYA_NET_WS_DEFAULT_PATH "/ws/net"  // The route mounted when NYA_NetWsOptions.path is null.
-NYA_NET_WS_MAX_ALLOWED NYA_NET_MAX_PEERS  // Player keys one server holds on its allowlist.
 NYA_NET_WS_TAG_JOIN 0x01U  // The first byte of every transport frame, telling control from data on one stream.
 NYA_NET_WS_TAG_ACCEPT 0x02U
 NYA_NET_WS_TAG_DATA 0x03U
@@ -5798,9 +5802,6 @@ NYA_NET_WS_ACCEPT_SIZE (1 + 4)  // An accept frame: the tag and the server's ver
 
 // functions
 NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options, OUT NYA_NetTransport** out_transport)  // A server-side net transport over a WebSocket.
-NYA_Error nya_net_transport_ws_allow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE])  // Adds a player key to the allowlist, so a peer presenting it in its join is accepted.
-void nya_net_transport_ws_disallow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE])  // Removes a key from the allowlist.
-b8 nya_net_transport_ws_is_allowed(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE])  // Whether a key is on the allowlist right now.
 void nya_net_ws_join_encode(u32 version, const u8 key[NYA_NET_KEY_SIZE], OUT u8 out_frame[NYA_NET_WS_JOIN_SIZE])  // Writes the join frame a client sends first: NYA_NET_WS_TAG_JOIN, `version` little-endian, then `key`.
 ```
 

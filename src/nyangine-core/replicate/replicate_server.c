@@ -305,7 +305,12 @@ NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) {
             NYA_TRY(nya_net_transport_udp_create(_NYA_NET_SERVER.allocator, options, &transport));
         } break;
 
-        case NYA_NET_TRANSPORT_STEAM: NYA_TRY(nya_net_transport_steam_create(_NYA_NET_SERVER.allocator, &transport)); break;
+        case NYA_NET_TRANSPORT_STEAM: {
+            // refused rather than ignored: Steam's handshake does not check the list yet, and an ignored one is an open server.
+            if (_NYA_NET_SERVER.config.allowlist.closed) return nya_error(NYA_ERROR_NOT_SUPPORTED, "the Steam transport has no allowlist yet");
+
+            NYA_TRY(nya_net_transport_steam_create(_NYA_NET_SERVER.allocator, &transport));
+        } break;
 
         // a loopback pair is joined at creation and has no second end to wait for, so there is nothing
         // for it to listen on; nya_net_server_attach_local is the call that makes one.
@@ -313,6 +318,8 @@ NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) {
         case NYA_NET_TRANSPORT_KIND_COUNT:
         default:                         return nya_error(NYA_ERROR_NOT_SUPPORTED, "that transport cannot accept players");
     }
+
+    transport->allowlist = _NYA_NET_SERVER.config.allowlist;
 
     NYA_Error listening = nya_net_transport_listen(transport, port);
 

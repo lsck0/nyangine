@@ -10,6 +10,9 @@
  * ./net_echo.example --connect 127.0.0.1 47900   # just the client, from another terminal
  * ```
  *
+ * The in-process run also closes the server to one player: the client's key goes on the server's
+ * allowlist, and a second client with no key is refused at the handshake with NYA_NET_DISCONNECT_IDENTITY.
+ *
  * ## This is not the web server
  *
  * The web is in scope and being worked on; at the time this was written none of it had landed.
@@ -69,6 +72,8 @@ typedef struct {
     u32 received;
     u32 sent;
     b8  finished;
+
+    NYA_NetDisconnect reason;
 } Endpoint;
 
 /** Copies a message out of the transport's buffer, which the next poll invalidates. */
@@ -151,6 +156,7 @@ NYA_INTERNAL void endpoint_pump(NYA_NetTransport* transport, Endpoint* endpoint,
 
                 endpoint->connected = false;
                 endpoint->finished  = true;
+                endpoint->reason    = event.reason;
             } break;
 
             default: break;
@@ -245,12 +251,26 @@ s32 main(s32 argc, NYA_CString* argv) {
     NYA_NetTransport* client = nullptr;
     Endpoint          client_endpoint = { .label = "client" };
 
+    // a stranger with no key, which the server's allowlist refuses; only in-process, where this program owns the list.
+    NYA_NetTransport* stranger = nullptr;
+    Endpoint          stranger_endpoint = { .label = "stranger" };
+
     if (run_client) {
+        NYA_NetUdpOptions options = { 0 };
+        NYA_EXPECT(nya_net_key_pair_create(&options.identity), "while creating the client's key");
+
         // `server_key` left zero trusts whatever key the server presents, which is fine on loopback and is exactly what --server-key pins against in the game.
-        NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client), "while creating the client transport");
+        NYA_EXPECT(nya_net_transport_udp_create(arena, options, &client), "while creating the client transport");
 
         NYA_EXPECT(nya_net_transport_connect(client, address, port), "while connecting");
         nya_log_info("client: connecting to %s:%u.", address, port);
+
+        if (server != nullptr) {
+            NYA_EXPECT(nya_net_allowlist_add(&server->allowlist, options.identity.public_key), "while allowing the client's key");
+
+            NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &stranger), "while creating the stranger's transport");
+            NYA_EXPECT(nya_net_transport_connect(stranger, address, port), "while connecting the stranger");
+        }
     }
 
     // the loop
@@ -259,9 +279,10 @@ s32 main(s32 argc, NYA_CString* argv) {
     while (nya_clock_get_monotonic_ms() < deadline) {
         if (server != nullptr) endpoint_pump(server, &server_endpoint, true);
         if (client != nullptr) endpoint_pump(client, &client_endpoint, false);
+        if (stranger != nullptr) endpoint_pump(stranger, &stranger_endpoint, false);
 
-        // The client decides when the conversation is over. A server alone runs until the timeout, which is what a server does.
-        if (run_client && client_endpoint.finished) break;
+        // The client decides when the conversation is over, once the stranger has heard its refusal. A server alone runs until the timeout, which is what a server does.
+        if (run_client && client_endpoint.finished && (stranger == nullptr || stranger_endpoint.finished)) break;
 
         SDL_Delay(POLL_INTERVAL_MS);
     }
@@ -275,12 +296,18 @@ s32 main(s32 argc, NYA_CString* argv) {
     }
 
     // Paired with the creates above rather than deferred beside them: a defer inside the `if` that created each one would fire at the end of that block, before a single packet moved.
+    if (stranger != nullptr) nya_net_transport_destroy(stranger);
     if (client != nullptr) nya_net_transport_destroy(client);
     if (server != nullptr) nya_net_transport_destroy(server);
 
     // An exchange that never happened is a failure, not a quiet success.
     if (run_client && run_server && client_endpoint.received < ROUNDS) {
         nya_log_error("Only %u of %u replies arrived before the %u ms timeout.", client_endpoint.received, ROUNDS, TIMEOUT_MS);
+        return EXIT_FAILURE;
+    }
+
+    if (stranger != nullptr && (stranger_endpoint.received > 0 || stranger_endpoint.reason != NYA_NET_DISCONNECT_IDENTITY)) {
+        nya_log_error("A client with no key got past the allowlist, or was never told it was refused.");
         return EXIT_FAILURE;
     }
 

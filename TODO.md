@@ -2174,7 +2174,12 @@ up. Under 120 ms, 20 ms jitter and 5% loss, prediction converges with no correct
 - `[x]` Version-rejected peers still linger until timeout. The server disconnects a refused peer (wrong version,
   or a full server) right after its REJECT, with the reason in the disconnect itself, so a peer whose REJECT was
   lost still learns why. Testing it found the loopback transport never reported a disconnect to the far end.
-- `[ ]` No allowlist API for player keys; the Steam transport is a stub.
+- `[x]` Allowlist for player keys: `NYA_NetAllowlist` in net_transport.h, one per transport, launch config
+  (`--allow-key`, repeatable) and server config. UDP checks it after the RESPONSE tag proves the key and answers
+  REFUSED with `NYA_NET_DISCONNECT_IDENTITY` before any slot or session exists; keyless clients are refused. Zero
+  is open, the first add closes it, and removing keys never reopens it, since revoking the last player must not
+  admit everyone. The WebSocket transport dropped its private copy for it and starts closed, as before.
+- `[ ]` The Steam transport is a stub and checks no allowlist, so listening over Steam with a closed one is refused.
 
 ## `[~]` Steam targets and anti-tamper
 

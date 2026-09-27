@@ -154,3 +154,74 @@ b8 nya_net_transport_is_local(const NYA_NetTransport* transport) {
 
     return transport->vtable->kind == NYA_NET_TRANSPORT_LOOPBACK;
 }
+
+// ALLOWLIST
+
+/** The fullest any allowlist has been. NYA_NET_ALLOWLIST_MAX is per list, so the ceiling registry watches the fullest. */
+NYA_INTERNAL u32 _nya_net_allowlist_count_worst = 0;
+
+NYA_Error nya_net_allowlist_add(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE]) {
+    nya_assert(allowlist != nullptr);
+    nya_assert(key != nullptr);
+    nya_assert(allowlist->count <= NYA_NET_ALLOWLIST_MAX);
+
+    if (!nya_net_key_is_set(key)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an all-zero player key");
+
+    allowlist->closed = true;
+
+    if (nya_net_allowlist_contains(allowlist, key)) return NYA_OK;
+    if (allowlist->count == NYA_NET_ALLOWLIST_MAX) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the allowlist holds at most %d keys", NYA_NET_ALLOWLIST_MAX);
+
+    nya_memcpy(allowlist->keys[allowlist->count], key, NYA_NET_KEY_SIZE);
+    allowlist->count++;
+
+    if (allowlist->count > _nya_net_allowlist_count_worst) _nya_net_allowlist_count_worst = allowlist->count;
+
+    // registered once, on the first key any list is given.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("net_allowlist", NYA_NET_ALLOWLIST_MAX, &_nya_net_allowlist_count_worst);
+        ceiling_registered = true;
+    }
+
+    return NYA_OK;
+}
+
+void nya_net_allowlist_remove(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE]) {
+    nya_assert(allowlist != nullptr);
+    nya_assert(key != nullptr);
+    nya_assert(allowlist->count <= NYA_NET_ALLOWLIST_MAX);
+
+    for (u32 i = 0; i < allowlist->count; i++) {
+        if (nya_memcmp(allowlist->keys[i], key, NYA_NET_KEY_SIZE) != 0) continue;
+
+        // the last entry fills the hole, so the list stays dense and a scan stops at count.
+        allowlist->count--;
+        if (i != allowlist->count) nya_memcpy(allowlist->keys[i], allowlist->keys[allowlist->count], NYA_NET_KEY_SIZE);
+        nya_memset(allowlist->keys[allowlist->count], 0, NYA_NET_KEY_SIZE);
+
+        nya_assert(!nya_net_allowlist_contains(allowlist, key), "a key was listed twice");
+        return;
+    }
+}
+
+b8 nya_net_allowlist_contains(const NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE]) {
+    nya_assert(allowlist != nullptr);
+    nya_assert(key != nullptr);
+    nya_assert(allowlist->count <= NYA_NET_ALLOWLIST_MAX);
+
+    for (u32 i = 0; i < allowlist->count; i++) {
+        if (nya_memcmp(allowlist->keys[i], key, NYA_NET_KEY_SIZE) == 0) return true;
+    }
+
+    return false;
+}
+
+b8 nya_net_allowlist_admits(const NYA_NetAllowlist* allowlist, const u8* key) {
+    nya_assert(allowlist != nullptr);
+
+    if (!allowlist->closed) return true;
+
+    // a keyless peer has nothing to be listed under.
+    return key != nullptr && nya_net_key_is_set(key) && nya_net_allowlist_contains(allowlist, key);
+}

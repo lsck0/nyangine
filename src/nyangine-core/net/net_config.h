@@ -7,6 +7,7 @@
  * gnyame --connect 192.168.1.5 --port 27015   join somebody else's game
  * gnyame --name Luca                          any of the above, with a name
  * gnyame --connect host --server-key 1f0c...  refuse any server but the one holding that key
+ * gnyame --server --allow-key 9a3e...         admit only the players holding these keys, one flag each
  * gnyame --net-latency 60 --net-loss 5        and a bad network, to see how the game holds up
  * gnyame --connect 76561197960287930 \
  *        --transport steam                    join over Steam, where the address is an account
@@ -94,6 +95,9 @@ struct NYA_NetLaunchConfig {
 
     /** From `--server-key`, 64 hex digits: the only server a client will talk to. Zero trusts the first key it sees. */
     u8 server_key[NYA_NET_KEY_SIZE];
+
+    /** From `--allow-key`, 64 hex digits, once per player: the only players a server admits. Zero admits everyone. */
+    NYA_NetAllowlist allowlist;
 
     /** From `--net-latency` and `--net-jitter` in milliseconds, `--net-loss`, `--net-duplicate` and `--net-reorder` in percent. */
     NYA_NetConditions conditions;

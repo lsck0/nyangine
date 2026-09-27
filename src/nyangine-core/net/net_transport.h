@@ -10,8 +10,19 @@
 #include "nyangine-core/net/net_crypto.h"
 #include "nyangine-core/net/net_types.h"
 
+// CONSTANTS
+
+enum {
+    /**
+     * Keys one allowlist holds: twice the NYA_NET_MAX_PEERS seats, since a private server's roster is not all online at
+     * once. 2 KiB, so a launch config carrying one stays cheap to pass by value.
+     * */
+    NYA_NET_ALLOWLIST_MAX = NYA_NET_MAX_PEERS * 2,
+};
+
 // TYPES
 
+typedef struct NYA_NetAllowlist      NYA_NetAllowlist;
 typedef struct NYA_NetTransport      NYA_NetTransport;
 typedef struct NYA_NetTransportVTable NYA_NetTransportVTable;
 typedef struct NYA_NetTransportEvent NYA_NetTransportEvent;
@@ -135,6 +146,21 @@ struct NYA_NetUdpOptions {
 };
 
 /**
+ * The player keys a server admits, checked at the handshake before a peer gets a slot. Plain data: a launch config,
+ * a server config and a transport each hold one, and copying it is how a list moves between them.
+ *
+ * Zero is an open server, which is every game that never asked for one. The first add closes it, and removing keys
+ * never opens it again, since revoking the last player must not admit everyone; only `closed = false` does.
+ * */
+struct NYA_NetAllowlist {
+    u8  keys[NYA_NET_ALLOWLIST_MAX][NYA_NET_KEY_SIZE];
+    u32 count;
+
+    /** Whether only the listed keys are admitted. A keyless peer never is. */
+    b8 closed;
+};
+
+/**
  * What every transport implements. See the contract at the top of this file.
  * */
 struct NYA_NetTransportVTable {
@@ -191,6 +217,9 @@ struct NYA_NetTransport {
 
     /** The implementation's own state. Meaningless to everything above this file. */
     void* state;
+
+    /** Who may connect. UDP checks it once the peer has proved its key, WebSocket once it has presented one; loopback has no stranger to refuse. */
+    NYA_NetAllowlist allowlist;
 };
 
 // FUNCTIONS
@@ -255,6 +284,25 @@ NYA_API const u8* nya_net_transport_public_key(NYA_NetTransport* transport) __at
 
 /** The long term key `peer` proved it holds during the handshake, or null for an anonymous or local peer. */
 NYA_API const u8* nya_net_transport_peer_key(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
+
+// ALLOWLIST
+
+/**
+ * Admits `key` and closes the list to every other. Adding a key twice is one entry.
+ *
+ * NYA_ERROR_INVALID_ARGUMENT for an all-zero key, which changes nothing. NYA_ERROR_OUT_OF_MEMORY past NYA_NET_ALLOWLIST_MAX,
+ * which still closes the list: a key that did not fit fails closed.
+ * */
+NYA_API NYA_Error nya_net_allowlist_add(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE]) __attr_no_discard;
+
+/** Takes `key` off the list. A peer already connected keeps its connection; its next handshake is refused. An unlisted key is a no-op. */
+NYA_API void nya_net_allowlist_remove(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE]);
+
+/** Whether `key` is listed, whether or not the list is closed. */
+NYA_API b8 nya_net_allowlist_contains(const NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE]) __attr_no_discard;
+
+/** Whether a peer presenting `key` may connect: anyone to an open list, a listed key to a closed one. Null or all-zero is a keyless peer. */
+NYA_API b8 nya_net_allowlist_admits(const NYA_NetAllowlist* allowlist, const u8* key) __attr_no_discard;
 
 /**
  * Whether this transport's peers are in the same process.

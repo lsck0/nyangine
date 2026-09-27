@@ -277,6 +277,18 @@ s32 main(void) {
     nya_assert(!nya_net_key_is_set(short_key.server_key) && !nya_net_key_is_set(not_hex.server_key), "a malformed key pinned something");
   }
 
+  printf("TEST: --allow-key closes the server to the listed keys, and a bad one still closes it\n");
+  {
+    NYA_NetLaunchConfig open = PARSE("--server");
+    nya_assert(!open.allowlist.closed, "no --allow-key is an open server");
+
+    NYA_NetLaunchConfig two = PARSE("--server", "--allow-key", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "--allow-key=ff0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+    nya_assert(two.allowlist.closed && two.allowlist.count == 2 && two.allowlist.keys[0][1] == 1 && two.allowlist.keys[1][0] == 0xFF);
+
+    NYA_NetLaunchConfig typo = PARSE("--server", "--allow-key", "0001");
+    nya_assert(typo.allowlist.closed && typo.allowlist.count == 0, "a malformed key must fail closed, not open");
+  }
+
   printf("TEST: the network conditioner flags\n");
   {
     NYA_NetLaunchConfig bad = PARSE("--net-latency", "120", "--net-jitter=20", "--net-loss", "5", "--net-duplicate", "0.5", "--net-reorder", "1");

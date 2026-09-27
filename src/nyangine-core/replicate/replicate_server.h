@@ -145,6 +145,9 @@ struct NYA_NetServerConfig {
     /** Who this server is. Players pin its public key. Zero generates a fresh identity when listening starts. */
     NYA_NetKeyPair identity;
 
+    /** The players this server admits over the network. Zero admits everyone. Copied onto the transport when listening starts. */
+    NYA_NetAllowlist allowlist;
+
     /** A bad network on purpose, for what this server sends to remote players. */
     NYA_NetConditions conditions;
 

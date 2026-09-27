@@ -52,9 +52,8 @@ struct _NYA_NetWsState {
     _NYA_NetWsPeer peers[NYA_NET_MAX_PEERS];
     u32            next_generation;
 
-    u8  allowed[NYA_NET_WS_MAX_ALLOWED][NYA_NET_KEY_SIZE];
-    b8  allowed_used[NYA_NET_WS_MAX_ALLOWED];
-    u32 allowed_count;
+    /** Whose allowlist a join is checked against. */
+    NYA_NetTransport* transport;
 
     NYA_Arrayᐸ_NYA_NetWsEventᐳ* events;
 
@@ -116,15 +115,6 @@ NYA_INTERNAL void _nya_net_ws_write_u32(OUT u8* at, u32 value) {
     at[1] = (u8)((value >> 8) & 0xFFU);
     at[2] = (u8)((value >> 16) & 0xFFU);
     at[3] = (u8)((value >> 24) & 0xFFU);
-}
-
-NYA_INTERNAL b8 _nya_net_ws_allowed_contains(_NYA_NetWsState* state, const u8* key) {
-    for (u32 i = 0; i < NYA_NET_WS_MAX_ALLOWED; i++) {
-        if (!state->allowed_used[i]) continue;
-        if (nya_memcmp(state->allowed[i], key, NYA_NET_KEY_SIZE) == 0) return true;
-    }
-
-    return false;
 }
 
 /** A NetPeerId for a slot. Generation is never zero, so an unset id never matches an occupied slot. */
@@ -238,6 +228,7 @@ NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options
 
     *state = (_NYA_NetWsState){
         .allocator       = arena,
+        .transport       = transport,
         .version         = options.version,
         .next_generation = 0,
         .events          = nya_array_create(arena, _NYA_NetWsEvent),
@@ -257,61 +248,15 @@ NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options
         .vtable    = &_NYA_NET_WS_VTABLE,
         .allocator = arena,
         .state     = state,
+
+        // closed until a key is added: the route is on a public web server, and a join presents its key without proving it.
+        .allowlist = { .closed = true },
     };
 
     _NYA_NET_WS   = state;
     *out_transport = transport;
 
     return NYA_OK;
-}
-
-NYA_Error nya_net_transport_ws_allow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE]) {
-    nya_assert(transport != nullptr && transport->vtable == &_NYA_NET_WS_VTABLE, "not a websocket net transport");
-    nya_assert(key != nullptr);
-
-    _NYA_NetWsState* state = transport->state;
-
-    if (!nya_net_key_is_set(key)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "an all-zero player key");
-
-    // Idempotent: the same key twice is one entry, not two.
-    if (_nya_net_ws_allowed_contains(state, key)) return NYA_OK;
-
-    for (u32 i = 0; i < NYA_NET_WS_MAX_ALLOWED; i++) {
-        if (state->allowed_used[i]) continue;
-
-        nya_memcpy(state->allowed[i], key, NYA_NET_KEY_SIZE);
-        state->allowed_used[i] = true;
-        state->allowed_count++;
-
-        return NYA_OK;
-    }
-
-    return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the allowlist holds at most %d keys", NYA_NET_WS_MAX_ALLOWED);
-}
-
-void nya_net_transport_ws_disallow(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE]) {
-    nya_assert(transport != nullptr && transport->vtable == &_NYA_NET_WS_VTABLE, "not a websocket net transport");
-    nya_assert(key != nullptr);
-
-    _NYA_NetWsState* state = transport->state;
-
-    for (u32 i = 0; i < NYA_NET_WS_MAX_ALLOWED; i++) {
-        if (!state->allowed_used[i]) continue;
-        if (nya_memcmp(state->allowed[i], key, NYA_NET_KEY_SIZE) != 0) continue;
-
-        nya_memset(state->allowed[i], 0, NYA_NET_KEY_SIZE);
-        state->allowed_used[i] = false;
-        state->allowed_count--;
-
-        return;
-    }
-}
-
-b8 nya_net_transport_ws_is_allowed(NYA_NetTransport* transport, const u8 key[NYA_NET_KEY_SIZE]) {
-    nya_assert(transport != nullptr && transport->vtable == &_NYA_NET_WS_VTABLE, "not a websocket net transport");
-    nya_assert(key != nullptr);
-
-    return _nya_net_ws_allowed_contains(transport->state, key);
 }
 
 void nya_net_ws_join_encode(u32 version, const u8 key[NYA_NET_KEY_SIZE], OUT u8 out_frame[NYA_NET_WS_JOIN_SIZE]) {
@@ -516,14 +461,14 @@ void _nya_net_ws_on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* dat
         }
 
         const u8* key = data + 5;
-        if (!_nya_net_ws_allowed_contains(state, key)) {
+        if (!nya_net_allowlist_admits(&state->transport->allowlist, key)) {
             _nya_net_ws_drop(state, index, NYA_NET_DISCONNECT_IDENTITY, NYA_WEBSOCKET_CLOSE_POLICY, "player key not on allowlist", false);
             return;
         }
 
         // Accepted: the peer is connected, its key remembered for peer_key, and the acceptance goes back so the client knows it's in rather than inferring it from silence.
         peer->connected = true;
-        peer->has_key   = true;
+        peer->has_key   = nya_net_key_is_set(key);
         nya_memcpy(peer->key, key, NYA_NET_KEY_SIZE);
 
         NYA_WebSocketProtocol* protocol = nya_http_websocket_protocol(socket);

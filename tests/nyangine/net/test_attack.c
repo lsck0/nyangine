@@ -281,6 +281,27 @@ static NYA_NetTransport* listen_server(NYA_Arena* arena, OUT u16* out_port) {
   return server;
 }
 
+/** A real client holding `identity` joins `port`, both ends pumped until the handshake ends one way or the other. The caller destroys the client. */
+static NYA_NetTransport* join_as(NYA_Arena* arena, NYA_NetTransport* server, u16 port, NYA_NetKeyPair identity, OUT NYA_NetTransportEvent* out_outcome) {
+  NYA_NetTransport* client = nullptr;
+  NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ .identity = identity }, &client));
+  NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
+
+  *out_outcome = (NYA_NetTransportEvent){ 0 };
+  u64 deadline = nya_clock_get_monotonic_ms() + 3000;
+
+  while (out_outcome->kind == NYA_NET_TRANSPORT_EVENT_NONE && nya_clock_get_monotonic_ms() < deadline) {
+    NYA_NetTransportEvent event = { 0 };
+    while (nya_net_transport_poll(client, &event)) {
+      if (event.kind != NYA_NET_TRANSPORT_EVENT_MESSAGE) *out_outcome = event;
+    }
+
+    pump(server, 1);
+  }
+
+  return client;
+}
+
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
@@ -648,6 +669,95 @@ s32 main(void) {
     for (u32 i = 0; i <= _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS; i++) nya_os_socket_close(peers[i].socket);
 
     nya_net_transport_destroy(cap_server);
+  }
+
+  printf("TEST: an allowlist is open when zero, closed by its first key, and bounded\n");
+  {
+    NYA_NetKeyPair player = { 0 };
+    NYA_NetKeyPair other  = { 0 };
+    NYA_EXPECT(nya_net_key_pair_create(&player));
+    NYA_EXPECT(nya_net_key_pair_create(&other));
+
+    u8               zero[KEY_SIZE] = { 0 };
+    NYA_NetAllowlist list           = { 0 };
+
+    nya_assert(nya_net_allowlist_admits(&list, other.public_key) && nya_net_allowlist_admits(&list, nullptr), "a zero list is an open server");
+    nya_assert(nya_net_allowlist_add(&list, zero).kind == NYA_ERROR_INVALID_ARGUMENT && !list.closed, "an all-zero key is not a key, and changes nothing");
+
+    NYA_EXPECT(nya_net_allowlist_add(&list, player.public_key));
+    NYA_EXPECT(nya_net_allowlist_add(&list, player.public_key));
+    nya_assert_eq(list.count, 1U);
+    nya_assert(list.closed && nya_net_allowlist_admits(&list, player.public_key), "the listed key is admitted");
+    nya_assert(!nya_net_allowlist_admits(&list, other.public_key) && !nya_net_allowlist_admits(&list, zero), "the rest are not, keyless included");
+
+    NYA_NetAllowlist full = { 0 };
+    for (u32 i = 0; i < NYA_NET_ALLOWLIST_MAX; i++) {
+      u8 key[KEY_SIZE] = { 0 };
+      write_u32(key, i + 1);
+      NYA_EXPECT(nya_net_allowlist_add(&full, key));
+    }
+
+    nya_assert(nya_net_allowlist_add(&full, other.public_key).kind == NYA_ERROR_OUT_OF_MEMORY && !nya_net_allowlist_contains(&full, other.public_key));
+
+    // the last entry fills the hole a removal leaves, and nothing else moves.
+    u8 first[KEY_SIZE] = { 0 };
+    u8 last[KEY_SIZE]  = { 0 };
+    write_u32(first, 1);
+    write_u32(last, NYA_NET_ALLOWLIST_MAX);
+
+    nya_net_allowlist_remove(&full, first);
+    nya_net_allowlist_remove(&full, first);
+    nya_assert_eq(full.count, (u32)NYA_NET_ALLOWLIST_MAX - 1);
+    nya_assert(!nya_net_allowlist_contains(&full, first) && nya_net_allowlist_contains(&full, last) && nya_memcmp(full.keys[0], last, KEY_SIZE) == 0);
+  }
+
+  printf("TEST: a closed allowlist refuses a stranger and a keyless client at the handshake, with the reason\n");
+  {
+    NYA_NetKeyPair player   = { 0 };
+    NYA_NetKeyPair stranger = { 0 };
+    NYA_EXPECT(nya_net_key_pair_create(&player));
+    NYA_EXPECT(nya_net_key_pair_create(&stranger));
+
+    u16               allow_port   = 0;
+    NYA_NetTransport* allow_server = listen_server(arena, &allow_port);
+    NYA_EXPECT(nya_net_allowlist_add(&allow_server->allowlist, player.public_key));
+
+    NYA_NetTransportEvent admitted_outcome = { 0 };
+    NYA_NetTransport*     admitted         = join_as(arena, allow_server, allow_port, player, &admitted_outcome);
+    nya_assert(admitted_outcome.kind == NYA_NET_TRANSPORT_EVENT_CONNECTED, "the listed key did not connect");
+
+    NYA_NetKeyPair refused_identities[] = { stranger, { 0 } };
+
+    for (u32 i = 0; i < sizeof(refused_identities) / sizeof(refused_identities[0]); i++) {
+      NYA_NetTransportEvent outcome = { 0 };
+      NYA_NetTransport*     refused = join_as(arena, allow_server, allow_port, refused_identities[i], &outcome);
+
+      nya_assert(outcome.kind == NYA_NET_TRANSPORT_EVENT_DISCONNECTED, "client %u was not refused", i);
+      nya_assert_eq((u32)outcome.reason, (u32)NYA_NET_DISCONNECT_IDENTITY);
+
+      nya_net_transport_destroy(refused);
+    }
+
+    nya_assert_eq(peer_count(allow_server), 1U);
+
+    // removal is checked at the next handshake only: the connected player stays, the same key joining again does not.
+    nya_net_allowlist_remove(&allow_server->allowlist, player.public_key);
+    nya_assert(allow_server->allowlist.closed, "removing the last key must not open the server");
+
+    const u8 still_here[] = { 0x10, 'h', 'i' };
+    NYA_EXPECT(nya_net_transport_send(admitted, admitted_outcome.peer, NYA_NET_CHANNEL_RELIABLE, still_here, sizeof(still_here)));
+    nya_net_transport_flush(admitted);
+    nya_assert(pump_count(allow_server, 50) == 1 && peer_count(allow_server) == 1, "a connected player was dropped by removing its key");
+
+    NYA_NetTransportEvent again_outcome = { 0 };
+    NYA_NetTransport*     again         = join_as(arena, allow_server, allow_port, player, &again_outcome);
+    nya_assert(again_outcome.kind == NYA_NET_TRANSPORT_EVENT_DISCONNECTED && again_outcome.reason == NYA_NET_DISCONNECT_IDENTITY, "a removed key joined again");
+
+    printf("  the listed key joined, a stranger and a keyless client were refused, and a removal held off only the next join\n");
+
+    nya_net_transport_destroy(again);
+    nya_net_transport_destroy(admitted);
+    nya_net_transport_destroy(allow_server);
   }
 
   printf("TEST: random garbage never faults the transport\n");

@@ -364,6 +364,7 @@ NYA_INTERNAL void pong_net_start(void) {
         .on_apply_command = nya_callback(pong_apply_command),
         .max_speed        = PADDLE_SPEED_LIMIT,
         .conditions       = launch->conditions,
+        .allowlist        = launch->allowlist,
     }), "while starting the server");
 
     // Listening is the only difference between a lone player and a host. The world does not change.

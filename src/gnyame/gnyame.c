@@ -279,6 +279,7 @@ _GNY_FLAG_STRING(_gny_flag_name, "name", "What other players see. Remembered fro
 _GNY_FLAG_NUMBER(_gny_flag_max_players, "max-players", "How many may be connected at once.");
 _GNY_FLAG_NUMBER(_gny_flag_tickrate, "tickrate", "Fixed updates a second, 10 to 240.");
 _GNY_FLAG_STRING(_gny_flag_server_key, "server-key", "The only server key this client will talk to, 64 hex digits.");
+_GNY_FLAG_STRING(_gny_flag_allow_key, "allow-key", "Admit only the player holding this key, 64 hex digits.");
 _GNY_FLAG_NUMBER(_gny_flag_seed, "seed", "The world to generate. Zero draws one.");
 _GNY_FLAG_STRING(_gny_flag_transport, "transport", "udp or steam.");
 _GNY_FLAG_NUMBER(_gny_flag_latency, "net-latency", "Simulate this many milliseconds of latency.");
@@ -302,7 +303,7 @@ NYA_INTERNAL NYA_ArgParameter _gny_argument_output = {
 };
 
 /** Every flag a launch understands, in the order the help lists them. */
-#define _GNY_LAUNCH_FLAGS                                                                                                                                &_gny_flag_connect, &_gny_flag_port, &_gny_flag_listen, &_gny_flag_name, &_gny_flag_max_players, &_gny_flag_tickrate, &_gny_flag_server_key,              &_gny_flag_seed, &_gny_flag_transport, &_gny_flag_latency, &_gny_flag_jitter, &_gny_flag_loss, &_gny_flag_duplicate, &_gny_flag_reorder
+#define _GNY_LAUNCH_FLAGS                                                                                                                                &_gny_flag_connect, &_gny_flag_port, &_gny_flag_listen, &_gny_flag_name, &_gny_flag_max_players, &_gny_flag_tickrate, &_gny_flag_server_key, &_gny_flag_allow_key, &_gny_flag_seed, &_gny_flag_transport, &_gny_flag_latency, &_gny_flag_jitter, &_gny_flag_loss, &_gny_flag_duplicate, &_gny_flag_reorder
 
 /*
  * One handler per command, and all they do is say which command this is: the work happens after the

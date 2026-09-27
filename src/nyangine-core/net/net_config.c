@@ -106,6 +106,17 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
         return true;
     }
 
+    if (nya_string_equals(name, "allow-key")) {
+        u8 key[NYA_NET_KEY_SIZE] = { 0 };
+
+        // closed even when the key is unusable: a typo must not leave the server open to everyone.
+        config->allowlist.closed = true;
+
+        if (!nya_net_key_from_hex(value, key) || !nya_net_allowlist_add(&config->allowlist, key).ok)
+            nya_log_warn("--allow-key needs 64 hex digits and room on the list; this key is not admitted, and the server stays closed.");
+        return true;
+    }
+
     if (nya_string_equals(name, "net-latency")) {
         config->conditions.latency_ms = (u32)nya_min(_nya_net_config_number(value, "--net-latency", 0), (u64)5000);
         return true;
@@ -249,6 +260,8 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
         nya_log_info("Joining %s:%u as '%s'.", config->address, config->port, config->name);
         return;
     }
+
+    if (config->allowlist.closed) nya_log_info("Admitting only the %u players on the allowlist.", config->allowlist.count);
 
     if (config->transport == NYA_NET_TRANSPORT_STEAM) {
         nya_log_info("Listen server over Steam, playing as '%s'.", config->name);
