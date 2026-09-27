@@ -1970,7 +1970,7 @@ the packager ones.
   navigation. Three tiers that answer different questions: these pages for why and how, the cheatsheet for
   signatures, doxygen for what the code does. Only the first is hand written, so the landing page says the
   header wins where they disagree.
-- `[ ]` More tutorials. Three exist (first window, drawing a UI, adding a system); nothing covers
+- `[x]` More tutorials. Three exist (first window, drawing a UI, adding a system); nothing covers
   networking, physics, audio, plugins, scenes or the testing harnesses.
 - `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
 - `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
