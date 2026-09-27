@@ -421,12 +421,15 @@ NYA_Asset* _nya_text_font_asset(NYA_ConstCString path, f32 point_size, OUT char*
 
     if (asset == nullptr) {
         // queued, not loaded. Callers cope with no face for the next few frames.
-        NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
-          .type    = NYA_ASSET_TYPE_FONT,
-          .handle  = (NYA_AssetHandle)out_handle,
-          .source  = path,
-          .as_font = { .point_size = point_size },
-      }), "while queueing a font");
+        NYA_Error queued = nya_asset_load((NYA_AssetLoadParameters){
+            .type    = NYA_ASSET_TYPE_FONT,
+            .handle  = (NYA_AssetHandle)out_handle,
+            .source  = path,
+            .as_font = { .point_size = point_size },
+        });
+
+        // with no asset system there is no face to wait for; anything else failing to queue is a bug.
+        if (!queued.ok && queued.kind != NYA_ERROR_NOT_SUPPORTED) NYA_EXPECT(queued, "while queueing a font");
 
         return nullptr;
     }

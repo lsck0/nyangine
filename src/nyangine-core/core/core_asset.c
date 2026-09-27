@@ -507,6 +507,9 @@ NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
 
     if (parameters.handle == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "asset handle is null");
 
+    // a program or test that never brought the asset system up still asks, through a default font for one; it gets an answer, not a crash.
+    if (system->assets == nullptr) return nya_error(NYA_ERROR_NOT_SUPPORTED, "the asset system is not up, so '%s' cannot load", parameters.handle);
+
     NYA_Asset* asset = nya_dict_get(system->assets, parameters.handle);
 
     // a failure is terminal, so say so.
