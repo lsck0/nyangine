@@ -1101,8 +1101,8 @@ logged-in user.
     request's first byte does), Transfer-Encoding twice, chunked on HTTP/1.0, a bare CR or LF in a chunk
     extension or a trailer (all smuggled the request behind them), and a static handle through a symlinked
     directory out of the root.
-  - Open: a slow reader still refreshes the clock on every byte it takes, so a peer that reads an answer a
-    byte at a time holds its slot. Bounding that is a minimum send rate, which is a policy decision.
+  - A slow reader refreshed the clock on every byte it took. Now only a drained answer does, so the queue
+    (at most 256 KiB) must go within the 5 s timeout: a floor of about 52 KB/s, no new knob.
 
 ## Phase 4 — the web client
 

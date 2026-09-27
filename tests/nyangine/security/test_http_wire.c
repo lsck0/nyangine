@@ -11,17 +11,20 @@
  * any length here: the server reads the monotonic clock directly and there is nothing to pin.
  **/
 
+#include "nyangine-core/nyangine.h"
+
+#include "nyangine-core/nyangine.c"
+
+// After the engine: base_basic.h asks for POSIX 2008, which these only honour when they see it first.
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "nyangine-core/nyangine.h"
-
-#include "nyangine-core/nyangine.c"
 
 /** A whole, valid request. Behind a refused one it must never run; see the file note. */
 #define SMUGGLE "GET /smuggled HTTP/1.1\r\nHost: x\r\n\r\n"
@@ -37,6 +40,12 @@
 
 /** How often the slowloris peers send their next byte. Well under the timeout, which is the attack. */
 #define DRIP_INTERVAL_MS 250
+
+/** What the slow reader takes per DRIP_INTERVAL_MS: steady progress, far below what its answers need. */
+#define SLOW_READ_BYTES 512
+
+/** Answers the slow reader asks for at once; their sum stays under NYA_HTTP_MAX_PENDING_WRITE_BYTES so the bound is not what drops it. */
+#define SLOW_READ_REQUESTS 7
 
 /** Sockets the flood opens, four times the table, all from one address. */
 #define FLOOD_COUNT (NYA_HTTP_MAX_CONNECTIONS * 4)
@@ -66,6 +75,12 @@ static NYA_HttpStatus route_echo(NYA_HttpExchange* exchange) {
                                                                                                                   : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
+/** Near the response cap, so a few pipelined answers outgrow what the kernel holds on the peer's behalf. */
+static NYA_HttpStatus route_large(NYA_HttpExchange* exchange) {
+    static u8 LARGE[NYA_HTTP_MAX_RESPONSE_BYTES / 2] = { 0 };
+    return nya_http_response_bytes(exchange->response, LARGE, sizeof(LARGE), NYA_HTTP_MEDIA_TEXT).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
+}
+
 static const NYA_HttpRoute WIRE_ROUTES[] = {
     { .method   = NYA_HTTP_METHOD_GET,
      .path     = "/a",
@@ -76,6 +91,11 @@ static const NYA_HttpRoute WIRE_ROUTES[] = {
      .path     = "/smuggled",
      .handler  = route_smuggled,
      .summary  = "The request behind every refusal, which must never run",
+     .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR }                            },
+    { .method   = NYA_HTTP_METHOD_GET,
+     .path     = "/large",
+     .handler  = route_large,
+     .summary  = "An answer a slow reader cannot take in time",
      .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR }                            },
     { .method   = NYA_HTTP_METHOD_POST,
      .path     = "/echo",
@@ -746,6 +766,56 @@ static void test_exhaustion(NYA_Arena* arena) {
 
         settle();
         nya_check(nya_http_server_connection_count() == 0, "a drip still holds a slot");
+    }
+
+    // TEST: slow reader. A peer taking its answers a little at a time has until the timeout to take all of them, not a fresh timeout per read.
+    {
+        u16   port = start_server(UNLIMITED);
+        defer nya_system_http_deinit();
+
+        // a small window and segment, set before the handshake, so the kernel buffers little on the reader's behalf and each read reopens the window.
+        s32 descriptor = socket(AF_INET, SOCK_STREAM, 0);
+        nya_assert(descriptor >= 0);
+
+        int window  = 4096;
+        int segment = 536;
+        nya_assert(setsockopt(descriptor, SOL_SOCKET, SO_RCVBUF, &window, sizeof(window)) == 0);
+        nya_assert(setsockopt(descriptor, IPPROTO_TCP, TCP_MAXSEG, &segment, sizeof(segment)) == 0);
+
+        struct sockaddr_in loopback = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+        nya_assert(connect(descriptor, (struct sockaddr*)&loopback, sizeof(loopback)) == 0);
+        nya_assert(fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK) == 0);
+
+        NYA_OsSocket reader = { .handle = (u64)descriptor + 1 };
+        defer nya_os_socket_close(reader);
+
+        static_assert(SLOW_READ_REQUESTS * NYA_HTTP_MAX_RESPONSE_BYTES / 2 < NYA_HTTP_MAX_PENDING_WRITE_BYTES);
+        NYA_ConstCString large = "GET /large HTTP/1.1\r\nHost: x\r\n\r\n";
+        for (u32 index = 0; index < SLOW_READ_REQUESTS; index++) send_all(reader, (const u8*)large, strlen(large));
+
+        u64 started   = nya_clock_get_monotonic_ns();
+        u64 read_at   = started;
+        u64 took      = 0;
+        u64 closed_ms = 0;
+
+        while (closed_ms == 0 && elapsed_ms(started) < NYA_HTTP_IDLE_TIMEOUT_MS * 3) {
+            nya_system_http_tick();
+
+            if (elapsed_ms(read_at) >= DRIP_INTERVAL_MS) {
+                read_at = nya_clock_get_monotonic_ns();
+
+                u8  scratch[SLOW_READ_BYTES] = { 0 };
+                u64 read                     = 0;
+                if (nya_os_socket_receive(reader, scratch, sizeof(scratch), &read) == NYA_OS_SOCKET_OK) took += read;
+            }
+
+            if (nya_http_server_connection_count() == 0) closed_ms = elapsed_ms(started);
+            sleep_ms(2);
+        }
+
+        nya_check(took > 0, "the slow reader never got a byte, so the case proved nothing");
+        nya_check(closed_ms != 0, "a reader taking %d bytes every %d ms was held for %d ms", SLOW_READ_BYTES, DRIP_INTERVAL_MS, NYA_HTTP_IDLE_TIMEOUT_MS * 3);
+        nya_check(closed_ms <= NYA_HTTP_IDLE_TIMEOUT_MS + TIMEOUT_SLACK_MS, "the slow reader lasted %llu ms", (unsigned long long)closed_ms);
     }
 
     // TEST: a connection flood from one address takes its share of the table and no more, and another address is still served.

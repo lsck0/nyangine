@@ -87,7 +87,7 @@ struct _NYA_HttpConnection {
     u64 sending_size;
     u64 sent;
 
-    /** Monotonic nanoseconds of the first byte of the request in progress, or of the last answer written; drives the timeout. */
+    /** Monotonic nanoseconds of the first byte of the request in progress, or of the last answer queued or fully drained; drives the timeout. */
     u64 active_at_ns;
 
     /** Answered with `Connection: close`, so it is dropped as soon as the answer is queued. */
@@ -1042,9 +1042,11 @@ b8 _nya_http_flush(_NYA_HttpConnection* connection) {
             if (status != NYA_OS_SOCKET_OK) return false;
         }
 
-        connection->sent         += wrote;
-        connection->active_at_ns  = nya_clock_get_monotonic_ns();
+        connection->sent += wrote;
     }
+
+    // only a drained answer restarts the clock: a peer taking a byte at a time would otherwise hold the slot, so the queue (at most NYA_HTTP_MAX_PENDING_WRITE_BYTES) must go within NYA_HTTP_IDLE_TIMEOUT_MS.
+    if (connection->sent > 0 && connection->sent == connection->sending_size) connection->active_at_ns = nya_clock_get_monotonic_ns();
 
     if (connection->sent == 0) return true;
 
