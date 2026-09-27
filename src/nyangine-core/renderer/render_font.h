@@ -87,7 +87,7 @@ NYA_API b8 nya_font_equals(NYA_Font a, NYA_Font b) __attr_no_discard;
 NYA_API void     nya_font_default_set(NYA_Font font);
 NYA_API NYA_Font nya_font_default(void) __attr_no_discard;
 
-/** `font` if it is valid, otherwise the default. What every function here calls first. */
+/** `font` if it is valid, otherwise the default, otherwise the bundled Aldrich at 17 points. What every function here calls first. */
 NYA_API NYA_Font nya_font_resolve(NYA_Font font) __attr_no_discard;
 
 /**

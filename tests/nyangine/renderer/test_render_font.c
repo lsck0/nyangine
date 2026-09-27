@@ -61,7 +61,7 @@ s32 main(void) {
     // The default, and NYA_FONT_NONE resolving to it.
     {
         nya_check(!nya_font_valid(nya_font_default()), "there is no default to begin with");
-        nya_check(!nya_font_valid(nya_font_resolve(NYA_FONT_NONE)), "so nothing resolves to nothing");
+        nya_check(nya_font_valid(nya_font_resolve(NYA_FONT_NONE)), "so nothing resolves to the bundled face, never to nothing");
 
         NYA_Font ui = nya_font(FACE, 16.0F);
         nya_font_default_set(ui);

@@ -96,6 +96,13 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
         .hidden     = _nya_ui.looks[0].line_heights[NYA_UI_TEXT_BODY] <= 0.0F,
     };
 
+    // once: a UI with no font to measure by hides everything, and a blank window with no reason is the worst way to learn it.
+    static b8 warned = false;
+    if (_nya_ui.layouts[0].hidden && pass == NYA_UI_PASS_DRAW && !warned) {
+        warned = true;
+        nya_log_warn("The UI has no font with a line height, so it draws nothing; check the style's font and that the face loads.");
+    }
+
     return ui;
 }
 

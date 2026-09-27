@@ -136,7 +136,7 @@ s32 main(void) {
 
     // No font is registered yet, on purpose: a recorded pass measures in cells and needs neither a face nor a GPU.
     {
-        nya_check(!nya_font_valid(nya_font_resolve(NYA_FONT_NONE)), "the test starts with no usable face");
+        nya_check(!nya_font_valid(nya_font_default()), "the test starts with no face chosen");
 
         nya_ui_presenter_set(&window, nya_ui_recorder_presenter(&cells));
         nya_check(nya_ui_presenter_get(&window) == nya_ui_recorder_presenter(&cells), "the window presents through the recorder");

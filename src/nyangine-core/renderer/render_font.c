@@ -162,7 +162,11 @@ NYA_Font nya_font_default(void) {
 }
 
 NYA_Font nya_font_resolve(NYA_Font font) {
-    return nya_font_valid(font) ? font : _nya_font_default;
+    if (nya_font_valid(font)) return font;
+    if (nya_font_valid(_nya_font_default)) return _nya_font_default;
+
+    // a program that never names a font still gets text: without this the UI's line height is zero and it hides everything. 17 points is gnyame's UI size.
+    return nya_font(NYA_ASSET_FONTS_ALDRICH_TTF, 17.0F);
 }
 
 b8 nya_font_register(NYA_ConstCString name, NYA_ConstCString path, f32 point_size) {
