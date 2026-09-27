@@ -2217,7 +2217,7 @@ one pole head shadow on the far ear falling to 1.8 kHz; other layouts keep SDL_m
 - `[ ]` Thickness is the span between first hits, so two thin walls read as one thick one.
 - `[ ]` Echo taps do not check that the source sees the surface; one diffraction reach.
 
-## `[~]` Interpolation between ticks
+## `[x]` Interpolation between ticks
 
 Update runs at a fixed tick and frames draw whenever the display allows, so a frame can land between ticks
 or see none. `nya_app_tick_alpha` says where between the last tick and the next it sits. Particles draw from
@@ -2231,8 +2231,11 @@ without a tick and jumped on the next, which read as flicker (captured: every ot
   between ticks (`nya_skeleton_animator_render_pose`). At 120 fps against a 62.5 Hz tick the 3D cube region's
   per-frame change evenness went from 0.87 to 0.16 (CV), the 2D region from 0.90 to 0.04.
 - Fixed on the way: 3D bodies integrated their mirrored velocity a second time and drew a tick ahead.
-- `[ ]` `NYA_SkeletonPlayer` (layers, crossfades, root motion) still samples per tick; y-sorting uses the
-  current tick; the frame rate cap is not in the config.
+- `[x]` `NYA_SkeletonPlayer` draws between ticks too (`nya_skeleton_player_render_pose`): every clock, the crossfade
+  weight and the inertializer's offset are taken at the alpha through the same compose the tick uses, and the root
+  stays pinned, so root motion reaches the character once. gnyame's bender runs through a player and crossfades
+  its clips. Y-sorting keys on the drawn position. The frame rate cap is `engine.frame_rate_limit` in
+  `engine.nya`, read every frame, so it follows the file live.
 
 ## `[~]` Shadows
 

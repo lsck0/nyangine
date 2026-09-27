@@ -37,6 +37,8 @@ typedef struct NYA_FrameStats NYA_FrameStats;
 
 struct NYA_AppOptions {
     u64 time_step_ns;
+
+    /** Frames per second while focused and without vsync. `frame_rate_limit` in engine.nya overrides it live. */
     u32 frame_rate_limit;
 
     /**

@@ -274,6 +274,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineAudio = {
 /* NYA_ConfigEngine, src/nyangine-core/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
+    { .name = "frame_rate_limit", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngine, frame_rate_limit), .hint = NYA_HINT_NONE },
     { .name = "renderer", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer, .offset = nya_offsetof(NYA_ConfigEngine, renderer), .hint = NYA_HINT_NONE },
     { .name = "physics", .type = &_NYA_REFLECT_NYA_ConfigEnginePhysics, .offset = nya_offsetof(NYA_ConfigEngine, physics), .hint = NYA_HINT_NONE },
     { .name = "audio", .type = &_NYA_REFLECT_NYA_ConfigEngineAudio, .offset = nya_offsetof(NYA_ConfigEngine, audio), .hint = NYA_HINT_NONE },
@@ -287,7 +288,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .size = sizeof(NYA_ConfigEngine),
     .alignment = alignof(NYA_ConfigEngine),
     .fields = _NYA_REFLECT_NYA_ConfigEngine_FIELDS,
-    .field_count = 5,
+    .field_count = 6,
 };
 
 /* NYA_ConfigDocument, src/nyangine-core/core/core_config.h */

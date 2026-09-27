@@ -7,6 +7,8 @@
 nya 2 0
 {
     engine: object {
+        // Frames per second while focused and without vsync. Zero keeps what the program asked for at startup.
+        frame_rate_limit: u32 120;
         renderer: object {
             // One switch per renderer feature, laid over everything below. "NYA_RENDER_TOGGLE_OFF" skips the
             // feature's work, "..._ON" runs it whatever its own options say, and leaving a field out (or

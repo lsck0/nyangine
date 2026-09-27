@@ -706,9 +706,13 @@ void nya_app_run(void) {
          */
         u64 floor_ns = 0;
 
+        // re-derived each frame, so an edit to engine.nya reaches the cap on the next one.
+        u32 limit = nya_config_engine()->frame_rate_limit > 0 ? nya_config_engine()->frame_rate_limit : app->options.frame_rate_limit;
+        app->frame_stats.min_frame_time_ns = 1'000'000'000 / (u64)limit;
+
         if (app->options.unfocused_frame_rate_limit > 0 && !_nya_app_any_window_has_focus()) {
             floor_ns = 1'000'000'000 / (u64)app->options.unfocused_frame_rate_limit;
-        } else if (!app->options.vsync_enabled && app->options.frame_rate_limit > 0) {
+        } else if (!app->options.vsync_enabled) {
             floor_ns = app->frame_stats.min_frame_time_ns;
         }
 

@@ -196,6 +196,9 @@ struct NYA_ConfigEngineAudio {
  * */
 // @reflect
 struct NYA_ConfigEngine {
+    /** Overrides NYA_AppOptions.frame_rate_limit when above zero. Read every frame, so it follows the file live. */
+    u32 frame_rate_limit;
+
     NYA_ConfigEngineRenderer renderer;
     NYA_ConfigEnginePhysics  physics;
     NYA_ConfigEngineAudio    audio;
