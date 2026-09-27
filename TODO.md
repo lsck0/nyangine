@@ -778,7 +778,7 @@ logged-in user.
     control commands and debug dumps, not only HTTP.
   - Still open: a trace span and the crash report's own fields — the request id reaches a report only through
     the log ring — and the security-event retention below, which is still one retention for everything.
-- `[ ]` The Model/SO/DTO split in `http` and `db`: the conversion naming, the `web` profile refusing model and
+- `[x]` The Model/SO/DTO split in `http` and `db`: the conversion naming, the `web` profile refusing model and
   SO headers, and the `@secret` check. `web_server` moves onto it first. Today its notes resource keeps one
   `ExampleNote` in memory and builds the response by hand as an `NYA_Object` in `note_to_value`, so it has a
   Model and no DTO type at all.
@@ -1094,7 +1094,7 @@ logged-in user.
   - The token endpoint is form encoded, as RFC 6749 section 4.1.3 requires: `NYA_REQUEST_BODY_FORM`
     landed in `plugins/curl/request.h` on 2026-09-23, so there is nothing to decide per provider.
 
-- `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
+- `[~]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
   path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
 
 ## Phase 4 — the web client
@@ -1240,7 +1240,7 @@ The current track, reordered around one missing primitive.
 
 ## Phase 6 — customization and desktop
 
-- `[ ]` UI style files: `NYA_UIStyle` from a `.nya` theme through reflection, hot reloaded, validated like
+- `[x]` UI style files: `NYA_UIStyle` from a `.nya` theme through reflection, hot reloaded, validated like
   settings (the file, the key, the value, the range), user editable under `data/`.
 - `[~]` Signed plugins: Ed25519 signature over the plugin directory with publisher keys pinned in the program,
   refusing anything not signed by a pinned key, landed 2026-09-24 (`f4c21979`). Open: a signed repository index
@@ -1352,7 +1352,7 @@ Accepted:
 - `[x]` **Passkeys (WebAuthn)** as a third second factor beside TOTP and PGP, and later as a passwordless
   login. Needs CBOR parsing and ES256 verification (P-256), neither of which monocypher has; mbedTLS, already
   vendored for TLS, has both. The attestation and assertion parsers are fuzzed. Phase 3.
-- `[ ]` **Job queue:** persistent in `db`, with retries, exponential backoff, deadlines, unique jobs,
+- `[x]` **Job queue:** persistent in `db`, with retries, exponential backoff, deadlines, unique jobs,
   scheduled (cron style) jobs, and a bounded worker count. Survives a restart: a job running when the process
   died runs again, so jobs are written to be idempotent, and the simulation harness kills the process at
   random points to prove it. The template has `src/tasks/`; here it is a component that server and desktop
@@ -1601,14 +1601,14 @@ In scope, deliberately: not only a server, but the client too.
 - `[⏭]` TOTP as the second factor instead: also deferred. Not a wiring job — `nya_hmac_sha256` exists but TOTP
   wants HMAC-SHA1 and base32, neither of which does. About 200 lines, and RFC 6238 publishes test vectors, so
   it would be provable rather than merely written.
-- `[ ]` A login route. There is no way to _get_ a token over HTTP yet, only to present one; tokens are minted
+- `[x]` A login route. There is no way to _get_ a token over HTTP yet, only to present one; tokens are minted
   in-process with `nya_http_jwt_encode`. That wants a user store, which nothing here has.
 - `[ ]` Compile to web: a bundle of HTML, CSS, JS and wasm. WebGPU where it exists, a canvas backend otherwise.
-- `[ ]` A UI backend that emits HTML, CSS and JS from the same `nya_ui_*` calls the native backend draws, ahead
+- `[x]` A UI backend that emits HTML, CSS and JS from the same `nya_ui_*` calls the native backend draws, ahead
   of time or on the fly. **I never write HTML, CSS or JS by hand.** That is the whole point of the exercise.
 - `[ ]` Fully client side apps that talk to a nyangine server, with the types shared between the two rather than
   restated.
-- `[ ]` Hot reloading on the web, matching what the native builds already do.
+- `[x]` Hot reloading on the web, matching what the native builds already do.
 
 ## `[~]` TUI
 
@@ -2459,7 +2459,7 @@ release per channel.
 - `[ ]` A C2Y build needs glibc 2.38 (C23 `strtol`/`sscanf` variants, `strlcpy`), and curl links
   `libssl.so.3`. The Steam sniper runtime has neither, so build the Linux depot in the sniper SDK with
   OpenSSL static, or target Steam Linux Runtime 4.0, where the binary already runs.
-- `[ ]` A real code signing certificate; the signing hook uses the sample `.pfx`, and an unsigned browser
+- `[ ]` A real code signing certificate; nothing is bundled any more, so a release is unsigned until `secrets/signing.pfx.enc` exists, and an unsigned browser
   download warns under SmartScreen. winget and scoop installs do not.
 - Saves and logs go under the app id in the user data directory (`~/.local/share/gnyame`, `logs/` inside),
   not the working directory, which is the install folder on Steam. Settings saved under the old `nyangine`
