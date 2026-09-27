@@ -542,8 +542,9 @@ void _nya_entity_target_step(NYA_Entity* entity, f32 delta_time_s) {
 f32 nya_entity_sort_key(const NYA_Entity* entity) {
     if (entity == nullptr) return 0.0F;
 
-    // the anchor is added, so a centred sprite only says how far down its feet are.
-    if (entity->visual.y_sorted) return entity->position.y + entity->visual.y_sort_anchor;
+    // the anchor is added, so a centred sprite only says how far down its feet are. Where they are drawn, so two
+    // walkers crossing swap order on the frame their sprites pass, not up to a tick before.
+    if (entity->visual.y_sorted) return nya_entity_render_position(entity).y + entity->visual.y_sort_anchor;
 
     return entity->visual.z_order;
 }

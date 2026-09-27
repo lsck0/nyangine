@@ -1945,7 +1945,7 @@ NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction)  // The same fo
 NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers)  // The same along a ray, restricted to bodies in `layers`.
 void nya_entity_hover_clear(void)  // Says the cursor is on nothing, running on_hover(false) for the current entity.
 NYA_EntityHandle nya_entity_hovered(void)  // Who the cursor is on, or NYA_ENTITY_HANDLE_NONE.
-f32 nya_entity_sort_key(const NYA_Entity* entity)  // The value an entity sorts on: `z_order`, or where its feet are.
+f32 nya_entity_sort_key(const NYA_Entity* entity)  // The value an entity sorts on: `z_order`, or where its feet are drawn this frame.
 void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max)  // Runs on_render only for entities positioned inside `min`..`max`.
 b8 nya_entity_parent_set(NYA_EntityHandle child, NYA_EntityHandle parent)  // Makes `child` follow `parent`, without moving it.
 void nya_entity_parent_clear(NYA_EntityHandle child)  // Unparents, keeping the world transform.

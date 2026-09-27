@@ -597,7 +597,7 @@ NYA_API void nya_entity_hover_clear(void);
 /** Who the cursor is on, or NYA_ENTITY_HANDLE_NONE. */
 NYA_API NYA_EntityHandle nya_entity_hovered(void) __attr_no_discard;
 
-/** The value an entity sorts on: `z_order`, or where its feet are. */
+/** The value an entity sorts on: `z_order`, or where its feet are drawn this frame. */
 NYA_API f32 nya_entity_sort_key(const NYA_Entity* entity) __attr_no_discard;
 
 /**
