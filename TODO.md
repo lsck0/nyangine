@@ -2097,7 +2097,9 @@ Next:
 - `[ ]` A scene past the vertex, segment, instance or group ceilings is drawn early in pieces, and earlier
   pieces miss later casters' shadows. Cascades use the light in effect when the scene first draws;
   orthographic cameras cast no shadows.
-- `[ ]` Decal grids miss their cache every frame while marks shrink (probe 2.2%, staging 1.1% of samples).
+- A decal grid is remembered by where its box stands, not how wide it is, and a decal no wider is sampled from
+  it bilinearly, so a shrinking mark probes once. Showcase trails, dev, 2400 frames: `nya_render3d_decal` 4.8%
+  to 1.4% of samples, the probe 1.5% to 0.02%, the drape 4.1% to 0.3%.
 - Indirect draws are not worth it yet: about 15 calls per pass, each with its own mesh buffer or material;
   removing them saved at most 0.04 ms.
 - A pipeline cache on disk is not possible through SDL 3.5 (Vulkan passes a null cache; D3D12 and Metal have no

@@ -101,6 +101,21 @@ s32 main(void) {
     nya_check(probe_calls == calls + NYA_RENDER3D_DECAL_VERTICES, "setting the probe again should forget the grids");
   }
 
+  // A decal shrinking in place is sampled from its grid; one grown past it drapes again.
+  {
+    u32               calls  = probe_calls;
+    NYA_Render3DDecal shrunk = decal_at(0.0F);
+    shrunk.size              = (f32x3){ 0.5F, 1.0F, 0.5F };
+    nya_render3d_decal(&window, shrunk);
+
+    NYA_Vertex3D last = decals->vertices[(decals->count * NYA_RENDER3D_DECAL_VERTICES) - 1];
+    nya_check(probe_calls == calls && last.position[0] == 0.25F && last.position[2] == 0.25F, "a shrunk decal should span its box unprobed");
+
+    shrunk.size = (f32x3){ 2.0F, 1.0F, 2.0F };
+    nya_render3d_decal(&window, shrunk);
+    nya_check(probe_calls == calls + NYA_RENDER3D_DECAL_VERTICES, "a grown decal should drape again");
+  }
+
   // Where the probe finds nothing the normal is zero, which the shader cuts the decal at.
   {
     u32 base = decals->count * NYA_RENDER3D_DECAL_VERTICES;

@@ -17,8 +17,9 @@
  * follows the ground's shape, and shaded like the surface under it. Its alpha is cut at one half, so a splat
  * has an inked edge rather than a soft one. Every decal of a frame goes out in one draw call per texture.
  *
- * Draped grids are remembered by their box, so a mark that stays put is probed once, not every frame. A probe
- * that starts answering differently, such as regenerated ground, is set again to forget them.
+ * Draped grids are remembered by where their box stands, so a mark that stays put is probed once, and one that
+ * shrinks in place is sampled from the grid it was draped at. A probe that starts answering differently, such
+ * as regenerated ground, is set again to forget them.
  * */
 #pragma once
 

@@ -13,27 +13,28 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** What a grid is remembered by: everything the drape depends on and nothing it does not. */
+/** What a grid is remembered by: where it stands, not how wide, so a mark shrinking in place keeps its grid. */
 typedef struct {
     f32 center[3];
-    f32 size[3];
+    f32 depth;
     f32 rotation;
 } _NYA_Render3DDecalBox;
 
 /** A draped grid: where each vertex landed and which way the surface faced, row by row. */
 typedef struct {
-    f32 points[NYA_RENDER3D_DECAL_VERTICES][3];
-    f32 normals[NYA_RENDER3D_DECAL_VERTICES][3];
+    /** Across the ground, x and z, as draped. A decal no wider at the same spot is sampled from it. */
+    f32x2 size;
+    f32x3 points[NYA_RENDER3D_DECAL_VERTICES];
 
     /** Zero where the probe found nothing or the surface is too steep, which cuts the decal off there. */
-    u8 landed[NYA_RENDER3D_DECAL_VERTICES];
+    f32x3 normals[NYA_RENDER3D_DECAL_VERTICES];
 } _NYA_Render3DDecalGrid;
 
 /** The staging, grids and ceiling, made the first time they are needed. False when the arena refused. */
 NYA_INTERNAL b8 _nya_render3d_decals_ensure(NYA_Render3DDecalsGPU* gpu);
 
-/** The grid for `box`, draped now or remembered from an earlier frame. Null when the cache refused it. */
-NYA_INTERNAL const _NYA_Render3DDecalGrid* _nya_render3d_decal_grid(NYA_Render3DDecalsGPU* gpu, NYA_Render3DDecalProbe probe, const _NYA_Render3DDecalBox* box);
+/** A grid at least `size` across for `box`, draped now or remembered from an earlier frame. Null when the cache refused it. */
+NYA_INTERNAL const _NYA_Render3DDecalGrid* _nya_render3d_decal_grid(NYA_Render3DDecalsGPU* gpu, NYA_Render3DDecalProbe probe, const _NYA_Render3DDecalBox* box, f32x2 size);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -122,38 +123,49 @@ void nya_render3d_decal(NYA_Window* window, NYA_Render3DDecal decal) {
 
     const _NYA_Render3DDecalBox box = {
         .center   = { decal.center.x, decal.center.y, decal.center.z },
-        .size     = { decal.size.x, decal.size.y, decal.size.z },
+        .depth    = decal.size.y,
         .rotation = decal.rotation,
     };
 
-    const _NYA_Render3DDecalGrid* grid = _nya_render3d_decal_grid(gpu, probe, &box);
+    f32x2 size = { decal.size.x, decal.size.z };
+
+    const _NYA_Render3DDecalGrid* grid = _nya_render3d_decal_grid(gpu, probe, &box, size);
     if (grid == nullptr) return;
+
+    // a shrinking decal reads the grid it was draped at, nearer its middle.
+    f32x2 scale = size / grid->size;
+    nya_assert(scale.x <= 1.0F && scale.y <= 1.0F, "a decal wider than the grid it reads");
+
+    const u32 side = NYA_RENDER3D_DECAL_GRID + 1;
 
     u32 columns = nya_max(decal.columns, (u8)1);
     u32 rows    = nya_max(decal.rows, (u8)1);
 
-    f32 cell_x = (f32)(decal.cell % columns);
-    f32 cell_y = (f32)((decal.cell / columns) % rows);
+    f32x2 sheet = { (f32)columns, (f32)rows };
+    f32x2 cell  = { (f32)(decal.cell % columns), (f32)((decal.cell / columns) % rows) };
 
     f32 lift = render->decals.lift > 0.0F ? render->decals.lift : NYA_RENDER3D_DECAL_LIFT;
 
     NYA_Vertex3D* out = &gpu->vertices[(u64)gpu->count * NYA_RENDER3D_DECAL_VERTICES];
 
-    for (u32 row = 0; row <= NYA_RENDER3D_DECAL_GRID; row++) {
-        for (u32 column = 0; column <= NYA_RENDER3D_DECAL_GRID; column++) {
-            u32 i = (row * (NYA_RENDER3D_DECAL_GRID + 1)) + column;
+    for (u32 row = 0; row < side; row++) {
+        for (u32 column = 0; column < side; column++) {
+            f32x2 across = (f32x2){ (f32)column, (f32)row } / (f32)NYA_RENDER3D_DECAL_GRID;
 
-            f32x3 point = { grid->points[i][0], grid->points[i][1], grid->points[i][2] };
+            // in the grid's cells, bilinear between the four around it; the last row and column close the cell before them.
+            f32x2 at = ((across - 0.5F) * scale + 0.5F) * (f32)NYA_RENDER3D_DECAL_GRID;
+            u32   x  = nya_min((u32)at.x, side - 2);
+            u32   y  = nya_min((u32)at.y, side - 2);
+            f32x2 t  = at - (f32x2){ (f32)x, (f32)y };
+            u32   a  = (y * side) + x;
+            u32   b  = a + side;
+
+            f32x3 point = nya_lerp(nya_lerp(grid->points[a], grid->points[a + 1], t.x), nya_lerp(grid->points[b], grid->points[b + 1], t.x), t.y);
 
             // zero where nothing was found: the shader cuts the decal where the interpolated normal shortens.
-            f32x3 normal = (f32x3){ grid->normals[i][0], grid->normals[i][1], grid->normals[i][2] } * (f32)grid->landed[i];
+            f32x3 normal = nya_lerp(nya_lerp(grid->normals[a], grid->normals[a + 1], t.x), nya_lerp(grid->normals[b], grid->normals[b + 1], t.x), t.y);
 
-            f32x2 uv = {
-                (cell_x + ((f32)column / (f32)NYA_RENDER3D_DECAL_GRID)) / (f32)columns,
-                (cell_y + ((f32)row / (f32)NYA_RENDER3D_DECAL_GRID)) / (f32)rows,
-            };
-
-            out[i] = nya_vertex3d(point + (normal * lift), decal.color, normal, uv);
+            out[(row * side) + column] = nya_vertex3d(point + (normal * lift), decal.color, normal, (cell + across) / sheet);
         }
     }
 
@@ -196,22 +208,24 @@ b8 _nya_render3d_decals_ensure(NYA_Render3DDecalsGPU* gpu) {
     return gpu->vertices != nullptr && gpu->grids != nullptr;
 }
 
-const _NYA_Render3DDecalGrid* _nya_render3d_decal_grid(NYA_Render3DDecalsGPU* gpu, NYA_Render3DDecalProbe probe, const _NYA_Render3DDecalBox* box) {
+const _NYA_Render3DDecalGrid* _nya_render3d_decal_grid(NYA_Render3DDecalsGPU* gpu, NYA_Render3DDecalProbe probe, const _NYA_Render3DDecalBox* box, f32x2 size) {
     _NYA_Render3DDecalGrid* grid = nya_cache_get(gpu->grids, box, sizeof(*box), gpu->probe_generation);
-    if (grid != nullptr) return grid;
+    if (grid != nullptr && grid->size.x >= size.x && grid->size.y >= size.y) return grid;
 
+    // a decal grown past its grid replaces it.
     void*     slot     = nullptr;
     NYA_Error inserted = nya_cache_add(gpu->grids, box, sizeof(*box), gpu->probe_generation, &slot);
     if (!inserted.ok) return nullptr;
 
-    grid = slot;
+    grid       = slot;
+    grid->size = size;
 
     f32 cosine = cosf(box->rotation);
     f32 sine   = sinf(box->rotation);
 
-    f32x3 across = (f32x3){ cosine, 0.0F, -sine } * box->size[0];
-    f32x3 along  = (f32x3){ sine, 0.0F, cosine } * box->size[2];
-    f32x3 down   = { 0.0F, -box->size[1], 0.0F };
+    f32x3 across = (f32x3){ cosine, 0.0F, -sine } * size.x;
+    f32x3 along  = (f32x3){ sine, 0.0F, cosine } * size.y;
+    f32x3 down   = { 0.0F, -box->depth, 0.0F };
 
     f32x3 center = { box->center[0], box->center[1], box->center[2] };
 
@@ -230,17 +244,9 @@ const _NYA_Render3DDecalGrid* _nya_render3d_decal_grid(NYA_Render3DDecalsGPU* gp
 
             b8 hit = probe(origin, down, gpu->probe_user_data, &point, &normal);
 
-            grid->landed[i] = hit && normal.y >= NYA_RENDER3D_DECAL_STEEPEST;
-
             // a miss stays at the middle of the box, where its cell collapses instead of stretching to the probe's end.
-            if (!hit) point = origin + (down * 0.5F);
-
-            grid->points[i][0]  = point.x;
-            grid->points[i][1]  = point.y;
-            grid->points[i][2]  = point.z;
-            grid->normals[i][0] = normal.x;
-            grid->normals[i][1] = normal.y;
-            grid->normals[i][2] = normal.z;
+            grid->points[i]  = hit ? point : origin + (down * 0.5F);
+            grid->normals[i] = hit && normal.y >= NYA_RENDER3D_DECAL_STEEPEST ? normal : f32x3_zero;
         }
     }
 
