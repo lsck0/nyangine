@@ -10,6 +10,12 @@
 - [Your first window](tutorials/first-window.md)
 - [Drawing a UI](tutorials/drawing-a-ui.md)
 - [Adding a system](tutorials/adding-a-system.md)
+- [Screens and scenes](tutorials/scenes.md)
+- [Physics](tutorials/physics.md)
+- [Playing sound](tutorials/audio.md)
+- [Networking](tutorials/networking.md)
+- [Writing a plugin](tutorials/plugins.md)
+- [Testing](tutorials/testing.md)
 
 ## Guides
 
