@@ -144,6 +144,14 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
         return true;
     }
 
+    // this end let go, so its peer is gone and what it sent goes unread, as a dropped UDP peer's does.
+    if (!endpoint->connected && !endpoint->disconnect_pending) {
+        nya_array_foreach (endpoint->inbox, unread) nya_arena_free(endpoint->allocator, unread->data, unread->size);
+        endpoint->inbox->length = 0;
+
+        return false;
+    }
+
     // what the far end sent before it let go comes first, as it would off a wire, and then the disconnect.
     if (endpoint->inbox->length == 0) {
         if (!endpoint->disconnect_pending) return false;

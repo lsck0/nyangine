@@ -1054,20 +1054,26 @@ b8 _nya_net_udp_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out
         _nya_net_udp_update(transport);
     }
 
-    if (state->events_read == state->events->length) return false;
+    while (state->events_read < state->events->length) {
+        _NYA_NetUdpEvent event = state->events->items[state->events_read++];
 
-    _NYA_NetUdpEvent event = state->events->items[state->events_read++];
+        // received in the same batch as something that got its sender dropped: the id is dead, and a message under it
+        // would let the layer above admit a peer this transport no longer has.
+        if (event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE && _nya_net_udp_resolve(state, event.peer) == NYA_NET_MAX_PEERS) continue;
 
-    *out_event = (NYA_NetTransportEvent){
-        .kind    = event.kind,
-        .peer    = event.peer,
-        .data    = event.data,
-        .size    = event.size,
-        .channel = event.channel,
-        .reason  = event.reason,
-    };
+        *out_event = (NYA_NetTransportEvent){
+            .kind    = event.kind,
+            .peer    = event.peer,
+            .data    = event.data,
+            .size    = event.size,
+            .channel = event.channel,
+            .reason  = event.reason,
+        };
 
-    return true;
+        return true;
+    }
+
+    return false;
 }
 
 void _nya_net_udp_receive(NYA_NetTransport* transport) {

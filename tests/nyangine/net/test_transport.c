@@ -938,6 +938,63 @@ s32 main(void) {
     nya_net_transport_destroy(nullptr);
   }
 
+  printf("TEST: a peer this end dropped delivers nothing it sent after\n");
+  {
+    /* Found by the simulation's captured traffic: a bad HELLO and a good one in one batch. The server dropped the peer at the first and was handed the second under the dead id, and admitted a player no transport held. */
+    u8 payload[16];
+    fill(payload, sizeof(payload), 0x42);
+
+    NYA_NetTransport* a = nullptr;
+    NYA_NetTransport* b = nullptr;
+    NYA_EXPECT(nya_net_transport_loopback_create(arena, &a, &b));
+
+    Collected ca = { 0 };
+    Collected cb = { 0 };
+    drain(a, &ca);
+    drain(b, &cb);
+
+    NYA_EXPECT(nya_net_transport_send(b, cb.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)));
+    nya_net_transport_disconnect(a, ca.last_peer, NYA_NET_DISCONNECT_PROTOCOL);
+
+    drain(a, &ca);
+    nya_assert_eq(ca.messages, 0U);
+
+    nya_net_transport_destroy(a);
+    nya_net_transport_destroy(b);
+
+    NYA_NetTransport* server = nullptr;
+    NYA_NetTransport* client = nullptr;
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+    NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", nya_net_transport_port(server)));
+
+    Collected cs = { 0 };
+    Collected cc = { 0 };
+    nya_assert(pump_until(client, server, &cc, &cs, both_connected), "the handshake did not complete");
+
+    // two messages, flushed as one datagram, so both are in the batch the server's next poll reads.
+    NYA_EXPECT(nya_net_transport_send(client, cc.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)));
+    NYA_EXPECT(nya_net_transport_send(client, cc.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)));
+    nya_net_transport_flush(client);
+    sleep_ms(20);
+
+    NYA_NetTransportEvent event = { 0 };
+    u32                   heard = 0;
+
+    while (nya_net_transport_poll(server, &event)) {
+      if (event.kind != NYA_NET_TRANSPORT_EVENT_MESSAGE) continue;
+
+      heard++;
+      nya_net_transport_disconnect(server, event.peer, NYA_NET_DISCONNECT_PROTOCOL);
+    }
+
+    nya_assert_eq(heard, 1U);
+
+    nya_net_transport_destroy(client);
+    nya_net_transport_destroy(server);
+  }
+
   printf("TEST: packet loss simulation is refused where it is meaningless\n");
   {
     NYA_NetTransport* a = nullptr;
