@@ -776,7 +776,7 @@ void _nya_luabind_emit_definitions(const _NYA_LuaBindSet* set, NYA_String* out) 
                       "-- What a plugin may actually call is narrower than this: a binding is only registered when the\n"
                       "-- manifest asked for its permission and the game's build granted it. The permission is on every\n"
                       "-- entry below, so a call that is missing at runtime can be traced to the manifest that did not ask\n"
-                      "-- for it. See src/nyangine/core/core_plugin.h.\n"
+                      "-- for it. See src/nyangine-core/core/core_plugin.h.\n"
                       "\n"
                       "---@class nya\n"
                       "nya = {}\n\n");

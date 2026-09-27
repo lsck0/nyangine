@@ -98,5 +98,5 @@ title, opacity groups fade a whole subtree, and widgets pop on focus and bounce 
 Not there yet: a floating dropdown (an immediate pass has no z-order, so an open list takes room in
 the layout), a node editor, SVG, and a multi-line code editor.
 
-See the [cheatsheet](../CHEATSHEET.md) for every signature, and `src/nyangine/ui/ui.h` for the
+See the [cheatsheet](../CHEATSHEET.md) for every signature, and `src/nyangine-ui/ui.h` for the
 reasoning behind each.

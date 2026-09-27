@@ -50,8 +50,8 @@
  *
  * nya_entity_foreach (entity) {
  *     switch (entity->type) {
- *         case GNY_ENTITY_ROBOT: gny_entity_robot_attach(entity); break;
- *         case GNY_ENTITY_BOX:   gny_entity_box_attach(entity); break;
+ *         case MY_ENTITY_ROBOT: my_robot_attach(entity); break; // the program's own re-attach, per type
+ *         case MY_ENTITY_BOX:   my_box_attach(entity); break;
  *         default:               break;
  *     }
  * }

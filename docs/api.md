@@ -87,7 +87,7 @@ that a hidden registry costs more the first time you need two of something.
 ## 4. Handles, not pointers, for anything that can go away
 
 ```c
-// src/nyangine/core/core_types.h
+// src/nyangine-core/core/core_types.h
 struct NYA_EntityHandle {
     u32 index;
     u32 generation;
@@ -103,7 +103,7 @@ already controls — an arena, a window, a table it made.
 Allocation says where, not when to free:
 
 ```c
-// src/nyangine/http/http_router.h — inside one exchange
+// src/nyangine-core/http/http_router.h — inside one exchange
 /**
  * Scratch for this exchange and nothing longer: it is emptied when the exchange ends, so anything
  * a handler wants to keep has to be copied into the response body before it returns.
@@ -121,7 +121,7 @@ type's shape reads that same table: JSON and `.nya` serialization, the OpenAPI s
 config file, the debug inspector.
 
 ```c
-// src/nyangine/debug/debug_metrics.h
+// src/nyangine-core/debug/debug_metrics.h
 // @reflect
 /** What QUERY /api/metrics answers: the frame, and what the server itself has done. */
 struct NYA_HttpMetricsDto {
@@ -161,7 +161,7 @@ before the handler runs, so a handler behind one cannot be reached unchecked. Se
 ## 8. A bound is a `#define` with its reasoning, and it is measurable
 
 ```c
-// src/nyangine/http/http_cookie.h
+// src/nyangine-core/http/http_cookie.h
 /**
  * Pairs one request's `Cookie` header may hold.
  *
@@ -176,7 +176,7 @@ Fixed-capacity tables register themselves, so how full each one is shows in the 
 HTTP:
 
 ```c
-// src/nyangine/core/core_system.c
+// src/nyangine-core/core/core_system.c
 nya_ceiling_register("systems", NYA_SYSTEM_REGISTRY_MAX, &_nya_system_registry.count);
 ```
 
@@ -190,7 +190,7 @@ you did not.
 installed:
 
 ```c
-// src/nyangine/ui/ui_present.h
+// src/nyangine-ui/ui_present.h
 void  (*look_build)(void*, u32 depth, const NYA_UIStyle*, f32 scale, NYA_UILook* out);
 f32x2 (*measure)(void*, NYA_UIText, NYA_ConstCString, f32 room, NYA_UIOverflow);
 void  (*draw)(void*, NYA_Window*, const NYA_UIWidgetDraw*);

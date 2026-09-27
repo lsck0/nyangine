@@ -75,4 +75,4 @@ bytes, so "this plugin costs 0.4 ms a frame" is a question with an answer.
 ## Next
 
 - [Architecture](../architecture.md) for how systems relate to frames, ticks and interpolation.
-- `src/nyangine/core/core_system.h` for every function and its reasoning.
+- `src/nyangine-core/core/core_system.h` for every function and its reasoning.

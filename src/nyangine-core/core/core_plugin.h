@@ -66,18 +66,19 @@
  * **What this does not guarantee, and would need an OS to.** It is not a sandbox and this header will
  * not call it one:
  *
- * - **No resource bound.** `while true do end` hangs the frame; a table built in a loop grows LuaJIT's
- *   heap until the process is out of memory. There is no instruction budget and no heap ceiling. What
- *   exists is measurement, not enforcement: nya_plugin_stats says which plugin is spending the frame
- *   and holding the memory, and a human or the game decides.
+ * - **Bounds are coarse.** Every plugin VM runs with an instruction budget per call and a heap ceiling
+ *   (NYA_LUA_INSTRUCTION_BUDGET and NYA_LUA_HEAP_CEILING_BYTES in lua.c), so `while true do end` is
+ *   stopped rather than hanging the frame; but the budget is per call, not per frame, and a budgeted VM
+ *   runs interpreted. nya_plugin_stats says which plugin is spending the frame and holding the memory.
  * - **No protection from a bug in a binding.** A granted binding is C, and a C function that
  *   mishandles its arguments is exploitable whatever the permission said. The bindings are generated
  *   from one template for exactly this reason, so there is one marshaller to audit rather than a
  *   hundred.
  * - **Granularity is the permission, not the object.** NYA_PLUGIN_PERMISSION_ENTITIES is every entity,
  *   not the ones a plugin created. A plugin that may spawn may also despawn the player.
- * - **Nothing is verified.** No signature, no checksum, no reproducible build. A plugin is whatever is
- *   in the folder, and a folder can be replaced by anything with write access to it.
+ * - **Verification is only a signature.** An Ed25519 signature over the folder against keys pinned in
+ *   the program (core_plugin_signature.h) proves who published it, not that it is harmless; with
+ *   NYA_PLUGIN_REQUIRE_SIGNATURE off, a folder is whatever anything with write access put there.
  * - **The permission is checked once, at load.** Nothing re-checks per call, because there is nothing
  *   to check: the function is either in the VM or it is not.
  *
