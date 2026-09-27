@@ -24,14 +24,18 @@ full guide is at `~/.claude/skills/l-style/SKILL.md`; read it before writing cod
 
 ```
 build.c                bootstrap entry point; recompiles itself from then on
-src/nyangine-build/             the build system: rules, CLI, hooks, preprocessor passes (pp/)
-src/nyangine/          the engine
-src/gnyame/            the game that exercises it
-src/genyarated/         written by the preprocessor passes; never edit by hand
+src/nyangine-build/    the build system: rules, CLI, hooks, preprocessor passes (pp/), vendor recipes
+src/nyangine-std/      what is useful outside the engine too: os, platform, base, math, serde
+src/nyangine-core/     the engine: the app loop and every module above std (see the table)
+src/nyangine-ui/       the immediate mode UI toolkit and its presenters (shape, cells, HTML, DOM)
+src/nyangine-plugins/  optional dependencies behind a flag: curl, lua, discord, steam, acme, oidc, bots
+src/nyangine-editor/   reserved for the editor; empty
+src/gnyame/            the game that exercises it; src/gnyame_cli/ is its command line app
+src/genyarated/        written by the preprocessor passes; never edit by hand
 src/main.c             the executable's entry point and the hot reload host
-tests/nyangine/        one file per unit under test, mirroring src/nyangine
+tests/nyangine/        one file per unit under test, by module
 bench/                 benchmarks
-examples/<name>/main.c one self contained example each
+examples/<name>/main.c one self contained example each; `./build run examples` runs them all
 assets/                shaders, fonts, sounds, locales, config
 vendor/                third-party submodules, built by ./build, never edited in place
 packaging/             AUR, Flatpak, winget, scoop and SteamPipe manifests
@@ -41,33 +45,35 @@ docs/lua/nya.lua       generated Lua definitions for the `nya` table
 docs/*.md              prose per subject, published through GitBook
 ```
 
-Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that includes the rest:
+Modules, each a directory with a `<module>.h` that includes the rest. `os`, `base`, `platform`, `math`
+and `serde` live in `src/nyangine-std/`, `ui` in `src/nyangine-ui/`, the plugins in
+`src/nyangine-plugins/`, everything else in `src/nyangine-core/`:
 
 | Module     | What is in it                                                               |
 | :--------- | :-------------------------------------------------------------------------- |
 | `os`       | the syscalls: files, pages, the two clocks, random bytes, starting a process  |
-| `base`     | arenas, strings, arrays, logging, errors, the file system, commands, clocks   |
-| `platform` | signals, the terminal, ipc, what the host is                                 |
+| `base`     | arenas, strings, arrays, logging, errors, the file system, commands, clocks, reflection, validation |
+| `platform` | signals, the terminal, ipc, what the host is, the run budget                 |
 | `math`     | scalars, vectors, matrices, quaternions, shapes, noise, random, springs       |
+| `serde`    | one dynamic value type, to and from json, jsonc and `.nya` (text and binary)  |
 | `crypto`   | hashes, HMAC, XChaCha20-Poly1305, X25519, Ed25519, Argon2id, base32, TOTP; monocypher |
-| `db`       | one database file: bound statements, a reflected struct as a row, derived migrations |
-| `core`     | the app loop, entities, systems, events, input, audio, assets, config, saves  |
+| `db`       | one database file: bound statements, a reflected struct as a row, derived migrations, jobs, blobs |
+| `core`     | the app loop, entities, systems, events, input, audio, assets, config, saves, transitions |
 | `renderer` | 2D and 3D drawing, cameras, text, particles, post processing, three backends  |
 | `ui`       | immediate mode widgets                                                       |
 | `physics`  | Box2D and Box3D behind one interface                                         |
 | `net`      | encrypted UDP client and server, snapshots, prediction                        |
-| `http`     | an HTTP/1.1 server, routing and layers, JWT, the TOTP second factor, OpenAPI generated from the routes |
-| `serde`    | one dynamic value type, to and from json, jsonc and `.nya` (text and binary)  |
+| `http`     | an HTTP/1.1 server, routing and layers, TLS, accounts, uploads, OpenAPI generated from the routes |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay, the trace, the crash window, and drawing physics and networks   |
-| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam                |
+| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam, acme, oidc    |
 
-Not in the engine yet, and planned in `TODO.md`'s roadmap: the module layering and the component
-system (every module above `base`, `platform` and `math` added or removed by one line in
-`assets/config/plugins.nya`), a wasm target with a WebGPU renderer and a DOM UI presenter, TLS, the
-accounts, roles and sessions stack, and SQLCipher, which `db` has the seam for and not the cipher. Do
-not describe any of it as if it exists; the layout above and the flags below are how the tree works
-today.
+Not in the engine yet, and planned in `TODO.md`'s roadmap: the component system (every module above
+`base`, `platform` and `math` added or removed by one line in `assets/config/plugins.nya`; today only
+`./build project` reads a manifest), a WebGPU renderer (the wasm builds draw 2D through WebGL2 only),
+TLS through mbedTLS (it goes through OpenSSL today), and SQLCipher, which `db` has the seam for and not
+the cipher. Do not describe any of it as if it exists; the layout above and the flags below are how the
+tree works today.
 
 ### The three 2D backends
 
