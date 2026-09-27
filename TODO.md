@@ -1245,7 +1245,7 @@ The current track, reordered around one missing primitive.
 - `[~]` Signed plugins: Ed25519 signature over the plugin directory with publisher keys pinned in the program,
   refusing anything not signed by a pinned key, landed 2026-09-24 (`f4c21979`). Open: a signed repository index
   and repositories by URL as under "Plugins".
-- `[ ]` VM budgets: an instruction count hook and a heap ceiling through the allocator, so a plugin can be slow
+- `[x]` VM budgets: an instruction count hook and a heap ceiling through the allocator, so a plugin can be slow
   or large but never hang or exhaust the host.
 - `[ ]` The ambient current UI for Lua, runtime asset roots, and the in-app toggles for plugins and systems.
 
@@ -1400,7 +1400,7 @@ Accepted:
   cannot: shutting down, the database unreachable, the job queue past its limit. It sits on the metrics port
   (loopback by default), so a supervisor can ask and the internet cannot, and it takes no auth and returns no
   detail beyond the reason. Phase 3.
-- `[ ]` **Right-to-left text.** Shaping already goes through SDL_ttf and harfbuzz; what is missing is the bidi
+- `[~]` **Right-to-left text.** Shaping already goes through SDL_ttf and harfbuzz; what is missing is the bidi
   algorithm (UAX #9) for mixed-direction lines, mirrored layout in the UI (rows, alignment, scroll bars,
   chevrons), and caret movement and selection that follow visual order in the text field. The direction
   comes from the locale, with a per-widget override. The vendored SDL_ttf has no bidi: it offers one
@@ -1728,7 +1728,7 @@ the packager ones.
 - `[ ]` A distribution contains: the executable; packager-specific files (manifests, desktop entry, Steam
   library, man page, licence); an optional `assets/` if not bundled into the executable; a `data/` folder
   holding user-editable settings and colour theme plus non-editable save data; and `plugins/`.
-- `[ ]` Assets on the filesystem are encrypted or obfuscated so they cannot be extracted or modified.
+- `[x]` Assets on the filesystem are encrypted or obfuscated so they cannot be extracted or modified.
 - `[x]` Settings are user-editable and a bad line explains itself: the file, the key, what was found and what
   was expected. The half that said nothing was a value the type checker has no quarrel with — a volume of 5,
   seven MSAA samples, a field of view of 200 — which its setter corrected in silence. Both loaders compare
@@ -1927,7 +1927,7 @@ the packager ones.
   described too (`reflection_engine.c`), used by scenes and settings rather than only by config.
 - `[ ]` Reflection data given at least token protection against reverse engineering. Today every struct and
   field name sits in `.rodata` verbatim.
-- `[ ]` Use the config system more, starting with gnyame's `constants.h`.
+- `[~]` Use the config system more, starting with gnyame's `constants.h`.
 - `[~]` A better debug UI. A systems page landed; the rest is open.
 - `[x]` The main menu shows build kind, commit hash, build time and version in the bottom left corner, from
   `nya_build_info`, which the crash report and the startup log read too so they cannot disagree.
