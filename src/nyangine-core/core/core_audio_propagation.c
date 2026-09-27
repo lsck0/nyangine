@@ -35,6 +35,9 @@
 /** How much quieter an echo from the edge of range is than one from beside the ear. */
 #define _NYA_AUDIO_PROPAGATION_ECHO_FAR_GAIN 0.3F
 
+/** How far past a surface a ray starts to be inside, or short of it to be clear, world units. Thinner solids are stepped over. */
+#define _NYA_AUDIO_PROPAGATION_STEP 0.01F
+
 /** Listener directions in 3D: the six axes, then the eight cube corners, all unit length. */
 NYA_INTERNAL const f32x3 _NYA_AUDIO_PROPAGATION_DIRECTIONS_3D[NYA_AUDIO_PROPAGATION_ENVIRONMENT_RAYS] = {
     { 1.0F, 0.0F, 0.0F },          { -1.0F, 0.0F, 0.0F },          { 0.0F, 1.0F, 0.0F },          { 0.0F, -1.0F, 0.0F },
@@ -73,6 +76,21 @@ typedef struct {
     /** Zero when no probes were cast this update. */
     u32   probe_count;
     f32x3 probes[NYA_AUDIO_PROPAGATION_PROBES];
+
+    /** Hidden last update, or new: its probes and `passes` layer passes were paid for. */
+    b8  hidden;
+    u32 passes;
+
+    /** Solid along the centre ray, summed over its layers, and how many solids it entered. */
+    f32 thickness;
+    u32 solids;
+
+    /** The layer chain: the last two entries found and the far exit, distances from the ear, and this pass's rays. */
+    b8  layering;
+    f32 entry;
+    f32 entry_previous;
+    f32 exit;
+    u32 layer_ray;
 } NYA_AudioTrace;
 
 /** Zero counts defaulted, counts clamped, the budget raised to fit at least one voice and the room slice. */
@@ -97,11 +115,26 @@ NYA_INTERNAL void _nya_audio_tracer_step(
 /** Rays tracing `path` costs this update, given what it found last time. */
 NYA_INTERNAL u32 _nya_audio_path_cost(const NYA_AudioPath* path, const NYA_AudioPropagation* propagation) __attr_no_discard;
 
+/** Layer passes a hidden path's next trace pays for: all while new, else one per solid it entered last time. */
+NYA_INTERNAL u32 _nya_audio_path_passes(const NYA_AudioPath* path) __attr_no_discard;
+
 /** Appends one voice's rays to the batch and records where they went. */
 NYA_INTERNAL void _nya_audio_trace_build(
     NYA_AudioTracer* tracer, NYA_AudioTrace* out_trace, const NYA_AudioPropagation* propagation, f32x3 ear, f32x3 source,
     f32 radius, u32* ray_count
 );
+
+/**
+ * Sums each blocked centre ray's solid a layer a batch: from just inside the last entry, a ray on meets the next entry
+ * and a ray back the exit before it, since a ray skips the solid it starts in. NYA_AUDIO_PROPAGATION_LAYERS passes.
+ * */
+NYA_INTERNAL void _nya_audio_tracer_layers(
+    NYA_AudioTracer* tracer, NYA_AudioTrace* traces, u32 trace_count, const NYA_AudioPropagation* propagation, NYA_AudioRayFn trace,
+    void* user_data, f32x3 ear, u32* ray_count
+);
+
+/** A ray from `from` toward `to`, stopping `radius` short so a sound on a surface is not hidden by it. */
+NYA_INTERNAL NYA_AudioRay _nya_audio_ray_short(f32x3 from, f32x3 to, f32 radius) __attr_no_discard;
 
 /** Reads one voice's results into its path's targets. */
 NYA_INTERNAL void _nya_audio_trace_read(
@@ -109,8 +142,11 @@ NYA_INTERNAL void _nya_audio_trace_read(
     f32 radius
 );
 
-/** Turns the nearest surfaces the room probes hit into the sound bus's echoes. */
-NYA_INTERNAL void _nya_audio_environment_reflect(NYA_AudioTracer* tracer, const NYA_AudioPropagation* propagation, f32x3 right);
+/** Turns the nearest surfaces the room probes hit, and the nearest voice sees, into the sound bus's echoes. One batch. */
+NYA_INTERNAL void _nya_audio_environment_reflect(
+    NYA_AudioTracer* tracer, const NYA_AudioPropagation* propagation, NYA_AudioRayFn trace, void* user_data, f32x3 ear, f32x3 right,
+    const NYA_AudioEmitter* emitters, u32* ray_count
+);
 
 /** Recomputes the room estimate from every direction's last fraction and eases the reverb toward it. */
 NYA_INTERNAL void _nya_audio_environment_estimate(NYA_AudioTracer* tracer, const NYA_AudioPropagation* propagation, f32 ease);
@@ -260,9 +296,10 @@ NYA_AudioPropagation _nya_audio_propagation_validate(NYA_AudioPropagation propag
 
     if (propagation.ray_budget == 0) propagation.ray_budget = NYA_AUDIO_PROPAGATION_RAY_BUDGET;
 
-    // at least the room slice and one voice at its dearest, or a hidden voice could never be traced again.
+    // at least the room, its echoes and one voice at its dearest, or a hidden voice could never be traced again.
     u32 probes   = propagation.space == NYA_AUDIO_SPACE_2D ? NYA_AUDIO_PROPAGATION_PROBES / 2 : NYA_AUDIO_PROPAGATION_PROBES;
-    u32 smallest = (propagation.environment ? NYA_AUDIO_PROPAGATION_ENVIRONMENT_SLICE : 0) + propagation.voice_rays + 1 + (propagation.diffraction ? 2 * probes : 0);
+    u32 room     = (propagation.environment ? NYA_AUDIO_PROPAGATION_ENVIRONMENT_SLICE : 0) + (propagation.reflections > 0.0F ? NYA_AUDIO_REFLECTION_TAPS : 0);
+    u32 smallest = room + propagation.voice_rays + (2 * NYA_AUDIO_PROPAGATION_LAYERS) + (propagation.diffraction ? 2 * probes : 0);
 
     propagation.ray_budget = nya_clamp(propagation.ray_budget, smallest, (u32)NYA_AUDIO_PROPAGATION_RAYS_MAX);
 
@@ -295,7 +332,9 @@ void _nya_audio_tracer_step(
     nya_assert(propagation->ray_budget <= NYA_AUDIO_PROPAGATION_RAYS_MAX, "unvalidated propagation settings");
 
     u32 ray_count = 0;
-    u32 budget    = propagation->ray_budget;
+
+    // the echoes are cast last, from what the room probes found this update, so the voices leave them their rays.
+    u32 budget = propagation->ray_budget - (propagation->reflections > 0.0F ? NYA_AUDIO_REFLECTION_TAPS : 0);
 
     // ── the room: a slice of the fixed directions, resumed where the last update stopped ──
     u32          direction_count = 0;
@@ -319,6 +358,9 @@ void _nya_audio_tracer_step(
     u32            trace_count = 0;
     b8             queued[NYA_AUDIO_VOICES] = { 0 };
 
+    // what the voices may still cast, their layers included, which come in later batches.
+    u32 committed = ray_count;
+
     for (u32 pass = 0; pass < 2; pass++) {
         b8 full = false;
 
@@ -330,7 +372,7 @@ void _nya_audio_tracer_step(
 
             u32 cost = _nya_audio_path_cost(&tracer->paths[voice], propagation);
 
-            if (ray_count + cost > budget) {
+            if (committed + cost > budget) {
                 // the round robin resumes here next update, so no voice is starved.
                 if (pass == 1) tracer->voice_cursor = voice;
                 full = true;
@@ -342,6 +384,7 @@ void _nya_audio_tracer_step(
             traces[trace_count].voice = voice;
             _nya_audio_trace_build(tracer, &traces[trace_count], propagation, ear, emitters[voice].position, radius, &ray_count);
 
+            committed += cost;
             trace_count++;
             queued[voice] = true;
 
@@ -351,12 +394,10 @@ void _nya_audio_tracer_step(
         if (full) break;
     }
 
-    nya_assert(ray_count <= budget, "cast %u rays against a budget of %u", ray_count, budget);
+    nya_assert(ray_count <= committed && committed <= budget, "cast %u rays of %u against a budget of %u", ray_count, committed, budget);
 
     // one call for the whole batch, on this thread: a job starts a thread, which costs more than the rays.
     if (ray_count > 0) trace(tracer->rays, tracer->fractions, ray_count, user_data);
-
-    tracer->rays_cast = ray_count;
 
     if (propagation->environment) {
         for (u32 i = 0; i < environment_count; i++) {
@@ -367,6 +408,8 @@ void _nya_audio_tracer_step(
 
         tracer->environment_cursor = (tracer->environment_cursor + environment_count) % direction_count;
     }
+
+    _nya_audio_tracer_layers(tracer, traces, trace_count, propagation, trace, user_data, ear, &ray_count);
 
     for (u32 i = 0; i < trace_count; i++) {
         const NYA_AudioTrace*   voice_trace = &traces[i];
@@ -398,20 +441,32 @@ void _nya_audio_tracer_step(
     }
 
     if (propagation->environment) _nya_audio_environment_estimate(tracer, propagation, environment_ease);
-    if (propagation->reflections > 0.0F) _nya_audio_environment_reflect(tracer, propagation, right);
+    if (propagation->reflections > 0.0F) _nya_audio_environment_reflect(tracer, propagation, trace, user_data, ear, right, emitters, &ray_count);
 
+    tracer->rays_cast = ray_count;
+
+    nya_assert(ray_count <= propagation->ray_budget, "cast %u rays against a budget of %u", ray_count, propagation->ray_budget);
     nya_assert(tracer->voice_cursor < NYA_AUDIO_VOICES);
 }
 
 u32 _nya_audio_path_cost(const NYA_AudioPath* path, const NYA_AudioPropagation* propagation) {
     u32 cost = propagation->voice_rays + 1;
 
-    // probes only while something was in the way, or before anything is known.
-    b8 probing = propagation->diffraction && (!path->traced || path->occlusion > 0.0F);
+    // layers and probes only while something was in the way, or before anything is known.
+    if (path->traced && path->occlusion <= 0.0F) return cost;
 
-    if (probing) cost += 2 * (propagation->space == NYA_AUDIO_SPACE_2D ? NYA_AUDIO_PROPAGATION_PROBES / 2 : NYA_AUDIO_PROPAGATION_PROBES);
+    cost += (2 * _nya_audio_path_passes(path)) - 1;
+
+    if (propagation->diffraction) cost += 2 * (propagation->space == NYA_AUDIO_SPACE_2D ? NYA_AUDIO_PROPAGATION_PROBES / 2 : NYA_AUDIO_PROPAGATION_PROBES);
 
     return cost;
+}
+
+u32 _nya_audio_path_passes(const NYA_AudioPath* path) {
+    // a first result is not eased, so it is paid in full. after that a new solid is lumped once, then paid for.
+    if (!path->traced) return NYA_AUDIO_PROPAGATION_LAYERS;
+
+    return nya_clamp(path->solids, 1U, (u32)NYA_AUDIO_PROPAGATION_LAYERS);
 }
 
 void _nya_audio_trace_build(
@@ -469,13 +524,8 @@ void _nya_audio_trace_build(
             spread    = ((right * cosf(angle)) + (up * sinf(angle))) * radius;
         }
 
-        // aimed at the rim of the extent, stopping a radius short for the same reason as the centre.
-        f32x3 target  = source + spread;
-        f32x3 toward  = target - ear;
-        f32   reach   = nya_vector_length(toward);
-        f32   trimmed = reach > NYA_EPSILON ? nya_max(reach - radius, 0.0F) / reach : 0.0F;
-
-        tracer->rays[first + k] = (NYA_AudioRay){ .origin = ear, .direction = toward * trimmed };
+        // aimed at the rim of the extent.
+        tracer->rays[first + k] = _nya_audio_ray_short(ear, source + spread, radius);
     }
 
     tracer->rays[first + n] = (NYA_AudioRay){ .origin = end, .direction = ear - end };
@@ -483,8 +533,10 @@ void _nya_audio_trace_build(
     *ray_count = first + n + 1;
 
     out_trace->probe_count = 0;
+    out_trace->hidden      = !path->traced || path->occlusion > 0.0F;
+    out_trace->passes      = out_trace->hidden ? _nya_audio_path_passes(path) : 0;
 
-    if (!propagation->diffraction || (path->traced && path->occlusion <= 0.0F)) return;
+    if (!propagation->diffraction || !out_trace->hidden) return;
 
     // beside where the blocker started last time, so the probes straddle its edge rather than the midpoint.
     f32x3 blocker = ear + (direction * (length * path->blocker));
@@ -507,6 +559,98 @@ void _nya_audio_trace_build(
     out_trace->probe_count = probe_count;
 }
 
+void _nya_audio_tracer_layers(
+    NYA_AudioTracer* tracer, NYA_AudioTrace* traces, u32 trace_count, const NYA_AudioPropagation* propagation, NYA_AudioRayFn trace,
+    void* user_data, f32x3 ear, u32* ray_count
+) {
+    for (u32 i = 0; i < trace_count; i++) {
+        NYA_AudioTrace* layers    = &traces[i];
+        const f32*      fractions = &tracer->fractions[layers->first];
+
+        // the centre ray met the first entry and the reverse ray the last exit. the chain splits what lies between.
+        layers->thickness      = 0.0F;
+        layers->layering       = fractions[0] < 1.0F;
+        layers->entry          = fractions[0] * layers->length;
+        layers->entry_previous = layers->entry;
+        layers->exit           = (1.0F - nya_clamp(fractions[propagation->voice_rays], 0.0F, 1.0F)) * layers->length;
+        layers->solids         = layers->layering ? 1 : 0;
+    }
+
+    for (u32 layer = 0; layer < NYA_AUDIO_PROPAGATION_LAYERS; layer++) {
+        u32 first = *ray_count;
+
+        for (u32 i = 0; i < trace_count; i++) {
+            NYA_AudioTrace* layers = &traces[i];
+            if (!layers->layering || layer >= layers->passes) continue;
+
+            f32 inside = layers->entry + _NYA_AUDIO_PROPAGATION_STEP;
+
+            // entered within a step of the far exit: the last solid.
+            if (inside >= layers->exit) {
+                layers->thickness += nya_max(layers->exit - layers->entry, 0.0F);
+                layers->layering   = false;
+                continue;
+            }
+
+            f32x3 origin = ear + ((layers->end - ear) * (inside / layers->length));
+
+            layers->layer_ray            = *ray_count;
+            tracer->rays[(*ray_count)++] = (NYA_AudioRay){ .origin = origin, .direction = layers->end - origin };
+
+            // back past this solid to the exit of the one before. the first has none before it.
+            if (layer > 0) tracer->rays[(*ray_count)++] = (NYA_AudioRay){ .origin = origin, .direction = ear - origin };
+        }
+
+        if (*ray_count == first) break;
+
+        nya_assert(*ray_count <= propagation->ray_budget, "the layers overran the budget, %u rays", *ray_count);
+        trace(&tracer->rays[first], &tracer->fractions[first], *ray_count - first, user_data);
+
+        for (u32 i = 0; i < trace_count; i++) {
+            NYA_AudioTrace* layers = &traces[i];
+            if (!layers->layering || layer >= layers->passes) continue;
+
+            f32 inside = layers->entry + _NYA_AUDIO_PROPAGATION_STEP;
+
+            if (layer > 0) {
+                // a miss back means the two solids overlap: the one before runs on into this one.
+                f32 back   = tracer->fractions[layers->layer_ray + 1];
+                f32 before = back < 1.0F ? nya_min(inside * (1.0F - back), layers->entry) : layers->entry;
+
+                layers->thickness += nya_max(before - layers->entry_previous, 0.0F);
+            }
+
+            f32 ahead = tracer->fractions[layers->layer_ray];
+
+            // nothing entered further on: this solid runs to the far exit.
+            if (ahead >= 1.0F) {
+                layers->thickness += nya_max(layers->exit - layers->entry, 0.0F);
+                layers->layering   = false;
+                continue;
+            }
+
+            layers->entry_previous = layers->entry;
+            layers->entry          = inside + (ahead * (layers->length - inside));
+            layers->solids++;
+        }
+    }
+
+    // out of passes, the solid whose exit is unknown is taken as running to the far exit.
+    for (u32 i = 0; i < trace_count; i++) {
+        if (traces[i].layering) traces[i].thickness += nya_max(traces[i].exit - traces[i].entry_previous, 0.0F);
+
+        nya_assert(traces[i].thickness <= traces[i].length + NYA_EPSILON, "more solid than path, %f", (f64)traces[i].thickness);
+    }
+}
+
+NYA_AudioRay _nya_audio_ray_short(f32x3 from, f32x3 to, f32 radius) {
+    f32x3 toward  = to - from;
+    f32   reach   = nya_vector_length(toward);
+    f32   trimmed = reach > NYA_EPSILON ? nya_max(reach - radius, 0.0F) / reach : 0.0F;
+
+    return (NYA_AudioRay){ .origin = from, .direction = toward * trimmed };
+}
+
 void _nya_audio_trace_read(
     NYA_AudioTracer* tracer, const NYA_AudioTrace* trace, const NYA_AudioPropagation* propagation, f32x3 ear, f32x3 source,
     f32 radius
@@ -523,14 +667,8 @@ void _nya_audio_trace_read(
 
     f32 occlusion = (f32)blocked / (f32)n;
 
-    // the solid between the first surface each end sees. two walls read as one thick one: no materials, no layers.
     b8  centre_blocked = fractions[0] < 1.0F;
-    f32 thickness      = 0.0F;
-
-    if (centre_blocked) {
-        f32 back  = nya_clamp(fractions[n], 0.0F, 1.0F);
-        thickness = nya_max(trace->length * (1.0F - fractions[0] - back), 0.0F);
-    }
+    f32 thickness      = trace->thickness;
 
     f32   blocked_gain   = propagation->transmission * expf(-thickness / propagation->thickness);
     f32   blocked_muffle = 1.0F + (thickness / propagation->thickness);
@@ -571,6 +709,7 @@ void _nya_audio_trace_read(
     f32 hidden_share = gain > NYA_EPSILON ? (occlusion * blocked_gain) / gain : 1.0F;
 
     path->occlusion     = occlusion;
+    path->solids        = trace->solids;
     path->target_gain   = gain;
     path->target_muffle = hidden_share * blocked_muffle;
     path->target_offset = (heard - source) * hidden_share;
@@ -588,7 +727,10 @@ void _nya_audio_trace_read(
     nya_assert(path->target_gain >= 0.0F && path->target_gain <= 1.0F + NYA_EPSILON, "gain %f out of range", (f64)path->target_gain);
 }
 
-void _nya_audio_environment_reflect(NYA_AudioTracer* tracer, const NYA_AudioPropagation* propagation, f32x3 right) {
+void _nya_audio_environment_reflect(
+    NYA_AudioTracer* tracer, const NYA_AudioPropagation* propagation, NYA_AudioRayFn trace, void* user_data, f32x3 ear, f32x3 right,
+    const NYA_AudioEmitter* emitters, u32* ray_count
+) {
     u32          direction_count = 0;
     const f32x3* directions      = _nya_audio_propagation_directions(propagation->space, &direction_count);
 
@@ -611,10 +753,33 @@ void _nya_audio_environment_reflect(NYA_AudioTracer* tracer, const NYA_AudioProp
         count         = nya_min(count + 1, (u32)NYA_AUDIO_REFLECTION_TAPS);
     }
 
+    // the nearest voice stands for the bus: a surface it cannot see does not echo. with none placed, the ear is the source.
+    const NYA_AudioEmitter* source = nullptr;
+
+    for (u32 i = 0; i < NYA_AUDIO_VOICES; i++) {
+        if (!emitters[i].active) continue;
+        if (source == nullptr || nya_vector_length(emitters[i].position - ear) < nya_vector_length(source->position - ear)) source = &emitters[i];
+    }
+
+    u32 first = *ray_count;
+
+    if (source != nullptr && count > 0) {
+        f32 radius = source->radius > 0.0F ? source->radius : propagation->radius;
+
+        for (u32 tap = 0; tap < count; tap++) {
+            f32   reach   = tracer->environment_fractions[nearest[tap]] * propagation->environment_range;
+            f32x3 surface = ear + (directions[nearest[tap]] * nya_max(reach - _NYA_AUDIO_PROPAGATION_STEP, 0.0F));
+
+            tracer->rays[(*ray_count)++] = _nya_audio_ray_short(surface, source->position, radius);
+        }
+
+        trace(&tracer->rays[first], &tracer->fractions[first], count, user_data);
+    }
+
     for (u32 tap = 0; tap < NYA_AUDIO_REFLECTION_TAPS; tap++) {
         NYA_AudioReflectionTap* echo = &tracer->reflections.taps[tap];
 
-        if (tap >= count) {
+        if (tap >= count || (source != nullptr && tracer->fractions[first + tap] < 1.0F)) {
             echo->gain = 0.0F;
             continue;
         }

@@ -2208,7 +2208,7 @@ stays the authority.
 ## `[~]` Audio propagation and effects
 
 Positional voices are traced through a batched ray callback the app wires to Box3D or Box2D: rays over a source's
-extent give partial occlusion, a reverse ray gives blocker thickness for transmission, and four probes find a way
+extent give partial occlusion, rays through each solid give its thickness for transmission, and four probes find a way
 around with a Maekawa detour loss that pulls the sound toward the opening. Fourteen listener probes, four a frame,
 estimate enclosure and distance, drive the sound bus reverb and place six panned echo taps. One ray budget (64,
 ceiling `audio_rays`) is shared round robin, nothing is allocated per frame, nothing is cast when off. Every bus
@@ -2219,8 +2219,16 @@ positioned voice goes through our own panner in place of SDL_mixer's mono 3D pat
 level difference capped at 6 dB, Woodworth's interaural delay (0.656 ms at the side) on a fractional delay line, and a
 one pole head shadow on the far ear falling to 1.8 kHz; other layouts keep SDL_mixer's placement.
 
-- `[ ]` Thickness is the span between first hits, so two thin walls read as one thick one.
-- `[ ]` Echo taps do not check that the source sees the surface; one diffraction reach.
+- `[x]` Thickness sums the solids along the centre ray: from just inside each entry a ray on finds the next entry
+  and a ray back the exit before it, since a raycast skips the solid it starts in (Box3D's closest cast ignores the
+  initial overlap, Box2D's polygons report none). Up to `NYA_AUDIO_PROPAGATION_LAYERS` (3) solids, one batch each;
+  past that the rest is one span. Two 20 cm walls 2.8 m apart now transmit 0.33 where they read as 3.2 m (0.08). A
+  new voice pays all three passes (5 rays), a traced one one pass per solid it crossed last time (1 behind one wall).
+- `[x]` An echo tap counts only if the nearest voice sees its surface: one ray per tap, `NYA_AUDIO_REFLECTION_TAPS`
+  (6) a frame, cast after the room slice updated. With no voice placed the ear is the source.
+  Bench, 16 voices behind a wall, Box3D, best of rounds: occlusion only 6.9 µs (60 rays, 10 voices a frame, was 12),
+  everything at 64 rays 5.7 µs (52 rays, 3 voices, was 4 at 56 rays), at 256 rays 23.1 µs (220 rays, was 20.0 at 199).
+- `[ ]` Diffraction probes look at one reach, so a wall wider than it is never walked around.
 
 ## `[x]` Interpolation between ticks
 

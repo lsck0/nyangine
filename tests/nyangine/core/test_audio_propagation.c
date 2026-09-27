@@ -98,7 +98,8 @@ s32 main(void) {
 
     // a budget too small for one hidden voice is raised, or that voice could never be traced again.
     NYA_AudioPropagation stingy = _nya_audio_propagation_validate((NYA_AudioPropagation){ .ray_budget = 1, .diffraction = true, .environment = true });
-    nya_assert(stingy.ray_budget == NYA_AUDIO_PROPAGATION_ENVIRONMENT_SLICE + NYA_AUDIO_PROPAGATION_VOICE_RAYS + 1 + (2 * NYA_AUDIO_PROPAGATION_PROBES), "got %u", stingy.ray_budget);
+    u32 dearest = NYA_AUDIO_PROPAGATION_VOICE_RAYS + (2 * NYA_AUDIO_PROPAGATION_LAYERS) + (2 * NYA_AUDIO_PROPAGATION_PROBES);
+    nya_assert(stingy.ray_budget == NYA_AUDIO_PROPAGATION_ENVIRONMENT_SLICE + dearest, "got %u", stingy.ray_budget);
   }
 
   // TEST: partial occlusion is the share of rays blocked, and thickness quietens what gets through
@@ -139,6 +140,35 @@ s32 main(void) {
     _nya_audio_tracer_step(&tracer, &propagation, scene_trace, &hill, EAR, RIGHT, one_emitter(source, 1.0F), STEP);
 
     nya_assert(path->target_gain < expected * 0.5F, "four metres must transmit well under one does, got %f", (f64)path->target_gain);
+  }
+
+  // TEST: two thin walls are two thin walls, not one thick one
+  {
+    NYA_AudioPropagation propagation = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true });
+    f32x3                source      = { 0.0F, 0.0F, -10.0F };
+
+    // 20 cm each, 2.8 m apart: 0.4 m of solid, where first hit to last exit spans 3.2 m.
+    Scene thin = { 0 };
+    scene_add(&thin, (f32x3){ -20.0F, -20.0F, -3.0F }, (f32x3){ 20.0F, 20.0F, -2.8F });
+    scene_add(&thin, (f32x3){ -20.0F, -20.0F, -6.0F }, (f32x3){ 20.0F, 20.0F, -5.8F });
+
+    Scene thick = { 0 };
+    scene_add(&thick, (f32x3){ -20.0F, -20.0F, -6.0F }, (f32x3){ 20.0F, 20.0F, -2.8F });
+
+    _nya_audio_tracer_reset(&tracer);
+    _nya_audio_tracer_step(&tracer, &propagation, scene_trace, &thin, EAR, RIGHT, one_emitter(source, 1.0F), STEP);
+    f32 through_thin = tracer.paths[0].target_gain;
+
+    nya_assert(thin.calls <= NYA_AUDIO_PROPAGATION_LAYERS + 2, "the layers are bounded, %u batches", thin.calls);
+    nya_assert(tracer.paths[0].solids == 2, "two walls entered, so the next trace pays for two layers, got %u", tracer.paths[0].solids);
+    nya_assert(fabsf(through_thin - (propagation.transmission * expf(-0.4F / propagation.thickness))) < 1e-3F, "0.4 m of wall, got %f", (f64)through_thin);
+
+    _nya_audio_tracer_reset(&tracer);
+    _nya_audio_tracer_step(&tracer, &propagation, scene_trace, &thick, EAR, RIGHT, one_emitter(source, 1.0F), STEP);
+    f32 through_thick = tracer.paths[0].target_gain;
+
+    nya_assert(fabsf(through_thick - (propagation.transmission * expf(-3.2F / propagation.thickness))) < 1e-3F, "3.2 m of wall, got %f", (f64)through_thick);
+    nya_assert(through_thin > through_thick * 3.0F, "two thin walls let through more than one thick, %f against %f", (f64)through_thin, (f64)through_thick);
   }
 
   // TEST: diffraction finds the way around a wall's edge and moves the sound toward it
@@ -228,6 +258,23 @@ s32 main(void) {
     b8 panned = false;
     for (u32 tap = 0; tap < NYA_AUDIO_REFLECTION_TAPS; tap++) panned = panned || echoes.taps[tap].pan > 0.99F;
     nya_assert(panned, "one of a box's echoes comes from the wall on the right");
+
+    // a voice near the corner, and a post hiding the wall on the left from it but not from the ear: that echo goes.
+    NYA_AudioPropagation heard = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .environment = true, .reflections = 0.5F });
+    scene_add(&box, (f32x3){ -0.7F, 0.8F, -0.3F }, (f32x3){ -0.3F, 1.2F, 0.3F });
+
+    _nya_audio_tracer_reset(&tracer);
+    for (u32 i = 0; i < 8; i++) _nya_audio_tracer_step(&tracer, &heard, scene_trace, &box, EAR, RIGHT, one_emitter((f32x3){ 2.0F, 2.0F, 0.0F }, 0.1F), STEP);
+
+    u32 sounding = 0;
+    for (u32 tap = 0; tap < NYA_AUDIO_REFLECTION_TAPS; tap++) {
+      if (tracer.reflections.taps[tap].gain <= 0.0F) continue;
+
+      sounding++;
+      nya_assert(tracer.reflections.taps[tap].pan > -0.99F, "the wall on the left is hidden from the voice, yet tap %u echoes it", tap);
+    }
+
+    nya_assert(sounding == NYA_AUDIO_REFLECTION_TAPS - 1, "the other five walls echo, %u do", sounding);
   }
 
   // TEST: the budget holds with every voice hidden, and the round robin reaches them all
@@ -252,15 +299,15 @@ s32 main(void) {
       _nya_audio_tracer_step(&tracer, &propagation, scene_trace, &wall, EAR, RIGHT, crowd, STEP);
       updates++;
 
-      nya_assert(wall.calls - before <= 1, "one batch per update");
+      nya_assert(wall.calls - before <= NYA_AUDIO_PROPAGATION_LAYERS + 2, "a bounded number of batches per update");
       nya_assert(tracer.rays_cast <= propagation.ray_budget, "cast %u against a budget of %u", tracer.rays_cast, propagation.ray_budget);
 
       all = true;
       for (u32 i = 0; i < NYA_AUDIO_VOICES; i++) all = all && tracer.paths[i].traced;
     }
 
-    // a hidden voice costs 4 + 1 + 8 = 13, and 44 of 48 are left after the room: three voices an update.
-    nya_assert(all && updates == 6, "sixteen hidden voices at three an update take six updates, took %u", updates);
+    // a hidden voice costs 4 + 1 + 5 + 8 = 18, and 44 of 48 are left after the room: two voices an update.
+    nya_assert(all && updates == 8, "sixteen hidden voices at two an update take eight updates, took %u", updates);
     nya_assert(wall.largest_batch <= propagation.ray_budget);
   }
 

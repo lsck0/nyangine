@@ -21,11 +21,12 @@
  * ```
  *
  * Every positional voice is traced from the listener: a few rays over the source's extent give how much of it is
- * hidden, a ray back from the source gives how thick the blocker is, and while a voice is hidden a few probes beside
+ * hidden, rays through each solid on the way give how thick the blocker is, and while a voice is hidden a few probes beside
  * the blocker look for a way around it. The result is a gain, a low pass and a shift in where the sound seems to come
  * from, eased over NYA_AudioPropagation.smoothing_ms so nothing clicks. Rays from the listener in fixed directions
  * estimate the room, which drives the sound bus reverb as a late tail, and the surfaces they hit echo everything on
- * the sound bus back from where they are, delayed by the round trip and dulled by distance.
+ * the sound bus back from where they are, delayed by the round trip and dulled by distance, if the nearest source sees
+ * them too.
  *
  * Rays are cast on the main thread from nya_system_audio_update, under a fixed budget shared round robin across voices,
  * with no allocation per frame. Off, it casts nothing and touches no voice.
@@ -58,6 +59,12 @@
 
 /** Places beside a blocker tried for a way around it, two rays each. Right, left, up and down; 2D drops the last two. */
 #define NYA_AUDIO_PROPAGATION_PROBES 4
+
+/**
+ * Solids told apart along one voice's path, one batch each, so two thin walls are not one thick one. Whatever lies past
+ * the last is taken as solid through. Three is a room's two walls and one more; each costs up to two rays.
+ * */
+#define NYA_AUDIO_PROPAGATION_LAYERS 3
 
 /** Fixed listener directions the room is measured along. 2D uses the first eight, which lie in its plane. */
 #define NYA_AUDIO_PROPAGATION_ENVIRONMENT_RAYS 14
@@ -109,7 +116,9 @@ typedef struct NYA_AudioTracer       NYA_AudioTracer;
 
 /**
  * Casts `count` rays and writes, for each, how far along its direction the first hit is: 0 at the origin, 1 at the
- * end. A miss is 1 or more. Called on the main thread, at most once per update.
+ * end. A miss is 1 or more. A ray starting inside a solid does not hit it, as the physics raycasts do not: the layers
+ * behind a first wall are found that way. Called on the main thread, at most NYA_AUDIO_PROPAGATION_LAYERS + 2 times
+ * per update.
  * */
 typedef void (*NYA_AudioRayFn)(const NYA_AudioRay* rays, f32* out_fractions, u32 count, void* user_data);
 
@@ -175,7 +184,7 @@ struct NYA_AudioPropagation {
     /** How far the room probes reach, world units. */
     f32 environment_range;
 
-    /** Echo level, 0 to 1, off the surfaces the room probes hit. Zero is off. Needs `environment`. */
+    /** Echo level, 0 to 1, off the surfaces the room probes hit and the nearest voice sees. Zero is off. Needs `environment`. */
     f32 reflections;
 
     /** World units per second, which sets how late each echo returns and how hard a detour is on the level. */
@@ -218,6 +227,9 @@ struct NYA_AudioPath {
 
     /** Where along the path the blocker starts, 0 to 1, for placing probes. */
     f32 blocker;
+
+    /** Solids the centre ray entered, up to NYA_AUDIO_PROPAGATION_LAYERS, which the next trace pays layers for. */
+    u32 solids;
 
     /** Traced at least once since the voice started. The first result is taken as is, not eased into. */
     b8 traced;
