@@ -1,19 +1,23 @@
 /**
  * @file core_transition.h
  *
- * A screen transition: a full-frame overlay that eases in over a fixed duration, for covering the
- * moment a game swaps what it draws. Fixed state, no allocation, and free when nothing is running.
+ * A screen transition: a full-frame overlay that covers or reveals the frame over a fixed duration, for
+ * the moment a game swaps what it draws. Fixed state, no allocation, and free when nothing is running.
  *
  * ```c
- * // Start a half-second fade to black. The layer that owns the swap flips screens when it completes.
- * nya_transition_begin(NYA_TRANSITION_FADE, 0.5F, NYA_COLOR_BLACK, NYA_EASE_CUBIC_IN_OUT);
+ * // swap now, then let the new screen emerge from black over half a second.
+ * gny_show_next_screen();
+ * nya_transition_begin(NYA_TRANSITION_FADE_IN, 0.5F, NYA_COLOR_BLACK, NYA_EASE_CUBIC_OUT);
  *
+ * // or cover first and swap once covered.
+ * nya_transition_begin(NYA_TRANSITION_FADE_OUT, 0.5F, NYA_COLOR_BLACK, NYA_EASE_CUBIC_IN);
  * if (!nya_transition_active()) gny_show_next_screen();
  * ```
  *
  * The overlay is drawn by the app loop with the ordinary 2D rectangle path, over the frame the layers
  * left behind: no post pass and no shader of its own. A FADE is a full-screen rect whose alpha is the
- * eased progress; a WIPE is an opaque rect that grows from the left edge across the screen.
+ * coverage; a WIPE is an opaque rect whose width is. An OUT goes from clear to covered, an IN from covered
+ * to clear, so a swap that happens on one tick pairs with an IN and never shows the new screen uncovered.
  * */
 #pragma once
 
@@ -32,10 +36,18 @@ typedef enum NYA_TransitionKind {
     NYA_TRANSITION_NONE = 0,
 
     /** A full-screen rectangle whose alpha eases from clear to `color`. */
-    NYA_TRANSITION_FADE,
+    NYA_TRANSITION_FADE_OUT,
+
+    /** A full-screen rectangle whose alpha eases from `color` to clear. */
+    NYA_TRANSITION_FADE_IN,
 
     /** An opaque rectangle of `color` that grows from the left edge across the screen. */
-    NYA_TRANSITION_WIPE,
+    NYA_TRANSITION_WIPE_OUT,
+
+    /** An opaque rectangle of `color` that shrinks back toward the left edge. */
+    NYA_TRANSITION_WIPE_IN,
+
+    NYA_TRANSITION_COUNT,
 } NYA_TransitionKind;
 
 /*
@@ -58,8 +70,8 @@ NYA_API void nya_transition_end(void);
 NYA_API b8 nya_transition_active(void) __attr_no_discard;
 
 /**
- * The eased progress in [0, 1]: the overlay's alpha for a FADE, the covered fraction of the width for
- * a WIPE. Zero when nothing is running, so an idle transition draws nothing.
+ * The eased progress in [0, 1], zero when nothing is running. The overlay's coverage (a FADE's alpha, a
+ * WIPE's fraction of the width) is this for an OUT and one minus it for an IN.
  * */
 NYA_API f32 nya_transition_alpha(void) __attr_no_discard;
 

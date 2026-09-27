@@ -18,8 +18,8 @@ NYA_INTERNAL void _gny_screen_apply(void* data);
 NYA_INTERNAL b8 _gny_layer_pop_if(NYA_ConstCString layer_id);
 
 /**
- * Blinks the main window to black over a scene swap. Begun at the swap itself, so a screen change still
- * lands at this barrier; an out-ease darkens it within a few frames, and the new scene shows when it ends.
+ * Reveals the new scene from black. Begun at the swap itself, so a screen change still lands at this
+ * barrier; the overlay starts opaque and clears, so the new scene is never shown uncovered first.
  * */
 NYA_INTERNAL void _gny_screen_cover(void);
 
@@ -130,7 +130,7 @@ b8 gny_modal_active(void) {
         || nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_SOCIAL_ID) != nullptr;
 }
 
-void _gny_screen_cover(void) { nya_transition_begin(NYA_TRANSITION_FADE, GNY_SCREEN_FADE_S, NYA_COLOR_BLACK, NYA_EASE_EXPO_OUT); }
+void _gny_screen_cover(void) { nya_transition_begin(NYA_TRANSITION_FADE_IN, GNY_SCREEN_FADE_S, NYA_COLOR_BLACK, NYA_EASE_EXPO_OUT); }
 
 b8 _gny_layer_pop_if(NYA_ConstCString layer_id) {
     NYA_Window* window = nya_window_get(GNY_WINDOW_MAIN);

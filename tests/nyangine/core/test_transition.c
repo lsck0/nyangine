@@ -25,10 +25,10 @@ s32 main(void) {
 
     // A linear fade runs its alpha 0 -> 1 across the duration, then completes.
     {
-        nya_transition_begin(NYA_TRANSITION_FADE, 1.0F, NYA_COLOR_BLACK, NYA_EASE_LINEAR);
+        nya_transition_begin(NYA_TRANSITION_FADE_OUT, 1.0F, NYA_COLOR_BLACK, NYA_EASE_LINEAR);
 
         nya_check(nya_transition_active(), "a begun transition is running");
-        nya_check(nya_transition_kind() == NYA_TRANSITION_FADE, "and reports its kind");
+        nya_check(nya_transition_kind() == NYA_TRANSITION_FADE_OUT, "and reports its kind");
         nya_check(nya_transition_alpha() == 0.0F, "and starts fully transparent");
 
         // A quarter of the way, linear alpha is a quarter.
@@ -61,7 +61,7 @@ s32 main(void) {
 
     // Easing bends the curve without leaving [0, 1]: an ease-out is ahead of linear at the midpoint.
     {
-        nya_transition_begin(NYA_TRANSITION_FADE, 1.0F, NYA_COLOR_BLACK, NYA_EASE_CUBIC_OUT);
+        nya_transition_begin(NYA_TRANSITION_FADE_OUT, 1.0F, NYA_COLOR_BLACK, NYA_EASE_CUBIC_OUT);
         nya_system_transition_update(0.5F);
         f32 eased = nya_transition_alpha();
         nya_check(eased > 0.5F && eased <= 1.0F, "cubic-out is ahead of linear at the midpoint, got %f", (f64)eased);
@@ -70,9 +70,9 @@ s32 main(void) {
 
     // The colour it was begun with is what it reports, so the overlay draws in it.
     {
-        nya_transition_begin(NYA_TRANSITION_WIPE, 2.0F, NYA_COLOR_WHITE, NYA_EASE_LINEAR);
+        nya_transition_begin(NYA_TRANSITION_WIPE_OUT, 2.0F, NYA_COLOR_WHITE, NYA_EASE_LINEAR);
         nya_check(nya_transition_active(), "the wipe is running");
-        nya_check(nya_transition_kind() == NYA_TRANSITION_WIPE, "and reports the wipe kind");
+        nya_check(nya_transition_kind() == NYA_TRANSITION_WIPE_OUT, "and reports the wipe kind");
 
         NYA_Color color = nya_transition_color();
         nya_check(color.r == 1.0F && color.g == 1.0F && color.b == 1.0F, "and hands back the colour it was begun with");
@@ -85,7 +85,7 @@ s32 main(void) {
 
     // A zero-length transition is an instant switch: it starts nothing to draw.
     {
-        nya_transition_begin(NYA_TRANSITION_FADE, 0.0F, NYA_COLOR_BLACK, NYA_EASE_LINEAR);
+        nya_transition_begin(NYA_TRANSITION_FADE_OUT, 0.0F, NYA_COLOR_BLACK, NYA_EASE_LINEAR);
         nya_check(!nya_transition_active(), "a zero duration starts nothing");
     }
 
