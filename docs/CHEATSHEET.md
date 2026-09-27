@@ -5405,7 +5405,7 @@ NYA_HTTP_ACCOUNTS_PASSKEY_LOGIN_FINISH_PATH "/api/passkey/login/finish"
 // functions
 const NYA_HttpRouter* nya_http_accounts_open(NYA_HttpAccountsConfig config)
 void nya_http_accounts_close(void)  // Closes the second-factor table and forgets the config.
-b8 nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user)
+NYA_HttpStatus nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user)
 ```
 
 ### http_attestation.h
@@ -6900,6 +6900,30 @@ NYA_Error nya_blob_list(NYA_BlobStore* store, NYA_BlobVisitor visitor, void* use
 NYA_Error nya_blob_id_parse(NYA_ConstCString hex, OUT NYA_BlobId* out_id)  // Turns `hex` into a validated id: exactly NYA_BLOB_ID_LENGTH lower case hex digits, nothing else.
 ```
 
+### db_fault.h
+
+A SQLite VFS that lies on purpose, for tests: it wraps the default VFS and, while a fault is armed,
+
+```c
+// types
+typedef void (*NYA_DbFaultSleepFn)(void* context, NYA_Duration duration)  // Waits `duration`: a real sleep, or a simulated clock moved forward.
+enum NYA_DbFaultKind { NYA_DB_FAULT_BUSY, NYA_DB_FAULT_IOERR_READ, NYA_DB_FAULT_IOERR_WRITE, NYA_DB_FAULT_IOERR_FSYNC, NYA_DB_FAULT_FULL, NYA_DB_FAULT_STALL, NYA_DB_FAULT_POWER_LOSS, NYA_DB_FAULT_KIND_COUNT, }
+struct NYA_DbFault { NYA_DbFaultKind kind; u32 after; u32 count; NYA_Duration stall; }
+
+// macros
+NYA_DB_FAULT_VFS "nya_fault"  // The name a connection opens through, as NYA_SqlOptions.vfs.
+nya_db_fault_arm(...)  // Arms `fault`, replacing whatever its kind had armed.
+
+// functions
+void nya_db_fault_register(NYA_DbFaultSleepFn sleep, void* context)  // Registers the VFS over the default one, with nothing armed.
+void nya_db_fault_unregister(void)  // Disarms everything and removes the VFS.
+void nya_db_fault_arm_with_options(NYA_DbFault fault)  // What nya_db_fault_arm expands to.
+void nya_db_fault_disarm(NYA_DbFaultKind kind)  // Disarms one kind.
+void nya_db_fault_disarm_all(void)  // Disarms every kind.
+b8 nya_db_fault_armed(NYA_DbFaultKind kind)  // Whether `kind` is armed and will answer its next call, once `after` has run out.
+u64 nya_db_fault_hits(void)
+```
+
 ### db_jobs.h
 
 A background job queue that lives in a SQLite table, so the work a program still owes survives a
@@ -7013,7 +7037,7 @@ NYA_Error nya_orm_select( NYA_OrmTable* table, NYA_Arena* arena, NYA_ConstCStrin
 
 ```c
 // types
-struct NYA_SqlOptions { NYA_ConstCString path; const u8* key; u32 key_size; }  // What nya_sql_open takes besides the arena and where to put the connection.
+struct NYA_SqlOptions { NYA_ConstCString path; const u8* key; u32 key_size; NYA_ConstCString vfs; }  // What nya_sql_open takes besides the arena and where to put the connection.
 typedef NYA_Object* NYA_SqlRow  // One row.
 enum NYA_SqlValueKind { NYA_SQL_VALUE_NULL, NYA_SQL_VALUE_S64, NYA_SQL_VALUE_F64, NYA_SQL_VALUE_TEXT, NYA_SQL_VALUE_BLOB, NYA_SQL_VALUE_COUNT, }
 struct NYA_SqlValue { NYA_SqlValueKind kind; union { s64 as_s64; f64 as_f64; NYA_ConstCString as_text; struct { const u8* data; u64 size; } as_blob; }; }  // One bound parameter.
@@ -7034,6 +7058,7 @@ void nya_sql_close(NYA_Database* database)  // Closes the connection.
 NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql)  // Runs a statement that returns no rows.
 NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count)  // One statement, with parameters bound to its `?` placeholders.
 NYA_Error nya_sql_query( NYA_Database* database, NYA_Arena* arena, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count, OUT NYA_SqlResult* out_result )  // Runs one statement and collects every row into `out_result`.
+NYA_Error nya_sql_ping(NYA_Database* database)  // Whether a read reaches the file: `PRAGMA schema_version`, which takes the shared lock and reads the header.
 NYA_Error nya_sql_transaction_begin(NYA_Database* database)
 NYA_Error nya_sql_transaction_commit(NYA_Database* database)
 NYA_Error nya_sql_transaction_rollback(NYA_Database* database)
