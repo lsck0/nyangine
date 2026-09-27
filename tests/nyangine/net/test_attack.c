@@ -909,6 +909,50 @@ s32 main(void) {
     nya_net_server_stop();
   }
 
+  printf("TEST: a joined peer's second HELLO, however broken, leaves its slot as it was\n");
+  {
+    /* Found by the simulation's captured traffic, seed 0x1234: a flipped HELLO replayed on a joined connection was refused by dropping the transport peer, while the player's slot stayed accepted with nothing left to free it. Its index came back full to every later player. */
+    NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
+
+    NYA_NetTransport* hostile = nullptr;
+    NYA_EXPECT(nya_net_server_attach_local(&hostile));
+
+    NYA_String* hello_payload = nya_string_create(arena);
+    nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
+
+    NYA_Object* hello = nya_object_create(arena);
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
+
+    SEND_AS_CLIENT(hello_payload);
+    nya_net_server_tick(1, 1.0F / 60.0F);
+
+    nya_assert(nya_net_server_peer_count() == 1, "the peer should have joined normally first");
+
+    // a body that is no document, and then a version this build does not speak: the two refusals a stranger's HELLO gets.
+    NYA_String* broken = nya_string_create(arena);
+    nya_net_message_begin(broken, NYA_NET_MSG_HELLO);
+    nya_string_push_back(broken, 0xFF);
+
+    NYA_String* stale = nya_string_create(arena);
+    nya_net_message_begin(stale, NYA_NET_MSG_HELLO);
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION + 1 });
+    NYA_EXPECT(nya_net_message_write_object(arena, stale, hello));
+
+    SEND_AS_CLIENT(broken);
+    SEND_AS_CLIENT(stale);
+    nya_net_server_tick(2, 1.0F / 60.0F);
+
+    NYA_NetTransportEvent event = { 0 };
+    while (nya_net_transport_poll(hostile, &event)) nya_assert(event.kind != NYA_NET_TRANSPORT_EVENT_DISCONNECTED, "a second HELLO dropped a joined peer");
+
+    nya_assert(nya_net_server_peer_count() == 1, "a second HELLO changed the roster (%u peers)", nya_net_server_peer_count());
+    nya_assert(nya_net_server_peer_at(0) != nullptr && nya_net_server_peer_at(0)->accepted);
+
+    nya_net_server_stop();
+  }
+
   printf("TEST: an impossible snapshot acknowledgement drops the peer\n");
   {
     /* `acknowledged_tick` is a client chosen u64 and monotonic. Naming U64_MAX must not stop every future baseline from matching, which would send that peer a full snapshot every tick. */

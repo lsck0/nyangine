@@ -831,6 +831,11 @@ void _nya_net_server_violation(_NYA_NetServerPeerState* state, NYA_ConstCString 
 }
 
 void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* body, u64 size) {
+    // a second HELLO is ignored before anything is read: refusing one would drop the transport peer and leave the
+    // player's slot with nothing to free it, and a valid one would give one player two entities.
+    _NYA_NetServerPeerState* existing = _nya_net_server_find(peer);
+    if (existing != nullptr && existing->public_state.accepted) return;
+
     /* Refused on size before parsing, since parsing is what is being protected. */
     if (size > _NYA_NET_SERVER_MAX_HELLO) {
         nya_log_warn("Refusing a %llu byte HELLO; the limit is %d.", (unsigned long long)size, _NYA_NET_SERVER_MAX_HELLO);
@@ -879,10 +884,6 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
         nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_VERSION);
         return;
     }
-
-    // a second HELLO is ignored, or one player would get two entities.
-    _NYA_NetServerPeerState* existing = _nya_net_server_find(peer);
-    if (existing != nullptr && existing->public_state.accepted) return;
 
     _NYA_NetServerPeerState* state = existing != nullptr ? existing : _nya_net_server_admit(transport, peer);
 
