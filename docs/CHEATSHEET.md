@@ -5926,7 +5926,7 @@ typedef NYA_HttpIdentifiedFn (*NYA_HttpIdentifiedResolver)(u64 token)  // Likewi
 // macros
 NYA_HTTP_MAX_STATUSES 8  // Statuses one route may declare.
 NYA_HTTP_MAX_LAYERS 8  // Layers one router may carry, and the same again at the root.
-NYA_HTTP_MAX_ROUTERS 8  // Routers merged at the root: one per resource, so this is a count of resources.
+NYA_HTTP_MAX_ROUTERS 16  // Routers merged at the root: one per resource, so this is a count of resources.
 
 // functions
 void nya_http_permissions_set(NYA_Permissions* permissions, u64 (*subject_of)(const NYA_HttpIdentity* identity))

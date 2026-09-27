@@ -123,8 +123,11 @@
 /** Layers one router may carry, and the same again at the root. */
 #define NYA_HTTP_MAX_LAYERS 8
 
-/** Routers merged at the root: one per resource, so this is a count of resources. */
-#define NYA_HTTP_MAX_ROUTERS 8
+/**
+ * Routers merged at the root: one per resource, so this is a count of resources. examples/web_server
+ * mounts nine, which the old eight refused at startup; sixteen is that plus room for a program's own.
+ * */
+#define NYA_HTTP_MAX_ROUTERS 16
 
 // TYPES
 

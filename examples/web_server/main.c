@@ -9,6 +9,8 @@
  * ./build run example web_server            # serves on 127.0.0.1:47800 until interrupted
  * ./web_server.example --port 8080
  * ./web_server.example --address 0.0.0.0 --port 8000   # bind every interface, as the container does
+ * WEB_SERVER_OTLP_FILE=spans.jsonl ./web_server.example # a span per request, as OTLP/JSON lines
+ * # ctrl-c or SIGTERM drains the requests in flight, then backs notes.db up beside itself
  *
  *
  * # and over TLS, with a certificate this machine made for itself:
@@ -88,7 +90,7 @@
  * reflected path anyway and needs no generation step. Everything else — the router, the verbs, the
  * layers, the generated document — is exactly what a reflected resource uses. The note Model gets
  * around it by writing out the description the generator would have emitted, which is what the ORM
- * reads; it is six declarations where a resource inside the engine has one comment.
+ * reads; it is a handful of declarations where a resource inside the engine has one comment.
  *
  * The second factor routes are the exception, and they show why the rest is a limitation rather than a
  * style: their DTOs are the engine's own, so `nya_reflect_of` resolves, the OpenAPI document describes
@@ -110,10 +112,11 @@
  *
  * `/ws/notes` is a WebSocket, and it is here because a poll is the wrong shape for "tell me when
  * something changes": a page that wants to stay current has to ask every second and is wrong for most
- * of that second, where a socket is told once, when it happens. This one pushes a snapshot when a peer
- * connects, again whenever a note is written or removed, and once a second regardless so an idle page
- * can still see the server is alive. A client may send `now` to ask for one out of turn; anything else
- * it sends is ignored, because a stream that takes commands is an API and this one is a view.
+ * of that second, where a socket is told once, when it happens. A peer joins the `notes` topic on
+ * connecting, and a snapshot is published to it when anyone joins or leaves, whenever a note is written
+ * or removed, and once a second regardless so an idle page can still see the server is alive. A client
+ * may send `now` to ask for one out of turn; anything else it sends is ignored, because a stream that
+ * takes commands is an API and this one is a view.
  *
  * ## Four workers, and which routes are allowed on them
  *
@@ -170,13 +173,14 @@
 typedef struct {
     s64  id;
     char text[NOTE_TEXT_MAX];
-    f64  written_at_s;
+    s64  created_at;
+    s64  updated_at;
 } ExampleNote;
 
 /*
  * The description the ORM builds the table from, written by hand for the reason this file's block
  * gives about DTOs: the reflection pass scans src/nyangine and src/gnyame, so a type declared in an
- * example has no generated table and nya_reflect_of does not resolve. Inside the engine these six
+ * example has no generated table and nya_reflect_of does not resolve. Inside the engine these
  * declarations are one `// @reflect` comment.
  */
 static const NYA_TypeReflection NOTE_TEXT_ARRAY = {
@@ -188,12 +192,17 @@ static const NYA_TypeReflection NOTE_TEXT_ARRAY = {
     .element_count = NOTE_TEXT_MAX,
 };
 
+// The ORM stamps both on insert and advances updated_at on update, in nanoseconds since the epoch: no handler sets a time.
+static const NYA_ReflectAttribute NOTE_CREATED_AT[] = { { .name = "created_at" } };
+static const NYA_ReflectAttribute NOTE_UPDATED_AT[] = { { .name = "updated_at" } };
+
 static const NYA_ReflectField NOTE_FIELDS[] = {
     // @key: the database assigns it, because an id that is zero on the way in is one the row has not
     // got yet. That is what replaced the NEXT_ID counter this example used to keep.
     { .name = "id", .type = nya_reflect_of(s64), .offset = nya_offsetof(ExampleNote, id), .is_key = true },
     { .name = "text", .type = &NOTE_TEXT_ARRAY, .offset = nya_offsetof(ExampleNote, text) },
-    { .name = "written_at_s", .type = nya_reflect_of(f64), .offset = nya_offsetof(ExampleNote, written_at_s) },
+    { .name = "created_at", .type = nya_reflect_of(s64), .offset = nya_offsetof(ExampleNote, created_at), .attributes = NOTE_CREATED_AT, .attribute_count = nya_carray_length(NOTE_CREATED_AT) },
+    { .name = "updated_at", .type = nya_reflect_of(s64), .offset = nya_offsetof(ExampleNote, updated_at), .attributes = NOTE_UPDATED_AT, .attribute_count = nya_carray_length(NOTE_UPDATED_AT) },
 };
 
 static const NYA_TypeReflection NOTE_MODEL = {
@@ -235,7 +244,8 @@ NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) 
 
     nya_object_add(object, "id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = note->id });
     nya_object_add(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)note->text });
-    nya_object_add(object, "written_at_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = note->written_at_s });
+    nya_object_add(object, "created_at_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)note->created_at / 1e9 });
+    nya_object_add(object, "updated_at_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)note->updated_at / 1e9 });
 
     return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *object };
 }
@@ -294,6 +304,9 @@ NYA_INTERNAL void db_record(b8 ok) {
 
 #define NOTES_STREAM_PATH "/ws/notes"
 
+/** The topic a peer joins on connecting. A publish reaches its subscribers and nobody else on the path. */
+#define NOTES_TOPIC "notes"
+
 /** How often a snapshot goes out to everyone, whether or not anything changed. */
 #define STREAM_INTERVAL_MS 1000
 
@@ -304,7 +317,7 @@ NYA_INTERNAL NYA_CString stream_snapshot(NYA_Arena* arena) {
     nya_object_add(body, "notes", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = note_count() });
     nya_object_add(body, "requests", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_request_count() });
     nya_object_add(body, "connections", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_connection_count() });
-    nya_object_add(body, "listeners", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_websocket_count() });
+    nya_object_add(body, "listeners", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_websocket_topic_subscriber_count(NOTES_STREAM_PATH, NOTES_TOPIC) });
     nya_object_add(body, "uptime_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_clock_get_monotonic_ns() / 1e9 });
 
     NYA_String* text = nya_serialize(arena, body, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
@@ -313,18 +326,32 @@ NYA_INTERNAL NYA_CString stream_snapshot(NYA_Arena* arena) {
     return nya_string_to_cstring(arena, text);
 }
 
-/** Pushes one to everybody on the stream. Called on a tick and whenever the notes change. */
+/** Publishes one to the notes topic. Called on a tick, whenever the notes change, and when a peer joins or leaves. */
 NYA_INTERNAL void stream_push(void) {
-    if (nya_http_websocket_count() == 0) return;
+    if (nya_http_websocket_topic_subscriber_count(NOTES_STREAM_PATH, NOTES_TOPIC) == 0) return;
 
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "stream_snapshot");
     defer     nya_arena_destroy_on_stack(&scratch);
 
-    (void)nya_http_websocket_broadcast_text(NOTES_STREAM_PATH, stream_snapshot(&scratch));
+    (void)nya_http_websocket_publish_text(NOTES_STREAM_PATH, NOTES_TOPIC, stream_snapshot(&scratch));
 }
 
-/** A peer that has just connected gets the current state rather than waiting for the next tick. */
+/** Every peer is on the topic; the join is heard by stream_presence, which pushes the current state. */
 NYA_INTERNAL void stream_open(NYA_HttpWebSocket* socket) {
+    // Refused only past the topic's subscriber bound, and then the peer is connected and simply not told anything.
+    (void)nya_http_websocket_subscribe(socket, NOTES_TOPIC);
+}
+
+/** A join or a leave changes the listener count, so everyone still on the topic hears the new one. */
+NYA_INTERNAL void stream_presence(NYA_HttpWebSocket* socket, NYA_ConstCString topic, b8 joined) {
+    nya_unused(socket, topic, joined);
+    stream_push();
+}
+
+NYA_INTERNAL void stream_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
+    // "now" and nothing else. A view does not take commands, so anything else is read and dropped.
+    if (!is_text || size != 3 || nya_memcmp(data, "now", 3) != 0) return;
+
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "stream_snapshot");
     defer     nya_arena_destroy_on_stack(&scratch);
 
@@ -332,18 +359,12 @@ NYA_INTERNAL void stream_open(NYA_HttpWebSocket* socket) {
     (void)nya_http_websocket_send_text(socket, stream_snapshot(&scratch));
 }
 
-NYA_INTERNAL void stream_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
-    // "now" and nothing else. A view does not take commands, so anything else is read and dropped.
-    if (!is_text || size != 3 || nya_memcmp(data, "now", 3) != 0) return;
-
-    stream_open(socket);
-}
-
 NYA_INTERNAL const NYA_HttpWebSocketRoute NOTES_STREAM = {
-    .path       = NOTES_STREAM_PATH,
-    .summary    = "a snapshot of the notes and this server, pushed",
-    .on_open    = stream_open,
-    .on_message = stream_message,
+    .path        = NOTES_STREAM_PATH,
+    .summary     = "a snapshot of the notes and this server, published to the notes topic",
+    .on_open     = stream_open,
+    .on_message  = stream_message,
+    .on_presence = stream_presence,
 };
 
 /* HANDLERS */
@@ -406,8 +427,8 @@ NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
     // A full store is the caller asking for more than this server holds, not a server fault. The ceiling is this example's and not the database's; it is here so the file cannot grow forever.
     if (note_count() >= NOTES_MAX) return NYA_HTTP_STATUS_UNPROCESSABLE;
 
-    // The id is left at zero, so the database assigns it and nya_orm_insert writes it back. The text is bound as a parameter, whatever quotes and semicolons the client put in it.
-    ExampleNote note = { .written_at_s = exchange->now_s };
+    // The id is left at zero, so the database assigns it and nya_orm_insert writes it back, with the two stamps. The text is bound as a parameter, whatever quotes and semicolons the client put in it.
+    ExampleNote note = { 0 };
     (void)snprintf(note.text, sizeof(note.text), "%s", text->as_string);
 
     NYA_Error inserted = nya_orm_insert(NOTES_TABLE, &note);
@@ -1149,12 +1170,25 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
  * */
 #define WORKER_COUNT 4
 
-/** Set by the signal handler, so ctrl-c leaves through the same shutdown a clean exit does. */
-static volatile sig_atomic_t RUNNING = 1;
+/**
+ * The OTLP exporter: one ExportTraceServiceRequest per line, appended to the file WEB_SERVER_OTLP_FILE
+ * names, which is what a collector's otlpjsonfile receiver reads. A POST to a collector is the same seam.
+ * */
+NYA_INTERNAL NYA_Error trace_export(const char* json, u64 size, void* path) {
+    nya_unused(size);
+    NYA_TRY(nya_file_append((NYA_ConstCString)path, json));
+    return nya_file_append((NYA_ConstCString)path, "\n");
+}
 
-static void stop(int signal_number) {
-    nya_unused(signal_number);
-    RUNNING = 0;
+NYA_INTERNAL void trace_flush(NYA_ConstCString path) {
+    if (path == nullptr || nya_http_trace_span_count() == 0) return;
+
+    NYA_Arena* scratch = nya_arena_create(.name = "trace_flush");
+    defer      nya_arena_destroy(scratch);
+
+    // A failed export keeps the spans for the next flush, and the ring drops the oldest before it grows.
+    NYA_Error flushed = nya_http_trace_flush(trace_export, (void*)path, scratch);
+    if (!flushed.ok) nya_log_warn("Could not export the spans to %s: %s", path, (NYA_ConstCString)flushed.message);
 }
 
 s32 main(s32 argc, char** argv) {
@@ -1229,8 +1263,6 @@ s32 main(s32 argc, char** argv) {
     b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
 
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
-
-    (void)signal(SIGINT, stop);
 
     /* No window, no renderer, no world, and no frame loop. What does come up is the asset system, because the page below is three assets: an app instance for it to hang off, the callback and event registries it hooks into, and then itself. That is the whole of the engine this needs. */
 #ifndef NYA_NO_SDL
@@ -1334,7 +1366,14 @@ s32 main(s32 argc, char** argv) {
         // Both or neither, which the server checks: see NYA_HttpConfig. Without them this is plain HTTP on loopback, which is what an example on a laptop wants.
         .certificate_path = certificate_path,
         .key_path         = key_path,
+
+        // No frame loop owns ctrl-c here, so the server takes SIGINT and SIGTERM itself and drains rather than cutting connections off.
+        .handle_shutdown_signals = true,
     };
+
+    // A span per request, off unless asked for, into the ring trace_flush empties once a second. See http_observe.h.
+    NYA_ConstCString otlp_file = getenv("WEB_SERVER_OTLP_FILE");
+    nya_http_trace_config_set((NYA_HttpTraceConfig){ .enabled = otlp_file != nullptr && otlp_file[0] != '\0' });
 
     // A fixed char array on the config, not a pointer, so it is copied in rather than aliased. Empty stays empty, which the server reads as loopback.
     (void)snprintf(http_config.address, sizeof(http_config.address), "%s", address);
@@ -1441,7 +1480,8 @@ s32 main(s32 argc, char** argv) {
     /* The sockets are the listener thread's now, so what this loop owes the server is the other half: nya_system_http_tick answers the exchanges whose routes asked for this thread and drains the WebSockets. It returns rather than blocking, exactly as it did when it was the whole drain, so a program with other work to do still puts this beside it instead of around it. */
     u64 pushed_at_ms = 0;
 
-    while (RUNNING) {
+    // Until a signal has begun the drain and it has finished: the requests in flight answered, or the deadline reached.
+    while (!nya_http_server_shutdown_is_complete()) {
         nya_system_http_tick();
 
         // The other half of a stream: the server has something to say on its own schedule rather than only when it is asked. A tick with nobody listening builds nothing.
@@ -1450,13 +1490,28 @@ s32 main(s32 argc, char** argv) {
         if (now_ms - pushed_at_ms >= STREAM_INTERVAL_MS) {
             pushed_at_ms = now_ms;
             stream_push();
+            trace_flush(otlp_file);
         }
 
         // as net_echo and the frame limiter do: a real sleep, so the loop does not spin a core. The os layer's own, not SDL's: this loop is the one part of the server that is timing and nothing else, so it has no reason to reach through the window library for a sleep.
         nya_os_time_sleep_ms(TICK_SLEEP_MS);
     }
 
-    nya_log_info("Stopping after " FMTu64 " requests.", nya_http_server_request_count());
+    nya_log_info("Drained after " FMTu64 " requests.", nya_http_server_request_count());
+    trace_flush(otlp_file);
+
+    /* A hot copy of the notes on the way out, beside them under the save root. The online backup API rather than a file copy, so the snapshot is consistent even with a write mid-copy; named by the second, because a backup refuses to overwrite an older one. See db_backup.h. */
+    char backup[64] = { 0 };
+    (void)snprintf(backup, sizeof(backup), "notes." FMTu64 ".backup.db", nya_clock_get_timestamp_s());
+
+    NYA_Arena* scratch_path = nya_arena_create(.name = "backup_path");
+    defer      nya_arena_destroy(scratch_path);
+
+    // The save root is known to be up by now, and the name has no separator for nya_save_path to refuse.
+    NYA_Error backed_up = nya_sql_backup(NOTES_DB, nya_string_to_cstring(scratch_path, nya_save_path(scratch_path, backup)));
+
+    if (!backed_up.ok) nya_log_warn("Could not back the notes up: %s", (NYA_ConstCString)backed_up.message);
+    else nya_log_info("Backed the notes up to %s.", backup);
 
     return EXIT_SUCCESS;
 }
