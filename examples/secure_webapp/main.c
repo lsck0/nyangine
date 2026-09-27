@@ -34,6 +34,7 @@
  * curl -c jar -b jar -X POST localhost:47830/api/login -d '{"username":"ada","password":"a long passphrase"}'
  * curl -b jar localhost:47830/members            # 200: the members page, now that the cookie is a session
  * curl -b jar -X POST localhost:47830/api/logout # revokes the session row and clears the cookie
+ * curl -i -X OPTIONS localhost:47830/api/login -H 'Origin: https://nyangine.example' -H 'Access-Control-Request-Method: POST'
  * ```
  *
  * ## What this composes, and where each piece lives
@@ -395,14 +396,8 @@ NYA_INTERNAL NYA_HttpStatus webapp_handle_register(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     NYA_Error       made = nya_account_register(exchange->arena, NYA_ACCOUNT_REGISTRATION_OPEN, username, password, nullptr, &user);
 
-    if (!made.ok) {
-        // A taken name and a bad password are the caller's to fix; anything else is a server fault.
-        if (made.kind == NYA_ERROR_ALREADY_EXISTS || made.kind == NYA_ERROR_INVALID_ARGUMENT) return NYA_HTTP_STATUS_UNPROCESSABLE;
-
-        return NYA_HTTP_STATUS_INTERNAL_ERROR;
-    }
-
-    return NYA_HTTP_STATUS_CREATED;
+    // A taken name is 409 and a bad password 400, each saying why; anything else is a server fault, and says nothing.
+    return made.ok ? NYA_HTTP_STATUS_CREATED : nya_http_response_error(exchange, made);
 }
 
 /**
@@ -487,10 +482,30 @@ NYA_INTERNAL const NYA_HttpRouter PAGE_ROUTER = {
     .name = "pages", .routes = PAGE_ROUTES, .route_count = nya_carray_length(PAGE_ROUTES),
 };
 
+/**
+ * Who may call the account API from another origin: the canonical site, by its exact text, with
+ * credentials, since what the API answers is a session cookie. Any other origin is told nothing, and a
+ * write from it meets the router's cross-site guard. See http_cors.h.
+ * */
+NYA_INTERNAL const NYA_ConstCString API_ORIGINS[] = { SITE_URL };
+NYA_INTERNAL const NYA_HttpMethod   API_METHODS[] = { NYA_HTTP_METHOD_POST };
+NYA_INTERNAL const NYA_ConstCString API_HEADERS[] = { "Content-Type" };
+
+NYA_INTERNAL const NYA_HttpCors API_CORS = {
+    .origins      = API_ORIGINS,
+    .origin_count = nya_carray_length(API_ORIGINS),
+    .methods      = API_METHODS,
+    .method_count = nya_carray_length(API_METHODS),
+    .headers      = API_HEADERS,
+    .header_count = nya_carray_length(API_HEADERS),
+    .max_age_s    = 600,
+    .credentials  = true,
+};
+
 NYA_INTERNAL const NYA_HttpRoute ACCOUNT_ROUTES[] = {
     { .method = NYA_HTTP_METHOD_POST, .path = "/api/register", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = webapp_handle_register,
       .summary = "Makes an account",
-      .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_FORBIDDEN } },
+      .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_FORBIDDEN } },
     { .method = NYA_HTTP_METHOD_POST, .path = "/api/login", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = webapp_handle_login,
       .summary = "Logs in and sets the session cookie",
       .statuses = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN } },
@@ -500,7 +515,7 @@ NYA_INTERNAL const NYA_HttpRoute ACCOUNT_ROUTES[] = {
 };
 
 NYA_INTERNAL const NYA_HttpRouter ACCOUNT_ROUTER = {
-    .name = "accounts", .routes = ACCOUNT_ROUTES, .route_count = nya_carray_length(ACCOUNT_ROUTES),
+    .name = "accounts", .routes = ACCOUNT_ROUTES, .route_count = nya_carray_length(ACCOUNT_ROUTES), .cors = &API_CORS,
 };
 
 /* THE DISCOVERABILITY SURFACE */
@@ -660,6 +675,25 @@ NYA_INTERNAL void self_test_run(void* data) {
         nya_log_info("GET /members     -> %u (gated; a session cookie opens it)", response.status);
 
         ok = ok && response.status == 401;
+    }
+
+    // 5. POST /api/logout from another origin: the allowlisted one gets through with its Origin reflected, any other meets the cross-site guard.
+    for (u32 attempt = 0; attempt < 2; attempt++) {
+        char url[80] = { 0 };
+        (void)snprintf(url, sizeof(url), "%s/api/logout", base);
+
+        NYA_ConstCString origin   = attempt == 0 ? SITE_URL : "https://elsewhere.example";
+        NYA_Response     response = { 0 };
+        NYA_Error        got      = nya_request_perform(
+            arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_POST, .url = url, .headers = { { .name = "Origin", .value = origin } } }, &response);
+        nya_unused(got);
+
+        char allowed[64] = { 0 };
+        b8   reflected   = nya_response_header(&response, "Access-Control-Allow-Origin", allowed, sizeof(allowed));
+
+        nya_log_info("POST /api/logout -> %u from %s, Access-Control-Allow-Origin: %s", response.status, origin, reflected ? allowed : "(none)");
+
+        ok = ok && (attempt == 0 ? response.status == 204 && nya_string_equals(allowed, SITE_URL) : response.status == 403 && !reflected);
     }
 
     test->ok = ok ? 1 : 0;

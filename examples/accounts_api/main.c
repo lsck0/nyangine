@@ -195,11 +195,11 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_post(NYA_HttpExchange* exchange) {
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     // The request body is read as the DTO through its reflection, then parsed into an SO — which is where the untrusted text is checked and where the *server*, not the client, fills in the owner and the timestamp. A client cannot claim a note it did not write: note_so_from_dto ignores any owner a DTO might carry, because the DTO has no such field to carry.
-    NoteDtoV1 dto = { 0 };
-    if (!nya_http_request_reflect(exchange->request, exchange->arena, &NOTE_DTO_V1_REFLECT, &dto).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
-
-    Note so = { 0 };
-    if (!note_so_from_dto(&dto, (s64)user.id, exchange->now_s, &so).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
+    NoteDtoV1 dto    = { 0 };
+    Note      so     = { 0 };
+    NYA_Error parsed = nya_http_request_reflect(exchange->request, exchange->arena, &NOTE_DTO_V1_REFLECT, &dto);
+    if (parsed.ok) parsed = note_so_from_dto(&dto, (s64)user.id, exchange->now_s, &so);
+    if (!parsed.ok) return nya_http_response_error(exchange, parsed); // a broken DTO rule is 400, naming the field
 
     void* existing = nullptr;
     u32   held     = 0;
@@ -221,6 +221,21 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_post(NYA_HttpExchange* exchange) {
                                                                                                                 : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
+/** The body of both DELETEs, `{"id": n}`. The rules are what `// @required @min(1)` would have generated. */
+typedef struct {
+    s64 id;
+} IdDto;
+
+NYA_INTERNAL const NYA_ReflectAttribute ID_DTO_RULES[] = { { .name = "required" }, { .name = "min", .args = "1" } };
+
+NYA_INTERNAL const NYA_ReflectField ID_DTO_FIELDS[] = {
+    { .name = "id", .type = nya_reflect_of(s64), .offset = nya_offsetof(IdDto, id), .attributes = ID_DTO_RULES, .attribute_count = nya_carray_length(ID_DTO_RULES) },
+};
+
+NYA_INTERNAL const NYA_TypeReflection ID_DTO_REFLECT = {
+    .name = "IdDto", .kind = NYA_REFLECT_STRUCT, .size = sizeof(IdDto), .alignment = alignof(IdDto), .fields = ID_DTO_FIELDS, .field_count = 1,
+};
+
 /**
  * Deletes one of the caller's notes by id — and only one of the caller's.
  *
@@ -232,21 +247,18 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_delete(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    NYA_Object* incoming = nullptr;
-    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
+    IdDto     target = { 0 };
+    NYA_Error read   = nya_http_request_reflect(exchange->request, exchange->arena, &ID_DTO_REFLECT, &target);
+    if (!read.ok) return nya_http_response_error(exchange, read);
 
-    NYA_Value* id = nya_object_get(incoming, "id");
-    if (id == nullptr || (id->type != NYA_TYPE_U64 && id->type != NYA_TYPE_S64)) return NYA_HTTP_STATUS_BAD_REQUEST;
-
-    u64 note_id = id->type == NYA_TYPE_U64 ? id->as_u64 : (u64)id->as_s64;
-
+    // Not through nya_http_response_error: its 404 would say "no row", and the owner check below must answer exactly what this does.
     AccountNote note = { 0 };
-    if (!nya_orm_find(NOTES, exchange->arena, nya_sql_s64((s64)note_id), &note).ok) return NYA_HTTP_STATUS_NOT_FOUND;
+    if (!nya_orm_find(NOTES, exchange->arena, nya_sql_s64(target.id), &note).ok) return NYA_HTTP_STATUS_NOT_FOUND;
 
     // The owner check, and the whole point of the example: not yours is the same answer as not there.
     if (note.owner != (s64)user.id) return NYA_HTTP_STATUS_NOT_FOUND;
 
-    if (!nya_orm_delete(NOTES, nya_sql_s64((s64)note_id)).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    if (!nya_orm_delete(NOTES, nya_sql_s64(target.id)).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     return NYA_HTTP_STATUS_NO_CONTENT;
 }
@@ -292,13 +304,9 @@ NYA_INTERNAL NYA_HttpStatus handle_sessions_delete(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
     if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    NYA_Object* incoming = nullptr;
-    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
-
-    NYA_Value* id = nya_object_get(incoming, "id");
-    if (id == nullptr || (id->type != NYA_TYPE_U64 && id->type != NYA_TYPE_S64)) return NYA_HTTP_STATUS_BAD_REQUEST;
-
-    u64 session_id = id->type == NYA_TYPE_U64 ? id->as_u64 : (u64)id->as_s64;
+    IdDto     target = { 0 };
+    NYA_Error read   = nya_http_request_reflect(exchange->request, exchange->arena, &ID_DTO_REFLECT, &target);
+    if (!read.ok) return nya_http_response_error(exchange, read);
 
     // The session has to be one of the caller's own: revoking by id alone would let anybody end anybody's session, which is the same IDOR the notes have.
     NYA_AccountSession* sessions = nullptr;
@@ -307,9 +315,9 @@ NYA_INTERNAL NYA_HttpStatus handle_sessions_delete(NYA_HttpExchange* exchange) {
     if (!nya_account_session_list(exchange->arena, user.id, &sessions, &count).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     for (u32 index = 0; index < count; index++) {
-        if (sessions[index].id != session_id) continue;
+        if (sessions[index].id != (u64)target.id) continue;
 
-        return nya_account_session_revoke(exchange->arena, session_id).ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_ERROR;
+        return nya_account_session_revoke(exchange->arena, sessions[index].id).ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
     return NYA_HTTP_STATUS_NOT_FOUND;

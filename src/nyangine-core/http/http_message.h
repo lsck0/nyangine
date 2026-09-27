@@ -206,8 +206,8 @@ NYA_API NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Aren
  * fields; see serde_nya_binary.h.
  *
  * `out_dto` is zeroed first, so a field the document omits reads as zero rather than as whatever the
- * last request left there. Every failure of nya_http_request_json, plus NYA_ERROR_PARSE when the
- * document does not fit the type, which nya_reflect_check reports field by field into the log.
+ * last request left there. Every failure of nya_http_request_json, plus NYA_ERROR_PARSE naming the first
+ * field nya_reflect_check finds that does not fit: an unknown key, a mistyped value, a string too long.
  *
  * Once filled, the DTO is run against its own validation attributes (see base_validate.h): a field that
  * breaks a `@required`, `@min`/`@max`, `@len`, `@email` or `@pattern` rule is NYA_ERROR_INVALID_ARGUMENT,

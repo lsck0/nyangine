@@ -14,7 +14,8 @@
  * The reflection tables are written by hand: the reflection pass scans only src/nyangine and
  * src/gnyame, so a type declared in an example gets no generated table. Inside the engine this whole
  * file would be one `// @reflect` struct. That reflection is what drives the wire — nya_http_response_reflect
- * writes it out and nya_http_request_reflect reads it in — exactly as the Model's reflection drives the ORM.
+ * writes it out and nya_http_request_reflect reads it in and checks it — exactly as the Model's reflection
+ * drives the ORM. The rules on `text` are what `// @required @len(1, 279)` would have generated.
  * */
 #pragma once
 
@@ -40,10 +41,14 @@ NYA_INTERNAL const NYA_TypeReflection NOTE_DTO_V1_TEXT_ARRAY = {
     .element_count = NOTE_DTO_TEXT_MAX,
 };
 
+/** A note says something, and fits its buffer with the terminator; nya_validate refuses anything else as 400. */
+NYA_INTERNAL const NYA_ReflectAttribute NOTE_DTO_V1_TEXT_RULES[] = { { .name = "required" }, { .name = "len", .args = "1, 279" } };
+
 NYA_INTERNAL const NYA_ReflectField NOTE_DTO_V1_FIELDS[] = {
     { .name = "id", .type = nya_reflect_of(s64), .offset = nya_offsetof(NoteDtoV1, id) },
     { .name = "written_at_s", .type = nya_reflect_of(s64), .offset = nya_offsetof(NoteDtoV1, written_at_s) },
-    { .name = "text", .type = &NOTE_DTO_V1_TEXT_ARRAY, .offset = nya_offsetof(NoteDtoV1, text) },
+    { .name = "text", .type = &NOTE_DTO_V1_TEXT_ARRAY, .offset = nya_offsetof(NoteDtoV1, text),
+      .attributes = NOTE_DTO_V1_TEXT_RULES, .attribute_count = nya_carray_length(NOTE_DTO_V1_TEXT_RULES) },
 };
 
 /** The reflection that drives the wire for a v1 note. */

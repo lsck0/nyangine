@@ -127,6 +127,13 @@ s32 main(void) {
 
         nya_assert(nya_http_request_reflect(request, arena, nya_reflect_of(NYA_HttpAccountingDto), &accounting).ok);
         nya_assert(accounting.enabled);
+
+        // a body that does not fit is refused naming the field, not bent into the DTO with the misfit skipped.
+        nya_assert(parse(arena, "POST /api/thing HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n{\"enabled\":\"x\"}",
+                         &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+
+        NYA_Error misfit = nya_http_request_reflect(request, arena, nya_reflect_of(NYA_HttpAccountingDto), &accounting);
+        nya_assert(misfit.kind == NYA_ERROR_PARSE && strstr((NYA_ConstCString)misfit.message, "enabled") != nullptr);
     }
 
     // TEST: a QUERY, which is the read verb: safe like a GET and carrying a body.

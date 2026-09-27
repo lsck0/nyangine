@@ -188,6 +188,9 @@ NYA_INTERNAL NYA_Error
 _nya_http_request_document_as(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT NYA_Object** out_object)
     __attr_no_discard;
 
+/** A nya_reflect_check reporter that keeps the first problem, as "path: found, wanted expected", in `user_data`. */
+NYA_INTERNAL void _nya_http_reflect_first_problem(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data);
+
 /** The response half of the same: `object` into the body in `media`, a binary one tied to `type` when given. */
 NYA_INTERNAL NYA_Error _nya_http_response_document_as(
     NYA_HttpResponse*         response,
@@ -514,6 +517,10 @@ NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* ar
     // Any document format, since a DTO is filled from the NYA_Object not the bytes; a binary body must have been encoded against this very layout, which is the check the hash exists for.
     NYA_Object* document = nullptr;
     NYA_TRY(_nya_http_request_document_as(request, arena, type, &document));
+
+    // Refused rather than bent to fit: nya_reflect_from_object truncates a long string and skips a mistyped value, right for a save file and wrong for a request, where a truncated string would slip under the DTO's own @len.
+    char problem[NYA_REFLECT_PATH_MAX] = { 0 };
+    if (nya_reflect_check(type, document, _nya_http_reflect_first_problem, problem) != 0) return nya_error(NYA_ERROR_PARSE, "the body does not fit: %s", problem);
 
     // zeroed rather than left alone: nya_reflect_from_object skips a field the document omits, and the DTO the caller handed us may be a stack struct holding the last request's values.
     memset(out_dto, 0, type->size);
@@ -1323,6 +1330,11 @@ _NYA_HttpEncoding _nya_http_negotiate_encoding(NYA_ConstCString accept) {
 #endif
 
 // DOCUMENTS
+
+void _nya_http_reflect_first_problem(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data) {
+    char* first = (char*)user_data;
+    if (first[0] == '\0') (void)snprintf(first, NYA_REFLECT_PATH_MAX, "%s: %s, wanted %s", path, found, expected);
+}
 
 NYA_Error
 _nya_http_request_document_as(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT NYA_Object** out_object) {

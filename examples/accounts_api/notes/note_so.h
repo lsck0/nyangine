@@ -18,6 +18,7 @@
 #include "nyangine-std/base/base_web_profile.h"
 
 #include "nyangine-std/base/base_error.h"
+#include "nyangine-std/base/base_validate.h"
 
 #include "note_dto.h"
 #include "note_model.h"
@@ -72,7 +73,7 @@ static inline NoteDtoV1 note_dto_from_so(const Note* so) {
  * */
 static inline NYA_Error note_so_from_dto(const NoteDtoV1* dto, s64 owner, u64 now_s, Note* out) {
     if (dto == nullptr || out == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a null note dto or destination");
-    if (dto->text[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a note with no text");
+    NYA_TRY(nya_validate(&NOTE_DTO_V1_REFLECT, dto)); // the DTO's own rules, whichever path it arrived by.
 
     *out = (Note){
         .id           = dto->id, // zero for a new note; the ORM assigns the row id on insert.
