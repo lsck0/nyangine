@@ -2442,7 +2442,9 @@ through the system clipboard.
 gnyame's menus and both HUDs use it, and the pause screen's widgets panel exercises the rest while plotting
 frame times. Release: pause menu draw about 0.02 ms and 20 draw calls, input pass 0.004 ms, binary +41 KB.
 
-- `[ ]` Merge same-state 2D draw ranges after sorting, so a menu is a few draw calls instead of two per widget.
+- `[x]` Merge same-state 2D draw ranges after sorting, so a menu is a few draw calls instead of two per widget.
+  `bench_render2d_merge`: a 32 widget menu is 3 draws instead of 66, and the flush's sort and merge 0.74 us
+  against 0.88 us for the old sort alone, since already sorted ranges now skip the qsort.
 - `[x]` A dropdown's list floats over what follows instead of taking room in the layout.
 - `[x]` Navigation into an open dropdown with the keys alone: opening focuses the selected option, the arrows
   wrap inside the list, confirm picks and cancel returns to the row.

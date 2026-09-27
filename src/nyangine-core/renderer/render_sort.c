@@ -87,7 +87,10 @@ NYA_INTERNAL b8 _nya_render2d_range_state_equal(const NYA_Render2DDrawRange* a, 
 u32 nya_render2d_ranges_merge(NYA_Render2DDrawRange* ranges, u32 count, NYA_Render2DDraw* out_draws) {
     nya_assert((ranges != nullptr && out_draws != nullptr) || count == 0);
 
-    qsort(ranges, count, sizeof(NYA_Render2DDrawRange), _nya_render2d_range_compare);
+    // ranges arrive in declaration order, sorted unless a layer went down; qsort moving whole ranges was most of the flush.
+    u32 sorted = 1;
+    while (sorted < count && _nya_render2d_range_compare(&ranges[sorted - 1], &ranges[sorted]) <= 0) sorted++;
+    if (sorted < count) qsort(ranges, count, sizeof(NYA_Render2DDrawRange), _nya_render2d_range_compare);
 
     u32 draw_count = 0;
 

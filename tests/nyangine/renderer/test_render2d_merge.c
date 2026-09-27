@@ -120,6 +120,18 @@ s32 main(void) {
         nya_check(merge() == 2, "another texture");
 
         (void)range(PIPELINE_SHAPES, a, 3);
+        range(PIPELINE_SHAPES, b, 3)->sampler = (SDL_GPUSampler*)1;
+        nya_check(merge() == 2, "another sampler");
+
+        (void)range(PIPELINE_SHAPES, a, 3);
+        range(PIPELINE_SHAPES, b, 3)->shader_texture = (SDL_GPUTexture*)1;
+        nya_check(merge() == 2, "another shader texture");
+
+        // overlapping each other is fine when nothing else paints in between.
+        for (u32 i = 0; i < 8; i++) (void)range(PIPELINE_SHAPES, a, 3);
+        nya_check(merge() == 1, "a same-state run is one draw");
+
+        (void)range(PIPELINE_SHAPES, a, 3);
         NYA_Render2DDrawRange* clipped = range(PIPELINE_SHAPES, b, 3);
         clipped->scissor_active        = true;
         clipped->scissor_width         = 10;
