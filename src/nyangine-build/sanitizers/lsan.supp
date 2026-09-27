@@ -5,3 +5,5 @@ leak:X11_CreateSystemCursor
 leak:X11_InitKeyboard
 leak:_xcb_in_read
 leak:asan_thread_start
+# the crash window's SDL renderer: the vulkan driver allocates once under pthread_once at device creation and never frees
+leak:VULKAN_CreateDeviceResources
