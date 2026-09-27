@@ -258,6 +258,9 @@ NYA_INTERNAL NYA_RenderFeatures _nya_render2d_terminal_features(void) {
         .motion_blur       = NYA_RENDER_TOGGLE_OFF,
         .eye_adaptation    = NYA_RENDER_TOGGLE_OFF,
         .grade             = NYA_RENDER_TOGGLE_OFF,
+        .ssao              = NYA_RENDER_TOGGLE_OFF,
+        .ssr               = NYA_RENDER_TOGGLE_OFF,
+        .volumetrics       = NYA_RENDER_TOGGLE_OFF,
     };
 }
 
