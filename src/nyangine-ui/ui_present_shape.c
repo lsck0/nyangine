@@ -733,7 +733,19 @@ void _nya_ui_shape_label(NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     f32 line = look->look.line_heights[widget->text];
     f32 y    = font.point_size != look->fonts[widget->text].point_size ? roundf(rect.y + ((line - nya_font_metrics(font).line_height) * 0.5F)) : rect.y;
 
-    nya_font_draw(window, font, widget->label, rect.x, y, _nya_ui_shape_fade(widget->color));
+    // the room past the text goes before it, around it or after it; a port label on a node's right edge ends at its port.
+    f32 spare = nya_max(rect.width - width, 0.0F);
+    f32 x     = rect.x;
+
+    switch (widget->as_label.align) {
+        case NYA_UI_ALIGN_START:  break;
+        case NYA_UI_ALIGN_CENTER: x += roundf(spare * 0.5F); break;
+        case NYA_UI_ALIGN_END:    x += spare; break;
+        case NYA_UI_ALIGN_COUNT:
+        default:                  nya_unreachable();
+    }
+
+    nya_font_draw(window, font, widget->label, x, y, _nya_ui_shape_fade(widget->color));
 }
 
 void _nya_ui_shape_toggle(NYA_Window* window, const NYA_UIWidgetDraw* widget) {
