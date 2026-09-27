@@ -1981,6 +1981,16 @@ the packager ones.
 - `[x]` Played sessions: `testing_session.h` drives the real application headless through the input queue,
   with no wall clock wait, and `testing_agent.h` puts a DQN or a NEAT population behind the choice of what
   to press. `./build run agent`, and a short run of each kind in `./build run test`.
+- `[ ]` Database faults in the simulation. Nothing makes SQLite fail or stall today; the only contention is
+  two real connections in `test_db_jobs`. A VFS shim, test builds only, that answers BUSY, IOERR or FULL or
+  adds latency to a read, write or sync, drawn from the run's seed as fault actions over a real database, the
+  job queue and an HTTP handler. The oracle: a handler answers 503 or retries and never 500s, a job backs off
+  and survives, the file passes `integrity_check` after a restart, and `/health` reports the database down.
+- `[ ]` Captured traffic in the simulation. The transport conditioner (loss, duplication, reordering),
+  `test_attack`'s replay and tamper cases and the fuzzers each cover a piece, with no seed tying them
+  together. Record the datagrams and HTTP requests a seeded session really sends, then replay them dropped,
+  duplicated, reordered, bit flipped, truncated, delayed and spliced across sessions, as fault actions. The
+  oracle: rejected or handled, never a crash, and both ends converge.
 
 ## `[ ]` Docs and examples
 
