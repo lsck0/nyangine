@@ -95,5 +95,11 @@ NYA_API void nya_skeleton_inertializer_transition(NYA_SkeletonInertializer* iner
  * */
 NYA_API void nya_skeleton_inertializer_update(NYA_SkeletonInertializer* inertializer, f32 delta_time_s, NYA_SkeletonPose* pose);
 
+/**
+ * Adds the offset as it stood `alpha` of the way through the last update, leaving the history alone. For a pose drawn
+ * between ticks; at one it is the offset the update added.
+ * */
+NYA_API void nya_skeleton_inertializer_apply(const NYA_SkeletonInertializer* inertializer, f32 alpha, NYA_SkeletonPose* pose);
+
 /** Whether an offset is still being decayed. */
 NYA_API b8 nya_skeleton_inertializer_active(const NYA_SkeletonInertializer* inertializer) __attr_no_discard;

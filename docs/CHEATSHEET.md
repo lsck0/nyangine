@@ -2771,6 +2771,7 @@ void nya_skeleton_pose_blend(const NYA_SkeletonPose* from, const NYA_SkeletonPos
 void nya_skeleton_animator_play(NYA_SkeletonAnimator* animator, const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, b8 looping)  // Starts a clip.
 void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose)  // Advances the clock and writes the pose.
 void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose)
+void nya_skeleton_animator_pose_at(const NYA_SkeletonAnimator* animator, f32 alpha, OUT NYA_SkeletonPose* out_pose)  // The pose `alpha` of the way from the clock's last tick (zero) to its current time (one).
 void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_model)  // Every bone's model-space transform for `pose`.
 void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_palette)
 b8 nya_skeleton_bone_model(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, s32 bone, OUT f32_4x4* out_transform)  // One bone's model-space transform.
@@ -2814,6 +2815,7 @@ struct NYA_SkeletonInertializer { const NYA_Skeleton* skeleton; NYA_InertialChan
 void nya_skeleton_inertializer_init(NYA_SkeletonInertializer* inertializer, const NYA_Skeleton* skeleton)  // Points it at a skeleton and clears everything, history included.
 void nya_skeleton_inertializer_transition(NYA_SkeletonInertializer* inertializer, const NYA_SkeletonPose* target, const NYA_SkeletonPose* target_previous, f32 duration_s)  // Captures the offset between what was last on screen and `target`, to be decayed over `duration_s`.
 void nya_skeleton_inertializer_update(NYA_SkeletonInertializer* inertializer, f32 delta_time_s, NYA_SkeletonPose* pose)  // Adds the decaying offset to `pose` in place, and records it as history.
+void nya_skeleton_inertializer_apply(const NYA_SkeletonInertializer* inertializer, f32 alpha, NYA_SkeletonPose* pose)  // Adds the offset as it stood `alpha` of the way through the last update, leaving the history alone.
 b8 nya_skeleton_inertializer_active(const NYA_SkeletonInertializer* inertializer)  // Whether an offset is still being decayed.
 ```
 
@@ -2828,7 +2830,7 @@ struct NYA_SkeletonPlayOptions { b8 looping; f32 fade_s; f32 speed; b8 restart; 
 struct NYA_SkeletonEvent { f32 time_s; u32 id; }  // A frame marker on a clip, mirroring NYA_SpriteAnimationEvent so 2D and 3D read alike.
 typedef enum NYA_SkeletonSignalKind { NYA_SKELETON_SIGNAL_EVENT = 0, NYA_SKELETON_SIGNAL_LOOPED, NYA_SKELETON_SIGNAL_FINISHED, NYA_SKELETON_SIGNAL_KIND_COUNT, } NYA_SkeletonSignalKind  // What a player reports happened this update.
 struct NYA_SkeletonSignal { NYA_SkeletonSignalKind kind; u32 id; const NYA_SkeletonClip* clip; }
-struct NYA_SkeletonPlayer { const NYA_Skeleton* skeleton; NYA_SkeletonAnimator current; NYA_SkeletonAnimator previous; f32 fade_elapsed_s; f32 fade_duration_s; b8 fading; b8 current_fresh; NYA_SkeletonInertializer* inertializer; f32 pending_inertial_s; NYA_SkeletonLayer layers[NYA_SKELETON_LAYERS]; const NYA_SkeletonEvent* events; u32 event_count; NYA_SkeletonSignal signals[NYA_SKELETON_CLIP_EVENTS]; u32 signal_count; s32 root_motion_bone; f32x3 root_motion_axes; b8 root_motion_rotation; NYA_RootMotion root_motion; }
+struct NYA_SkeletonPlayer { const NYA_Skeleton* skeleton; NYA_SkeletonAnimator current; NYA_SkeletonAnimator previous; f32 fade_elapsed_s; f32 fade_duration_s; f32 fade_elapsed_previous_s; b8 fading; b8 current_fresh; NYA_SkeletonInertializer* inertializer; f32 pending_inertial_s; NYA_SkeletonLayer layers[NYA_SKELETON_LAYERS]; const NYA_SkeletonEvent* events; u32 event_count; NYA_SkeletonSignal signals[NYA_SKELETON_CLIP_EVENTS]; u32 signal_count; s32 root_motion_bone; f32x3 root_motion_axes; b8 root_motion_rotation; NYA_RootMotion root_motion; }
 
 // macros
 NYA_SKELETON_LAYERS 4  // Layers one player may stack over its base clip.
@@ -2849,6 +2851,7 @@ void nya_skeleton_player_layer_weight(NYA_SkeletonPlayer* player, u32 slot, f32 
 b8 nya_skeleton_player_root_motion(NYA_SkeletonPlayer* player, NYA_ConstCString bone, f32x3 translation_axes, b8 rotation)  // Turns root motion on for `bone`, or off when `bone` is null.
 NYA_RootMotion nya_skeleton_player_root_delta(const NYA_SkeletonPlayer* player)  // What the last update extracted.
 void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose)  // Advances everything and writes the composed pose.
+void nya_skeleton_player_render_pose(const NYA_SkeletonPlayer* player, OUT NYA_SkeletonPose* out_pose)
 void nya_skeleton_player_inertial(NYA_SkeletonPlayer* player, NYA_SkeletonInertializer* inertializer)  // Transitions through `inertializer` instead of crossfading.
 b8 nya_skeleton_player_fading(const NYA_SkeletonPlayer* player)  // Whether a transition is in progress, crossfade or inertialization.
 b8 nya_skeleton_ik_two_bone(const NYA_Skeleton* skeleton, NYA_SkeletonPose* pose, s32 root_bone, s32 mid_bone, s32 end_bone, f32x3 target, f32x3 pole)  // Bends a two-bone chain so `end` reaches `target`, writing rotations into `pose`.

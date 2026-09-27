@@ -190,33 +190,42 @@ void nya_skeleton_inertializer_transition(NYA_SkeletonInertializer* inertializer
     inertializer->longest_s = longest;
 }
 
+void nya_skeleton_inertializer_apply(const NYA_SkeletonInertializer* inertializer, f32 alpha, NYA_SkeletonPose* pose) {
+    if (inertializer == nullptr || pose == nullptr) return;
+
+    // back from the last update's end, so an alpha of one is exactly the offset it added.
+    f32 t = nya_max(inertializer->elapsed_s - (inertializer->previous_delta_s * (1.0F - alpha)), 0.0F);
+
+    // every channel has arrived, so a player without a transition pays one compare a frame.
+    if (t >= inertializer->longest_s) return;
+
+    u32 bones = nya_min(pose->bone_count, (u32)NYA_SKELETON_MAX_BONES);
+
+    for (u32 i = 0; i < bones; i++) {
+        NYA_BoneTransform* local = &pose->local[i];
+
+        f32 translation = _nya_inertial_evaluate(&inertializer->translation[i], t);
+        if (translation != 0.0F) local->translation += inertializer->translation[i].direction * translation;
+
+        f32 rotation = _nya_inertial_evaluate(&inertializer->rotation[i], t);
+        if (rotation != 0.0F) {
+            // Left multiplied, matching how the offset was captured: offset ⋅ destination is the
+            // pose that was on screen, so the same product reproduces it at t = 0.
+            local->rotation = nya_quaternion_normalize(
+                nya_quaternion_multiply(nya_quaternion_from_axis_angle(inertializer->rotation[i].direction, rotation), local->rotation));
+        }
+
+        f32 scale = _nya_inertial_evaluate(&inertializer->scale[i], t);
+        if (scale != 0.0F) local->scale += inertializer->scale[i].direction * scale;
+    }
+}
+
 void nya_skeleton_inertializer_update(NYA_SkeletonInertializer* inertializer, f32 delta_time_s, NYA_SkeletonPose* pose) {
     if (inertializer == nullptr || pose == nullptr) return;
 
     if (nya_skeleton_inertializer_active(inertializer)) {
         inertializer->elapsed_s += delta_time_s;
-
-        f32 t = inertializer->elapsed_s;
-
-        u32 bones = nya_min(pose->bone_count, (u32)NYA_SKELETON_MAX_BONES);
-
-        for (u32 i = 0; i < bones; i++) {
-            NYA_BoneTransform* local = &pose->local[i];
-
-            f32 translation = _nya_inertial_evaluate(&inertializer->translation[i], t);
-            if (translation != 0.0F) local->translation += inertializer->translation[i].direction * translation;
-
-            f32 rotation = _nya_inertial_evaluate(&inertializer->rotation[i], t);
-            if (rotation != 0.0F) {
-                // Left multiplied, matching how the offset was captured: offset ⋅ destination is the
-                // pose that was on screen, so the same product reproduces it at t = 0.
-                local->rotation = nya_quaternion_normalize(
-                    nya_quaternion_multiply(nya_quaternion_from_axis_angle(inertializer->rotation[i].direction, rotation), local->rotation));
-            }
-
-            f32 scale = _nya_inertial_evaluate(&inertializer->scale[i], t);
-            if (scale != 0.0F) local->scale += inertializer->scale[i].direction * scale;
-        }
+        nya_skeleton_inertializer_apply(inertializer, 1.0F, pose);
     }
 
     /*

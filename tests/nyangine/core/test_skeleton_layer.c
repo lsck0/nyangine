@@ -19,6 +19,10 @@ static NYA_BoneTransform bend_frames[BONE_COUNT * 2];
 static NYA_SkeletonClip  clip_rest;
 static NYA_SkeletonClip  clip_bend;
 
+/** A clip that moves over time: the root walks along x while the middle and the end turn. */
+static NYA_BoneTransform swing_frames[BONE_COUNT * 2];
+static NYA_SkeletonClip  clip_swing;
+
 static void rig_build(void) {
     bones[BONE_ROOT] = (NYA_SkeletonBone){ .parent = -1, .rest = { .translation = { 0, 0, 0 }, .rotation = nya_quaternion_identity, .scale = { 1, 1, 1 } } };
     bones[BONE_MID]  = (NYA_SkeletonBone){ .parent = BONE_ROOT, .rest = { .translation = { UPPER, 0, 0 }, .rotation = nya_quaternion_identity, .scale = { 1, 1, 1 } } };
@@ -39,6 +43,17 @@ static void rig_build(void) {
         bend_frames[(f * BONE_COUNT) + BONE_ROOT].rotation = nya_quaternion_from_axis_angle((f32x3){ 0, 0, 1 }, 1.5707963F);
     }
 
+    for (u32 b = 0; b < BONE_COUNT; b++) {
+        swing_frames[b]              = bones[b].rest;
+        swing_frames[BONE_COUNT + b] = bones[b].rest;
+    }
+    swing_frames[BONE_COUNT + BONE_ROOT].translation = (f32x3){ 1.0F, 0.0F, 0.0F };
+    swing_frames[BONE_COUNT + BONE_MID].rotation     = nya_quaternion_from_axis_angle((f32x3){ 0, 0, 1 }, 1.5707963F);
+    swing_frames[BONE_COUNT + BONE_END].rotation     = nya_quaternion_from_axis_angle((f32x3){ 1, 0, 0 }, 1.0F);
+
+    clip_swing = (NYA_SkeletonClip){ .duration_s = 1.0F, .frame_count = 2, .frame_rate = 1.0F, .frames = swing_frames };
+    (void)snprintf(clip_swing.name, sizeof(clip_swing.name), "swing");
+
     clip_rest = (NYA_SkeletonClip){ .duration_s = 1.0F, .frame_count = 2, .frame_rate = 1.0F, .frames = rest_frames };
     clip_bend = (NYA_SkeletonClip){ .duration_s = 1.0F, .frame_count = 2, .frame_rate = 1.0F, .frames = bend_frames };
 
@@ -55,7 +70,33 @@ static f32x3 world_of(const NYA_SkeletonPose* pose, s32 bone) {
     return position;
 }
 
+/** The largest difference between two poses, over every bone's translation and rotation. */
+static f32 pose_error(const NYA_SkeletonPose* a, const NYA_SkeletonPose* b) {
+    f32 worst = a->bone_count == b->bone_count ? 0.0F : 1.0F;
+
+    for (u32 i = 0; i < a->bone_count && i < b->bone_count; i++) {
+        worst = nya_max(worst, nya_vector_length(a->local[i].translation - b->local[i].translation));
+        // componentwise rather than by angle, which acos turns rounding into a milliradian of; q and -q are one rotation.
+        NYA_Quaternion p    = a->local[i].rotation;
+        NYA_Quaternion q    = b->local[i].rotation;
+        f32            sign = nya_quaternion_dot(p, q) < 0.0F ? -1.0F : 1.0F;
+        f32x4          gap  = { p.x - (sign * q.x), p.y - (sign * q.y), p.z - (sign * q.z), p.w - (sign * q.w) };
+
+        worst = nya_max(worst, sqrtf((gap.x * gap.x) + (gap.y * gap.y) + (gap.z * gap.z) + (gap.w * gap.w)));
+    }
+
+    return worst;
+}
+
+/** Puts the frame `alpha` of the way from the last tick to the next, as the app's clock would. */
+static void alpha_set(f32 alpha) {
+    _NYA_APP_INSTANCE.options.time_step_ns       = 16'000'000;
+    _NYA_APP_INSTANCE.frame_stats.time_behind_ns = (s64)(alpha * 16'000'000.0F);
+}
+
 s32 main(void) {
+    _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
+
     rig_build();
 
     // Masks: fill, carve from a bone, and the missing-bone case being reported.
@@ -324,6 +365,58 @@ s32 main(void) {
         nya_check(!nya_skeleton_ik_two_bone(&skeleton, &pose, -1, BONE_MID, BONE_END, target, pole), "a negative bone is refused");
         nya_check(!nya_skeleton_ik_two_bone(&skeleton, &pose, 0, 1, 99, target, pole), "a bone past the pose is refused");
         nya_check(!nya_skeleton_ik_two_bone(nullptr, &pose, 0, 1, 2, target, pole), "a null skeleton is refused");
+    }
+
+    // Drawn between ticks: alpha zero is the tick before, one the tick just run, through a crossfade, a layer, root
+    // motion and an inertializer alike.
+    {
+        static NYA_SkeletonInertializer inertializer;
+
+        NYA_SkeletonMask end_only = { 0 };
+        nya_check(nya_skeleton_mask_from_bone(&skeleton, "end", &end_only), "the end bone builds a mask");
+
+        for (u32 inertial = 0; inertial < 2; inertial++) {
+            NYA_SkeletonPlayer player = { 0 };
+            nya_skeleton_player_init(&player, &skeleton);
+            nya_check(nya_skeleton_player_root_motion(&player, "root", (f32x3){ 1, 0, 1 }, false), "root motion turns on");
+            nya_check(nya_skeleton_player_layer(&player, 0, &clip_swing, &end_only, 0.5F, true), "a layer starts");
+
+            if (inertial == 1) {
+                nya_skeleton_inertializer_init(&inertializer, &skeleton);
+                nya_skeleton_player_inertial(&player, &inertializer);
+            }
+
+            NYA_SkeletonPose before = { 0 };
+            NYA_SkeletonPose after  = { 0 };
+            NYA_SkeletonPose drawn  = { 0 };
+
+            nya_skeleton_player_play(&player, &clip_bend, .looping = true);
+            nya_skeleton_player_update(&player, 0.1F, &before);
+
+            nya_skeleton_player_play(&player, &clip_swing, .looping = true, .fade_s = 0.5F);
+            nya_skeleton_player_update(&player, 0.1F, &before);
+            nya_skeleton_player_update(&player, 0.1F, &after);
+
+            nya_check(nya_skeleton_player_fading(&player), "still mid transition, pass %u", inertial);
+            nya_check(pose_error(&before, &after) > 0.01F, "the two ticks differ, pass %u", inertial);
+
+            alpha_set(0.0F);
+            nya_skeleton_player_render_pose(&player, &drawn);
+            nya_check(pose_error(&drawn, &before) < 0.0001F, "alpha zero draws the tick before, off by %f, pass %u", (f64)pose_error(&drawn, &before), inertial);
+
+            alpha_set(1.0F);
+            nya_skeleton_player_render_pose(&player, &drawn);
+            nya_check(pose_error(&drawn, &after) < 0.0001F, "alpha one draws the tick just run, off by %f, pass %u", (f64)pose_error(&drawn, &after), inertial);
+
+            alpha_set(0.5F);
+            nya_skeleton_player_render_pose(&player, &drawn);
+            nya_check(pose_error(&drawn, &before) > 0.001F && pose_error(&drawn, &after) > 0.001F, "halfway is neither tick, pass %u", inertial);
+            nya_check(nya_vector_length(drawn.local[BONE_ROOT].translation - bones[BONE_ROOT].rest.translation) < 0.0001F,
+                      "the root stays pinned between ticks, pass %u", inertial);
+        }
+
+        _NYA_APP_INSTANCE.options.time_step_ns       = 0;
+        _NYA_APP_INSTANCE.frame_stats.time_behind_ns = 0;
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

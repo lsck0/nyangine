@@ -170,9 +170,7 @@ void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time
     if (out_pose != nullptr) nya_skeleton_pose_sample(animator->skeleton, animator->clip, animator->time_s, out_pose);
 }
 
-void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose) {
-    nya_trace_scope(NYA_TRACE_SKINNING);
-
+void nya_skeleton_animator_pose_at(const NYA_SkeletonAnimator* animator, f32 alpha, OUT NYA_SkeletonPose* out_pose) {
     if (animator == nullptr || out_pose == nullptr) return;
     if (animator->skeleton == nullptr) return;
 
@@ -186,7 +184,8 @@ void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT
         if (step < -duration * 0.5F) step += duration;
     }
 
-    f32 time_s = animator->time_previous_s + (step * nya_app_tick_alpha());
+    // back from the current time rather than on from the last, so an alpha of one samples exactly what the tick did.
+    f32 time_s = animator->time_s - (step * (1.0F - alpha));
 
     if (animator->looping && duration > 0.0F) {
         time_s = fmodf(time_s, duration);
@@ -195,6 +194,12 @@ void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT
 
     // a null clip samples the rest pose.
     nya_skeleton_pose_sample(animator->skeleton, animator->clip, time_s, out_pose);
+}
+
+void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
+    nya_skeleton_animator_pose_at(animator, nya_app_tick_alpha(), out_pose);
 }
 
 void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_model) {

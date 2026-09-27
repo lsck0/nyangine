@@ -136,6 +136,9 @@ struct NYA_SkeletonPlayer {
 
     f32 fade_elapsed_s;
     f32 fade_duration_s;
+
+    /** Where the fade stood before the last update, so a frame between ticks draws it part way. */
+    f32 fade_elapsed_previous_s;
     b8  fading;
 
     /** Set by `play` until the first update, which is the one step whose start point counts for events. */
@@ -247,8 +250,28 @@ NYA_API b8 nya_skeleton_player_root_motion(NYA_SkeletonPlayer* player, NYA_Const
  * */
 NYA_API NYA_RootMotion nya_skeleton_player_root_delta(const NYA_SkeletonPlayer* player) __attr_no_discard;
 
-/** Advances everything and writes the composed pose. Signals are readable afterwards. */
+/**
+ * Advances everything and writes the composed pose. Signals are readable afterwards. A null `out_pose` only advances
+ * the clocks, for a pose drawn with nya_skeleton_player_render_pose.
+ * */
 NYA_API void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose);
+
+/**
+ * The pose to draw this frame: every clock, the crossfade and the inertializer's offset taken by nya_app_tick_alpha
+ * between the last update and the one before, so a player advanced per tick moves smoothly at any frame rate. The
+ * root stays pinned: its travel reaches the character once per tick, through nya_skeleton_player_root_delta.
+ *
+ * ```c
+ * void on_update(NYA_Window* window, f32 delta_time_s) { nya_skeleton_player_update(&hero, delta_time_s, nullptr); }
+ *
+ * void on_render(NYA_Window* window) {
+ *     NYA_SkeletonPose pose;
+ *     nya_skeleton_player_render_pose(&hero, &pose);
+ *     nya_skeleton_palette(skeleton, &pose, palette);
+ * }
+ * ```
+ * */
+NYA_API void nya_skeleton_player_render_pose(const NYA_SkeletonPlayer* player, OUT NYA_SkeletonPose* out_pose);
 
 /**
  * Transitions through `inertializer` instead of crossfading. Null restores the crossfade.

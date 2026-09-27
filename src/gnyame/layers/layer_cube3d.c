@@ -1087,7 +1087,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         );
     }
 
-    // the clock's skeleton, unless a reload since the last tick freed it.
+    // the player's skeleton, unless a reload since the last tick freed it.
     const NYA_Asset* bender  = nya_asset_get(GNY_CUBE3D_BENDER);
     b8               posable = bender != nullptr && bender->status == NYA_ASSET_STATUS_LOADED && bender->as_mesh.skeleton == scene->bender.skeleton;
 
@@ -1095,7 +1095,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     // draw the same pose.
     if (scene->bender_bone_count > 0 && posable) {
         NYA_SkeletonPose pose;
-        nya_skeleton_animator_render_pose(&scene->bender, &pose);
+        nya_skeleton_player_render_pose(&scene->bender, &pose);
 
         f32_4x4 palette[NYA_SKELETON_MAX_BONES];
         nya_skeleton_palette(scene->bender.skeleton, &pose, palette);
@@ -1417,9 +1417,9 @@ NYA_Render3DLight _gny_cube3d_light(GNY_SkyState sky) {
 void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s) {
     NYA_Asset* asset = nya_asset_get(GNY_CUBE3D_BENDER);
 
-    // still loading, or a reload freed the skeleton the animator points into.
+    // still loading, or a reload freed the skeleton the player points into.
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_mesh.skeleton == nullptr) {
-        scene->bender            = (NYA_SkeletonAnimator){ 0 };
+        nya_skeleton_player_init(&scene->bender, nullptr);
         scene->bender_bone_count = 0;
         return;
     }
@@ -1430,15 +1430,17 @@ void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s) {
 
     if (scene->bender.skeleton != skeleton) {
         scene->bender_clip = 0;
-        nya_skeleton_animator_play(&scene->bender, skeleton, &skeleton->clips[0], false);
-    } else if (scene->bender.finished) {
+        nya_skeleton_player_init(&scene->bender, skeleton);
+        nya_skeleton_player_play(&scene->bender, &skeleton->clips[0]);
+    } else if (scene->bender.current.finished) {
+        // restarted, since a model with one clip plays it again.
         scene->bender_clip = (scene->bender_clip + 1) % skeleton->clip_count;
-        nya_skeleton_animator_play(&scene->bender, skeleton, &skeleton->clips[scene->bender_clip], false);
+        nya_skeleton_player_play(&scene->bender, &skeleton->clips[scene->bender_clip], .fade_s = GNY_CUBE3D_BENDER_FADE_S, .restart = true);
     }
 
     f32 speed = NYA_CONFIG.game.animation_speed > 0.0F ? NYA_CONFIG.game.animation_speed : GNY_ANIMATION_SPEED;
 
-    nya_skeleton_animator_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s * speed, nullptr);
+    nya_skeleton_player_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s * speed, nullptr);
     scene->bender_bone_count = skeleton->bone_count;
 }
 

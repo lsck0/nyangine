@@ -161,6 +161,45 @@ NYA_INTERNAL void _nya_skeleton_collect_events(NYA_SkeletonPlayer* player, f32 f
     }
 }
 
+/** The crossfade's eased weight `alpha` of the way through the last update. */
+NYA_INTERNAL f32 _nya_skeleton_player_fade_weight(const NYA_SkeletonPlayer* player, f32 alpha) {
+    f32 elapsed_s = player->fade_elapsed_s - ((player->fade_elapsed_s - player->fade_elapsed_previous_s) * (1.0F - alpha));
+    f32 t         = player->fade_duration_s > 0.0F ? nya_clamp(elapsed_s / player->fade_duration_s, 0.0F, 1.0F) : 1.0F;
+
+    // Smoothstepped, not linear: a linear crossfade has a velocity discontinuity at each end, which
+    // is visible as a twitch when the two clips disagree about where a limb is.
+    return nya_ease(NYA_EASE_SMOOTHSTEP, t);
+}
+
+/**
+ * Every clock sampled `alpha` of the way through the last update, crossfaded, then the layers in slot order, so
+ * later layers win where masks overlap. One path for the tick's pose and the frame's, so the two cannot disagree.
+ * */
+NYA_INTERNAL void _nya_skeleton_player_compose(const NYA_SkeletonPlayer* player, f32 alpha, OUT NYA_SkeletonPose* out_pose) {
+    nya_skeleton_animator_pose_at(&player->current, alpha, out_pose);
+
+    if (player->fading) {
+        NYA_SkeletonPose outgoing = { 0 };
+        nya_skeleton_animator_pose_at(&player->previous, alpha, &outgoing);
+
+        NYA_SkeletonPose blended = { 0 };
+        nya_skeleton_pose_blend(&outgoing, out_pose, _nya_skeleton_player_fade_weight(player, alpha), &blended);
+        *out_pose = blended;
+    }
+
+    for (u32 i = 0; i < NYA_SKELETON_LAYERS; i++) {
+        const NYA_SkeletonLayer* layer = &player->layers[i];
+        if (!layer->active || layer->animator.clip == nullptr || layer->weight <= 0.0F) continue;
+
+        NYA_SkeletonPose layer_pose = { 0 };
+        nya_skeleton_animator_pose_at(&layer->animator, alpha, &layer_pose);
+
+        NYA_SkeletonPose composed = { 0 };
+        nya_skeleton_pose_blend_masked(out_pose, &layer_pose, layer->weight, layer->mask, &composed);
+        *out_pose = composed;
+    }
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -261,10 +300,11 @@ void nya_skeleton_player_play_with_options(NYA_SkeletonPlayer* player, const NYA
     } else if (player->current.clip != nullptr && options.fade_s > 0.0F) {
         // The outgoing clip keeps playing during the fade, which is what makes it a crossfade rather
         // than a dissolve into a frozen pose.
-        player->previous        = player->current;
-        player->fade_elapsed_s  = 0.0F;
-        player->fade_duration_s = options.fade_s;
-        player->fading          = true;
+        player->previous                = player->current;
+        player->fade_elapsed_s          = 0.0F;
+        player->fade_elapsed_previous_s = 0.0F;
+        player->fade_duration_s         = options.fade_s;
+        player->fading                  = true;
     } else {
         player->fading = false;
     }
@@ -273,8 +313,8 @@ void nya_skeleton_player_play_with_options(NYA_SkeletonPlayer* player, const NYA
     player->current.speed = options.speed;
     player->current_fresh = true;
 
-    // backward playback starts from the end it plays away from.
-    if (options.speed < 0.0F) player->current.time_s = clip->duration_s;
+    // backward playback starts from the end it plays away from, and a frame before the first update draws it there.
+    if (options.speed < 0.0F) player->current.time_s = player->current.time_previous_s = clip->duration_s;
 }
 
 void nya_skeleton_player_events(NYA_SkeletonPlayer* player, const NYA_SkeletonEvent* events, u32 count) {
@@ -351,21 +391,28 @@ b8 nya_skeleton_player_fading(const NYA_SkeletonPlayer* player) {
 }
 
 void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose) {
-    if (player == nullptr || out_pose == nullptr || player->skeleton == nullptr) return;
+    if (player == nullptr || player->skeleton == nullptr) return;
 
     player->signal_count = 0;
 
-    if (player->current.clip == nullptr) {
-        nya_skeleton_pose_rest(player->skeleton, out_pose);
+    // the inertializer records every pose it offsets, so it needs one composed even when the caller does not.
+    NYA_SkeletonPose  scratch = { 0 };
+    NYA_SkeletonPose* pose    = out_pose != nullptr ? out_pose : &scratch;
+    b8                posing  = out_pose != nullptr || player->inertializer != nullptr;
 
+    if (player->current.clip == nullptr) {
         // Cleared rather than left alone: a caller applies this every frame, and a stale delta from
         // the last clip would keep pushing the character after the animation stopped.
         player->root_motion = (NYA_RootMotion){ .rotation = nya_quaternion_identity };
 
+        if (!posing) return;
+
+        nya_skeleton_pose_rest(player->skeleton, pose);
+
         // The inertializer still runs, so that its history is the rest pose rather than whatever was
         // on screen before the clip was taken away. A `play` after an idle gap would otherwise
         // transition from a pose the character has not been in for some time.
-        if (player->inertializer != nullptr) nya_skeleton_inertializer_update(player->inertializer, delta_time_s, out_pose);
+        nya_skeleton_inertializer_update(player->inertializer, delta_time_s, pose);
 
         return;
     }
@@ -378,7 +425,7 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
 
     b8 extracting = player->root_motion_bone >= 0;
 
-    nya_skeleton_animator_update(&player->current, delta_time_s, out_pose);
+    nya_skeleton_animator_update(&player->current, delta_time_s, nullptr);
     player->current_fresh = false;
 
     f32 after_s  = player->current.time_s;
@@ -406,32 +453,17 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
                                                       player->current.time_s, _nya_skeleton_wrapped(&player->current, before_s, forward), forward);
     }
 
-    /*
-     * The crossfade
-     *
-     * The outgoing clip keeps advancing. Blending toward a frozen pose reads as a stutter.
-     */
+    // The outgoing clip keeps advancing through the fade. Blending toward a frozen pose reads as a stutter.
     if (player->fading) {
-        NYA_SkeletonPose outgoing = { 0 };
-        nya_skeleton_animator_update(&player->previous, delta_time_s, &outgoing);
+        nya_skeleton_animator_update(&player->previous, delta_time_s, nullptr);
 
+        player->fade_elapsed_previous_s = player->fade_elapsed_s;
         player->fade_elapsed_s += delta_time_s;
 
-        f32 t = player->fade_duration_s > 0.0F ? nya_clamp(player->fade_elapsed_s / player->fade_duration_s, 0.0F, 1.0F) : 1.0F;
-
-        // Smoothstepped, not linear: a linear crossfade has a velocity discontinuity at each end, which
-        // is visible as a twitch when the two clips disagree about where a limb is.
-        f32 eased = nya_ease(NYA_EASE_SMOOTHSTEP, t);
-
-        NYA_SkeletonPose blended = { 0 };
-        nya_skeleton_pose_blend(&outgoing, out_pose, eased, &blended);
-        *out_pose = blended;
-
-        /*
-         * The outgoing clip's travel, mixed in by the same curve as the pose.
-         */
+        // The outgoing clip's travel, mixed in by the same curve as the pose.
         if (extracting) {
-            b8 previous_forward = player->previous.speed >= 0.0F;
+            b8  previous_forward = player->previous.speed >= 0.0F;
+            f32 eased            = _nya_skeleton_player_fade_weight(player, 1.0F);
 
             NYA_RootMotion outgoing_motion =
                 _nya_skeleton_root_step(player->skeleton, player->previous.clip, player->root_motion_bone, before_previous_s,
@@ -443,30 +475,29 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
                 .rotation    = nya_quaternion_slerp_unit(outgoing_motion.rotation, player->root_motion.rotation, eased),
             };
         }
-
-        if (t >= 1.0F) {
-            player->fading   = false;
-            player->previous = (NYA_SkeletonAnimator){ 0 };
-        }
     }
 
-    /*
-     * The layers, in slot order
-     *
-     * Each blends over the result below it, so later layers win where masks overlap.
-     */
     for (u32 i = 0; i < NYA_SKELETON_LAYERS; i++) {
         NYA_SkeletonLayer* layer = &player->layers[i];
         if (!layer->active || layer->animator.clip == nullptr || layer->weight <= 0.0F) continue;
 
-        NYA_SkeletonPose layer_pose = { 0 };
-        nya_skeleton_animator_update(&layer->animator, delta_time_s, &layer_pose);
-
-        NYA_SkeletonPose composed = { 0 };
-        nya_skeleton_pose_blend_masked(out_pose, &layer_pose, layer->weight, layer->mask, &composed);
-
-        *out_pose = composed;
+        nya_skeleton_animator_update(&layer->animator, delta_time_s, nullptr);
     }
+
+    if (extracting) {
+        player->root_motion.translation *= player->root_motion_axes;
+        if (!player->root_motion_rotation) player->root_motion.rotation = nya_quaternion_identity;
+    }
+
+    if (posing) _nya_skeleton_player_compose(player, 1.0F, pose);
+
+    // after the compose, which still blends the outgoing clip at the weight this update reached.
+    if (player->fading && player->fade_elapsed_s >= player->fade_duration_s) {
+        player->fading   = false;
+        player->previous = (NYA_SkeletonAnimator){ 0 };
+    }
+
+    if (!posing) return;
 
     /*
      * Inertialization, after the layers and before the pin
@@ -492,22 +523,38 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
             NYA_SkeletonPose destination_previous = { 0 };
             nya_skeleton_pose_sample(player->skeleton, player->current.clip, previous_time_s, &destination_previous);
 
-            nya_skeleton_inertializer_transition(player->inertializer, out_pose, &destination_previous, player->pending_inertial_s);
+            nya_skeleton_inertializer_transition(player->inertializer, pose, &destination_previous, player->pending_inertial_s);
 
             player->pending_inertial_s = 0.0F;
         }
 
-        nya_skeleton_inertializer_update(player->inertializer, delta_time_s, out_pose);
+        nya_skeleton_inertializer_update(player->inertializer, delta_time_s, pose);
     }
 
     /*
      * Last, because everything above is allowed to write the root and this is what decides it does
      * not get to keep it. See nya_skeleton_player_root_motion for why the rest pose is the target.
      */
-    if (extracting) {
-        player->root_motion.translation *= player->root_motion_axes;
-        if (!player->root_motion_rotation) player->root_motion.rotation = nya_quaternion_identity;
+    if (extracting) _nya_skeleton_pin_root(player->skeleton, pose, player->root_motion_bone, player->root_motion_axes, player->root_motion_rotation);
+}
 
+void nya_skeleton_player_render_pose(const NYA_SkeletonPlayer* player, OUT NYA_SkeletonPose* out_pose) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
+    if (player == nullptr || out_pose == nullptr || player->skeleton == nullptr) return;
+
+    f32 alpha = nya_app_tick_alpha();
+
+    if (player->current.clip == nullptr) {
+        nya_skeleton_pose_rest(player->skeleton, out_pose);
+    } else {
+        _nya_skeleton_player_compose(player, alpha, out_pose);
+    }
+
+    nya_skeleton_inertializer_apply(player->inertializer, alpha, out_pose);
+
+    // pinned, never extracted: the root's travel went to the character once, in the tick.
+    if (player->root_motion_bone >= 0) {
         _nya_skeleton_pin_root(player->skeleton, out_pose, player->root_motion_bone, player->root_motion_axes, player->root_motion_rotation);
     }
 }

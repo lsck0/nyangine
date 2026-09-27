@@ -915,6 +915,9 @@
 
 #define GNY_CUBE3D_BENDER_COLOR ((NYA_Color){ 0.93F, 0.78F, 0.36F, 1.0F })
 
+/** Seconds one clip crossfades into the next. Long enough to see a blend, short against a clip of a few seconds. */
+static const f32 GNY_CUBE3D_BENDER_FADE_S = 0.3F;
+
 /*
  * ─────────────────────────────────────────────────────────
  * THE 3D SCENE'S LIGHTS

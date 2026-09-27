@@ -102,9 +102,9 @@ typedef struct GNY_Cube3DScene {
     /** The plume's crackle, looping. */
     NYA_SoundVoice fire_voice;
 
-    /** The skinned bar's clock, and which of its clips it is on. */
-    NYA_SkeletonAnimator bender;
-    u32                  bender_clip;
+    /** The skinned bar's player, and which of its clips it is on. */
+    NYA_SkeletonPlayer bender;
+    u32                bender_clip;
 
     /** Stops the bar's clock where it is. */
     b8 bender_frozen;

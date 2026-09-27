@@ -184,6 +184,12 @@ NYA_API void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 de
 NYA_API void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose);
 
 /**
+ * The pose `alpha` of the way from the clock's last tick (zero) to its current time (one). What
+ * nya_skeleton_animator_render_pose draws at nya_app_tick_alpha; one samples exactly what the tick did.
+ * */
+NYA_API void nya_skeleton_animator_pose_at(const NYA_SkeletonAnimator* animator, f32 alpha, OUT NYA_SkeletonPose* out_pose);
+
+/**
  * Every bone's model-space transform for `pose`. `out_model` holds NYA_SKELETON_MAX_BONES entries.
  *
  * Where each bone is, for sockets. A palette entry has the inverse bind folded in and is the identity
