@@ -15,6 +15,23 @@ NYA_INTERNAL s32 _example_compare(const NYA_String* a, const NYA_String* b);
 /** Prints the available examples on stderr. What a missing or misspelled name gets. */
 NYA_INTERNAL void _example_list(NYA_Arena* arena);
 
+/** The debug build of one example to `<name>.example` at the root, sanitized, the way `run example` runs it. */
+NYA_INTERNAL NYA_BuildRule* _example_build_rule(NYA_Arena* arena, NYA_ConstCString name);
+
+#if !OS_WINDOWS
+/** Why a bounded run failed, as the first telling line of its log, or nullptr when it passed. */
+NYA_INTERNAL NYA_ConstCString _example_run_failure(NYA_Arena* arena, NYA_ConstCString log_path, s32 exit_code);
+
+/** What `run examples` hands each one: the engine's run budget, and a backstop for a program that ignores it. The exits are timeout(1)'s. */
+enum {
+    _EXAMPLES_BUDGET_FRAMES   = 300,
+    _EXAMPLES_BUDGET_SECONDS  = 10,
+    _EXAMPLES_TIMEOUT_SECONDS = 120,
+    _EXAMPLES_TIMEOUT_EXIT    = 124,
+    _EXAMPLES_KILLED_EXIT     = 128 + 9,
+};
+#endif
+
 /* PUBLIC API IMPLEMENTATION */
 
 void example_runner(NYA_ArgCommand* command) {
@@ -69,39 +86,7 @@ void example_runner(NYA_ArgCommand* command) {
     NYA_String* headless_marker = nya_string_sprintf(arena, "%s/%s/.headless", EXAMPLE_DIRECTORY, name);
     b8          headless        = server && nya_filesystem_exists(nya_string_to_cstring(arena, headless_marker));
 
-    NYA_BuildRule build_example = {
-        .name        = nya_string_to_cstring(arena, build_name),
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = binary_cstr,
-
-        .command = {
-            .program   = CC,
-            .arguments = {
-                source_cstr,
-                "-o", binary_cstr,
-                CFLAGS,
-                WARNINGS,
-                INCLUDE_PATHS,
-                // The same plugins the project compiles. Without them an example that touches curl or sqlite compiles the plugin away to nothing and appears to do nothing.
-                FLAGS_PLUGINS,
-                LINKER_FLAGS,
-                // FLAGS_DEBUG rather than FLAGS_DEVELOPER: examples are documentation and checks, so unoptimized with assertions. The hot reload entry point is in src/main.c, and examples bring their own main.
-                FLAGS_DEBUG,
-                // Built to run on this machine right now, so the host set: sanitizers included, which is what makes an example that leaks or overruns fail loudly rather than pass.
-                FLAGS_HOST_NATIVE,
-            },
-        },
-
-        .pre_build_hooks = { &hook_add_version_flag, },
-        // Exactly what the project links, by naming the same macro. A hand copied list here is the drift that made every test fail to compile on a missing SDL_image header.
-#if OS_WINDOWS
-        .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
-#else
-        .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
-#endif
-        // An example may draw, so the shaders and the asset index have to exist. The same two the game's own debug DLL depends on, and both are cached, so this is nearly free.
-        .dependencies    = { &build_shaders, &index_assets, },
-    };
+    NYA_BuildRule* build_example = _example_build_rule(arena, name);
 
 #if !OS_WINDOWS
     /* The --server shipping build of the example, the artifact a container image copies: release rather than debug (optimized, LTO'd, no sanitizers, no hot-reload entry point), the asset blob baked in (NYA_ASSET_PREFER_BLOB, which is why the dependency is bundle_assets rather than the index alone), dead-code collected, Linux-hardened, and -s stripped. It still links the full project vendors, not the server subset — the example compiles the whole engine graph until the NYA_NO_SDL wall lands; see the deploy README. */
@@ -195,11 +180,76 @@ void example_runner(NYA_ArgCommand* command) {
             .environment = { SANITIZER_ENVIRONMENT, },
         },
 
-        .dependencies = { &build_example, },
+        .dependencies = { build_example, },
     };
 
     NYA_EXPECT(nya_build(&run_example), "while running example '%s'", name);
 }
+
+#if !OS_WINDOWS
+void examples_runner(NYA_ArgCommand* command) {
+    nya_unused(command);
+
+    NYA_Arena* arena = nya_arena_create(.name = "examples_runner");
+    defer nya_arena_destroy(arena);
+
+    NYA_ArrayᐸNYA_Stringᐳ* examples = _example_discover(arena);
+    u32                   count    = (u32)examples->length;
+    NYA_BuildRule**       rules    = nya_arena_alloc(arena, count * sizeof(NYA_BuildRule*));
+
+    for (u32 i = 0; i < count; i++) {
+        rules[i] = _example_build_rule(arena, nya_string_to_cstring(arena, &examples->items[i]));
+        // a binary left by an earlier run would pass for this one's build below.
+        (void)nya_filesystem_delete(rules[i]->output_file);
+    }
+
+    // All at once, then one at a time for whatever the pool never started after a failure, so a broken example costs its own row and not the rest.
+    (void)nya_build_parallel(rules, count, 0);
+    for (u32 i = 0; i < count; i++) {
+        if (!nya_filesystem_exists(rules[i]->output_file)) (void)nya_build(rules[i]);
+    }
+
+    NYA_ConstCString* failures = nya_arena_alloc(arena, count * sizeof(NYA_ConstCString));
+    u32               failed   = 0;
+
+    for (u32 i = 0; i < count; i++) {
+        NYA_ConstCString binary = rules[i]->output_file;
+        NYA_ConstCString log    = nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s.log", binary));
+
+        if (!nya_filesystem_exists(binary)) {
+            failures[i] = "did not compile";
+        } else {
+            nya_log_info("Running %s, output in %s", binary, log);
+
+            // Under script(1), so a terminal program gets the pseudo terminal it would get from a person. timeout, not a wait of ours, kills the group; the example's own session then loses its terminal and hangs up, so a child it re-executed cannot outlive it. Output goes to a file, so nothing left behind can hold a pipe of ours open.
+            NYA_ConstCString shell = "exec timeout --kill-after=5 %u script --quiet --return --command ./%s /dev/null < /dev/null > %s 2>&1";
+            NYA_Command      run   = {
+                .arena       = arena,
+                .program     = "sh",
+                .arguments   = { "-c", nya_string_to_cstring(arena, nya_string_sprintf(arena, shell, _EXAMPLES_TIMEOUT_SECONDS, binary, log)) },
+                .environment = {
+                    SANITIZER_ENVIRONMENT,
+                    nya_string_to_cstring(arena, nya_string_sprintf(arena, "NYA_EXIT_AFTER_FRAMES=%u", _EXAMPLES_BUDGET_FRAMES)),
+                    nya_string_to_cstring(arena, nya_string_sprintf(arena, "NYA_EXIT_AFTER_SECONDS=%u", _EXAMPLES_BUDGET_SECONDS)),
+                },
+            };
+            NYA_EXPECT(nya_command_run(&run), "while running %s", binary);
+
+            failures[i] = _example_run_failure(arena, log, run.exit_code);
+        }
+
+        if (failures[i] != nullptr) failed++;
+    }
+
+    printf("\n%-20s %-6s %s\n", "example", "result", "first error");
+    for (u32 i = 0; i < count; i++) {
+        printf("%-20s %-6s %s\n", nya_string_to_cstring(arena, &examples->items[i]), failures[i] == nullptr ? "PASS" : "FAIL", failures[i] == nullptr ? "" : failures[i]);
+    }
+    printf("\n%u of %u examples passed.\n", count - failed, count);
+
+    if (failed > 0) exit(EXIT_FAILURE);
+}
+#endif
 
 NYA_ConstCString example_completion_name(u32 index) {
     /* Listed once and cached, since completion asks for one name at a time and relisting per index would be quadratic. A static because choices_fn only takes an index, in a short lived process. */
@@ -265,3 +315,76 @@ void _example_list(NYA_Arena* arena) {
     (void)fprintf(stderr, "Available examples:\n");
     nya_array_foreach (examples, example) (void)fprintf(stderr, "  %s\n", nya_string_to_cstring(arena, example));
 }
+
+NYA_BuildRule* _example_build_rule(NYA_Arena* arena, NYA_ConstCString name) {
+    NYA_CString source_cstr = nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s/%s/%s", EXAMPLE_DIRECTORY, name, EXAMPLE_ENTRY_POINT));
+    // At the repo root, so $ORIGIN finds the vendored shared objects. See example.h.
+    NYA_CString binary_cstr = nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s" EXAMPLE_BINARY_SUFFIX, name));
+
+    NYA_BuildRule* rule = nya_arena_alloc(arena, sizeof(NYA_BuildRule));
+    *rule = (NYA_BuildRule){
+        .name        = nya_string_to_cstring(arena, nya_string_sprintf(arena, "build_example:%s", name)),
+        .policy      = NYA_BUILD_ALWAYS,
+        .output_file = binary_cstr,
+
+        .command = {
+            .program   = CC,
+            .arguments = {
+                source_cstr,
+                "-o", binary_cstr,
+                CFLAGS,
+                WARNINGS,
+                INCLUDE_PATHS,
+                // The same plugins the project compiles. Without them an example that touches curl or sqlite compiles the plugin away to nothing and appears to do nothing.
+                FLAGS_PLUGINS,
+                LINKER_FLAGS,
+                // FLAGS_DEBUG rather than FLAGS_DEVELOPER: examples are documentation and checks, so unoptimized with assertions. The hot reload entry point is in src/main.c, and examples bring their own main.
+                FLAGS_DEBUG,
+                // Built to run on this machine right now, so the host set: sanitizers included, which is what makes an example that leaks or overruns fail loudly rather than pass.
+                FLAGS_HOST_NATIVE,
+            },
+        },
+
+        .pre_build_hooks = { &hook_add_version_flag, },
+        // Exactly what the project links, by naming the same macro. A hand copied list here is the drift that made every test fail to compile on a missing SDL_image header.
+#if OS_WINDOWS
+        .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
+#else
+        .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+#endif
+        // An example may draw, so the shaders and the asset index have to exist. The same two the game's own debug DLL depends on, and both are cached, so this is nearly free.
+        .dependencies    = { &build_shaders, &index_assets, },
+    };
+
+    return rule;
+}
+
+#if !OS_WINDOWS
+NYA_ConstCString _example_run_failure(NYA_Arena* arena, NYA_ConstCString log_path, s32 exit_code) {
+    // [PREVENTED ASSERTION FAILED] is a test catching its own assert, and does not match the first.
+    static NYA_ConstCString MARKERS[] = { "[ASSERTION FAILED]", "[PANIC]", "[ERROR THROWN]", "AddressSanitizer", "LeakSanitizer", "runtime error:" };
+
+    NYA_String* output = nya_string_create(arena);
+    if (!nya_file_read(log_path, output).ok) return "wrote no log";
+
+    NYA_ConstCString        last  = "";
+    NYA_ArrayᐸNYA_Stringᐳ* lines = nya_string_split_lines(arena, output);
+
+    nya_array_foreach (lines, line) {
+        // the pseudo terminal ends every line in \r\n.
+        nya_string_trim_whitespace(line);
+        if (line->length > 0) last = nya_string_to_cstring(arena, line);
+
+        for (u32 m = 0; m < sizeof(MARKERS) / sizeof(MARKERS[0]); m++) {
+            if (nya_string_contains(line, MARKERS[m])) return last;
+        }
+    }
+
+    if (exit_code == _EXAMPLES_TIMEOUT_EXIT || exit_code == _EXAMPLES_KILLED_EXIT) {
+        return nya_string_to_cstring(arena, nya_string_sprintf(arena, "timed out after %us: %s", _EXAMPLES_TIMEOUT_SECONDS, last));
+    }
+    if (exit_code != 0) return nya_string_to_cstring(arena, nya_string_sprintf(arena, "exit code %d: %s", exit_code, last));
+
+    return nullptr;
+}
+#endif

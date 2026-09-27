@@ -658,6 +658,9 @@ void nya_system_http_deinit(void) {
 void nya_system_http_tick(void) {
     if (_NYA_HTTP == nullptr) return;
 
+    // A server's own loop has no frame to count, so its ticks are the budget's passes; inside an app frame the app's count wins.
+    nya_signals_budget_step(&_NYA_HTTP);
+
     // A signal may have asked for shutdown; latch it here too, so a threaded server's host thread sees the drain begin without waiting on the listener's next pass.
     _nya_http_shutdown_observe();
 

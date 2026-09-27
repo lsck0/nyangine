@@ -637,6 +637,9 @@ void nya_app_run(void) {
     static b8 first_frame_reported = false;
 
     while (!app->should_quit) {
+        // lands in _nya_app_handle_shutdown_signal when NYA_EXIT_AFTER_* runs out, so this frame is the last.
+        nya_signals_budget_step(app);
+
         // before the frame timer opens, so that timer is the frame's depth 0 span. nya_perf_frame_spans selects on
         // this frame number.
         nya_perf_frame_begin();

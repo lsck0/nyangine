@@ -7790,6 +7790,7 @@ enum NYA_Signal { NYA_SIGNAL_INVALID, NYA_SIGNAL_INTERRUPT, NYA_SIGNAL_TERMINATE
 void nya_signals_init(void)
 void nya_signals_deinit(void)
 void nya_signals_set_handler(NYA_Signal signal, NYA_SignalHandler handler)
+void nya_signals_budget_step(const void* loop)
 ```
 
 ### terminal.h

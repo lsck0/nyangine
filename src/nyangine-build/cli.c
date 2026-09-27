@@ -493,6 +493,13 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .handler     = &example_runner,
             .parameters  = { &example_name, },
         },
+#if !OS_WINDOWS
+        &(NYA_ArgCommand){
+            .name        = "examples",
+            .description = "Build every example and run each bounded by NYA_EXIT_AFTER_*; fails on a crash, a sanitizer report or a timeout.",
+            .handler     = &examples_runner,
+        },
+#endif
         &(NYA_ArgCommand){
             .name        = "test",
             .description = "Build and run the tests.",

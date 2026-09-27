@@ -33,6 +33,7 @@ dist/
 # rpath in FLAGS_LINUX_X86_64 ($ORIGIN) finds the vendored shared objects.
 /*.example
 /*.example.exe
+/*.example.log
 
 # `./build plugin sign|keygen` builds tools/plugin_signer.c to this at the root and runs it. The signing
 # key seed it reads and writes is a private key and never belongs in the tree.

@@ -130,10 +130,69 @@ jobs:
           path: ${{ steps.setup.outputs.ccache-dir }}
           key: ${{ steps.setup.outputs.ccache-cache-key }}
 
+  # Every example built sanitized and run bounded by the engine's NYA_EXIT_AFTER_* budget, so one that
+  # stopped working fails here instead of going unnoticed until someone opens it. The GPU ones draw into
+  # a virtual display through lavapipe, and audio goes to SDL's dummy driver.
+  examples-linux:
+    needs: vendor-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          lfs: true
+          # The token is only needed to clone. Left in .git/config it travels into anything that
+          # archives the workspace, and nothing here pushes.
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-linux
+        id: setup
+        with:
+          llvm-version: 22
+          ccache-key: examples
+
+      - name: Install a virtual display and a software Vulkan driver
+        run: sudo apt-get install -y --no-install-recommends xvfb xauth mesa-vulkan-drivers
+
+      - name: Run the examples
+        env:
+          SDL_AUDIO_DRIVER: dummy
+        run: xvfb-run --auto-servernum ./build run examples
+
+      # the log of every example, failed or not, so a red run can be read without reproducing it.
+      - name: Upload the example logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: example-logs
+          path: "*.example.log"
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Report compiler cache statistics
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        run: ccache --show-stats
+
+      # even after a failure, so the objects that did compile are kept.
+      - name: Save compiler cache
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.ccache-dir }}
+          key: ${{ steps.setup.outputs.ccache-cache-key }}
+
   build-linux:
     needs: vendor-linux
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -159,6 +218,10 @@ jobs:
       # Linux, Windows and Steam Windows, the last two cross compiled.
       - name: Build release targets
         run: ./build build release
+
+      # The same commit must give the same bytes; this is the only thing that checks it.
+      - name: Check the release build is reproducible
+        run: ./build reproduce
 
       # Every distribution but the Steam Linux one, which has a job of its own because it needs the
       # sniper sysroot. This is what a release runs, so a manifest template that stopped rendering or

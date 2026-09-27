@@ -155,6 +155,12 @@ void coverage_runner(NYA_ArgCommand* command);
 void example_runner(NYA_ArgCommand* command);
 
 /**
+ * Builds every example and runs each under the engine's run budget, failing on a nonzero exit, a crash
+ * line, a sanitizer report or a timeout. Each one's output lands in `<name>.example.log`. Linux only.
+ * */
+void examples_runner(NYA_ArgCommand* command);
+
+/**
  * Name of the example at `index`, or nullptr past the last one. Fits NYA_ArgCompletion.choices_fn.
  * */
 NYA_ConstCString example_completion_name(u32 index);

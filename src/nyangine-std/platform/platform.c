@@ -24,3 +24,6 @@
 #else
 #error "Unsupported OS"
 #endif
+
+// After the per target sources rather than before: the run budget delivers through the handler map they define.
+#include "nyangine-std/platform/signals/signals.c"
