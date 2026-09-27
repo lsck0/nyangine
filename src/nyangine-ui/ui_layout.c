@@ -185,6 +185,9 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
         room[cross] = sizes[cross].kind == NYA_UI_SIZE_FIT || placed[cross] <= 0.0F ? parent_across : placed[cross];
         room[main]  = along.kind == NYA_UI_SIZE_FIXED || along.kind == NYA_UI_SIZE_GROW ? placed[main] : parent->room[main];
 
+        // a flow filling a column breaks at the column's room, not at the width it fit last pass, or it never widens again.
+        if (panel.direction == NYA_UI_DIRECTION_FLOW && main == 1 && fill) room[cross] = parent->room[cross];
+
         for (u32 axis = 0; axis < 2; axis++) {
             if (sizes[axis].max > 0.0F) room[axis] = nya_min(room[axis], _nya_ui_px(sizes[axis].max));
         }
@@ -213,7 +216,7 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
     if (layer != parent->layer) _nya_ui_layer_set(ui, layer);
 
     f32x2 extent = { nya_max(bounds.width - chrome.x, 0.0F), nya_max(bounds.height - chrome.y, 0.0F) };
-    u32   main   = panel.direction == NYA_UI_DIRECTION_ROW ? 0 : 1;
+    u32   main   = panel.direction == NYA_UI_DIRECTION_COLUMN ? 1 : 0;
     f32   gap    = panel.gap > 0.0F ? _nya_ui_px(panel.gap) : look->spacing;
 
     // an axis scrolls when what the content measured last pass is longer than the room it has now.
@@ -310,7 +313,7 @@ void nya_ui_panel_end(NYA_UI* ui) {
     const NYA_UIPanel*   options = &layout->options;
     const NYA_UILook*    look    = _nya_ui_look();
 
-    f32x2 content = layout->main == 1 ? (f32x2){ layout->across, layout->used } : (f32x2){ layout->used, layout->across };
+    f32x2 content = _nya_ui_content(layout);
     f32x2 natural = {
         nya_max(content.x, layout->title_width) + layout->before.x + layout->after.x,
         content.y + layout->header + layout->before.y + layout->after.y,
@@ -698,7 +701,8 @@ f32 _nya_ui_share(const _NYA_UILayout* layout, f32 placed, f32 weight) {
 
 f32 _nya_ui_text_room(const _NYA_UILayout* layout) {
     // the room, not the width: a column that fits its content would otherwise wrap to what it measured last pass.
-    if (layout->main == 1) return layout->room.x;
+    // a flow's too, since text that does not fit what is left of the line starts the next one.
+    if (layout->main == 1 || layout->options.direction == NYA_UI_DIRECTION_FLOW) return layout->room.x;
 
     NYA_UISize size = _nya_ui_next_size(layout, (NYA_UISize){ 0 });
 
@@ -714,12 +718,26 @@ f32 _nya_ui_text_room(const _NYA_UILayout* layout) {
     return nya_max(layout->room.x - layout->used - gap, 0.0F);
 }
 
+f32x2 _nya_ui_content(const _NYA_UILayout* layout) {
+    nya_assert(layout != nullptr && layout->main < 2);
+    nya_assert(layout->line_first <= layout->count, "a line cannot start after the last child");
+
+    // along the direction what the children took, across it the widest of them, and a flow's lines stacked.
+    f32 along  = nya_max(layout->used, layout->line_widest);
+    f32 across = layout->line_start + layout->across;
+
+    return layout->main == 1 ? (f32x2){ across, along } : (f32x2){ along, across };
+}
+
 NYA_Rectf _nya_ui_place(NYA_UISize own, f32x2 natural, b8 fill) {
     _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
 
     u32        main  = layout->main;
     u32        cross = 1 - main;
     NYA_UISize size  = _nya_ui_next_size(layout, own);
+    b8         flow  = layout->options.direction == NYA_UI_DIRECTION_FLOW;
+
+    nya_assert(!flow || size.kind != NYA_UI_SIZE_GROW, "a flow's children fit; a share of a line that moves means nothing");
 
     _nya_ui.next_set = false;
 
@@ -742,13 +760,23 @@ NYA_Rectf _nya_ui_place(NYA_UISize own, f32x2 natural, b8 fill) {
 
     if (size.kind != NYA_UI_SIZE_GROW) layout->fixed += along;
 
-    f32 extent = layout->extent[cross];
+    // a line's first child stays on it, so one wider than the room runs past instead of leaving an empty line.
+    if (flow && layout->count > layout->line_first && layout->used + layout->gap + along > layout->room[main]) {
+        layout->line_widest  = nya_max(layout->line_widest, layout->used);
+        layout->line_start  += layout->across + _nya_ui_look()->spacing;
+        layout->line_first   = layout->count;
+        layout->used         = 0.0F;
+        layout->across       = 0.0F;
+    }
+
+    // a flow's extent across is every line, so filling it or aligning in it would place a child on the wrong one.
+    f32 extent = flow ? 0.0F : layout->extent[cross];
     f32 across = fill && extent > 0.0F ? extent : roundf(natural[cross]);
-    f32 gap    = layout->count > 0 ? layout->gap : 0.0F;
+    f32 gap    = layout->count > layout->line_first ? layout->gap : 0.0F;
 
     f32x2 position  = { 0.0F, 0.0F };
     position[main]  = layout->origin[main] + layout->used + gap;
-    position[cross] = layout->origin[cross] + (extent > 0.0F && !fill ? roundf((extent - across) * (f32)layout->align * 0.5F) : 0.0F);
+    position[cross] = layout->origin[cross] + layout->line_start + (extent > 0.0F && !fill ? roundf((extent - across) * (f32)layout->align * 0.5F) : 0.0F);
 
     f32x2 taken  = { 0.0F, 0.0F };
     taken[main]  = along;

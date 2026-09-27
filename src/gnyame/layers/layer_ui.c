@@ -70,11 +70,11 @@ void gny_layer_ui_on_render(NYA_Window* window) {
         nya_ui_panel_end(ui);
     }
 
-    // wrapped, since a translation of the hints can be wider than the window.
+    // a hint wider than the whole window still wraps inside itself.
     NYA_UIPanel keys = { .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .overflow = NYA_UI_OVERFLOW_WRAP, .text = NYA_UI_TEXT_SMALL };
 
     if (nya_ui_panel_begin(ui, "keys", keys)) {
-        nya_ui_label(ui, nya_string_hud_keys(), nya_ui_style_get(window).text_dim);
+        gny_ui_keys(ui, nya_string_hud_keys(), nya_ui_style_get(window).text_dim);
         nya_ui_panel_end(ui);
     }
 

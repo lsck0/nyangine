@@ -88,8 +88,7 @@ void _nya_ui_scrollbar_draw(NYA_UI* ui, const _NYA_UILayout* layout, u32 axis) {
 
     const NYA_Rectf* bounds = &layout->bounds;
 
-    // along the container's direction the content is what the children took; across it, the widest of them.
-    f32 content = axis == layout->main ? layout->used : layout->across;
+    f32 content = _nya_ui_content(layout)[axis];
 
     f32 bar   = _nya_ui_px(NYA_UI_SCROLLBAR);
     f32 track = layout->extent[axis];

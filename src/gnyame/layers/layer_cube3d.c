@@ -1257,8 +1257,9 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(),
         nya_string_cube3d_hint_camera(),
         nya_string_cube3d_hint_animation(),
-        nya_string_cube3d_keys(),
-        nya_string_cube3d_render_keys(),
+    };
+
+    NYA_ConstCString stats[] = {
         nya_string_cube3d_culling(drawn.culled, drawn.occluded, hidden.tests, nearest_level, farthest_level),
         nya_string_cube3d_simulation(physics_ms, fluid_ms, fire_heat),
     };
@@ -1267,8 +1268,13 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     NYA_UIPanel hud = { .overflow = NYA_UI_OVERFLOW_WRAP, .text = NYA_UI_TEXT_SMALL };
 
     if (nya_ui_panel_begin(ui, "cube3d_hud", hud)) {
+        NYA_Color dim = nya_ui_style_get(window).text_dim;
+
         nya_ui_label(ui, nya_string_cube3d_title());
-        for (u32 i = 0; i < nya_carray_length(hints); i++) nya_ui_label(ui, hints[i], nya_ui_style_get(window).text_dim);
+        for (u32 i = 0; i < nya_carray_length(hints); i++) nya_ui_label(ui, hints[i], dim);
+        gny_ui_keys(ui, nya_string_cube3d_keys(), dim);
+        gny_ui_keys(ui, nya_string_cube3d_render_keys(), dim);
+        for (u32 i = 0; i < nya_carray_length(stats); i++) nya_ui_label(ui, stats[i], dim);
         nya_ui_panel_end(ui);
     }
 

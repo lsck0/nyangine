@@ -299,6 +299,20 @@
 /** How much of a recorded UI pass one log line carries. Past this the tail is cut; see gny_ui_record_toggle. */
 #define GNY_UI_RECORD_DUMP_MAX 8192
 
+/** What a translation puts between two key hints, which gny_ui_keys lays out as separate labels. */
+#define GNY_UI_KEYS_SEPARATOR "   "
+
+enum {
+    /** Hints on one line of key hints. The longest line has 15. */
+    GNY_UI_KEYS_MAX = 32,
+
+    /** One hint's bytes, terminator included. The longest, "rechtsklick entfernen", is 22; longer is cut. */
+    GNY_UI_KEY_BYTES_MAX = 64,
+};
+
+/** Between two hints: about the three spaces a translation separates them by, at the HUD's small size. */
+NYA_INTERNAL const f32 GNY_UI_KEYS_GAP = 14.0F;
+
 /** The HUD's status panel, and the space kept free at the top right for the debug overlay. */
 #define GNY_UI_PANEL_WIDTH   300.0F
 #define GNY_UI_OVERLAY_WIDTH 340.0F

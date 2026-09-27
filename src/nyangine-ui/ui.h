@@ -105,7 +105,8 @@
  *   split a row without measuring twice. A container seen for the first time lays out without drawing for one pass.
  * - One container does both directions. Along its direction a child is fixed, fits, or grows into a weighted share;
  *   across it, panels and widgets that fill (buttons, sliders, toggles, fields) take the whole extent and the rest
- *   fit and follow the container's alignment. A spacer is a growing nya_ui_space.
+ *   fit and follow the container's alignment. A spacer is a growing nya_ui_space. A flow is a row that breaks
+ *   into lines at its room instead of running past it.
  * - Sizes are pixels at scale 1, multiplied by the style's `scale`, which is 1 unless a player picked another and
  *   never follows the window. Deriving it from the window's height was tried and removed: every step minted a glyph
  *   atlas per point size, so dragging a resize exhausted the atlas cache and text went blank. Fonts are rasterised
@@ -413,6 +414,13 @@ typedef enum NYA_UIAnchor {
 typedef enum NYA_UIDirection {
     NYA_UI_DIRECTION_COLUMN = 0,
     NYA_UI_DIRECTION_ROW,
+
+    /**
+     * A row that starts a new line under the last when the next child would pass its room, so a run of short
+     * labels of any length and language stays inside the window. Children fit and sit at the top of their line, `gap`
+     * apart along it, and lines sit the style's spacing apart.
+     * */
+    NYA_UI_DIRECTION_FLOW,
 
     NYA_UI_DIRECTION_COUNT,
 } NYA_UIDirection;

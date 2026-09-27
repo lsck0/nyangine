@@ -76,6 +76,29 @@ void gny_ui_end(NYA_Window* window, NYA_UI* ui) {
                  nya_ui_presenter_get(window)->name, dump);
 }
 
+void gny_ui_keys(NYA_UI* ui, NYA_ConstCString keys, NYA_Color color) {
+    nya_assert(ui != nullptr && keys != nullptr);
+
+    if (!nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_FLOW, .gap = GNY_UI_KEYS_GAP, .frameless = true })) return;
+
+    u64              separator = strlen(GNY_UI_KEYS_SEPARATOR);
+    NYA_ConstCString at        = keys;
+
+    for (u32 i = 0; i < GNY_UI_KEYS_MAX && *at != '\0'; i++) {
+        NYA_ConstCString next   = strstr(at, GNY_UI_KEYS_SEPARATOR);
+        u64              length = next != nullptr ? (u64)(next - at) : strlen(at);
+
+        // copied out to end it, since a label reads to the terminator; a translation's overlong hint is cut, not trusted.
+        char hint[GNY_UI_KEY_BYTES_MAX];
+        (void)snprintf(hint, sizeof(hint), "%.*s", (s32)nya_min(length, (u64)(sizeof(hint) - 1)), at);
+        nya_ui_label(ui, hint, color);
+
+        at = next != nullptr ? next + separator : at + length;
+    }
+
+    nya_ui_panel_end(ui);
+}
+
 void gny_ui_record_toggle(void) {
     _gny_ui_recording = !_gny_ui_recording;
 

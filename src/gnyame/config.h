@@ -142,6 +142,13 @@ NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass);
 void    gny_ui_end(NYA_Window* window, NYA_UI* ui);
 
 /**
+ * A translated line of key hints, split at GNY_UI_KEYS_SEPARATOR into a flow of labels in `color`. A hint that would
+ * pass the edge starts the next line whole, so no language or window width runs it off screen or splits a key from
+ * what it does.
+ * */
+void gny_ui_keys(NYA_UI* ui, NYA_ConstCString keys, NYA_Color color);
+
+/**
  * Sends the UI's draw passes to the recording presenter and logs each one, or stops. The same `nya_ui_*` calls, a
  * different backend: what proves the presenter seam from inside a running program rather than from a test.
  * */

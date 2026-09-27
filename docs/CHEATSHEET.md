@@ -4552,7 +4552,7 @@ Immediate-mode menus and HUD panels. A layer describes its UI with plain calls e
 // types
 typedef enum NYA_UIPass { NYA_UI_PASS_INPUT = 0, NYA_UI_PASS_DRAW, NYA_UI_PASS_COUNT, } NYA_UIPass  // What a pass over the UI does.
 typedef enum NYA_UIAnchor { NYA_UI_ANCHOR_TOP_LEFT = 0, NYA_UI_ANCHOR_TOP, NYA_UI_ANCHOR_TOP_RIGHT, NYA_UI_ANCHOR_LEFT, NYA_UI_ANCHOR_CENTER, NYA_UI_ANCHOR_RIGHT, NYA_UI_ANCHOR_BOTTOM_LEFT, NYA_UI_ANCHOR_BOTTOM, NYA_UI_ANCHOR_BOTTOM_RIGHT, NYA_UI_ANCHOR_COUNT, } NYA_UIAnchor  // Where a top level panel sits in the window's safe area.
-typedef enum NYA_UIDirection { NYA_UI_DIRECTION_COLUMN = 0, NYA_UI_DIRECTION_ROW, NYA_UI_DIRECTION_COUNT, } NYA_UIDirection  // How a container stacks its children.
+typedef enum NYA_UIDirection { NYA_UI_DIRECTION_COLUMN = 0, NYA_UI_DIRECTION_ROW, NYA_UI_DIRECTION_FLOW, NYA_UI_DIRECTION_COUNT, } NYA_UIDirection  // How a container stacks its children.
 typedef enum NYA_UIAlign { NYA_UI_ALIGN_START = 0, NYA_UI_ALIGN_CENTER, NYA_UI_ALIGN_END, NYA_UI_ALIGN_COUNT, } NYA_UIAlign  // How a child that does not fill sits across its container's direction.
 typedef enum NYA_UISizeKind { NYA_UI_SIZE_AUTO = 0, NYA_UI_SIZE_FIT, NYA_UI_SIZE_FIXED, NYA_UI_SIZE_GROW, NYA_UI_SIZE_COUNT, } NYA_UISizeKind
 typedef enum NYA_UIOverflow { NYA_UI_OVERFLOW_INHERIT = 0, NYA_UI_OVERFLOW_VISIBLE, NYA_UI_OVERFLOW_WRAP, NYA_UI_OVERFLOW_SHRINK, NYA_UI_OVERFLOW_COUNT, } NYA_UIOverflow  // What a label does with text wider than the room it has.
@@ -4738,7 +4738,7 @@ What the ui_*.c files share: the per window state, the open pass's scratch, and 
 
 ```c
 // types
-typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; u32 root_panel; s32 layer; b8 floating; u32 widget_first; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 covered; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
+typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 line_widest; f32 line_start; u32 line_first; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; u32 root_panel; s32 layer; b8 floating; u32 widget_first; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 covered; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
 typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f32 fold_height; b8 folded; f32 fold_from; f64 shown_s; f64 seen_s; b8 top_level; NYA_Rectf bounds; s32 z; u64 order; } _NYA_UIPanelState
 typedef struct { u64 id; b8 refused; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; } _NYA_UIWidget  // A widget's standing in the current pass.
 typedef struct { u64 id; f64 time_s; f32 focus; f32 press; } _NYA_UIAnimation  // Where one widget's transitions stand, and when they were last stepped.

@@ -42,6 +42,11 @@ typedef struct {
     f32 across;
     u32 count;
 
+    /** A flow's lines before the current one: the longest, where the current one starts across, and its first child. */
+    f32 line_widest;
+    f32 line_start;
+    u32 line_first;
+
     /** This pass so far: what non-growing children took, the weight growing ones asked for, and the weight placed. */
     f32 fixed;
     f32 grow;
@@ -553,6 +558,9 @@ NYA_INTERNAL f32 _nya_ui_share(const _NYA_UILayout* layout, f32 placed, f32 weig
 
 /** How wide text placed next in `layout` may be before it is past its room. */
 NYA_INTERNAL f32 _nya_ui_text_room(const _NYA_UILayout* layout);
+
+/** What `layout`'s children took so far, across the window and down it, every line of a flow included. */
+NYA_INTERNAL f32x2 _nya_ui_content(const _NYA_UILayout* layout) __attr_no_discard;
 
 /**
  * Takes room for a child `natural` wide and high, sized along the container by `own` and the rules above, and across

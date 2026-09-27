@@ -2480,7 +2480,9 @@ frame times. Release: pause menu draw about 0.02 ms and 20 draw calls, input pas
 - `[x]` Navigation into an open dropdown with the keys alone: opening focuses the selected option, the arrows
   wrap inside the list, confirm picks and cancel returns to the row.
 - `[ ]` No multi-line text field.
-- `[ ]` The German key hint line runs past a 1280 wide window.
+- `[x]` The German key hint line ran past a 1280 wide window, and wrapping it as one label split a key from its
+  word. `NYA_UI_DIRECTION_FLOW` is a row that breaks into lines at its room, and `gny_ui_keys` lays each hint out
+  as one label in a flow, in both scenes. `test_key_hints` checks every locale at 1280 wide.
 
 ## `[~]` Packaging and distribution
 
