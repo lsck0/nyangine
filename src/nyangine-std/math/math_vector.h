@@ -49,6 +49,9 @@ typedef u32 u32x8 __attr_vector(8);
 typedef u64 u64x4 __attr_vector(4);
 typedef f32 f32x8 __attr_vector(8);
 
+// a struct holding one of these may live in any arena; f128 vectors are 64 aligned and must stay out of arena structs.
+static_assert(alignof(f64x4) <= NYA_ARENA_ALIGNMENT_DEFAULT && alignof(f32x8) <= NYA_ARENA_ALIGNMENT_DEFAULT && alignof(u64x4) <= NYA_ARENA_ALIGNMENT_DEFAULT);
+
 // PRODUCTS: dot, cross, length, normalize — the four operations elementwise `a * b` cannot express (f32 only).
 
 NYA_API f32 nya_vector_dot(f32x2 a, f32x2 b) __attr_overloaded __attr_no_discard;

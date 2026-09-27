@@ -111,6 +111,15 @@ s32 main(void) {
   }
   nya_arena_destroy(aligned_arena);
 
+  // TEST: the default arena aligns for a struct holding a 32 byte vector, whatever size came before it
+  NYA_Arena* default_arena = nya_arena_create(.name = "default_arena");
+
+  for (u32 i = 0; i < 10; ++i) {
+    void* vector_ptr = nya_arena_alloc(default_arena, 1 + i * 7);
+    nya_assert((uintptr_t)vector_ptr % alignof(f64x4) == 0);
+  }
+  nya_arena_destroy(default_arena);
+
   // TEST: large allocation (bigger than region size)
   NYA_Arena* small_region_arena = nya_arena_create(.name = "small_region_arena", .region_size = nya_kibyte_to_byte(4));
 

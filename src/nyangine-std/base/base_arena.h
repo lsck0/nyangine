@@ -3,7 +3,7 @@
  *
  * Example:
  * ```c
- * NYA_Arena* arena = nya_arena_create(.name = "my_arena", .alignment = 16, ...);
+ * NYA_Arena* arena = nya_arena_create(.name = "my_arena", .region_size = nya_kibyte_to_byte(64), ...);
  * defer nya_arena_destroy(arena);
  * u8* data  = nya_arena_alloc(arena, 256);
  * ```
@@ -30,6 +30,13 @@ typedef struct NYA_ArenaAction         NYA_ArenaAction;
 // ARENA STRUCTS
 
 /**
+ * An allocation cannot know its type, so every one is aligned for the widest vector a struct in the tree
+ * holds: f64x4 and f32x8 are 32 bytes, and clang stores them with aligned AVX moves. At 16 a window
+ * landed on an odd 16 and faulted. math_vector.h asserts the bound.
+ * */
+enum { NYA_ARENA_ALIGNMENT_DEFAULT = 32 };
+
+/**
  * A region is allocated, not reserved: _nya_arena_nodebug_alloc calls nya_malloc for
  * max(region_size, size), and a full arena chains another region. Allocating, freeing and poisoning on
  * reset all scale with the region size whether or not the arena holds anything, and on Windows the whole
@@ -37,14 +44,14 @@ typedef struct NYA_ArenaAction         NYA_ArenaAction;
  * of data.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS                                                                                                                   \
-    .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(1), .defragmentation_enabled = true, .defragmentation_threshold = 16,        \
+    .name = nullptr, .alignment = NYA_ARENA_ALIGNMENT_DEFAULT, .region_size = nya_mebyte_to_byte(1), .defragmentation_enabled = true, .defragmentation_threshold = 16,        \
     .garbage_collection_enabled = true, .garbage_collection_threshold = 3
 
 /**
  * The same, for a stack arena, whose region is sized for scratch rather than for a subsystem.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS_ON_STACK                                                                                                          \
-    .name = nullptr, .alignment = 16, .region_size = nya_kibyte_to_byte(64), .defragmentation_enabled = true, .defragmentation_threshold = 16,       \
+    .name = nullptr, .alignment = NYA_ARENA_ALIGNMENT_DEFAULT, .region_size = nya_kibyte_to_byte(64), .defragmentation_enabled = true, .defragmentation_threshold = 16,       \
     .garbage_collection_enabled = true, .garbage_collection_threshold = 3
 
 struct NYA_ArenaOptions {
