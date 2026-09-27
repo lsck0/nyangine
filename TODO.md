@@ -1938,6 +1938,9 @@ the packager ones.
   runner, because building one needs a GPU device a headless run has not got, so what the agent drives today
   is the title screen, the pause menu and the screen stack. The scenes themselves are the next step.
 - `[x]` Scene and settings persistence (`core_scene.h`, reflection driven), for save files and the editor.
+  gnyame's caller is the quicksave, `F5` and `F9` in `layer_game.c`: crates and the main camera come back
+  from the file, and the level is rebuilt from the current seed, since a chain, a map's colliders and a patrol
+  tween cannot come out of one. `tests/gnyame/test_quicksave.c` presses both keys.
 - `[x]` Collision layers, named, for both solvers, through Box2D's and Box3D's own filters rather than a
   callback.
 - `[x]` Reflection-driven parsing to and from objects and the `nya` format, with the engine's own types

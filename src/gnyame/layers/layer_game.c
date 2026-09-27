@@ -16,6 +16,13 @@
 /** Drops a small burst of crates above the camera, for filling the world without clicking. */
 NYA_INTERNAL void _gny_box_burst(u32 count);
 
+/** The map's colliders and the three ledges: the level around the crates, built at start and again after a quickload. */
+NYA_INTERNAL void _gny_level_fixtures_spawn(void);
+
+/** The whole 2D scene to GNY_QUICKSAVE_FILE, and back with every crate's behaviour re-attached. Logged either way, never fatal. */
+NYA_INTERNAL void _gny_quicksave(void);
+NYA_INTERNAL void _gny_quickload(void);
+
 
 
 
@@ -71,27 +78,9 @@ void gny_layer_game_on_create(NYA_Window* window) {
     } else {
         // placed first: draw, collision and conversions are all relative to the map origin.
         world->tilemap->origin = GNY_TILEMAP_ORIGIN;
-
-        // The invisible "collision" layer becomes static bodies. Merged into runs, so the map's three
-        // solid rows are three wide boxes rather than sixty one-tile ones a crate could catch on.
-        (void)nya_tilemap_collision_build(world->tilemap, "collision", GNY_TILEMAP_COLLIDER_KIND);
-
-        // the same layer the terrain chain is on: to everything that queries, the map's solid cells
-        // and the ground are the same thing.
-        NYA_PhysicsLayerMask terrain = nya_physics_layer(GNY_LAYER_TERRAIN);
-
-        nya_entity_foreach_kind (GNY_TILEMAP_COLLIDER_KIND, collider) nya_physics2d_layers_set(collider, terrain, NYA_PHYSICS_LAYER_ALL);
     }
 
-    /*
-     * Three one-way ledges above the terrain, the middle one patrolling.
-     */
-    gny_entity_ledge_create((f32x2){ GNY_LEDGE_LEFT_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT }, GNY_LEDGE_SIZE, 0.0F);
-
-    gny_entity_ledge_create((f32x2){ GNY_LEDGE_MIDDLE_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT - GNY_LEDGE_STEP_LIFT },
-                            GNY_LEDGE_SIZE, GNY_LEDGE_PATROL_DISTANCE);
-
-    gny_entity_ledge_create((f32x2){ GNY_LEDGE_RIGHT_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT }, GNY_LEDGE_SIZE, 0.0F);
+    _gny_level_fixtures_spawn();
 
     _gny_box_burst(12);
 }
@@ -224,6 +213,12 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
                 // walking contacts. See gny_entity_ledge_drop_everything_through.
                 (void)gny_entity_ledge_drop_everything_through(GNY_LEDGE_DROP_SECONDS);
                 event->was_handled = true;
+            } else if (nya_input_action_matches(GNY_ACTION_QUICKSAVE, key->key, key->modifier_flags)) {
+                _gny_quicksave();
+                event->was_handled = true;
+            } else if (nya_input_action_matches(GNY_ACTION_QUICKLOAD, key->key, key->modifier_flags)) {
+                _gny_quickload();
+                event->was_handled = true;
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_MUSIC, key->key, key->modifier_flags)) {
                 // Paused rather than stopped, so it resumes where it was instead of restarting
                 // the track every time the key is pressed.
@@ -342,6 +337,116 @@ void _gny_box_burst(u32 count) {
     }
 }
 
+void _gny_level_fixtures_spawn(void) {
+    GNY_World* world = gny_world();
 
+    if (world->tilemap != nullptr) {
+        // The invisible "collision" layer becomes static bodies. Merged into runs, so the map's three
+        // solid rows are three wide boxes rather than sixty one-tile ones a crate could catch on.
+        (void)nya_tilemap_collision_build(world->tilemap, "collision", GNY_TILEMAP_COLLIDER_KIND);
 
+        // the same layer the terrain chain is on: to everything that queries, the map's solid cells
+        // and the ground are the same thing.
+        NYA_PhysicsLayerMask terrain = nya_physics_layer(GNY_LAYER_TERRAIN);
 
+        nya_entity_foreach_kind (GNY_TILEMAP_COLLIDER_KIND, collider) nya_physics2d_layers_set(collider, terrain, NYA_PHYSICS_LAYER_ALL);
+    }
+
+    /*
+     * Three one-way ledges above the terrain, the middle one patrolling.
+     */
+    gny_entity_ledge_create((f32x2){ GNY_LEDGE_LEFT_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT }, GNY_LEDGE_SIZE, 0.0F);
+
+    gny_entity_ledge_create((f32x2){ GNY_LEDGE_MIDDLE_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT - GNY_LEDGE_STEP_LIFT },
+                            GNY_LEDGE_SIZE, GNY_LEDGE_PATROL_DISTANCE);
+
+    gny_entity_ledge_create((f32x2){ GNY_LEDGE_RIGHT_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT }, GNY_LEDGE_SIZE, 0.0F);
+}
+
+void _gny_quicksave(void) {
+    // single player: a peer's players are handles the net layer holds, and a client's world is the server's.
+    if (GNY_LAUNCH.role != NYA_NET_ROLE_NONE) {
+        nya_log_warn("Quicksave is single player only.");
+        return;
+    }
+
+    NYA_Error saved = nya_scene_save(nya_world(), GNY_QUICKSAVE_FILE, NYA_SAVE_FLAGS_DATA);
+
+    if (!saved.ok) {
+        nya_log_warn("Could not quicksave: %s", (NYA_ConstCString)saved.message);
+        return;
+    }
+
+    nya_log_info("Quicksaved %u crates to '%s'.", gny_entity_box_count(nullptr), GNY_QUICKSAVE_FILE);
+}
+
+void _gny_quickload(void) {
+    if (GNY_LAUNCH.role != NYA_NET_ROLE_NONE) {
+        nya_log_warn("Quickload is single player only.");
+        return;
+    }
+
+    // the views are this run's memory, not the file's: taken before the load despawns the cameras pointing at them.
+    GNY_World*      world   = gny_world();
+    GNY_CameraView* primary = gny_entity_camera_view(nya_entity_get(world->camera));
+    GNY_CameraView* inset   = gny_entity_camera_view(nya_entity_get(world->inset_camera));
+
+    // a missing or broken slot leaves the world exactly as it was, so play goes on. See nya_scene_load.
+    NYA_Error loaded = nya_scene_load(nya_world(), GNY_QUICKSAVE_FILE, NYA_SAVE_FLAGS_DATA);
+
+    if (!loaded.ok) {
+        nya_log_warn("Could not quickload: %s", (NYA_ConstCString)loaded.message);
+        return;
+    }
+
+    // the drones went with the load. this saves the brain, and gny_robots_update flies new ones in next tick.
+    gny_robots_destroy();
+    if (inset != nullptr) nya_render_texture_destroy(&inset->target);
+
+    world->camera       = NYA_ENTITY_HANDLE_NONE;
+    world->inset_camera = NYA_ENTITY_HANDLE_NONE;
+
+    /*
+     * Behaviour back on by kind, as core_scene.h describes. The crates and the main camera are the play state and keep
+     * what the file says. The level is rebuilt from the game's own state instead, since a chain body, a map's colliders
+     * and a patrol tween cannot come out of a file: the terrain from the current seed, so a save from before `r` lands
+     * its crates on the new ground. By slot and immediate, as in gny_world_clear.
+     */
+    for (u32 slot = 0; slot < nya_entity_slot_count(); slot++) {
+        NYA_Entity* entity = nya_entity_at_slot(slot);
+        if (entity == nullptr) continue;
+
+        switch (gny_entity_kind(entity)) {
+            case GNY_ENTITY_BOX: {
+                // the inset that watched it is gone, and a crate the file calls a camera is not believed.
+                nya_entity_flag_disable(entity, GNY_ENTITY_FLAG_CAMERA_TARGET | GNY_ENTITY_FLAG_CAMERA_PRIMARY);
+                if (!gny_entity_box_attach(entity)) nya_entity_despawn(entity->handle);
+            } break;
+
+            case GNY_ENTITY_CAMERA: {
+                // the first primary gets the main view back. any other was an inset, whose target and follow were this run's.
+                b8 main_view = primary != nullptr && !nya_entity_is_valid(world->camera) && gny_entity_flag_check(entity, GNY_ENTITY_FLAG_CAMERA_PRIMARY);
+
+                if (!main_view) {
+                    nya_entity_despawn(entity->handle);
+                    break;
+                }
+
+                primary->follow   = NYA_ENTITY_HANDLE_NONE;
+                entity->user_data = primary;
+                entity->on_update = nya_callback(gny_entity_camera_on_update);
+                world->camera     = entity->handle;
+            } break;
+
+            // terrain, map colliders, ledges and their markers, drones, and any kind this build does not know.
+            default: nya_entity_despawn(entity->handle); break;
+        }
+    }
+
+    if (!nya_entity_is_valid(world->camera)) gny_entity_camera_create((f32x2){ GNY_CAMERA_START_X, GNY_CAMERA_START_Y }, GNY_CAMERA_START_ZOOM);
+
+    gny_terrain_generate(world->terrain_seed);
+    _gny_level_fixtures_spawn();
+
+    nya_log_info("Quickloaded %u crates from '%s'.", gny_entity_box_count(nullptr), GNY_QUICKSAVE_FILE);
+}

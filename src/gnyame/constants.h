@@ -33,6 +33,9 @@
 #define GNY_BOX_MIN_SIZE 18.0F
 #define GNY_BOX_MAX_SIZE 44.0F
 
+/** The one save slot the 2D scene has, under the save root. See _gny_quickload. */
+#define GNY_QUICKSAVE_FILE "quicksave.nya"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CAMERA

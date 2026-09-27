@@ -96,6 +96,8 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_TOGGLE_FEATURES,      .name = "toggle_features",      .primary = NYA_KEY_0     },
     { .action = GNY_ACTION_DROP_THROUGH,         .name = "drop_through",         .primary = NYA_KEY_G     },
     { .action = GNY_ACTION_FREEZE_ANIMATION,     .name = "freeze_animation",     .primary = NYA_KEY_F     },
+    { .action = GNY_ACTION_QUICKSAVE,            .name = "quicksave",            .primary = NYA_KEY_F5    },
+    { .action = GNY_ACTION_QUICKLOAD,            .name = "quickload",            .primary = NYA_KEY_F9    },
 
     // Ctrl and Shift together, because this one ends the process: every other row here is a bare key, so
     // a bare key would be pressed by accident eventually.

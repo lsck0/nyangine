@@ -132,6 +132,12 @@ b8 gny_entity_flag_check(const NYA_Entity* entity, GNY_EntityFlags flags);
 NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags);
 
 /**
+ * Binds a crate's callbacks and attaches its body, sized from its scale. What create ends with, and what a
+ * quickload runs on every crate the file brought back. False, with nothing attached, for a size create never makes.
+ * */
+b8 gny_entity_box_attach(NYA_Entity* entity);
+
+/**
  * Removes one crate, at the next simulation barrier.
  * */
 void gny_entity_box_destroy(NYA_EntityHandle box);

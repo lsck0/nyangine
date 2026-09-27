@@ -90,6 +90,10 @@ enum {
     /** Stops and restarts the 3D scene's skinned animation clock. */
     GNY_ACTION_FREEZE_ANIMATION,
 
+    /** Writes the 2D scene to the quicksave slot, and reads it back. See _gny_quickload in layer_game.c. */
+    GNY_ACTION_QUICKSAVE,
+    GNY_ACTION_QUICKLOAD,
+
     /**
      * Fails an assertion on purpose, so the crash reporter can be looked at without waiting for a real
      * bug. Bound to a key nothing else in the demo uses and needing a modifier, since it ends the process.

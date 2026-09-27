@@ -29,10 +29,9 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
         .flags            = flags,
         .position         = { position.x, position.y, 0.0F },
         .angular_velocity = { 0.0F, 0.0F, spin },
-        .on_update        = nya_callback(gny_entity_box_on_update),
-        .on_render        = nya_callback(gny_entity_box_on_render),
-        .on_collision     = nya_callback(gny_entity_box_on_collision),
-        .on_click         = nya_callback(gny_entity_box_on_click),
+
+        // a unit crate scaled to its side, so the size is in the transform a scene file carries. See gny_entity_box_attach.
+        .scale = { size, size, 1.0F },
 
         /*
          * Sorted by where it sits rather than by a fixed layer.
@@ -52,20 +51,7 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
         return NYA_ENTITY_HANDLE_NONE;
     }
 
-    b8 attached = nya_physics2d_body_attach(
-        box,
-        .type        = NYA_PHYSICS_BODY_DYNAMIC,
-        .shape       = NYA_PHYSICS2D_SHAPE_BOX,
-        .size        = { size, size },
-        .density     = 1.0F,
-        .friction    = 0.5F,
-        .restitution = 0.15F,
-
-        // the layer the cursor asks for, so right clicking the ground does not resolve to the terrain.
-        .layers = nya_physics_layer(GNY_LAYER_CRATE),
-    );
-
-    if (!attached) {
+    if (!gny_entity_box_attach(nya_entity_get(box))) {
         nya_entity_despawn(box);
         return NYA_ENTITY_HANDLE_NONE;
     }
@@ -73,6 +59,36 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
     world->boxes_spawned++;
 
     return box;
+}
+
+b8 gny_entity_box_attach(NYA_Entity* entity) {
+    nya_assert(gny_entity_is(entity, GNY_ENTITY_BOX), "gny_entity_box_attach on something that is not a crate.");
+
+    // a loaded scale is file input, so a side create never hands out, NaN included, is refused rather than solved.
+    f32x2 size = entity->scale.xy;
+    if (!(size.x >= GNY_BOX_MIN_SIZE && size.x <= GNY_BOX_MAX_SIZE && size.y >= GNY_BOX_MIN_SIZE && size.y <= GNY_BOX_MAX_SIZE)) {
+        nya_log_warn("A crate sized " FMTf32x2 " is outside %.0f to %.0f; not attaching it.", FMTf32x2_ARG(size), (f64)GNY_BOX_MIN_SIZE,
+                     (f64)GNY_BOX_MAX_SIZE);
+        return false;
+    }
+
+    entity->on_update    = nya_callback(gny_entity_box_on_update);
+    entity->on_render    = nya_callback(gny_entity_box_on_render);
+    entity->on_collision = nya_callback(gny_entity_box_on_collision);
+    entity->on_click     = nya_callback(gny_entity_box_on_click);
+
+    return nya_physics2d_body_attach(
+        entity->handle,
+        .type        = NYA_PHYSICS_BODY_DYNAMIC,
+        .shape       = NYA_PHYSICS2D_SHAPE_BOX,
+        .size        = size,
+        .density     = 1.0F,
+        .friction    = 0.5F,
+        .restitution = 0.15F,
+
+        // the layer the cursor asks for, so right clicking the ground does not resolve to the terrain.
+        .layers = nya_physics_layer(GNY_LAYER_CRATE),
+    );
 }
 
 void gny_entity_box_destroy(NYA_EntityHandle box) {
