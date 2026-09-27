@@ -408,6 +408,9 @@ s32 main(void) {
       u8 message[200];
       fill(message, sizeof(message), (u8)i);
       NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, message, sizeof(message)));
+
+      // one datagram each: bundled into four, all of them survive 30% loss about one run in four.
+      nya_net_transport_flush(server);
     }
 
     // Generous, because recovery is paced by the retransmit timer rather than by the link.
