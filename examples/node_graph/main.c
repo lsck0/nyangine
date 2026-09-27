@@ -53,7 +53,7 @@
 #define LAYER_ID "node_graph"
 
 /** The side panel's width, in pixels at scale 1. */
-#define PANEL_WIDTH 300.0F
+#define PANEL_WIDTH 340.0F
 
 /** How many nodes and edges the model holds. Small and fixed: this is a demonstration graph, not an app. */
 #define NODES_MAX 8u
@@ -363,7 +363,7 @@ NYA_INTERNAL void canvas_panel(NYA_UI* ui, NodeGraph* state, f32 scale) {
 NYA_INTERNAL void side_panel(NYA_UI* ui, NodeGraph* state) {
     Graph* graph = &state->graph;
 
-    if (!nya_ui_panel_begin(ui, "side", (NYA_UIPanel){ .width = nya_ui_fixed(PANEL_WIDTH), .height = nya_ui_grow(1) })) return;
+    if (!nya_ui_panel_begin(ui, "side", (NYA_UIPanel){ .width = nya_ui_fixed(PANEL_WIDTH), .height = nya_ui_grow(1), .overflow = NYA_UI_OVERFLOW_WRAP })) return;
 
     // the trail the panel sits under. Purely a bit of chrome here, but it owns its index like any widget.
     static const NYA_ConstCString crumbs[] = { "projects", "compositor", "graph" };
