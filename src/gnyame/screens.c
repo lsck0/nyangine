@@ -17,6 +17,12 @@ NYA_INTERNAL void _gny_screen_apply(void* data);
 /** Pops the top layer only if it is `layer_id`, so a stale request cannot remove another screen's layer. */
 NYA_INTERNAL b8 _gny_layer_pop_if(NYA_ConstCString layer_id);
 
+/**
+ * Blinks the main window to black over a scene swap. Begun at the swap itself, so a screen change still
+ * lands at this barrier; an out-ease darkens it within a few frames, and the new scene shows when it ends.
+ * */
+NYA_INTERNAL void _gny_screen_cover(void);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * SCREENS
@@ -35,6 +41,8 @@ void _gny_screen_apply(void* data) {
     switch (screen) {
         case GNY_SCREEN_START_GAME: {
             if (!_gny_layer_pop_if(GNY_LAYER_MAIN_MENU_ID)) return;
+
+            _gny_screen_cover();
 
             // the game's on_create builds the world inside the push; the HUD pushed after draws over it.
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_GAME);
@@ -58,6 +66,7 @@ void _gny_screen_apply(void* data) {
             if (!_gny_layer_pop_if(GNY_LAYER_PAUSE_MENU_ID)) return;
 
             nya_physics2d_enabled_set(true);
+            _gny_screen_cover();
 
             // crates first, or a pile resting on the old surface ends up inside the new one.
             gny_entity_box_destroy_all();
@@ -67,6 +76,7 @@ void _gny_screen_apply(void* data) {
         case GNY_SCREEN_MAIN_MENU: {
             // back from the 3D demo, whose on_destroy despawns its own entities.
             if (_gny_layer_pop_if(GNY_LAYER_CUBE3D_ID)) {
+                _gny_screen_cover();
                 nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);
                 return;
             }
@@ -80,11 +90,14 @@ void _gny_screen_apply(void* data) {
             (void)_gny_layer_pop_if(GNY_LAYER_GAME_ID);
 
             nya_physics2d_enabled_set(true);
+            _gny_screen_cover();
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);
         } break;
 
         case GNY_SCREEN_CUBE3D: {
             if (!_gny_layer_pop_if(GNY_LAYER_MAIN_MENU_ID)) return;
+
+            _gny_screen_cover();
 
             // no HUD layer: the demo draws its own text after nya_render3d_end.
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_CUBE3D);
@@ -116,6 +129,8 @@ b8 gny_modal_active(void) {
     return nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU_ID) != nullptr || nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) != nullptr
         || nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_SOCIAL_ID) != nullptr;
 }
+
+void _gny_screen_cover(void) { nya_transition_begin(NYA_TRANSITION_FADE, GNY_SCREEN_FADE_S, NYA_COLOR_BLACK, NYA_EASE_EXPO_OUT); }
 
 b8 _gny_layer_pop_if(NYA_ConstCString layer_id) {
     NYA_Window* window = nya_window_get(GNY_WINDOW_MAIN);

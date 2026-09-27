@@ -150,9 +150,9 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_log_info("LuaJIT holds %llu bytes.", (unsigned long long)nya_lua_memory_bytes(vm));
 
-    // what a plugin's VM looks like — The same call the plugin host makes for every plugin it loads. A permission the plugin did not get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement mechanism, and it is why there is nothing for a script to reach around.
+    // what a plugin's VM looks like — restricted and budgeted, the same call the plugin host makes for every plugin it loads. A permission the plugin did not get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement mechanism, and it is why there is nothing for a script to reach around.
     NYA_LuaVM* sandboxed = nullptr;
-    NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true }, &sandboxed), "while creating the second VM");
+    NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true, .budgeted = true }, &sandboxed), "while creating the second VM");
     defer nya_lua_destroy(sandboxed);
 
     nya_lua_open_engine_permitted(sandboxed, NYA_PLUGIN_PERMISSION_INPUT);
@@ -163,6 +163,14 @@ s32 main(s32 argc, NYA_CString* argv) {
         "nya.log.info('entities were not: nya.entity is ' .. type(nya.entity))\n";
 
     NYA_EXPECT(nya_lua_run(sandboxed, probe, "permissions.lua"), "while probing what the VM was given");
+
+    // A plugin that never returns is cut off by the instruction budget as an ordinary error, and the VM and the host carry on.
+    NYA_Error runaway = nya_lua_run(sandboxed, "while true do end", "runaway.lua");
+    nya_assert(!runaway.ok, "the instruction budget stops a script that never returns");
+    nya_log_info("A runaway script was stopped: %s", (NYA_ConstCString)runaway.message);
+
+    NYA_ConstCString after = "nya.log.info('the same VM still runs scripts after the budget stopped one')";
+    NYA_EXPECT(nya_lua_run(sandboxed, after, "after.lua"), "after the budget abort");
 
     nya_backtrace_deinit();
     return EXIT_SUCCESS;

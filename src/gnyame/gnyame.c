@@ -393,6 +393,32 @@ NYA_INTERNAL void _gnyame_launch_from(const NYA_ArgCommand* command, OUT NYA_Net
     nya_net_config_finish(out_launch);
 }
 
+/**
+ * Sends one crash report left by an earlier run, for nya_crash_reports_flush, as `{"report": "<text>"}`:
+ * the curl plugin's client posts JSON bodies only. A build without it keeps every report on disk.
+ * */
+NYA_INTERNAL NYA_Error _gnyame_crash_report_post(void* userdata, NYA_ConstCString url, const u8* report, u64 report_size) {
+    nya_unused(userdata);
+
+#ifdef NYA_PLUGIN_CURL
+    NYA_Arena* arena = nya_arena_create(.name = "gnyame_crash_report");
+    defer nya_arena_destroy(arena);
+
+    char* text = nya_arena_alloc(arena, report_size + 1);
+    nya_memcpy(text, report, report_size);
+    text[report_size] = '\0';
+
+    NYA_Object* body = nya_object_create(arena);
+    nya_object_add(body, "report", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = text });
+
+    NYA_Response response = { 0 };
+    return nya_request_post(arena, url, body, &response);
+#else
+    nya_unused(report, report_size);
+    return nya_error(NYA_ERROR_NOT_SUPPORTED, "this build has no http client to send a crash report to %s", url);
+#endif
+}
+
 b8 gnyame_init(s32 argc, NYA_CString* argv) {
     _gnyame_loaded = true;
 
@@ -476,6 +502,11 @@ b8 gnyame_init(s32 argc, NYA_CString* argv) {
     );
 
     if (_GNY_LAUNCH.dedicated) nya_log_info("Running headless; no window will be created.");
+
+    // what an earlier run left behind, now that the log directory it was written to is open again. Sends
+    // nothing unless NYA_CRASH_REPORT_ENDPOINT names somewhere, and a refused report waits for the next run.
+    u32 sent = nya_crash_reports_flush(_gnyame_crash_report_post, nullptr);
+    if (sent > 0) nya_log_info("Sent %u crash report(s) from earlier runs.", sent);
 
     return true;
 }

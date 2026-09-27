@@ -65,6 +65,13 @@ void gny_net_start(void) {
             nya_log_error("Could not reach %s:%u (%s); starting single player instead.", GNY_LAUNCH.address, GNY_LAUNCH.port,
                           (NYA_ConstCString)connected.message);
 
+            // the player asked to join someone and is about to play alone, which the log alone would hide.
+            if (nya_desktop_shell_init().ok) {
+                NYA_ConstCString message = nya_string_net_unreachable(GNY_LAUNCH.address, GNY_LAUNCH.port);
+                (void)nya_desktop_message_show(NYA_DESKTOP_MESSAGE_WARNING, "gnyame", message);
+                nya_desktop_shell_deinit();
+            }
+
             GNY_LAUNCH.role = NYA_NET_ROLE_SERVER;
         } else {
             return;

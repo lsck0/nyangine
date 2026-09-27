@@ -87,6 +87,7 @@ typedef enum {
     NYA_STRING_MENU_VALUE,
     NYA_STRING_MENU_VERTICES,
     NYA_STRING_MENU_WIDGETS,
+    NYA_STRING_NET_UNREACHABLE,
     NYA_STRING_PRESENCE_3D,
     NYA_STRING_PRESENCE_ALONE,
     NYA_STRING_PRESENCE_HOSTING,
@@ -179,6 +180,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_value",
     "menu_vertices",
     "menu_widgets",
+    "net_unreachable",
     "presence_3d",
     "presence_alone",
     "presence_hosting",
@@ -569,6 +571,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_vertices(void
 /** `menu_widgets` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_widgets(void) {
     return _nya_i18n_format(NYA_STRING_MENU_WIDGETS);
+}
+
+/** `net_unreachable` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_net_unreachable(NYA_ConstCString a0, u32 a1) {
+    return _nya_i18n_format(NYA_STRING_NET_UNREACHABLE, a0, a1);
 }
 
 /** `presence_3d` */

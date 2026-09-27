@@ -65,6 +65,7 @@
     "other": "%u players"
   },
   "hud_offline": "offline",
+  "net_unreachable": "Could not reach %s:%u. Playing alone instead.",
   "hud_hosting": "hosting on port %u",
   "hud_hovering": "hovering %s",
   "hud_boxes": "boxes %u (%u awake)",

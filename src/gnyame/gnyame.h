@@ -31,11 +31,11 @@
  *
  * | File                          | Shows                                                                   |
  * | :---------------------------- | :---------------------------------------------------------------------- |
- * | gnyame.c                      | app init options, locale loading, startup order, hot reload restore     |
+ * | gnyame.c                      | app init options, startup order, hot reload, flushing crash reports     |
  * | actions.c                     | named input actions, key and gamepad bindings, settings load and save   |
  * | config.h                      | a reflected config struct kept in sync with a file (nya_config_watch)   |
  * | world.c                       | game state in the engine world, Lua VM and scripts, fonts, 2D terrain   |
- * | screens.c                     | pushing and popping layers at the barrier                               |
+ * | screens.c                     | pushing and popping layers at the barrier, a fade over each scene swap  |
  * | layers/layer_pause_menu.c     | UI buttons, sliders, a toggle and a selectable row, switching locale    |
  * | layers/layer_game.c           | the 2D scene: tilemap, crates, cameras, bloom post chain, music         |
  * | layers/layer_cube3d.c         | the 3D scene: meshes, 3D physics, picking, particles, 3D audio, shadows |
@@ -51,6 +51,7 @@
  * | sim.c                         | recording facts in callbacks and deciding once per frame in an observer |
  * | robots.c                      | NEAT and DQN trained on jobs, a nav flow field, saves, a sqlite history |
  * | net.c                         | single player, listen server, dedicated server and client in one path   |
+ * |                               | and a native message box when a join falls back to single player        |
  *
  * ## A new entity kind
  *

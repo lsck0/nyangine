@@ -324,6 +324,9 @@
 /* The panel is centred and as tall as its rows, scrolling past the window. Pixels at the UI's reference height. */
 #define GNY_MENU_WIDTH 420.0F
 
+/* How long a scene swap stays covered, in seconds. The pause menu and the prompts open over the scene without one. */
+#define GNY_SCREEN_FADE_S 0.2F
+
 /* The look panel beside the pause menu: its width, what the animate toggle turns on, the largest scale it offers,
  * and the sheet its skinned look is cut from. */
 #define GNY_LOOK_WIDTH      300.0F
