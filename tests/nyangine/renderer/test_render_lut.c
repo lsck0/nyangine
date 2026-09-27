@@ -120,6 +120,63 @@ s32 main(void) {
         nya_check(nya_vector_length(sample(&lut, WHITE) - WHITE) < 1e-5F, "and white");
     }
 
+    // Composing: a fade and a colour vision baked into the table.
+    {
+        NYA_String identity_file = *nya_string_create(arena);
+        NYA_String vivid_file    = *nya_string_create(arena);
+        NYA_EXPECT(nya_file_read("./assets/grades/identity.cube", &identity_file));
+        NYA_EXPECT(nya_file_read("./assets/grades/vivid.cube", &vivid_file));
+
+        NYA_Lut identity = { 0 };
+        NYA_Lut vivid    = { 0 };
+        NYA_EXPECT(nya_lut_parse(arena, identity_file.items, identity_file.length, &identity));
+        NYA_EXPECT(nya_lut_parse(arena, vivid_file.items, vivid_file.length, &vivid));
+
+        NYA_Lut same = nya_lut_compose(arena, vivid, 0.0F, NYA_COLOR_VISION_NONE);
+        nya_check(same.texels == vivid.texels && same.size == vivid.size, "nothing to compose should hand the table back");
+
+        NYA_Lut faded = nya_lut_compose(arena, vivid, 1.0F, NYA_COLOR_VISION_NONE);
+        NYA_Lut half  = nya_lut_compose(arena, vivid, 0.5F, NYA_COLOR_VISION_NONE);
+        nya_check(faded.size == NYA_LUT_COMPOSE_SIZE_MIN, "a composed table is at least NYA_LUT_COMPOSE_SIZE_MIN a side");
+
+        for (u32 i = 0; i < 512; i++) {
+            f32x3 colour = unit((f32x3){ (f32)(i & 7U) / 7.0F, (f32)((i >> 3) & 7U) / 7.0F, (f32)(i >> 6) / 7.0F } * 0.93F + 0.031F);
+            f32x3 middle = (sample(&vivid, colour) + colour) * 0.5F;
+
+            nya_check(nya_vector_length(sample(&faded, colour) - colour) < 1.5F / 255.0F, "a full fade should be the identity");
+            nya_check(nya_vector_length(sample(&half, colour) - middle) < 1.5F / 255.0F, "half a fade should be halfway to the identity");
+        }
+
+        // expected values from I + shift * (I - simulation) in linear light, worked through the sRGB curve by hand.
+        struct {
+            NYA_ColorVision vision;
+            f32x3           colour;
+            f32x3           expected;
+        } cases[] = {
+            { NYA_COLOR_VISION_PROTANOPIA, { 1.0F, 0.0F, 0.0F }, { 255.0F, 183.9F, 203.0F } },
+            { NYA_COLOR_VISION_DEUTERANOPIA, { 1.0F, 0.0F, 0.0F }, { 255.0F, 112.2F, 179.7F } },
+            { NYA_COLOR_VISION_DEUTERANOPIA, { 0.0F, 1.0F, 0.0F }, { 0.0F, 221.3F, 0.0F } },
+            { NYA_COLOR_VISION_TRITANOPIA, { 0.0F, 0.0F, 1.0F }, { 213.1F, 157.5F, 255.0F } },
+        };
+
+        for (u32 i = 0; i < nya_carray_length(cases); i++) {
+            NYA_Lut corrected = nya_lut_compose(arena, identity, 0.0F, cases[i].vision);
+            f32x3   got       = sample(&corrected, cases[i].colour) * 255.0F;
+
+            nya_check(nya_vector_length(got - cases[i].expected) < 1.0F, "case " FMTu32 " got (%.1f, %.1f, %.1f)", i, (f64)got.x, (f64)got.y, (f64)got.z);
+        }
+
+        // every row of a simulation sums to one, so no viewer loses anything of a grey.
+        for (u32 vision = 0; vision < NYA_COLOR_VISION_COUNT; vision++) {
+            NYA_Lut corrected = nya_lut_compose(arena, identity, 0.0F, (NYA_ColorVision)vision);
+
+            for (u32 step = 0; step <= 8; step++) {
+                f32x3 grey = (f32x3){ 1.0F, 1.0F, 1.0F } * ((f32)step / 8.0F);
+                nya_check(nya_vector_length(sample(&corrected, grey) - grey) < 1.0F / 255.0F, "vision " FMTu32 " moved a grey", vision);
+            }
+        }
+    }
+
     // Malformed input is an operating error, never an assert.
     {
         expect_refused(arena, "", "an empty file");

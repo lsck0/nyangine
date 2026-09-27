@@ -426,19 +426,30 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
     GNY_World*                      world    = gny_world();
     const NYA_ConfigEngineRenderer* renderer = &nya_config_engine()->renderer;
 
-    b8 grading = nya_render_feature_on(window, NYA_RENDER_FEATURE_GRADE, world->grade_enabled) && renderer->grade_strength > 0.0F
-              && renderer->grade_lut[0] != '\0';
+    NYA_ColorVision vision = nya_settings_graphics().color_vision;
 
-    NYA_ConstCString wanted = grading ? renderer->grade_lut : "";
+    // the player's colour vision is corrected even with the look off, through the identity.
+    b8               graded  = world->grade_enabled && renderer->grade_strength > 0.0F && renderer->grade_lut[0] != '\0';
+    b8               grading = nya_render_feature_on(window, NYA_RENDER_FEATURE_GRADE, graded || vision != NYA_COLOR_VISION_NONE);
+    NYA_ConstCString source  = graded ? renderer->grade_lut : NYA_ASSET_GRADES_IDENTITY_CUBE;
+    f32              fade    = graded ? 1.0F - nya_clamp(renderer->grade_strength, 0.0F, 1.0F) : 0.0F;
 
-    // the table follows the config: a new path swaps it, and off releases it so it holds no VRAM.
+    char wanted[sizeof(world->grade_lut)] = "";
+    if (grading) (void)snprintf(wanted, sizeof(wanted), "%s@%.3f@" FMTu32, source, (f64)fade, (u32)vision);
+
+    // the table follows the config and the settings: a change swaps it, and off releases it so it holds no VRAM.
     if (strcmp(world->grade_lut, wanted) != 0) {
         if (world->grade_lut[0] != '\0') (void)nya_asset_unload(world->grade_lut);
 
         (void)snprintf(world->grade_lut, sizeof(world->grade_lut), "%s", wanted);
 
         if (grading) {
-            NYA_Error table = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_LUT, .handle = world->grade_lut });
+            NYA_Error table = nya_asset_load((NYA_AssetLoadParameters){
+                .type   = NYA_ASSET_TYPE_LUT,
+                .handle = world->grade_lut,
+                .source = source,
+                .as_lut = { .fade = fade, .vision = vision },
+            });
 
             // not fatal: a pass whose table is missing is skipped.
             if (!table.ok) nya_log_warn("Could not queue the grade '%s': %s", world->grade_lut, (NYA_ConstCString)table.message);
@@ -468,7 +479,8 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
 
     // the engine blooms after this, so the glow is added to the look rather than recoloured by it.
     if (grading) {
-        world->grade_uniform = (NYA_ShaderLutUniform){ .strength = nya_clamp(renderer->grade_strength, 0.0F, 1.0F) };
+        // the strength is baked into the table as its fade, so the correction after it applies in full.
+        world->grade_uniform = (NYA_ShaderLutUniform){ .strength = 1.0F };
 
         out_passes[count++] = (NYA_PostPass){
             .pipeline     = GNY_PIPELINE_GRADE,

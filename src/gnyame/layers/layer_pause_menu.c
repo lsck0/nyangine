@@ -553,6 +553,14 @@ void _gny_graphics_panel(NYA_UI* ui) {
     (void)nya_ui_slider(ui, nya_string_menu_field_of_view(), &graphics.fov, GNY_GRAPHICS_FOV_MIN, GNY_GRAPHICS_FOV_MAX, GNY_GRAPHICS_FOV_STEP);
     (void)nya_ui_slider(ui, nya_string_menu_render_scale(), &graphics.render_scale, GNY_GRAPHICS_SCALE_MIN, 1.0F, GNY_GRAPHICS_SCALE_STEP);
 
+    // in NYA_ColorVision order.
+    NYA_ConstCString visions[] = { nya_string_menu_off(), nya_string_menu_protan(), nya_string_menu_deutan(), nya_string_menu_tritan() };
+    u32              vision    = (u32)graphics.color_vision;
+    static_assert(nya_carray_length(visions) == NYA_COLOR_VISION_COUNT, "a choice per colour vision");
+
+    _gny_choice_row(ui, nya_string_menu_color_vision(), visions, nya_carray_length(visions), &vision);
+    graphics.color_vision = (NYA_ColorVision)vision;
+
     nya_settings_graphics_set(graphics);
 
     nya_ui_panel_end(ui);

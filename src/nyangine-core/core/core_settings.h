@@ -37,6 +37,7 @@ typedef enum {
 typedef struct NYA_SettingsGraphics NYA_SettingsGraphics;
 typedef struct NYA_SettingsVolumes  NYA_SettingsVolumes;
 typedef enum NYA_GraphicsQuality    NYA_GraphicsQuality;
+typedef enum NYA_ColorVision        NYA_ColorVision;
 
 // @reflect
 /**
@@ -75,6 +76,23 @@ enum NYA_GraphicsQuality {
 };
 
 // @reflect
+/** A colour vision deficiency the picture is corrected for, the complete (dichromat) form. See nya_lut_compose. */
+enum NYA_ColorVision {
+    NYA_COLOR_VISION_NONE = 0,
+
+    /** No long wavelength cones: red and green confused, reds dark. */
+    NYA_COLOR_VISION_PROTANOPIA,
+
+    /** No medium wavelength cones: red and green confused, the most common. */
+    NYA_COLOR_VISION_DEUTERANOPIA,
+
+    /** No short wavelength cones: blue and green, yellow and violet confused. */
+    NYA_COLOR_VISION_TRITANOPIA,
+
+    NYA_COLOR_VISION_COUNT,
+};
+
+// @reflect
 /**
  * The graphics options a player may change, saved with the rest and laid over a window's renderer options by
  * nya_settings_graphics_apply. A switch only turns a feature off: how it looks when on is the game's to decide.
@@ -110,6 +128,9 @@ struct NYA_SettingsGraphics {
 
     /** The 3D scene's resolution as a share of the window's. See NYA_RenderOptions.render_scale. */
     f32 render_scale;
+
+    /** What the picture is corrected for, composed into the game's grading table. See nya_lut_compose. */
+    NYA_ColorVision color_vision;
 };
 
 /** What a player starts with, and what nya_settings_reset puts back. */

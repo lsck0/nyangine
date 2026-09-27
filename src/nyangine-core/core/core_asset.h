@@ -323,6 +323,14 @@ struct NYA_AssetLoadParameters {
             NYA_Color svg_color;
         } as_texture_load;
 
+        /** Baked into the table as it loads, see nya_lut_compose. Zero is the table as authored. */
+        struct {
+            /** How far the table is pulled back toward changing nothing, in [0, 1]. */
+            f32 fade;
+
+            NYA_ColorVision vision;
+        } as_lut;
+
         struct {
             /**
              * How the model's embedded texture is filtered. Zero is NYA_TEXTURE_FILTER_LINEAR.

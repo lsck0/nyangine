@@ -9,6 +9,7 @@
  */
 
 static_assert(sizeof(NYA_GraphicsQuality) == sizeof(u32), "the graphics quality is written and read as a u32");
+static_assert(sizeof(NYA_ColorVision) == sizeof(u32), "the colour vision is written and read as a u32");
 
 /**
  * A binding as one editable string: `"Space"`, `"Ctrl+S"`, `"Shift+Left Alt+F1"`.
@@ -233,6 +234,10 @@ void nya_settings_from_object(const NYA_Object* object) {
         if (kept.fov != asked.fov) {
             nya_log_warn("%s: 'graphics.fov' is %.1f, expected 30 to 120 degrees; using %.1f.", NYA_SETTINGS_FILE, (f64)asked.fov, (f64)kept.fov);
         }
+        if (kept.color_vision != asked.color_vision) {
+            nya_log_warn("%s: 'graphics.color_vision' is %d, which is not a colour vision in this build; using none.", NYA_SETTINGS_FILE,
+                         (int)asked.color_vision);
+        }
         if (kept.render_scale != asked.render_scale) {
             nya_log_warn("%s: 'graphics.render_scale' is %.3f, expected 0.25 to 1; using %.3f.", NYA_SETTINGS_FILE, (f64)asked.render_scale,
                          (f64)kept.render_scale);
@@ -392,6 +397,7 @@ void nya_settings_graphics_set(NYA_SettingsGraphics graphics) {
     graphics.shadows      = (u32)graphics.shadows < NYA_GRAPHICS_QUALITY_COUNT ? graphics.shadows : NYA_GRAPHICS_QUALITY_MEDIUM;
     graphics.fov          = nya_clamp(graphics.fov, 30.0F, 120.0F);
     graphics.render_scale = nya_clamp(graphics.render_scale, 0.25F, 1.0F);
+    graphics.color_vision = (u32)graphics.color_vision < NYA_COLOR_VISION_COUNT ? graphics.color_vision : NYA_COLOR_VISION_NONE;
 
     nya_settings()->graphics = graphics;
 }

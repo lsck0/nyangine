@@ -216,6 +216,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_SceneEntity,
     &_NYA_REFLECT_NYA_SettingsVolumes,
     &_NYA_REFLECT_NYA_GraphicsQuality,
+    &_NYA_REFLECT_NYA_ColorVision,
     &_NYA_REFLECT_NYA_SettingsGraphics,
     &_NYA_REFLECT_NYA_HttpMetricsDto,
     &_NYA_REFLECT_NYA_HttpCeilingDto,

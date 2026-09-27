@@ -1386,9 +1386,12 @@ Accepted:
 - `[x]` **Save and replay versioning:** a save written by an older version loads, through the same `@since`
   attributes and migrations as `db`. Deterministic replays built on the simulation harness: record the seed
   and the inputs, play them back, compare the checksums. Phase 5.
-- `[ ]` **Player accessibility:** colour blind palettes (applied through the grading LUT), subtitles and
+- `[~]` **Player accessibility:** colour blind palettes (applied through the grading LUT), subtitles and
   captions for positional sound with a direction indicator, remappable everything (bindings exist), controller
-  glyphs per pad type, and reduced motion (the speed lines and camera shake off). Phase 5.
+  glyphs per pad type, and reduced motion (the speed lines and camera shake off). Phase 5. Colour vision is
+  done: `NYA_SettingsGraphics.color_vision` picks protanopia, deuteranopia or tritanopia, and
+  `nya_lut_compose` bakes a daltonizing 3x3 (Machado 2009 simulation, Fidaner 2005 error shift) after the grade
+  into the table the grade pass already samples, so it costs no extra pass. Subtitles and captions are next.
 - `[~]` **Reproducible builds:** the same commit gives the same bytes. Done for the Linux release/Steam/dist
   binary: `-ffile-prefix-map` strips the absolute build directory from the debug info, the build-id is pinned
   off, the binary carries no build timestamp by design (base_version.c reads the executable's mtime at

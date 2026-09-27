@@ -71,6 +71,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsVolumes;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_GraphicsQuality;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_ColorVision;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpMetricsDto;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto;
@@ -123,6 +124,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in genyarated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 85
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 86
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];

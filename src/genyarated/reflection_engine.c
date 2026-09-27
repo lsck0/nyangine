@@ -657,6 +657,30 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_GraphicsQuality = {
     .is_bitflags = false,
 };
 
+/* NYA_ColorVision, src/nyangine-core/core/core_settings.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_ColorVision_VARIANTS[] = {
+    { .name = "NYA_COLOR_VISION_NONE", .value = (s64)(NYA_COLOR_VISION_NONE) },
+    { .name = "NYA_COLOR_VISION_PROTANOPIA", .value = (s64)(NYA_COLOR_VISION_PROTANOPIA) },
+    { .name = "NYA_COLOR_VISION_DEUTERANOPIA", .value = (s64)(NYA_COLOR_VISION_DEUTERANOPIA) },
+    { .name = "NYA_COLOR_VISION_TRITANOPIA", .value = (s64)(NYA_COLOR_VISION_TRITANOPIA) },
+    { .name = "NYA_COLOR_VISION_COUNT", .value = (s64)(NYA_COLOR_VISION_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_ColorVision = {
+    .name = "NYA_ColorVision",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_ColorVision),
+    .alignment = alignof(NYA_ColorVision),
+    .primitive = (sizeof(NYA_ColorVision) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_ColorVision) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_ColorVision) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_ColorVision_VARIANTS,
+    .variant_count = 5,
+    .is_bitflags = false,
+};
+
 /* NYA_SettingsGraphics, src/nyangine-core/core/core_settings.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsGraphics_FIELDS[] = {
@@ -673,6 +697,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsGraphics_FIELDS[] = {
     { .name = "shadows", .type = &_NYA_REFLECT_NYA_GraphicsQuality, .offset = nya_offsetof(NYA_SettingsGraphics, shadows), .hint = NYA_HINT_NONE },
     { .name = "fov", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, fov), .hint = NYA_HINT_NONE },
     { .name = "render_scale", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SettingsGraphics, render_scale), .hint = NYA_HINT_NONE },
+    { .name = "color_vision", .type = &_NYA_REFLECT_NYA_ColorVision, .offset = nya_offsetof(NYA_SettingsGraphics, color_vision), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
@@ -681,7 +706,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
     .size = sizeof(NYA_SettingsGraphics),
     .alignment = alignof(NYA_SettingsGraphics),
     .fields = _NYA_REFLECT_NYA_SettingsGraphics_FIELDS,
-    .field_count = 13,
+    .field_count = 14,
 };
 
 /* NYA_HttpMetricsDto, src/nyangine-core/debug/debug_metrics.h */
@@ -1567,6 +1592,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_SceneEntity,
     &_NYA_REFLECT_NYA_SettingsVolumes,
     &_NYA_REFLECT_NYA_GraphicsQuality,
+    &_NYA_REFLECT_NYA_ColorVision,
     &_NYA_REFLECT_NYA_SettingsGraphics,
     &_NYA_REFLECT_NYA_HttpMetricsDto,
     &_NYA_REFLECT_NYA_HttpCeilingDto,

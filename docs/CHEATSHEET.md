@@ -1605,7 +1605,7 @@ enum NYA_BlendMode { NYA_BLEND_NONE = 0, NYA_BLEND_ALPHA = 1, NYA_BLEND_ADDITIVE
 enum NYA_VertexLayout { NYA_VERTEX_LAYOUT_2D, NYA_VERTEX_LAYOUT_3D, NYA_VERTEX_LAYOUT_3D_INSTANCED, NYA_VERTEX_LAYOUT_3D_SKINNED, NYA_VERTEX_LAYOUT_COUNT, }
 enum NYA_AssetType { NYA_ASSET_TYPE_TEXT, NYA_ASSET_TYPE_SOUND, NYA_ASSET_TYPE_FONT, NYA_ASSET_TYPE_TEXTURE, NYA_ASSET_TYPE_LUT, NYA_ASSET_TYPE_MESH, NYA_ASSET_TYPE_SHADER_VERTEX, NYA_ASSET_TYPE_SHADER_FRAGMENT, NYA_ASSET_TYPE_SHADER_COMPUTE, NYA_ASSET_TYPE_BUFFER_VERTEX, NYA_ASSET_TYPE_BUFFER_INDEX, NYA_ASSET_TYPE_BUFFER_UNIFORM, NYA_ASSET_TYPE_GRAPHICS_PIPELINE, NYA_ASSET_TYPE_COMPUTE_PIPELINE, NYA_ASSET_TYPE_COUNT, }
 enum NYA_AssetLoadStatus { NYA_ASSET_STATUS_UNLOADED, NYA_ASSET_STATUS_LOADING, NYA_ASSET_STATUS_LOADED, NYA_ASSET_STATUS_FAILED, NYA_ASSET_STATUS_COUNT, }
-struct NYA_AssetLoadParameters { NYA_AssetType type; NYA_AssetHandle handle; NYA_ConstCString source; b8 external; union { struct { u32 num_samplers; u32 num_storage_textures; u32 num_storage_buffers; u32 num_uniform_buffers; } as_shader; struct { NYA_Window* window; NYA_AssetHandle vertex_shader_handle; NYA_AssetHandle fragment_shader_handle; NYA_BlendMode blend; NYA_VertexLayout vertex_layout; b8 depth_test; b8 depth_write; b8 cull_back_faces; b8 cull_front_faces; SDL_GPUTextureFormat color_format; b8 single_sampled; } as_graphics_pipeline; struct { NYA_TextureFilter filter; u32 width; u32 height; NYA_Color svg_color; } as_texture_load; struct { NYA_TextureFilter filter; } as_mesh_load; struct { f32 point_size; } as_font; struct { b8 predecode; } as_sound; }; }
+struct NYA_AssetLoadParameters { NYA_AssetType type; NYA_AssetHandle handle; NYA_ConstCString source; b8 external; union { struct { u32 num_samplers; u32 num_storage_textures; u32 num_storage_buffers; u32 num_uniform_buffers; } as_shader; struct { NYA_Window* window; NYA_AssetHandle vertex_shader_handle; NYA_AssetHandle fragment_shader_handle; NYA_BlendMode blend; NYA_VertexLayout vertex_layout; b8 depth_test; b8 depth_write; b8 cull_back_faces; b8 cull_front_faces; SDL_GPUTextureFormat color_format; b8 single_sampled; } as_graphics_pipeline; struct { NYA_TextureFilter filter; u32 width; u32 height; NYA_Color svg_color; } as_texture_load; struct { f32 fade; NYA_ColorVision vision; } as_lut; struct { NYA_TextureFilter filter; } as_mesh_load; struct { f32 point_size; } as_font; struct { b8 predecode; } as_sound; }; }
 struct NYA_Asset { NYA_AssetType type; NYA_AssetHandle handle; NYA_AssetStatus status; NYA_AssetLoadParameters load_parameters; union { struct { u8* data; u64 size; } as_text; struct { MIX_Audio* audio; } as_sound; struct { NYA_AssetHandle compiled_handle; SDL_GPUShaderFormat format; SDL_GPUShader* shader; } as_shader; struct { struct { SDL_GPUGraphicsPipeline* pipeline; SDL_GPUSampleCount sample_count; SDL_GPUTextureFormat depth_format; b8 built; } variants[8]; } as_graphics_pipeline; struct { SDL_GPUTexture* texture; u32 width; u32 height; u8* pixels; NYA_TextureFilter filter; } as_texture; struct { TTF_Font* font; } as_font; struct { SDL_GPUTexture* texture; u32 size; } as_lut; struct { f32x3* positions; f32x3* normals; f32x2* uvs; u32 vertex_count; u32 allocated; NYA_MeshPart* parts; u32 part_count; SDL_GPUBuffer* gpu_vertices; u32 gpu_vertex_count; f32x3 bounds_min; f32x3 bounds_max; b8 bounds_valid; u32 part_capacity; SDL_GPUTexture** textures; u32 texture_count; NYA_TextureFilter filter; NYA_Skeleton* skeleton; NYA_VertexSkinned3D* skinned_vertices; } as_mesh; }; atomic u64 reference_count; u64 generation; b8 queued_for_unload; b8 from_blob; b8 raw_owned; b8 raw_shared; u32 raw_blob_index; struct { u8* data; u64 size; } raw; u64 source_modification_time; u64 reload_grace_frames; u64 next_stat_time_ns; }
 
 // macros
@@ -2682,7 +2682,8 @@ NYA_Error nya_scene_load(NYA_World* world, NYA_ConstCString relative, NYA_SerdeF
 typedef enum { NYA_VOLUME_CHANNEL_MASTER, NYA_VOLUME_CHANNEL_SOUND, NYA_VOLUME_CHANNEL_MUSIC, NYA_VOLUME_CHANNEL_VOICE, NYA_VOLUME_CHANNEL_UI, NYA_VOLUME_CHANNEL_COUNT, } NYA_VolumeChannel  // The mixes a player expects to control separately.
 struct NYA_SettingsVolumes { f32 master; f32 sound; f32 music; f32 voice; f32 ui; }  // The mixes again, one named field each, in NYA_VolumeChannel order.
 enum NYA_GraphicsQuality { NYA_GRAPHICS_QUALITY_OFF = 0, NYA_GRAPHICS_QUALITY_LOW, NYA_GRAPHICS_QUALITY_MEDIUM, NYA_GRAPHICS_QUALITY_HIGH, NYA_GRAPHICS_QUALITY_COUNT, }  // How much of a costly feature a player asks for.
-struct NYA_SettingsGraphics { u32 msaa_samples; b8 fxaa; b8 ambient_occlusion; b8 bloom; b8 depth_of_field; b8 eye_adaptation; b8 light_shafts; b8 reflections; b8 motion_blur; b8 volumetric_fog; NYA_GraphicsQuality shadows; f32 fov; f32 render_scale; }
+enum NYA_ColorVision { NYA_COLOR_VISION_NONE = 0, NYA_COLOR_VISION_PROTANOPIA, NYA_COLOR_VISION_DEUTERANOPIA, NYA_COLOR_VISION_TRITANOPIA, NYA_COLOR_VISION_COUNT, }  // A colour vision deficiency the picture is corrected for, the complete (dichromat) form.
+struct NYA_SettingsGraphics { u32 msaa_samples; b8 fxaa; b8 ambient_occlusion; b8 bloom; b8 depth_of_field; b8 eye_adaptation; b8 light_shafts; b8 reflections; b8 motion_blur; b8 volumetric_fog; NYA_GraphicsQuality shadows; f32 fov; f32 render_scale; NYA_ColorVision color_vision; }
 struct NYA_SettingsSystem { f32 volumes[NYA_VOLUME_CHANNEL_COUNT]; NYA_SettingsGraphics graphics; NYA_InputBinding bindings[NYA_INPUT_ACTION_MAX][NYA_INPUT_BINDINGS_PER_ACTION]; char player_name[NYA_SETTINGS_NAME_MAX]; }
 
 // macros
@@ -4191,9 +4192,11 @@ struct NYA_Lut { u32 size; u8* texels; }  // A 3D colour lookup table: what a co
 
 // macros
 NYA_LUT_SIZE_MAX 64  // Most entries per side a lookup table may have.
+NYA_LUT_COMPOSE_SIZE_MIN 33  // Fewest entries per side nya_lut_compose writes.
 
 // functions
 NYA_Error nya_lut_parse(NYA_Arena* arena, const u8* text, u64 length, OUT NYA_Lut* out_lut)  // Parses an Adobe `.cube` file, the format colour grading tools export.
+NYA_Lut nya_lut_compose(NYA_Arena* arena, NYA_Lut lut, f32 fade, NYA_ColorVision vision)  // Bakes a fade and a colour vision correction into a copy of `lut`.
 ```
 
 ### render_occlusion.h

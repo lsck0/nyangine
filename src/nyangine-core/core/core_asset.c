@@ -515,9 +515,10 @@ NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
     }
     if (asset != nullptr && asset->status != NYA_ASSET_STATUS_UNLOADED) return NYA_OK;
 
-    // Handles are copied first. They are literals in the game DLL's .rodata, which a hot reload unmaps, and the
+    // Handles and the source are copied first. They are literals in the game DLL's .rodata, which a hot reload unmaps, and the
     // asset system outlives the DLL.
     parameters.handle = _nya_asset_intern(parameters.handle);
+    if (parameters.source != nullptr) parameters.source = _nya_asset_intern((NYA_AssetHandle)parameters.source);
 
     if (parameters.type == NYA_ASSET_TYPE_GRAPHICS_PIPELINE) {
         parameters.as_graphics_pipeline.vertex_shader_handle   = _nya_asset_intern(parameters.as_graphics_pipeline.vertex_shader_handle);
@@ -2243,6 +2244,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     _nya_asset_fail(asset, &parsed);
                     break;
                 }
+
+                lut = nya_lut_compose(&scratch, lut, parameters->as_lut.fade, parameters->as_lut.vision);
 
                 // a 3D texture, so the GPU interpolates between entries in all three channels with one sample.
                 SDL_GPUTexture* texture = nullptr;

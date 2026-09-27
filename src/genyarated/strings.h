@@ -45,7 +45,9 @@ typedef enum {
     NYA_STRING_MENU_BLOOM,
     NYA_STRING_MENU_CHART,
     NYA_STRING_MENU_CLOSE,
+    NYA_STRING_MENU_COLOR_VISION,
     NYA_STRING_MENU_DEPTH_OF_FIELD,
+    NYA_STRING_MENU_DEUTAN,
     NYA_STRING_MENU_DRAWS,
     NYA_STRING_MENU_EYE_ADAPTATION,
     NYA_STRING_MENU_FADE,
@@ -72,6 +74,7 @@ typedef enum {
     NYA_STRING_MENU_OFF,
     NYA_STRING_MENU_ON,
     NYA_STRING_MENU_PAUSED,
+    NYA_STRING_MENU_PROTAN,
     NYA_STRING_MENU_QUIT,
     NYA_STRING_MENU_RENDER_SCALE,
     NYA_STRING_MENU_RESET,
@@ -84,6 +87,7 @@ typedef enum {
     NYA_STRING_MENU_STATS,
     NYA_STRING_MENU_SUBTITLE,
     NYA_STRING_MENU_TABLE,
+    NYA_STRING_MENU_TRITAN,
     NYA_STRING_MENU_VALUE,
     NYA_STRING_MENU_VERTICES,
     NYA_STRING_MENU_WIDGETS,
@@ -138,7 +142,9 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_bloom",
     "menu_chart",
     "menu_close",
+    "menu_color_vision",
     "menu_depth_of_field",
+    "menu_deutan",
     "menu_draws",
     "menu_eye_adaptation",
     "menu_fade",
@@ -165,6 +171,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_off",
     "menu_on",
     "menu_paused",
+    "menu_protan",
     "menu_quit",
     "menu_render_scale",
     "menu_reset",
@@ -177,6 +184,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_stats",
     "menu_subtitle",
     "menu_table",
+    "menu_tritan",
     "menu_value",
     "menu_vertices",
     "menu_widgets",
@@ -363,9 +371,19 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_close(void) {
     return _nya_i18n_format(NYA_STRING_MENU_CLOSE);
 }
 
+/** `menu_color_vision` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_color_vision(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_COLOR_VISION);
+}
+
 /** `menu_depth_of_field` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_depth_of_field(void) {
     return _nya_i18n_format(NYA_STRING_MENU_DEPTH_OF_FIELD);
+}
+
+/** `menu_deutan` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_deutan(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_DEUTAN);
 }
 
 /** `menu_draws` */
@@ -498,6 +516,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_paused(void) 
     return _nya_i18n_format(NYA_STRING_MENU_PAUSED);
 }
 
+/** `menu_protan` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_protan(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_PROTAN);
+}
+
 /** `menu_quit` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_quit(void) {
     return _nya_i18n_format(NYA_STRING_MENU_QUIT);
@@ -556,6 +579,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_subtitle(void
 /** `menu_table` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_table(void) {
     return _nya_i18n_format(NYA_STRING_MENU_TABLE);
+}
+
+/** `menu_tritan` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_tritan(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_TRITAN);
 }
 
 /** `menu_value` */

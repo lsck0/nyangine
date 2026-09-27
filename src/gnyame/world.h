@@ -62,8 +62,8 @@ typedef struct GNY_World {
     /** The grade key's state. The config still names the table and strength; see gny_post_passes. */
     b8 grade_enabled;
 
-    /** The table currently loaded for grading, empty for none, so a config edit can swap or release it. */
-    char                 grade_lut[NYA_CONFIG_ASSET_PATH_MAX];
+    /** The grading table's handle, empty for none: its path, fade and colour vision, so any of them changing swaps it. */
+    char                 grade_lut[NYA_CONFIG_ASSET_PATH_MAX + sizeof("@1.000@4294967295")];
     NYA_ShaderLutUniform grade_uniform;
 
     /** Seconds added to the clock before the day phase is taken from it. */
