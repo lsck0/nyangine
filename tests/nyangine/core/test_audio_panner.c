@@ -74,8 +74,9 @@ s32 main(void) {
     nya_assert(left.left_delay_s == 0.0F, "the near (left) ear must lead, delay zero, got %f", (f64)left.left_delay_s);
     nya_assert(left.right_delay_s > 0.0F, "the far (right) ear must lag, delay positive, got %f", (f64)left.right_delay_s);
 
-    // a plausible interaural delay: a head's width over the speed of sound is well under a millisecond.
-    nya_assert(left.right_delay_s > 0.0003F && left.right_delay_s < 0.0009F, "the interaural delay is out of the human range, got %f s", (f64)left.right_delay_s);
+    // hard to the side is Woodworth's peak, r/c·(π/2 + 1), which for an adult head is about 0.66 ms.
+    nya_assert(fabsf(left.right_delay_s - NYA_AUDIO_PAN_MAX_ITD_S) < 1e-7F, "hard left must be the full interaural delay, got %f s", (f64)left.right_delay_s);
+    nya_assert(NYA_AUDIO_PAN_MAX_ITD_S > 0.00064F && NYA_AUDIO_PAN_MAX_ITD_S < 0.00067F, "the largest interaural delay is out of the human range, got %f s", (f64)NYA_AUDIO_PAN_MAX_ITD_S);
 
     // the head shadow rolls off the far ear alone.
     nya_assert(left.left_lowpass_hz == 0.0F, "the near (left) ear must stay open");
@@ -94,6 +95,28 @@ s32 main(void) {
 
     nya_assert(right.right_lowpass_hz == 0.0F, "the near (right) ear must stay open");
     nya_assert(right.left_lowpass_hz > 0.0F, "the far (left) ear must be shadowed");
+  }
+
+  // TEST: the delay and the shadow are bounded all the way round the head
+  {
+    f32 previous_delay = 0.0F;
+    for (s32 i = 0; i <= 360; i++) {
+      f32           az  = ((f32)i - 180.0F) * (f32)M_PI / 180.0F;
+      NYA_StereoPan pan = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = az });
+
+      // only ever one ear lags, and never past the largest delay a head can make.
+      nya_assert(pan.left_delay_s == 0.0F || pan.right_delay_s == 0.0F, "at most one ear may lag, az %f", (f64)az);
+      nya_assert(pan.left_delay_s <= NYA_AUDIO_PAN_MAX_ITD_S && pan.right_delay_s <= NYA_AUDIO_PAN_MAX_ITD_S, "the delay must stay within the max ITD, az %f", (f64)az);
+
+      // across the front from hard left to centre the far ear's delay only shrinks, and its cutoff only rises.
+      if (az >= -0.5F * (f32)M_PI && az <= 0.0F) {
+        if (i > 90) nya_assert(pan.right_delay_s <= previous_delay + 1e-9F, "the delay must fall toward the centre, az %f", (f64)az);
+        previous_delay = pan.right_delay_s;
+      }
+    }
+
+    // the delay line holds the longest delay at 96 kHz, one frame spare for the fractional read.
+    nya_assert(NYA_AUDIO_PAN_MAX_ITD_S * 96000.0F < (f32)(NYA_AUDIO_PAN_MAX_DELAY_FRAMES - 1), "the delay line is too short for 96 kHz");
   }
 
   // TEST: behind is centred but duller than in front
@@ -150,10 +173,86 @@ s32 main(void) {
 
     nya_audio_pan_render(&render, PAN_RATE, 2, pan, pcm, frames * 2);
 
-    // the near ear's impulse stays at frame 0; the far ear's has moved eight frames on. Open shadow and unit gain make this exact.
+    // the near ear's impulse stays at frame 0; the far ear's has moved eight frames on. Open shadow and unit gain make this all but exact.
     nya_assert(pcm[0] == 1.0F, "the near (left) ear must be undelayed, got %f", (f64)pcm[0]);
     nya_assert(pcm[1] == 0.0F, "the far (right) ear must be silent before its delayed impulse, got %f", (f64)pcm[1]);
-    nya_assert(pcm[(8 * 2) + 1] == 1.0F, "the far (right) ear's impulse must land eight frames late, got %f", (f64)pcm[(8 * 2) + 1]);
+    nya_assert(fabsf(pcm[(8 * 2) + 1] - 1.0F) < 1e-4F, "the far (right) ear's impulse must land eight frames late, got %f", (f64)pcm[(8 * 2) + 1]);
+  }
+
+  // TEST: the delay is fractional, splitting an impulse between the frames either side
+  {
+    const s32  frames = 16;
+    static f32 pcm[16 * 2];
+
+    for (s32 i = 0; i < frames * 2; i++) pcm[i] = 0.0F;
+    pcm[0] = 1.0F;
+    pcm[1] = 1.0F;
+
+    NYA_StereoPan pan = { .left_gain = 1.0F, .right_gain = 1.0F, .right_delay_s = 3.25F / PAN_RATE };
+
+    NYA_AudioPanRender render;
+    nya_audio_pan_render_reset(&render);
+    nya_audio_pan_render(&render, PAN_RATE, 2, pan, pcm, frames * 2);
+
+    // three and a quarter frames: three quarters of the impulse at frame 3, a quarter at frame 4, nothing else.
+    nya_assert(fabsf(pcm[(3 * 2) + 1] - 0.75F) < 1e-3F, "frame 3 must carry three quarters, got %f", (f64)pcm[(3 * 2) + 1]);
+    nya_assert(fabsf(pcm[(4 * 2) + 1] - 0.25F) < 1e-3F, "frame 4 must carry a quarter, got %f", (f64)pcm[(4 * 2) + 1]);
+    nya_assert(pcm[(2 * 2) + 1] == 0.0F && pcm[(5 * 2) + 1] == 0.0F, "the impulse must not spread past the two frames");
+  }
+
+  // TEST: hard left through the whole path, and centred is symmetric
+  {
+    const s32  frames = 4800;
+    static f32 pcm[4800 * 2];
+
+    // hard left, a bass and a treble tone: the right ear is the far one, so it is quieter across the band by
+    // the side level difference, and quieter again in the treble, where the head shadows it.
+    f64 ratio[2];
+    f32 tone_hz[2] = { 200.0F, 6000.0F };
+    for (s32 t = 0; t < 2; t++) {
+      NYA_AudioPanRender render;
+      nya_audio_pan_render_reset(&render);
+
+      fill_stereo_sine(pcm, frames, tone_hz[t]);
+      nya_audio_pan_render(&render, PAN_RATE, 2, nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = -0.5F * (f32)M_PI }), pcm, frames * 2);
+
+      ratio[t] = channel_tail_rms(pcm, frames, 2, 1) / channel_tail_rms(pcm, frames, 2, 0);
+    }
+
+    f64 side_ratio = pow(10.0, -(f64)NYA_AUDIO_PAN_SIDE_LEVEL_DB / 20.0);
+    nya_assert(fabs(ratio[0] - side_ratio) < 0.02, "bass hard left must be the side level difference down in the far ear, got %f", ratio[0]);
+    nya_assert(ratio[1] < 0.5 * ratio[0], "treble hard left must be shadowed in the far ear, got %f against bass %f", ratio[1], ratio[0]);
+    nya_assert(ratio[1] > 0.0, "the far ear must still hear the source, or its delay says nothing");
+
+    // centred: the same signal in both ears, sample for sample.
+    {
+      NYA_AudioPanRender render;
+      nya_audio_pan_render_reset(&render);
+
+      fill_stereo_sine(pcm, frames, 6000.0F);
+      nya_audio_pan_render(&render, PAN_RATE, 2, nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = 0.0F }), pcm, frames * 2);
+
+      for (s32 i = 0; i < frames; i++) nya_assert(pcm[i * 2] == pcm[(i * 2) + 1], "a centred source must be the same in both ears, frame %d", i);
+    }
+  }
+
+  // TEST: a stereo clip is folded to one point source
+  {
+    const s32  frames = 64;
+    static f32 pcm[64 * 2];
+
+    // left channel only: a centred point source hears half of it in each ear, at the centre's equal power gain.
+    for (s32 i = 0; i < frames; i++) {
+      pcm[i * 2]       = 1.0F;
+      pcm[(i * 2) + 1] = 0.0F;
+    }
+
+    NYA_AudioPanRender render;
+    nya_audio_pan_render_reset(&render);
+    nya_audio_pan_render(&render, PAN_RATE, 2, nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = 0.0F }), pcm, frames * 2);
+
+    f32 expected = 0.5F * cosf(0.25F * (f32)M_PI);
+    nya_assert(fabsf(pcm[0] - expected) < 1e-6F && fabsf(pcm[1] - expected) < 1e-6F, "a one-sided clip must fold to the centre, got %f / %f", (f64)pcm[0], (f64)pcm[1]);
   }
 
   // TEST: the render shadows the far ear's treble and leaves the near ear alone

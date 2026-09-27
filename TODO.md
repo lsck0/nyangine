@@ -2181,9 +2181,11 @@ estimate enclosure and distance, drive the sound bus reverb and place six panned
 ceiling `audio_rays`) is shared round robin, nothing is allocated per frame, nothing is cast when off. Every bus
 runs a lock-free chain: high/low pass, 3-band EQ, compressor, echo, echo taps, reverb, limiter, eased per 32
 frames. Config under `engine.audio`. Cost: full chain 22.9 µs per 10 ms buffer; 16 hidden voices 5.4 µs a frame.
-Behind the basin rim the fire drops 20 dB and its spectral centroid goes from 3238 to 233 Hz.
+Behind the basin rim the fire drops 20 dB and its spectral centroid goes from 3238 to 233 Hz. On a stereo device every
+positioned voice goes through our own panner in place of SDL_mixer's mono 3D path: folded to mono, an equal power
+level difference capped at 6 dB, Woodworth's interaural delay (0.656 ms at the side) on a fractional delay line, and a
+one pole head shadow on the far ear falling to 1.8 kHz; other layouts keep SDL_mixer's placement.
 
-- `[ ]` Interaural time delay and head shadow need our own stereo panner in place of SDL_mixer's mono 3D path.
 - `[ ]` Thickness is the span between first hits, so two thin walls read as one thick one.
 - `[ ]` Echo taps do not check that the source sees the surface; one diffraction reach.
 

@@ -12,7 +12,8 @@
  * The math is pure. nya_audio_pan_compute turns an azimuth into per-ear gains, delays and cutoffs with no
  * state and no globals, so it is the same answer every run; nya_audio_pan_render is the DSP that lays those
  * onto a stereo buffer, holding only a small bounded delay line and a one pole per ear. Neither touches the
- * mixer. core_audio wires them onto a voice, opt in, through nya_audio_panner_set_enabled.
+ * mixer. core_audio runs them on every positioned voice when the device is a stereo pair, in place of
+ * SDL_mixer's mono 3D path, which has a level difference and nothing else.
  *
  * ```c
  * NYA_StereoPan pan = nya_audio_pan_compute((NYA_StereoPanParams){ .azimuth_radians = nya_audio_pan_azimuth(dir) });
@@ -47,14 +48,30 @@
 #define NYA_AUDIO_PAN_SHADOW_HZ 1800.0F
 #endif
 
+/**
+ * How much quieter the far ear is across the band when a source is hard to one side, decibels. Measured
+ * interaural level differences at 90° run from about 6 dB at 500 Hz to 20 dB at 6 kHz (Feddersen 1957); the
+ * shadow's one pole at NYA_AUDIO_PAN_SHADOW_HZ supplies the treble part, so the flat gain carries the low
+ * end. Anything finite keeps the far ear audible, which the interaural delay needs to be heard at all.
+ * */
+#ifndef NYA_AUDIO_PAN_SIDE_LEVEL_DB
+#define NYA_AUDIO_PAN_SIDE_LEVEL_DB 6.0F
+#endif
+
 /** Where both ears are rolled off when a source is directly behind, hertz. Milder than the side shadow. */
 #ifndef NYA_AUDIO_PAN_REAR_SHADOW_HZ
 #define NYA_AUDIO_PAN_REAR_SHADOW_HZ 6500.0F
 #endif
 
 /**
- * Frames the interaural delay line holds per ear. The delay tops out near the head's width over the speed
- * of sound, about 0.7 ms, which is 34 frames at 48 kHz; this leaves headroom and clamps anything longer.
+ * The longest interaural delay, seconds: Woodworth's r/c·(θ + sin θ) at θ = π/2, a source level with one
+ * ear. 0.0875 / 343 · (π/2 + 1) = 0.656 ms, against about 0.65 ms measured on adult heads.
+ * */
+#define NYA_AUDIO_PAN_MAX_ITD_S ((NYA_AUDIO_PAN_HEAD_RADIUS_M / NYA_AUDIO_PAN_SPEED_OF_SOUND_MPS) * ((0.5F * (f32)M_PI) + 1.0F))
+
+/**
+ * Frames the interaural delay line holds. The longest delay is 31.5 frames at 48 kHz and 63 at 96 kHz; a
+ * power of two past that wraps with a mask, and anything longer, a bigger head or a faster device, clamps.
  * */
 #define NYA_AUDIO_PAN_MAX_DELAY_FRAMES 64
 
@@ -109,8 +126,8 @@ struct NYA_StereoPan {
  * on the calling thread before the sound starts.
  * */
 struct NYA_AudioPanRender {
-    /** Per-ear delay line, written every frame, read `delay` frames back. */
-    f32 ring[2][NYA_AUDIO_PAN_MAX_DELAY_FRAMES];
+    /** The source folded to mono, since a point source has one signal; each ear reads it at its own delay. */
+    f32 ring[NYA_AUDIO_PAN_MAX_DELAY_FRAMES];
     u32 write_index;
 
     /** The one pole's previous output per ear, all it remembers. */
@@ -119,6 +136,7 @@ struct NYA_AudioPanRender {
     /* Eased across a buffer toward the target, so a turn of the head is a glide rather than a step. */
     f32 gain[2];
     f32 coefficient[2];
+    f32 delay_frames[2];
 
     /** False until the first buffer, which snaps to the target rather than easing up from silence. */
     b8 primed;
@@ -145,8 +163,9 @@ NYA_API f32 nya_audio_pan_azimuth(f32x3 listener_relative) __attr_no_discard;
 NYA_API void nya_audio_pan_render_reset(NYA_AudioPanRender* render);
 
 /**
- * Lays `target` onto an interleaved stereo buffer in place: delays the far ear, rolls it off, and balances
- * the two, easing from wherever the last buffer left off. A buffer that is not two channels is left
- * untouched, since the model is a two-ear one. No allocation, no locks: safe on the mixer thread.
+ * Lays `target` onto an interleaved stereo buffer in place: folds it to mono, delays the far ear by a
+ * fractional number of frames, rolls it off, and balances the two, easing from wherever the last buffer left
+ * off. A buffer that is not two channels is left untouched, since the model is a two-ear one. No
+ * allocation, no locks, bounded by the buffer: safe on the mixer thread.
  * */
 NYA_API void nya_audio_pan_render(NYA_AudioPanRender* render, f32 sample_rate_hz, s32 channels, NYA_StereoPan target, f32* pcm, s32 samples);

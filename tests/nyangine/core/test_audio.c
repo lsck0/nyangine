@@ -407,27 +407,34 @@ s32 main(void) {
         nya_audio_voice_stop(varied, 0);
       }
 
-      // Placement, which unlike pan can be read back off the track
+      // Placement, read back off the voice: our panner's azimuth and falloff on a stereo device, the track's 3D point on any other
       nya_audio_listener_set((NYA_AudioListener){ .position = { 0.0F, 0.0F }, .reference_distance = 1.0F, .plane = NYA_AUDIO_PLANE_SIDE });
 
       NYA_SoundVoice placed = nya_audio_play_sound_at(TEST_WAV_PATH, (f32x2){ 3.0F, -4.0F }, (NYA_SoundParams){ .gain = 1.0F });
       if (placed.generation != 0) {
-        MIX_Point3D point = { 0 };
-        nya_assert(MIX_GetTrack3DPosition(_nya_audio_system.slots[placed.index].track, &point), "MIX_GetTrack3DPosition failed: %s", SDL_GetError());
+        NYA_AudioVoice* slot   = &_nya_audio_system.slots[placed.index];
+        b8              stereo = _nya_audio_system.device_channels == 2;
+        MIX_Point3D     point  = { 0 };
 
-        /* The decisive assertion, and the one that catches placing the sound *after* MIX_PlayTrack rather than before: a voice's generation is only bumped once it is running, so a handle built inside the play path names the previous sound and every setter given it silently does nothing. Four units up, because the renderer's y counts down. */
-        nya_assert(
-            point.x == 3.0F && point.y == 4.0F && point.z == 0.0F,
-            "a sound played at (3, -4) must be placed at (3, 4, 0), got (%f, %f, %f)",
-            (f64)point.x,
-            (f64)point.y,
-            (f64)point.z
-        );
+        /* The decisive assertion, and the one that catches placing the sound *after* MIX_PlayTrack rather than before: a voice's generation is only bumped once it is running, so a handle built inside the play path names the previous sound and every setter given it silently does nothing. Four units up, because the renderer's y counts down: (3, 4, 0) is to the right and five away. */
+        if (stereo) {
+          nya_assert(atomic_load_explicit(&slot->pan_active, memory_order_relaxed), "a positioned sound on a stereo device must be on the panner");
+          nya_assert_lt(fabsf(atomic_load_explicit(&slot->pan_azimuth, memory_order_relaxed) - (0.5F * (f32)M_PI)), 1e-5F);
+          nya_assert_lt(fabsf(slot->spatial_gain - 0.2F), 1e-5F);
+        } else {
+          nya_assert(MIX_GetTrack3DPosition(slot->track, &point), "MIX_GetTrack3DPosition failed: %s", SDL_GetError());
+          nya_assert(point.x == 3.0F && point.y == 4.0F && point.z == 0.0F, "a sound played at (3, -4) must be placed at (3, 4, 0), got (%f, %f, %f)", (f64)point.x, (f64)point.y, (f64)point.z);
+        }
 
         // And a live voice can be moved, which is what an emitter that travels needs.
         nya_audio_voice_set_world_position(placed, (f32x2){ -1.0F, 0.0F });
-        nya_assert(MIX_GetTrack3DPosition(_nya_audio_system.slots[placed.index].track, &point), "MIX_GetTrack3DPosition failed: %s", SDL_GetError());
-        nya_assert(point.x == -1.0F && point.y == 0.0F, "a moved voice must follow, got (%f, %f)", (f64)point.x, (f64)point.y);
+        if (stereo) {
+          nya_assert_lt(fabsf(atomic_load_explicit(&slot->pan_azimuth, memory_order_relaxed) - (-0.5F * (f32)M_PI)), 1e-5F);
+          nya_assert_lt(fabsf(slot->spatial_gain - 1.0F), 1e-5F);
+        } else {
+          nya_assert(MIX_GetTrack3DPosition(slot->track, &point), "MIX_GetTrack3DPosition failed: %s", SDL_GetError());
+          nya_assert(point.x == -1.0F && point.y == 0.0F, "a moved voice must follow, got (%f, %f)", (f64)point.x, (f64)point.y);
+        }
 
         nya_audio_voice_stop(placed, 0);
       }
@@ -535,17 +542,11 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  // TEST: the stereo panner opt-in places positioned sounds through our own path
+  // TEST: positioned sounds go through our own stereo panner
   {
-    // Off by default, so a game that never asks keeps SDL_mixer's positioning unchanged.
-    nya_check(!nya_audio_panner_enabled(), "the panner must be off until asked for");
-
-    nya_audio_panner_set_enabled(true);
-    nya_check(nya_audio_panner_enabled(), "the panner must read back on once enabled");
-
     nya_audio_listener_set((NYA_AudioListener){ .position = { 0.0F, 0.0F }, .reference_distance = 1.0F, .plane = NYA_AUDIO_PLANE_SIDE });
 
-    // A positioned sound now takes the panner path. As with the rest of playback this only runs where there is a device; the panner math itself is covered device-free in test_audio_panner.
+    // As with the rest of playback this only runs where there is a device; the panner math itself is covered device-free in test_audio_panner.
     NYA_SoundVoice panned = nya_audio_play_sound_at(TEST_WAV_PATH, (f32x2){ 4.0F, 0.0F }, (NYA_SoundParams){ .gain = 1.0F });
     if (panned.generation != 0) {
       nya_assert(nya_audio_voice_valid(panned), "a panned sound must be a live voice");
@@ -554,15 +555,15 @@ s32 main(void) {
       nya_audio_voice_set_world_position(panned, (f32x2){ -4.0F, 0.0F });
       nya_assert(nya_audio_voice_valid(panned), "moving a panned voice must not stop it");
 
-      // An explicit pan takes the voice back off the panner, and must not fall over doing so.
+      // An explicit pan takes the voice off the panner, and a listener-relative position puts it back.
       nya_audio_voice_set_pan(panned, 0.5F);
       nya_assert(nya_audio_voice_valid(panned), "an explicit pan must leave the voice sounding");
 
+      nya_audio_voice_set_position(panned, (f32x3){ -2.0F, 0.0F, -1.0F });
+      nya_assert(nya_audio_voice_valid(panned), "a listener-relative position must leave the voice sounding");
+
       nya_audio_voice_stop(panned, 0);
     }
-
-    nya_audio_panner_set_enabled(false);
-    nya_check(!nya_audio_panner_enabled(), "the panner must read back off again");
   }
 
   printf("PASSED: test_audio\n");

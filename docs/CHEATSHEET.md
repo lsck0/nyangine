@@ -1677,8 +1677,6 @@ void nya_audio_listener_3d_set(NYA_AudioListener3D listener)  // Moves the ear i
 NYA_AudioListener3D nya_audio_listener_3d_get(void)
 NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f32x2 world_position, NYA_SoundParams params)  // Plays a sound at a point in the world, heard from wherever the listener is.
 NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle, f32x3 world_position, NYA_SoundParams params)  // Plays a sound at a point in a 3D world, heard from wherever the 3D listener is and however it faces.
-void nya_audio_panner_set_enabled(b8 enabled)  // Turns our own stereo panner on for positioned sounds.
-b8 nya_audio_panner_enabled(void)
 void nya_audio_play_music(NYA_ConstCString music_handle, b8 loop, u32 fade_in_ms)  // Starts `music_handle` on the music track, replacing whatever was playing.
 void nya_audio_play_music_with(NYA_ConstCString music_handle, NYA_MusicParams params)  // Starts music with loop points and a gain, for anything the three argument form cannot say.
 void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicParams params, u32 duration_ms)  // Fades the current track out while fading the new one in, over `duration_ms`.
@@ -1754,14 +1752,16 @@ A stereo panner: it places one sound in the stereo field from where it sits rela
 // types
 struct NYA_StereoPanParams { f32 azimuth_radians; f32 head_radius_m; f32 speed_of_sound_mps; f32 shadow_hz; }  // Where a sound is, as one angle in the listener's own frame.
 struct NYA_StereoPan { f32 left_gain; f32 right_gain; f32 left_delay_s; f32 right_delay_s; f32 left_lowpass_hz; f32 right_lowpass_hz; }  // The per-ear placement of one sound.
-struct NYA_AudioPanRender { f32 ring[2][NYA_AUDIO_PAN_MAX_DELAY_FRAMES]; u32 write_index; f32 shadow_state[2]; f32 gain[2]; f32 coefficient[2]; b8 primed; }
+struct NYA_AudioPanRender { f32 ring[NYA_AUDIO_PAN_MAX_DELAY_FRAMES]; u32 write_index; f32 shadow_state[2]; f32 gain[2]; f32 coefficient[2]; f32 delay_frames[2]; b8 primed; }
 
 // macros
 NYA_AUDIO_PAN_HEAD_RADIUS_M 0.0875F  // Radius of the average human head, metres.
 NYA_AUDIO_PAN_SPEED_OF_SOUND_MPS 343.0F  // Speed of sound in air, metres per second.
 NYA_AUDIO_PAN_SHADOW_HZ 1800.0F  // Where the far ear is rolled off when a source is hard to one side, hertz.
+NYA_AUDIO_PAN_SIDE_LEVEL_DB 6.0F  // How much quieter the far ear is across the band when a source is hard to one side, decibels.
 NYA_AUDIO_PAN_REAR_SHADOW_HZ 6500.0F  // Where both ears are rolled off when a source is directly behind, hertz.
-NYA_AUDIO_PAN_MAX_DELAY_FRAMES 64  // Frames the interaural delay line holds per ear.
+NYA_AUDIO_PAN_MAX_ITD_S
+NYA_AUDIO_PAN_MAX_DELAY_FRAMES 64  // Frames the interaural delay line holds.
 
 // functions
 NYA_StereoPan nya_audio_pan_compute(NYA_StereoPanParams params)  // The panning law, delay and shadow for one azimuth.

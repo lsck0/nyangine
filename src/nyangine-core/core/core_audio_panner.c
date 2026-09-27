@@ -36,7 +36,10 @@ NYA_StereoPan nya_audio_pan_compute(NYA_StereoPanParams params) {
     NYA_StereoPan pan = { 0 };
 
     // equal power: the two gains square-sum to one, so swinging across the front holds the loudness steady.
-    f32 angle      = (lateral + 1.0F) * 0.25F * (f32)M_PI;
+    // The swing stops short of an ear, where the far gain over the near is the side level difference.
+    f32 side_ratio = powf(10.0F, -NYA_AUDIO_PAN_SIDE_LEVEL_DB / 20.0F);
+    f32 swing      = (0.25F * (f32)M_PI) - atanf(side_ratio);
+    f32 angle      = (0.25F * (f32)M_PI) + (lateral * swing);
     pan.left_gain  = cosf(angle);
     pan.right_gain = sinf(angle);
 
@@ -102,77 +105,81 @@ void nya_audio_pan_render(NYA_AudioPanRender* render, f32 sample_rate_hz, s32 ch
     s32 frames = samples / channels;
     if (frames <= 0) return;
 
+    // the ring wraps with a mask, and the fractional read reaches one frame past the whole delay.
+    static_assert((NYA_AUDIO_PAN_MAX_DELAY_FRAMES & (NYA_AUDIO_PAN_MAX_DELAY_FRAMES - 1)) == 0, "the delay line wraps with a mask");
+    const u32 mask      = NYA_AUDIO_PAN_MAX_DELAY_FRAMES - 1;
+    const f32 delay_max = (f32)(NYA_AUDIO_PAN_MAX_DELAY_FRAMES - 2);
+
     f32 target_gain[2]  = { target.left_gain, target.right_gain };
     f32 target_cut[2]   = { target.left_lowpass_hz, target.right_lowpass_hz };
     f32 target_delay[2] = { target.left_delay_s, target.right_delay_s };
 
-    // one pole coefficient per ear, 1 open. a = 1 - e^(-2π·fc/fs).
+    // one pole coefficient per ear, 1 open. a = 1 - e^(-2π·fc/fs). The delay stays fractional, so a source
+    // sweeping round the head glides through sub-frame steps instead of clicking a whole frame at a time.
     f32 target_coeff[2];
-    u32 delay_frames[2];
+    f32 target_frames[2];
     for (s32 ear = 0; ear < 2; ear++) {
-        if (target_cut[ear] > 0.0F) {
-            f32 a            = 1.0F - expf(-2.0F * (f32)M_PI * target_cut[ear] / sample_rate_hz);
-            target_coeff[ear] = nya_clamp(a, 0.0F, 1.0F);
-        } else {
-            target_coeff[ear] = 1.0F;
-        }
-
-        f32 d = target_delay[ear] * sample_rate_hz;
-        if (d < 0.0F) d = 0.0F;
-
-        u32 di = (u32)(d + 0.5F);
-        if (di > NYA_AUDIO_PAN_MAX_DELAY_FRAMES - 1) di = NYA_AUDIO_PAN_MAX_DELAY_FRAMES - 1;
-        delay_frames[ear] = di;
+        target_coeff[ear]  = target_cut[ear] > 0.0F ? nya_clamp(1.0F - expf(-2.0F * (f32)M_PI * target_cut[ear] / sample_rate_hz), 0.0F, 1.0F) : 1.0F;
+        target_frames[ear] = nya_clamp(target_delay[ear] * sample_rate_hz, 0.0F, delay_max);
     }
 
     // the first buffer starts on the target; later ones ease so a turning head glides rather than steps.
     if (!render->primed) {
-        render->gain[0]        = target_gain[0];
-        render->gain[1]        = target_gain[1];
-        render->coefficient[0] = target_coeff[0];
-        render->coefficient[1] = target_coeff[1];
-        render->primed         = true;
+        for (s32 ear = 0; ear < 2; ear++) {
+            render->gain[ear]         = target_gain[ear];
+            render->coefficient[ear]  = target_coeff[ear];
+            render->delay_frames[ear] = target_frames[ear];
+        }
+        render->primed = true;
     }
 
     f32 gain_step[2];
     f32 coeff_step[2];
+    f32 delay_step[2];
     for (s32 ear = 0; ear < 2; ear++) {
         gain_step[ear]  = (target_gain[ear] - render->gain[ear]) / (f32)frames;
         coeff_step[ear] = (target_coeff[ear] - render->coefficient[ear]) / (f32)frames;
+        delay_step[ear] = (target_frames[ear] - render->delay_frames[ear]) / (f32)frames;
     }
 
     for (s32 frame = 0; frame < frames; frame++) {
+        f32* out = &pcm[frame * 2];
+
+        // one signal from a point source: a stereo clip keeps its loudness but not its image, as in SDL_mixer's
+        // own 3D path. A mono clip arrives upmixed to two equal channels and comes back unchanged.
+        render->ring[render->write_index] = 0.5F * (out[0] + out[1]);
+
         for (s32 ear = 0; ear < 2; ear++) {
-            f32* sample = &pcm[(frame * channels) + ear];
-
-            // write the raw input, then read the delayed frame off the same line.
-            render->ring[ear][render->write_index] = *sample;
-
-            u32 read    = (render->write_index + NYA_AUDIO_PAN_MAX_DELAY_FRAMES - delay_frames[ear]) % NYA_AUDIO_PAN_MAX_DELAY_FRAMES;
-            f32 delayed = render->ring[ear][read];
+            // linear interpolation between the two frames either side of the fractional delay.
+            f32 delay = render->delay_frames[ear];
+            u32 whole = (u32)delay;
+            f32 frac  = delay - (f32)whole;
+            f32 newer = render->ring[(render->write_index + NYA_AUDIO_PAN_MAX_DELAY_FRAMES - whole) & mask];
+            f32 older = render->ring[(render->write_index + NYA_AUDIO_PAN_MAX_DELAY_FRAMES - whole - 1) & mask];
+            f32 heard = newer + (frac * (older - newer));
 
             // head shadow: one pole toward the delayed signal. A coefficient of one passes it through.
-            render->shadow_state[ear] += render->coefficient[ear] * (delayed - render->shadow_state[ear]);
+            render->shadow_state[ear] += render->coefficient[ear] * (heard - render->shadow_state[ear]);
 
-            *sample = render->gain[ear] * render->shadow_state[ear];
+            out[ear] = render->gain[ear] * render->shadow_state[ear];
 
-            render->gain[ear]        += gain_step[ear];
-            render->coefficient[ear] += coeff_step[ear];
+            render->gain[ear]         += gain_step[ear];
+            render->coefficient[ear]  += coeff_step[ear];
+            render->delay_frames[ear] += delay_step[ear];
         }
 
-        render->write_index = (render->write_index + 1) % NYA_AUDIO_PAN_MAX_DELAY_FRAMES;
+        render->write_index = (render->write_index + 1) & mask;
     }
 
-    // land exactly on the target, since the per-frame sum drifts.
-    render->gain[0]        = target_gain[0];
-    render->gain[1]        = target_gain[1];
-    render->coefficient[0] = target_coeff[0];
-    render->coefficient[1] = target_coeff[1];
-
-    // a decaying one pole reaches denormals; flush them once inaudible.
+    // land exactly on the target, since the per-frame sum drifts, and flush the one pole's denormals.
     for (s32 ear = 0; ear < 2; ear++) {
+        render->gain[ear]         = target_gain[ear];
+        render->coefficient[ear]  = target_coeff[ear];
+        render->delay_frames[ear] = target_frames[ear];
         if (fabsf(render->shadow_state[ear]) < 1e-20F) render->shadow_state[ear] = 0.0F;
     }
+
+    nya_assert(render->write_index <= mask);
 }
 
 /*

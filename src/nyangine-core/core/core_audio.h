@@ -308,8 +308,10 @@ NYA_API NYA_AudioListener3D nya_audio_listener_3d_get(void) __attr_no_discard;
  * });
  * ```
  *
- * SDL_mixer mixes positional playback down to mono. For a clip whose stereo image matters, use
- * nya_audio_play_sound_with and a pan.
+ * On a stereo device every positioned sound goes through our own panner, core_audio_panner.h: a level
+ * and time difference between the ears and a head shadow, from the source's azimuth, over an inverse
+ * distance falloff. Any other layout falls back to SDL_mixer's placement. Either way the clip is heard as a
+ * point, folded to mono; for a clip whose stereo image matters, use nya_audio_play_sound_with and a pan.
  * */
 NYA_API NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f32x2 world_position, NYA_SoundParams params);
 
@@ -326,17 +328,6 @@ NYA_API NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f3
  * ```
  * */
 NYA_API NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle, f32x3 world_position, NYA_SoundParams params);
-
-/**
- * Turns our own stereo panner on for positioned sounds. Off by default, where SDL_mixer places them as
- * before. On, and on a stereo device, nya_audio_play_sound_at, nya_audio_play_sound_at_3d and the
- * nya_audio_voice_set_world_position setters are placed by the panner instead: an interaural level and time
- * difference and a head shadow, from the source's azimuth. See core_audio_panner.h for the model. The
- * explicit nya_audio_voice_set_pan and nya_audio_voice_set_position stay SDL_mixer's, and a non-stereo
- * device falls back to it too.
- * */
-NYA_API void nya_audio_panner_set_enabled(b8 enabled);
-NYA_API b8   nya_audio_panner_enabled(void) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────
