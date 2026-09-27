@@ -5,9 +5,9 @@
  * predict their own paddle and interpolate everyone else's.
  *
  * ```
- * ./build run example pong_multiplayer                      # one player, listening on nobody
- * ./pong_multiplayer.example --listen 27015                 # host a game
- * ./pong_multiplayer.example --connect 127.0.0.1 27015      # join it from another terminal
+ * ./build run example pong_multiplayer                         # one player, listening on nobody
+ * ./pong_multiplayer.example --listen 27015                    # host a game
+ * ./pong_multiplayer.example --connect 127.0.0.1 --port 27015  # join it from another terminal
  * ```
  *
  * `w`/`s` or the arrow keys move your paddle.

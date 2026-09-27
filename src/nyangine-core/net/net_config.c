@@ -71,7 +71,7 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
 
         if (port == 0 || port > 65535) {
             nya_log_warn("--listen %llu is not a usable port; not listening.", (unsigned long long)port);
-        return true;
+            return true;
         }
 
         config->listen_port = (u16)port;
@@ -81,7 +81,7 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
     if (nya_string_equals(name, "name")) {
         if (value == nullptr || value[0] == '\0') {
             nya_log_warn("--name needs a value; keeping '%s'.", config->name);
-        return true;
+            return true;
         }
 
         // Truncated rather than refused: a name is cosmetic, so a long one is shortened rather than rejected.
@@ -101,7 +101,8 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
     }
 
     if (nya_string_equals(name, "server-key")) {
-        if (!nya_net_key_from_hex(value, config->server_key)) nya_log_warn("--server-key needs 64 hex digits; trusting the first key the server presents.");
+        if (!nya_net_key_from_hex(value, config->server_key))
+            nya_log_warn("--server-key needs 64 hex digits; trusting the first key the server presents.");
         return true;
     }
 
@@ -133,12 +134,12 @@ b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_
     if (nya_string_equals(name, "transport")) {
         if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_STEAM)) {
             config->transport = NYA_NET_TRANSPORT_STEAM;
-        return true;
+            return true;
         }
 
         if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_UDP)) {
             config->transport = NYA_NET_TRANSPORT_UDP;
-        return true;
+            return true;
         }
 
         nya_log_warn("--transport takes '%s' or '%s'; using udp.", NYA_NET_JOIN_SCHEME_UDP, NYA_NET_JOIN_SCHEME_STEAM);
@@ -163,7 +164,7 @@ void nya_net_config_finish(NYA_NetLaunchConfig* config) {
     if (config->dedicated && wants_connect) {
         nya_log_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
 
-        wants_connect     = false;
+        wants_connect      = false;
         config->address[0] = '\0';
     }
 
@@ -229,8 +230,14 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
     const NYA_NetConditions* bad = &config->conditions;
 
     if (nya_net_conditions_active(*bad)) {
-        nya_log_warn("Simulating a bad network: %u ms latency, %u ms jitter, %.1f%% loss, %.1f%% duplicated, %.1f%% reordered.", bad->latency_ms, bad->jitter_ms,
-                     (f64)bad->loss_percent, (f64)bad->duplicate_percent, (f64)bad->reorder_percent);
+        nya_log_warn(
+            "Simulating a bad network: %u ms latency, %u ms jitter, %.1f%% loss, %.1f%% duplicated, %.1f%% reordered.",
+            bad->latency_ms,
+            bad->jitter_ms,
+            (f64)bad->loss_percent,
+            (f64)bad->duplicate_percent,
+            (f64)bad->reorder_percent
+        );
     }
 
     if (config->role == NYA_NET_ROLE_CLIENT) {
@@ -249,8 +256,11 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
     }
 
     if (config->dedicated) {
-        nya_log_info("Dedicated server on port %u, up to %u players.", config->listen_port,
-                 config->max_players == 0 ? NYA_NET_MAX_PEERS : config->max_players);
+        nya_log_info(
+            "Dedicated server on port %u, up to %u players.",
+            config->listen_port,
+            config->max_players == 0 ? NYA_NET_MAX_PEERS : config->max_players
+        );
         return;
     }
 
