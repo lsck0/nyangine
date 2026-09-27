@@ -356,6 +356,22 @@ u32 nya_cache_count(const NYA_Cache* cache)
 u32 nya_cache_capacity(const NYA_Cache* cache)
 ```
 
+### base_capture.h
+
+A recording tap, in test builds only: what a boundary really received, for a simulation to replay.
+
+```c
+// types
+struct NYA_CaptureRecord { u8 bytes[NYA_CAPTURE_RECORD_MAX_BYTES]; u32 size; u32 session; u32 lane; }
+struct NYA_Capture { NYA_CaptureRecord records[NYA_CAPTURE_RECORDS]; u64 taken; }  // Zero is an empty tap.
+
+// functions
+void nya_capture_record(NYA_Capture* capture, u32 session, u32 lane, const u8* data, u64 size)  // Keeps `data`, cut to NYA_CAPTURE_RECORD_MAX_BYTES, over the oldest record once the ring is full.
+void nya_capture_clear(NYA_Capture* capture)  // Forgets every record, so a run that starts here replays only what it captured itself.
+u64 nya_capture_count(const NYA_Capture* capture)  // Records held, at most NYA_CAPTURE_RECORDS.
+const NYA_CaptureRecord* nya_capture_at(const NYA_Capture* capture, u64 index)  // The `index`th record held, oldest first.
+```
+
 ### base_ceiling.h
 
 ```c
@@ -5167,6 +5183,7 @@ struct NYA_NetPeerStats { f32 rtt_ms; f32 jitter_ms; f32 packet_loss; u64 bytes_
 struct NYA_NetConditions { u32 latency_ms; u32 jitter_ms; f32 loss_percent; f32 duplicate_percent; f32 reorder_percent; }  // A bad network on purpose, applied to what one endpoint sends.
 struct NYA_NetUdpOptions { NYA_NetKeyPair identity; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetConditions conditions; }  // How a UDP transport identifies itself and whom it trusts.
 struct NYA_NetAllowlist { u8 keys[NYA_NET_ALLOWLIST_MAX][NYA_NET_KEY_SIZE]; u32 count; b8 closed; }  // The player keys a server admits, checked at the handshake before a peer gets a slot.
+typedef struct { u8* data; u64 size; NYA_NetChannel channel; } NYA_NetLoopbackMessage  // One message a loopback end was sent and has not polled yet.
 struct NYA_NetTransportVTable { NYA_ConstCString name; NYA_NetTransportKind kind; NYA_Error (*listen)(NYA_NetTransport* transport, u16 port); u16 (*port)(NYA_NetTransport* transport); NYA_Error (*connect)(NYA_NetTransport* transport, NYA_ConstCString address, u16 port); NYA_Error (*send)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size); void (*flush)(NYA_NetTransport* transport); b8 (*poll)(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event); void (*disconnect)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason); NYA_NetPeerStats (*stats)(NYA_NetTransport* transport, NYA_NetPeerId peer); NYA_ConstCString (*peer_address)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*condition)(NYA_NetTransport* transport, NYA_NetConditions conditions); const u8* (*public_key)(NYA_NetTransport* transport); const u8* (*peer_key)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*destroy)(NYA_NetTransport* transport); }  // What every transport implements.
 struct NYA_NetTransport { const NYA_NetTransportVTable* vtable; NYA_Arena* allocator; void* state; NYA_NetAllowlist allowlist; }  // One transport instance.
 
@@ -5193,6 +5210,10 @@ void nya_net_allowlist_remove(NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_
 b8 nya_net_allowlist_contains(const NYA_NetAllowlist* allowlist, const u8 key[NYA_NET_KEY_SIZE])  // Whether `key` is listed, whether or not the list is closed.
 b8 nya_net_allowlist_admits(const NYA_NetAllowlist* allowlist, const u8* key)  // Whether a peer presenting `key` may connect: anyone to an open list, a listed key to a closed one.
 b8 nya_net_transport_is_local(const NYA_NetTransport* transport)  // Whether this transport's peers are in the same process.
+NYA_Error nya_net_transport_loopback_wire_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b)
+NYA_ArrayᐸNYA_NetLoopbackMessageᐳ* nya_net_loopback_inbox(NYA_NetTransport* transport)
+NYA_Capture* nya_net_loopback_capture(void)  // Every message a loopback end has sent, as it was sent.
+u32 nya_net_loopback_session(const NYA_NetTransport* transport)  // The session `transport`'s pair records under in nya_net_loopback_capture.
 ```
 
 ### net_types.h
@@ -5321,6 +5342,7 @@ void nya_net_server_stop(void)
 b8 nya_net_server_running(void)
 NYA_Error nya_net_server_listen(u16 port)  // Starts accepting players over UDP on `port`.
 NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port)  // Starts accepting players over `kind`.
+NYA_Error nya_net_server_listen_transport(NYA_NetTransport* transport)  // Starts accepting players over `transport`, one the caller already made and listened with.
 b8 nya_net_server_is_listening(void)  // Whether a socket is open.
 u16 nya_net_server_port(void)  // The port players reach this server on, or zero when it is not listening.
 const u8* nya_net_server_public_key(void)  // The key players pin to be sure they reached this server, or null until it listens.
@@ -6007,6 +6029,7 @@ const NYA_HttpRouter* nya_http_server_router_at(u32 index)
 void nya_http_server_shutdown(void)
 b8 nya_http_server_is_shutting_down(void)  // Whether a graceful shutdown has begun.
 b8 nya_http_server_shutdown_is_complete(void)  // Whether a graceful shutdown has finished: every connection drained, or the deadline reached.
+NYA_Capture* nya_http_server_capture(void)  // Every request the server parsed, as the bytes it arrived as, for a simulation to replay corrupted.
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Reads a signing secret out of the environment variable `variable`.
 ```
 
@@ -8120,6 +8143,7 @@ NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress ad
 NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, OUT NYA_OsSocket* out_socket, OUT NYA_OsAddress* out_from)  // Takes the next waiting connection, non-blocking.
 NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, OUT NYA_OsSocket* out_socket)  // Starts connecting a stream socket to `address`.
 void nya_os_socket_close(NYA_OsSocket socket)  // Closes a socket.
+void nya_os_socket_close_send(NYA_OsSocket socket)  // Says this end will send nothing more, and keeps reading.
 NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size)  // Sends one datagram to `to`.
 NYA_OsSocketStatus nya_os_socket_receive_from(NYA_OsSocket socket, OUT u8* out_data, u64 capacity, OUT u64* out_size, OUT NYA_OsAddress* out_from)  // Takes the next datagram waiting, into `out_data`.
 NYA_OsSocketStatus nya_os_socket_send(NYA_OsSocket socket, const u8* data, u64 size, OUT u64* out_sent)  // Writes what the host will take of `data`, which may be none of it and is often not all of it.
