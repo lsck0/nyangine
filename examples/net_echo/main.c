@@ -67,6 +67,7 @@ typedef struct {
     NYA_NetPeerId peer;
 
     u32 received;
+    u32 sent;
     b8  finished;
 } Endpoint;
 
@@ -83,11 +84,19 @@ NYA_INTERNAL void message_copy(const NYA_NetTransportEvent* event, OUT char* out
     out[length] = '\0';
 }
 
+/** Queues one reliable message to `peer`, counting it. */
+NYA_INTERNAL void endpoint_say(NYA_NetTransport* transport, Endpoint* endpoint, NYA_NetPeerId peer, NYA_ConstCString message) {
+    NYA_Error sent = nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, (const u8*)message, strlen(message));
+
+    if (sent.ok) endpoint->sent++;
+    if (!sent.ok) nya_log_warn("%s: could not send: %s", endpoint->label, (NYA_ConstCString)sent.message);
+}
+
 /**
  * Drains one transport, answers what it hears, and records what it saw.
  *
- * The server echoes; the client counts and stops at ROUNDS. One function for both, because the two
- * differ only in what they say back.
+ * The server echoes the message and adds a pong; the client counts pongs and stops at ROUNDS. The
+ * echo and the pong are two messages, and the flush at the end sends them as one datagram.
  * */
 NYA_INTERNAL void endpoint_pump(NYA_NetTransport* transport, Endpoint* endpoint, b8 is_server) {
     nya_assert(transport != nullptr);
@@ -104,38 +113,37 @@ NYA_INTERNAL void endpoint_pump(NYA_NetTransport* transport, Endpoint* endpoint,
                 nya_log_info("%s: %s connected.", endpoint->label, nya_net_transport_peer_address(transport, event.peer));
 
                 // The client speaks first; the server has nothing to say until it is spoken to.
-                if (!is_server) {
-                    char opening[MESSAGE_MAX];
-                    (void)snprintf(opening, sizeof(opening), "ping 1");
-
-                    NYA_Error sent = nya_net_transport_send(transport, event.peer, NYA_NET_CHANNEL_RELIABLE, (const u8*)opening, strlen(opening));
-                    if (!sent.ok) nya_log_warn("%s: could not send: %s", endpoint->label, (NYA_ConstCString)sent.message);
-                }
+                if (!is_server) endpoint_say(transport, endpoint, event.peer, "ping 1");
             } break;
 
             case NYA_NET_TRANSPORT_EVENT_MESSAGE: {
                 char message[MESSAGE_MAX];
                 message_copy(&event, message, sizeof(message));
 
-                endpoint->received++;
                 nya_log_info("%s: <- %s", endpoint->label, message);
 
-                char reply[MESSAGE_MAX];
+                char reply[MESSAGE_MAX + 8];
 
                 if (is_server) {
+                    endpoint->received++;
+
+                    (void)snprintf(reply, sizeof(reply), "echo %s", message);
+                    endpoint_say(transport, endpoint, event.peer, reply);
+
                     (void)snprintf(reply, sizeof(reply), "pong %u", endpoint->received);
-                } else {
-                    // ROUNDS replies is the whole conversation. Leaving is main's job: dropping the peer here would release the slot the stats below are read from, and the report would be all zeroes.
+                    endpoint_say(transport, endpoint, event.peer, reply);
+                } else if (strncmp(message, "pong", 4) == 0) {
+                    endpoint->received++;
+
+                    // ROUNDS pongs is the whole conversation. Leaving is main's job: dropping the peer here would release the slot the stats below are read from, and the report would be all zeroes.
                     if (endpoint->received >= ROUNDS) {
                         endpoint->finished = true;
                         break;
                     }
 
                     (void)snprintf(reply, sizeof(reply), "ping %u", endpoint->received + 1);
+                    endpoint_say(transport, endpoint, event.peer, reply);
                 }
-
-                NYA_Error sent = nya_net_transport_send(transport, event.peer, NYA_NET_CHANNEL_RELIABLE, (const u8*)reply, strlen(reply));
-                if (!sent.ok) nya_log_warn("%s: could not reply: %s", endpoint->label, (NYA_ConstCString)sent.message);
             } break;
 
             case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: {
@@ -148,6 +156,9 @@ NYA_INTERNAL void endpoint_pump(NYA_NetTransport* transport, Endpoint* endpoint,
             default: break;
         }
     }
+
+    // Once per pump, after the last send: what was said to one peer since the last flush leaves as one datagram.
+    nya_net_transport_flush(transport);
 }
 
 /** One line of what the link cost, from the transport's own counters. */
@@ -163,8 +174,9 @@ NYA_INTERNAL void endpoint_report(NYA_NetTransport* transport, const Endpoint* e
 
     NYA_NetPeerStats stats = nya_net_transport_stats(transport, endpoint->peer);
 
-    nya_log_info("%s: %u messages, %llu bytes sent, %llu received, rtt %.1f ms.", endpoint->label, endpoint->received,
-                 (unsigned long long)stats.bytes_sent, (unsigned long long)stats.bytes_received, (f64)stats.rtt_ms);
+    nya_log_info("%s: %u messages in, %u out in %llu datagrams, %llu bytes sent, %llu received, rtt %.1f ms.", endpoint->label, endpoint->received,
+                 endpoint->sent, (unsigned long long)stats.packets_sent, (unsigned long long)stats.bytes_sent, (unsigned long long)stats.bytes_received,
+                 (f64)stats.rtt_ms);
 }
 
 /* MAIN */

@@ -89,7 +89,7 @@ struct NYA_NetPeerStats {
     /** Reliable messages resent because they were not acknowledged in time. */
     u64 retransmits;
 
-    /** Packets from this peer's address that failed authentication or replayed a sequence, dropped unread. */
+    /** Packets from this peer's address that failed authentication, replayed a sequence or were malformed, dropped unread. */
     u64 packets_rejected;
 
     /** The newest snapshot's size in bytes: sent, on the server, or received, on a client. */
@@ -152,6 +152,9 @@ struct NYA_NetTransportVTable {
 
     /** Queues a message. Returning an error means the peer is unusable, not that the message was refused. */
     NYA_Error (*send)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size);
+
+    /** Puts on the wire what send queued. Null for a transport whose send does not wait. */
+    void (*flush)(NYA_NetTransport* transport);
 
     /**
      * Drains one event. False when there are none left.
@@ -228,6 +231,13 @@ NYA_API u16 nya_net_transport_port(NYA_NetTransport* transport) __attr_no_discar
 
 NYA_API NYA_Error nya_net_transport_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port) __attr_no_discard;
 NYA_API NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size) __attr_no_discard;
+
+/**
+ * Sends what nya_net_transport_send queued since the last flush. UDP gathers every message bound for one peer into
+ * as few datagrams as hold them, so a tick's snapshot, events and resends share one header and one tag; poll flushes
+ * too, so this only saves the wait until then. Call it once a tick, after the last send.
+ * */
+NYA_API void nya_net_transport_flush(NYA_NetTransport* transport);
 NYA_API b8        nya_net_transport_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event);
 NYA_API void      nya_net_transport_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason);
 NYA_API NYA_NetPeerStats nya_net_transport_stats(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;

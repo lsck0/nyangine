@@ -284,6 +284,9 @@ void nya_net_client_tick(u64 tick, f32 delta_time_s) {
     _nya_net_client_drain(delta_time_s);
 
     if (_NYA_NET_CLIENT.state == NYA_NET_CLIENT_PLAYING) _nya_net_client_send_command(tick, delta_time_s);
+
+    // the drain may have ended the connection, and the transport with it.
+    if (_NYA_NET_CLIENT.transport != nullptr) nya_net_transport_flush(_NYA_NET_CLIENT.transport);
 }
 
 NYA_EntityHandle nya_net_client_entity(void) {

@@ -58,6 +58,13 @@ NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer
     return transport->vtable->send(transport, peer, channel, data, size);
 }
 
+void nya_net_transport_flush(NYA_NetTransport* transport) {
+    nya_assert(transport != nullptr);
+    nya_assert(transport->vtable != nullptr);
+
+    if (transport->vtable->flush != nullptr) transport->vtable->flush(transport);
+}
+
 b8 nya_net_transport_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event) {
     nya_assert(transport != nullptr);
     nya_assert(transport->vtable != nullptr);

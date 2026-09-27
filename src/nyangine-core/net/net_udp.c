@@ -6,8 +6,9 @@
 // THE WIRE FORMAT
 
 // The wire format: cookie-authenticated handshake (CONNECT/CHALLENGE/RESPONSE/ACCEPT/REFUSED) taking no server state until a valid RESPONSE, then sealed packets whose wire sequence is the low 16 bits of the 64-bit nonce counter; replays are dropped before decryption. See net_crypto.h for the keys.
+// A sealed packet's body is a bundle: every message queued for that peer since the last flush, so the 28 bytes of header and tag are paid once per datagram rather than once per message.
 
-#define _NYA_NET_UDP_PROTOCOL 0x6E796106U /* "nya" + version 6 */
+#define _NYA_NET_UDP_PROTOCOL 0x6E796107U /* "nya" + version 7 */
 
 /** How long destroying a transport waits for a hostname it is still resolving, bounded so a mid-lookup close cannot stall the program. */
 #define _NYA_NET_UDP_RESOLVE_WAIT_MS 1000
@@ -33,8 +34,13 @@
 #define _NYA_NET_UDP_HEADER_SIZE          12
 #define _NYA_NET_UDP_FRAGMENT_HEADER_SIZE 9
 
-/** Payload bytes one fragment may carry in a full datagram. */
-#define _NYA_NET_UDP_FRAGMENT_PAYLOAD (NYA_NET_MAX_DATAGRAM - _NYA_NET_UDP_HEADER_SIZE - _NYA_NET_MAC_SIZE - _NYA_NET_UDP_FRAGMENT_HEADER_SIZE)
+/** A message that fits one datagram says so in its channel byte and carries only its id and length: 5 bytes, not 9. */
+#define _NYA_NET_UDP_WHOLE             0x80
+#define _NYA_NET_UDP_WHOLE_HEADER_SIZE 5
+
+/** What one sealed packet's body holds, and the payload one piece of a split message carries in it. */
+#define _NYA_NET_UDP_BODY_MAX         (NYA_NET_MAX_DATAGRAM - _NYA_NET_UDP_HEADER_SIZE - _NYA_NET_MAC_SIZE)
+#define _NYA_NET_UDP_FRAGMENT_PAYLOAD (_NYA_NET_UDP_BODY_MAX - _NYA_NET_UDP_FRAGMENT_HEADER_SIZE)
 
 /** The nonce ACCEPT is sealed with. Data counters start at one and never get near it. */
 #define _NYA_NET_UDP_ACCEPT_COUNTER U64_MAX
@@ -193,6 +199,11 @@ typedef struct {
     b8  ack_pending;
     u64 ack_requested_ms;
 
+    /** The bundle being gathered for this peer: fragments appended by send and resend, sealed as one packet by a flush. */
+    u8  outgoing[_NYA_NET_UDP_BODY_MAX];
+    u16 outgoing_size;
+    u8  outgoing_count;
+
     NYA_NetPeerStats stats;
 
     /** Moving averages behind stats.rtt_ms, stats.jitter_ms and stats.packet_loss. */
@@ -315,6 +326,7 @@ NYA_INTERNAL NYA_Error        _nya_net_udp_listen(NYA_NetTransport* transport, u
 NYA_INTERNAL u16              _nya_net_udp_port(NYA_NetTransport* transport);
 NYA_INTERNAL NYA_Error        _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port);
 NYA_INTERNAL NYA_Error        _nya_net_udp_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size);
+NYA_INTERNAL void             _nya_net_udp_flush(NYA_NetTransport* transport);
 NYA_INTERNAL b8               _nya_net_udp_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event);
 NYA_INTERNAL void             _nya_net_udp_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason);
 NYA_INTERNAL NYA_NetPeerStats _nya_net_udp_stats(NYA_NetTransport* transport, NYA_NetPeerId peer);
@@ -343,16 +355,32 @@ NYA_INTERNAL void _nya_net_udp_handle_accept(NYA_NetTransport* transport, u32 pe
 /** One sealed packet from an established peer. Decrypted in place. */
 NYA_INTERNAL void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, u8* data, u64 size);
 
-/** Resends whatever reliable messages are due. */
-NYA_INTERNAL void _nya_net_udp_flush(NYA_NetTransport* transport, u32 peer_index);
+/** Queues whatever reliable messages are due to be sent again. */
+NYA_INTERNAL void _nya_net_udp_resend(NYA_NetTransport* transport, u32 peer_index);
 
 /** Seals and sends the packet whose body is already at send_buffer + _NYA_NET_UDP_HEADER_SIZE. */
 NYA_INTERNAL void _nya_net_udp_send_packet(NYA_NetTransport* transport, u32 peer_index, u8 kind, u8 fragment_count, u64 body_size);
 
-/** Appends one fragment's header and bytes to the body at send_buffer + _NYA_NET_UDP_HEADER_SIZE + `at`, returning the new end. */
-NYA_INTERNAL u64 _nya_net_udp_write_fragment(
-    _NYA_NetUdpState* state, u64 at, NYA_NetChannel channel, u16 message_id, u16 index, u16 total, const u8* data, u16 size
+/** Adds one fragment to the peer's bundle, sending the bundle first when the fragment would not fit beside it. */
+NYA_INTERNAL void _nya_net_udp_append(
+    NYA_NetTransport* transport, u32 peer_index, NYA_NetChannel channel, u16 message_id, u16 index, u16 total, const u8* data, u16 size
 );
+
+/** Seals and sends the peer's bundle as one packet, when there is one. */
+NYA_INTERNAL void _nya_net_udp_flush_peer(NYA_NetTransport* transport, u32 peer_index);
+
+/** One fragment as the wire carried it. */
+typedef struct {
+    u8        channel;
+    u16       message_id;
+    u16       index;
+    u16       total;
+    u16       length;
+    const u8* data;
+} _NYA_NetUdpFragment;
+
+/** Reads the fragment at `*at` and moves past it. False for anything malformed; nothing past `body_size` is read. */
+NYA_INTERNAL b8 _nya_net_udp_read_fragment(const u8* body, u64 body_size, u64* at, OUT _NYA_NetUdpFragment* out_fragment) __attr_no_discard;
 
 /** Sends one datagram, or hands it to the conditioner. */
 NYA_INTERNAL void _nya_net_udp_transmit(_NYA_NetUdpState* state, NYA_OsAddress address, const u8* data, u64 size);
@@ -446,6 +474,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_UDP_VTABLE = {
     .port         = &_nya_net_udp_port,
     .connect      = &_nya_net_udp_connect,
     .send         = &_nya_net_udp_send,
+    .flush        = &_nya_net_udp_flush,
     .poll         = &_nya_net_udp_poll,
     .disconnect   = &_nya_net_udp_disconnect,
     .stats        = &_nya_net_udp_stats,
@@ -608,6 +637,8 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
         if (!state->peers[i].occupied) continue;
 
         if (state->peers[i].established) {
+            _nya_net_udp_flush_peer(transport, i);
+
             state->send_buffer[_NYA_NET_UDP_HEADER_SIZE] = (u8)NYA_NET_DISCONNECT_SERVER_CLOSED;
             _nya_net_udp_send_packet(transport, i, _NYA_NET_UDP_KIND_DISCONNECT, 0, 1);
         }
@@ -674,19 +705,18 @@ NYA_Error _nya_net_udp_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA
 
         nya_array_push_back(connection->outgoing_reliable, ((_NYA_NetUdpReliable){ .message_id = message_id, .data = copy, .size = size }));
 
-        _nya_net_udp_flush(transport, index);
+        _nya_net_udp_resend(transport, index);
 
         return NYA_OK;
     }
 
-    // unreliable goes out immediately and is never kept.
+    // unreliable goes into the bundle and is never kept.
     u64 offset = 0;
 
     for (u16 fragment = 0; fragment < (u16)fragments; fragment++) {
         u16 chunk = (u16)nya_min((u64)_NYA_NET_UDP_FRAGMENT_PAYLOAD, size - offset);
 
-        u64 body = _nya_net_udp_write_fragment(state, 0, channel, message_id, fragment, (u16)fragments, data + offset, chunk);
-        _nya_net_udp_send_packet(transport, index, _NYA_NET_UDP_KIND_DATA, 1, body);
+        _nya_net_udp_append(transport, index, channel, message_id, fragment, (u16)fragments, data + offset, chunk);
 
         offset += chunk;
     }
@@ -694,7 +724,15 @@ NYA_Error _nya_net_udp_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA
     return NYA_OK;
 }
 
-void _nya_net_udp_flush(NYA_NetTransport* transport, u32 peer_index) {
+void _nya_net_udp_flush(NYA_NetTransport* transport) {
+    _NYA_NetUdpState* state = transport->state;
+
+    for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
+        if (state->peers[i].occupied && state->peers[i].established) _nya_net_udp_flush_peer(transport, i);
+    }
+}
+
+void _nya_net_udp_resend(NYA_NetTransport* transport, u32 peer_index) {
     _NYA_NetUdpState* state      = transport->state;
     _NYA_NetUdpPeer*  connection = &state->peers[peer_index];
 
@@ -712,9 +750,7 @@ void _nya_net_udp_flush(NYA_NetTransport* transport, u32 peer_index) {
         for (u16 fragment = 0; fragment < (u16)fragments; fragment++) {
             u16 chunk = (u16)nya_min((u64)_NYA_NET_UDP_FRAGMENT_PAYLOAD, pending->size - offset);
 
-            u64 body = _nya_net_udp_write_fragment(state, 0, NYA_NET_CHANNEL_RELIABLE, pending->message_id, fragment, (u16)fragments,
-                                                   pending->data + offset, chunk);
-            _nya_net_udp_send_packet(transport, peer_index, _NYA_NET_UDP_KIND_DATA, 1, body);
+            _nya_net_udp_append(transport, peer_index, NYA_NET_CHANNEL_RELIABLE, pending->message_id, fragment, (u16)fragments, pending->data + offset, chunk);
 
             offset += chunk;
         }
@@ -724,20 +760,91 @@ void _nya_net_udp_flush(NYA_NetTransport* transport, u32 peer_index) {
     }
 }
 
-u64 _nya_net_udp_write_fragment(_NYA_NetUdpState* state, u64 at, NYA_NetChannel channel, u16 message_id, u16 index, u16 total, const u8* data, u16 size) {
-    nya_assert(_NYA_NET_UDP_HEADER_SIZE + at + _NYA_NET_UDP_FRAGMENT_HEADER_SIZE + size + _NYA_NET_MAC_SIZE <= NYA_NET_MAX_DATAGRAM);
+void _nya_net_udp_append(
+    NYA_NetTransport* transport, u32 peer_index, NYA_NetChannel channel, u16 message_id, u16 index, u16 total, const u8* data, u16 size
+) {
+    _NYA_NetUdpState* state      = transport->state;
+    _NYA_NetUdpPeer*  connection = &state->peers[peer_index];
 
-    u8* out = state->send_buffer + _NYA_NET_UDP_HEADER_SIZE + at;
+    b8  whole  = total == 1;
+    u64 header = whole ? _NYA_NET_UDP_WHOLE_HEADER_SIZE : _NYA_NET_UDP_FRAGMENT_HEADER_SIZE;
 
-    out[0] = (u8)channel;
+    nya_assert(size > 0 && index < total);
+    nya_assert(header + size <= _NYA_NET_UDP_BODY_MAX);
+
+    if (connection->outgoing_size + header + size > _NYA_NET_UDP_BODY_MAX) _nya_net_udp_flush_peer(transport, peer_index);
+
+    // a byte of payload and five of header at the least, so a bundle holds at most 195 and the count fits its byte.
+    nya_assert(connection->outgoing_count < U8_MAX);
+
+    u8* out = connection->outgoing + connection->outgoing_size;
+
+    out[0] = (u8)channel | (whole ? _NYA_NET_UDP_WHOLE : 0);
     _nya_net_udp_write_u16(out + 1, message_id);
-    _nya_net_udp_write_u16(out + 3, index);
-    _nya_net_udp_write_u16(out + 5, total);
-    _nya_net_udp_write_u16(out + 7, size);
 
-    nya_memcpy(out + _NYA_NET_UDP_FRAGMENT_HEADER_SIZE, data, size);
+    if (whole) {
+        _nya_net_udp_write_u16(out + 3, size);
+    } else {
+        _nya_net_udp_write_u16(out + 3, index);
+        _nya_net_udp_write_u16(out + 5, total);
+        _nya_net_udp_write_u16(out + 7, size);
+    }
 
-    return at + _NYA_NET_UDP_FRAGMENT_HEADER_SIZE + size;
+    nya_memcpy(out + header, data, size);
+
+    connection->outgoing_size = (u16)(connection->outgoing_size + header + size);
+    connection->outgoing_count++;
+
+    nya_assert(connection->outgoing_size <= _NYA_NET_UDP_BODY_MAX);
+}
+
+void _nya_net_udp_flush_peer(NYA_NetTransport* transport, u32 peer_index) {
+    _NYA_NetUdpState* state      = transport->state;
+    _NYA_NetUdpPeer*  connection = &state->peers[peer_index];
+
+    if (connection->outgoing_count == 0) return;
+
+    nya_memcpy(state->send_buffer + _NYA_NET_UDP_HEADER_SIZE, connection->outgoing, connection->outgoing_size);
+    _nya_net_udp_send_packet(transport, peer_index, _NYA_NET_UDP_KIND_DATA, connection->outgoing_count, connection->outgoing_size);
+
+    connection->outgoing_size  = 0;
+    connection->outgoing_count = 0;
+}
+
+b8 _nya_net_udp_read_fragment(const u8* body, u64 body_size, u64* at, OUT _NYA_NetUdpFragment* out_fragment) {
+    nya_assert(*at <= body_size);
+
+    if (body_size - *at < _NYA_NET_UDP_WHOLE_HEADER_SIZE) return false;
+
+    const u8* in     = body + *at;
+    b8        whole  = (in[0] & _NYA_NET_UDP_WHOLE) != 0;
+    u64       header = whole ? _NYA_NET_UDP_WHOLE_HEADER_SIZE : _NYA_NET_UDP_FRAGMENT_HEADER_SIZE;
+
+    // the bits between the channel and the flag mean nothing yet, so a byte using them is refused rather than guessed at.
+    if ((in[0] & 0x70) != 0 || body_size - *at < header) return false;
+
+    _NYA_NetUdpFragment fragment = {
+        .channel    = in[0] & 0x0F,
+        .message_id = _nya_net_udp_read_u16(in + 1),
+        .index      = whole ? 0 : _nya_net_udp_read_u16(in + 3),
+        .total      = whole ? 1 : _nya_net_udp_read_u16(in + 5),
+        .length     = _nya_net_udp_read_u16(in + (whole ? 3 : 7)),
+        .data       = in + header,
+    };
+
+    if (fragment.channel >= NYA_NET_CHANNEL_COUNT) return false;
+    if (fragment.total == 0 || fragment.total > _NYA_NET_UDP_MAX_FRAGMENTS || fragment.index >= fragment.total) return false;
+    if (fragment.length > body_size - *at - header) return false;
+
+    // the declared total size is bounded, not just the fragment count, and no piece of a split message is longer than a piece.
+    if (fragment.total > 1 && ((u64)fragment.total * _NYA_NET_UDP_FRAGMENT_PAYLOAD > _NYA_NET_UDP_MAX_MESSAGE || fragment.length > _NYA_NET_UDP_FRAGMENT_PAYLOAD)) {
+        return false;
+    }
+
+    *at += header + fragment.length;
+    *out_fragment = fragment;
+
+    return true;
 }
 
 void _nya_net_udp_send_packet(NYA_NetTransport* transport, u32 peer_index, u8 kind, u8 fragment_count, u64 body_size) {
@@ -1283,32 +1390,37 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, u8*
 
     if (kind != _NYA_NET_UDP_KIND_DATA) return;
 
+    // authenticated is not the same as well formed: the whole bundle is checked before any of it is acted on, so a bad tail leaves nothing half delivered.
+    u64 at          = 0;
+    b8  well_formed = true;
+
+    for (u8 i = 0; i < fragment_count && well_formed; i++) {
+        _NYA_NetUdpFragment fragment = { 0 };
+        well_formed                  = _nya_net_udp_read_fragment(body, body_size, &at, &fragment);
+    }
+
+    if (!well_formed || at != body_size) {
+        connection->stats.packets_rejected++;
+        return;
+    }
+
     if (fragment_count > 0 && !connection->ack_pending) {
         connection->ack_pending      = true;
         connection->ack_requested_ms = now_ms;
     }
 
-    u64 at = 0;
+    at = 0;
 
-    for (u8 fragment = 0; fragment < fragment_count; fragment++) {
-        // authenticated is not the same as well formed: every read below stays inside the body.
-        if (at + _NYA_NET_UDP_FRAGMENT_HEADER_SIZE > body_size) return;
+    for (u8 i = 0; i < fragment_count; i++) {
+        _NYA_NetUdpFragment fragment = { 0 };
 
-        u8  channel    = body[at] & 0x0F;
-        u16 message_id = _nya_net_udp_read_u16(body + at + 1);
-        u16 index      = _nya_net_udp_read_u16(body + at + 3);
-        u16 total      = _nya_net_udp_read_u16(body + at + 5);
-        u16 length     = _nya_net_udp_read_u16(body + at + 7);
+        b8 read = _nya_net_udp_read_fragment(body, body_size, &at, &fragment);
+        nya_assert(read, "a fragment of a bundle that was already checked is malformed");
 
-        at += _NYA_NET_UDP_FRAGMENT_HEADER_SIZE;
-
-        if (channel >= NYA_NET_CHANNEL_COUNT) return;
-        if (total == 0 || total > _NYA_NET_UDP_MAX_FRAGMENTS || index >= total) return;
-        if (length > body_size - at) return;
-
-        // the declared total size is bounded, not just the fragment count, and no piece of a split message is longer than a piece.
-        if ((u64)total * _NYA_NET_UDP_FRAGMENT_PAYLOAD > _NYA_NET_UDP_MAX_MESSAGE && total > 1) return;
-        if (total > 1 && length > _NYA_NET_UDP_FRAGMENT_PAYLOAD) return;
+        u8  channel    = fragment.channel;
+        u16 message_id = fragment.message_id;
+        u16 total      = fragment.total;
+        u16 length     = fragment.length;
 
         if (total == 1) {
             // one fragment is the whole message. refused ids are not marked, so their retransmits are not taken for duplicates.
@@ -1325,23 +1437,21 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, u8*
                     }
 
                     u8* copy = nya_arena_alloc(state->allocator, length);
-                    nya_memcpy(copy, body + at, length);
+                    nya_memcpy(copy, fragment.data, length);
 
                     nya_array_push_back(connection->incoming_reliable, ((_NYA_NetUdpReliable){ .message_id = message_id, .data = copy, .size = length }));
 
                     _nya_net_udp_drain_ordered(transport, peer_index);
                 } else if (length > 0) {
-                    _nya_net_udp_deliver(transport, peer_index, (NYA_NetChannel)channel, body + at, length);
+                    _nya_net_udp_deliver(transport, peer_index, (NYA_NetChannel)channel, fragment.data, length);
                 }
             }
         } else {
-            _nya_net_udp_reassemble(transport, peer_index, (NYA_NetChannel)channel, message_id, index, total, body + at, length);
+            _nya_net_udp_reassemble(transport, peer_index, (NYA_NetChannel)channel, message_id, fragment.index, total, fragment.data, length);
 
             // reassembly may have dropped the peer.
             if (!connection->occupied) return;
         }
-
-        at += length;
     }
 }
 
@@ -1605,7 +1715,8 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
             }
         }
 
-        _nya_net_udp_flush(transport, i);
+        _nya_net_udp_resend(transport, i);
+        _nya_net_udp_flush_peer(transport, i);
 
         // a sealed packet with no fragments carries the acks alone: when nothing else has for a while, or to keep a quiet peer alive.
         b8 ack_due = connection->ack_pending && _nya_net_elapsed_ms(now_ms, connection->ack_requested_ms) >= _NYA_NET_UDP_ACK_DELAY_MS;
@@ -1727,6 +1838,9 @@ void _nya_net_udp_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer, NY
     if (index >= NYA_NET_MAX_PEERS) return;
 
     if (state->peers[index].established) {
+        // what was queued goes first: a REJECT followed by the disconnect is how a refused peer learns why.
+        _nya_net_udp_flush_peer(transport, index);
+
         state->send_buffer[_NYA_NET_UDP_HEADER_SIZE] = (u8)reason;
         _nya_net_udp_send_packet(transport, index, _NYA_NET_UDP_KIND_DISCONNECT, 0, 1);
     }

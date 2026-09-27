@@ -10,9 +10,11 @@
 #include <time.h>
 
 /* The wire layout, restated here rather than shared with the implementation. */
-#define PROTOCOL        0x6E796106U
+#define PROTOCOL        0x6E796107U
 #define HEADER_SIZE     12
 #define FRAGMENT_HEADER 9
+#define WHOLE_HEADER    5
+#define WHOLE_FLAG      0x80
 #define MAC_SIZE        16
 #define KEY_SIZE        32
 
@@ -192,6 +194,29 @@ static u64 write_fragment(u8* out, u8 channel, u16 message_id, u16 index, u16 to
   write_u16(out + 7, length);
 
   return FRAGMENT_HEADER;
+}
+
+/** Writes the short header of a message that fits one datagram at `out`, returning its size. */
+static u64 write_whole(u8* out, u8 channel, u16 message_id, u16 length) {
+  out[0] = channel | WHOLE_FLAG;
+  write_u16(out + 1, message_id);
+  write_u16(out + 3, length);
+
+  return WHOLE_HEADER;
+}
+
+/** Pumps a transport like pump, counting the messages it delivers. */
+static u32 pump_count(NYA_NetTransport* transport, u32 times) {
+  u32 messages = 0;
+
+  for (u32 i = 0; i < times; i++) {
+    NYA_NetTransportEvent event = { 0 };
+    while (nya_net_transport_poll(transport, &event)) messages += event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE ? 1 : 0;
+
+    sleep_ms(2);
+  }
+
+  return messages;
 }
 
 /** What the cheating tests move: one entity, stepped by a fixed speed while action 0 is held. */
@@ -390,6 +415,45 @@ s32 main(void) {
     printf("  survived fragments claiming more than the datagram holds\n");
   }
 
+  printf("TEST: a bundle is delivered whole or not at all\n");
+  {
+    const _NYA_NetUdpState* state = server->state;
+    const _NYA_NetUdpPeer*  peer  = &state->peers[newest_peer(server)];
+
+    // ids below the reassembly test's 100, so the duplicate window does not take those for old ones.
+    u8  body[64] = { 0 };
+    u64 good     = write_whole(body, NYA_NET_CHANNEL_UNRELIABLE, 20, 4) + 4;
+    u64 pair     = good + write_whole(body + good, NYA_NET_CHANNEL_UNRELIABLE, 21, 4) + 4;
+
+    // the control: two messages in one sealed packet both arrive, so the refusals below are not a peer that stopped listening.
+    raw_send(&attacker, target, port, KIND_DATA, 2, body, pair);
+    nya_assert_eq(pump_count(server, 4), 2U);
+
+    u64 rejected = peer->stats.packets_rejected;
+
+    // an id nothing has delivered, so each bundle below would hand its first message up if it were accepted.
+    (void)write_whole(body, NYA_NET_CHANNEL_UNRELIABLE, 30, 4);
+    nya_memset(body + good, 0, sizeof(body) - good);
+    raw_send(&attacker, target, port, KIND_DATA, 2, body, good + 3);  // a second header cut short
+    raw_send(&attacker, target, port, KIND_DATA, 2, body, good);      // a count past what the body holds
+    raw_send(&attacker, target, port, KIND_DATA, 1, body, good + 1);  // a byte after the last message
+
+    (void)write_whole(body + good, NYA_NET_CHANNEL_UNRELIABLE, 22, 200);
+    raw_send(&attacker, target, port, KIND_DATA, 2, body, good + WHOLE_HEADER + 4);  // a length past the end
+
+    body[0] |= 0x40;
+    raw_send(&attacker, target, port, KIND_DATA, 1, body, good);  // a flag bit that means nothing
+
+    u32 delivered = pump_count(server, 6);
+
+    printf("  5 malformed bundles, each with a good message first: %u delivered, %llu rejected\n", delivered,
+           (unsigned long long)(peer->stats.packets_rejected - rejected));
+
+    nya_assert_eq(delivered, 0U);
+    nya_assert_eq(peer->stats.packets_rejected - rejected, 5ULL);
+    nya_assert(peer->occupied, "a malformed bundle cost the sender its connection rather than the packet");
+  }
+
   printf("TEST: a forged, tampered or replayed packet is rejected before it is read\n");
   {
     NYA_NetTransport* client = nullptr;
@@ -433,9 +497,10 @@ s32 main(void) {
     // a message the server receives, whose sealed bytes are then replayed and tampered with as if from the client's address.
     u8 payload[24] = { 0x10 };
     NYA_EXPECT(nya_net_transport_send(client, to_server, NYA_NET_CHANNEL_UNRELIABLE, payload, sizeof(payload)));
+    nya_net_transport_flush(client);
 
-    u64 sealed_size = HEADER_SIZE + FRAGMENT_HEADER + sizeof(payload) + MAC_SIZE;
-    u8  sealed[HEADER_SIZE + FRAGMENT_HEADER + sizeof(payload) + MAC_SIZE];
+    u64 sealed_size = HEADER_SIZE + WHOLE_HEADER + sizeof(payload) + MAC_SIZE;
+    u8  sealed[HEADER_SIZE + WHOLE_HEADER + sizeof(payload) + MAC_SIZE];
     nya_memcpy(sealed, client_state->send_buffer, sealed_size);
 
     deadline = nya_clock_get_monotonic_ms() + 2000;

@@ -256,7 +256,7 @@ s32 main(void) {
       // handshake shaped noise from a stranger and from the peer's own address.
       u64 size = 5 + below(120);
       for (u64 i = 0; i < size; i++) input[i] = (u8)roll();
-      _nya_net_udp_write_u32(input, 0x6E796106U);
+      _nya_net_udp_write_u32(input, _NYA_NET_UDP_PROTOCOL);
       input[4] = (u8)below(8);
 
       _nya_net_udp_handle_handshake(server, (iteration & 1) ? slot : NYA_NET_MAX_PEERS, address, input, size);

@@ -121,6 +121,19 @@ static void fill(u8* buffer, u64 size, u8 tag) {
   buffer[size - 1] = (u8)(tag ^ 0xFF);
 }
 
+/** Pumps both ends until the server holds no unacknowledged reliable message for `peer`, so no resend lands inside a measurement. */
+static void settle(NYA_NetTransport* server, NYA_NetTransport* client, NYA_NetPeerId peer) {
+  const _NYA_NetUdpState* state    = server->state;
+  u64                     deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+
+  while (state->peers[peer.index].outgoing_reliable->length > 0 && nya_clock_get_monotonic_ms() < deadline) {
+    pump(client, 1);
+    pump(server, 1);
+  }
+
+  nya_assert_eq(state->peers[peer.index].outgoing_reliable->length, 0ULL);
+}
+
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
@@ -553,6 +566,110 @@ s32 main(void) {
     nya_net_transport_destroy(server);
   }
 
+  printf("TEST: a tick's small messages to one peer share one datagram\n");
+  {
+    NYA_NetTransport* server = nullptr;
+    NYA_NetTransport* client = nullptr;
+
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+    NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", nya_net_transport_port(server)));
+
+    Collected cs = { 0 };
+    Collected cc = { 0 };
+
+    nya_assert(pump_until(client, server, &cc, &cs, both_connected), "the handshake did not complete");
+
+    NYA_NetPeerId to_client = cs.last_peer;
+
+    // a small snapshot, two game events and a roster change: what a quiet server sends one client in a tick.
+    const u64            sizes[]    = { 48, 20, 20, 12 };
+    const NYA_NetChannel channels[] = { NYA_NET_CHANNEL_UNRELIABLE, NYA_NET_CHANNEL_RELIABLE, NYA_NET_CHANNEL_RELIABLE, NYA_NET_CHANNEL_RELIABLE };
+
+    const u32            count      = sizeof(sizes) / sizeof(sizes[0]);
+
+    u64 bundled_expected = _NYA_NET_UDP_HEADER_SIZE + _NYA_NET_MAC_SIZE;
+    u64 version_6_bytes  = 0;
+
+    for (u32 round = 0; round < 2; round++) {
+      settle(server, client, to_client);
+
+      NYA_NetPeerStats before   = nya_net_transport_stats(server, to_client);
+      u32              received = cc.messages;
+
+      for (u32 i = 0; i < count; i++) {
+        u8 message[48];
+        fill(message, sizes[i], (u8)(0x30 + i));
+
+        NYA_EXPECT(nya_net_transport_send(server, to_client, channels[i], message, sizes[i]));
+
+        // the second round puts each message in its own datagram, which is what every send did before bundling.
+        if (round == 1) nya_net_transport_flush(server);
+
+        if (round == 0) bundled_expected += _NYA_NET_UDP_WHOLE_HEADER_SIZE + sizes[i];
+        if (round == 0) version_6_bytes += _NYA_NET_UDP_HEADER_SIZE + _NYA_NET_MAC_SIZE + _NYA_NET_UDP_FRAGMENT_HEADER_SIZE + sizes[i];
+      }
+
+      nya_net_transport_flush(server);
+
+      NYA_NetPeerStats after   = nya_net_transport_stats(server, to_client);
+      u64              packets = after.packets_sent - before.packets_sent;
+      u64              bytes   = after.bytes_sent - before.bytes_sent;
+
+      // an IPv4 and a UDP header on every datagram as well, which the stats do not see.
+      printf("  %s: %llu datagrams, %llu bytes (%llu with IP and UDP)\n", round == 0 ? "bundled" : "one per message", (unsigned long long)packets,
+             (unsigned long long)bytes, (unsigned long long)(bytes + (packets * 28)));
+
+      nya_assert_eq(packets, round == 0 ? 1ULL : (u64)count);
+      if (round == 0) nya_assert_eq(bytes, bundled_expected);
+
+      EXPECTED_MESSAGES = received + count;
+      nya_assert(pump_until(client, server, &cc, &cs, client_got_expected), "a bundled message never arrived");
+
+      for (u32 i = 0; i < count; i++) {
+        nya_assert_eq(cc.sizes[received + i], sizes[i]);
+        nya_assert_eq(cc.first_byte[received + i], (u8)(0x30 + i));
+      }
+    }
+
+    printf("  version 6 sent the same tick as %u datagrams, %llu bytes (%llu with IP and UDP)\n", count, (unsigned long long)version_6_bytes,
+           (unsigned long long)(version_6_bytes + (count * 28ULL)));
+
+    // a message that fills a datagram goes alone; the tail of a split one shares with what follows.
+    settle(server, client, to_client);
+
+    NYA_NetPeerStats before   = nya_net_transport_stats(server, to_client);
+    u32              received = cc.messages;
+
+    const u64 split_size = _NYA_NET_UDP_FRAGMENT_PAYLOAD + 100;
+    u8*       split      = nya_arena_alloc(arena, split_size);
+    u8        small[32];
+
+    fill(split, split_size, 0x71);
+    fill(small, sizeof(small), 0x70);
+    NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, small, sizeof(small)));
+
+    fill(small, sizeof(small), 0x72);
+    NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, split, split_size));
+    NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, small, sizeof(small)));
+    nya_net_transport_flush(server);
+
+    // the small one, the split's full first piece, then its tail with the second small one.
+    nya_assert_eq(nya_net_transport_stats(server, to_client).packets_sent - before.packets_sent, 3ULL);
+
+    EXPECTED_MESSAGES = received + 3;
+    nya_assert(pump_until(client, server, &cc, &cs, client_got_expected), "a message around a split one never arrived");
+
+    nya_assert_eq(cc.sizes[received + 1], split_size);
+    nya_assert_eq(cc.first_byte[received + 0], (u8)0x70);
+    nya_assert_eq(cc.first_byte[received + 1], (u8)0x71);
+    nya_assert_eq(cc.first_byte[received + 2], (u8)0x72);
+
+    nya_net_transport_destroy(client);
+    nya_net_transport_destroy(server);
+  }
+
   printf("TEST: the conditioner delays, duplicates and reorders without breaking delivery\n");
   {
     NYA_NetTransport* server = nullptr;
@@ -611,6 +728,9 @@ s32 main(void) {
       u8 message[64];
       fill(message, sizeof(message), (u8)i);
       NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, message, sizeof(message)));
+
+      // a datagram each, as a tick apart would be: bundled into four, 10% duplication often duplicates none of them.
+      nya_net_transport_flush(server);
     }
 
     u64 phase_started_ms = nya_clock_get_monotonic_ms();

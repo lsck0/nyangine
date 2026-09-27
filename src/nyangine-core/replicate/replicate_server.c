@@ -401,6 +401,9 @@ void nya_net_server_tick(u64 tick, f32 delta_time_s) {
     }
 
     if (tick % _NYA_NET_SERVER.config.snapshot_interval_ticks == 0) _nya_net_server_send_snapshots(tick);
+
+    // one datagram per peer per tick: the snapshot, and whatever events were sent since the last one.
+    if (_NYA_NET_SERVER.udp != nullptr) nya_net_transport_flush(_NYA_NET_SERVER.udp);
 }
 
 u32 nya_net_server_peer_count(void) {

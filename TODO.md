@@ -2157,7 +2157,10 @@ command the server confirmed, follow the server's tick rate and draw replicas wi
 decoder is fuzzed from a fixed seed. Bench, 48 crates and 6 drones: 44.3 to 6.9 kB/s down settled, 10.3 to 3.9
 up. Under 120 ms, 20 ms jitter and 5% loss, prediction converges with no corrections at about 3 kB/s each way.
 
-- `[ ]` One fragment per datagram; 28 bytes per packet overhead dominates small snapshots.
+- `[x]` Messages to one peer share a datagram: send queues, and `nya_net_transport_flush` (once a tick, and on every
+  poll) seals one bundle per peer, checked whole before any of it is delivered. A message that fits one datagram
+  carries a 5 byte header instead of 9. Protocol version 7. A 48 byte snapshot and three small events: 4 datagrams and
+  248 bytes before, 1 and 148 after (360 and 176 with IP and UDP). Bench settled: 6890 to 6650 B/s down, 3947 to 3708 up.
 - `[ ]` Cumulative acks only; lag compensation rewinds to the acknowledged tick, not the render time.
 - `[x]` Hostname resolution no longer blocks: the name is polled from the transport's update, so connect
   returns at once. Measured 1005 ms before, 0 ms after. The failure arrives as a DISCONNECTED event now.

@@ -14,7 +14,8 @@
 #define NYA_NET_MAX_PEERS 32
 
 /**
- * The largest datagram this engine will put on the wire, headers included.
+ * The largest datagram this engine will put on the wire, headers included. IPv6 guarantees 1280 bytes end to end;
+ * 1200 leaves its 48 bytes of IP and UDP header and room for a tunnel's, which is QUIC's reasoning for the same number.
  * */
 #define NYA_NET_MAX_DATAGRAM 1200
 
