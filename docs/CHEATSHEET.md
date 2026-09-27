@@ -1786,7 +1786,7 @@ enum NYA_AudioSpace { NYA_AUDIO_SPACE_3D, NYA_AUDIO_SPACE_2D, NYA_AUDIO_SPACE_CO
 struct NYA_AudioRay { f32x3 origin; f32x3 direction; }  // A segment: `origin` to `origin + direction`.
 struct NYA_AudioPropagation { b8 enabled; NYA_AudioSpace space; u32 ray_budget; u32 voice_rays; f32 radius; f32 lowpass_hz; f32 transmission; f32 thickness; f32 smoothing_ms; b8 diffraction; f32 diffraction_reach; b8 environment; f32 environment_range; f32 reflections; f32 speed_of_sound; }  // How sound finds its way through the world.
 struct NYA_AudioEnvironment { f32 enclosure; f32 distance; NYA_AudioReverb reverb; }  // The room as the listener's probes see it, and the reverb derived from it.
-struct NYA_AudioPath { f32 gain; f32 muffle; f32x3 offset; f32 target_gain; f32 target_muffle; f32x3 target_offset; f32 occlusion; f32 blocker; b8 traced; }  // What propagation does to one voice.
+struct NYA_AudioPath { f32 gain; f32 muffle; f32x3 offset; f32 target_gain; f32 target_muffle; f32x3 target_offset; f32 occlusion; f32 blocker; u32 solids; b8 traced; }  // What propagation does to one voice.
 struct NYA_AudioTracer { NYA_AudioPath paths[NYA_AUDIO_VOICES]; NYA_AudioRay rays[NYA_AUDIO_PROPAGATION_RAYS_MAX]; f32 fractions[NYA_AUDIO_PROPAGATION_RAYS_MAX]; f32 environment_fractions[NYA_AUDIO_PROPAGATION_ENVIRONMENT_RAYS]; u32 environment_cursor; NYA_AudioEnvironment environment; NYA_AudioReflections reflections; u32 voice_cursor; u32 rays_cast; }  // Propagation's state, embedded in the audio system.
 
 // macros
@@ -1795,6 +1795,7 @@ NYA_AUDIO_PROPAGATION_RAY_BUDGET 64  // Rays per update when NYA_AudioPropagatio
 NYA_AUDIO_PROPAGATION_VOICE_RAYS_MAX 8  // The most rays spread over one voice's extent.
 NYA_AUDIO_PROPAGATION_VOICE_RAYS 4  // Rays over one voice's extent when NYA_AudioPropagation.voice_rays is zero.
 NYA_AUDIO_PROPAGATION_PROBES 4  // Places beside a blocker tried for a way around it, two rays each.
+NYA_AUDIO_PROPAGATION_LAYERS 3  // Solids told apart along one voice's path, one batch each, so two thin walls are not one thick one.
 NYA_AUDIO_PROPAGATION_ENVIRONMENT_RAYS 14  // Fixed listener directions the room is measured along.
 NYA_AUDIO_PROPAGATION_ENVIRONMENT_SLICE 4  // Of those, how many are re-cast each update.
 NYA_AUDIO_PROPAGATION_RADIUS 0.25F  // World units the rays spread over, for a voice played without NYA_SoundParams.radius.
