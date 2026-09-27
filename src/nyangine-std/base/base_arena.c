@@ -88,10 +88,13 @@ NYA_Arena* _nya_arena_nodebug_create_with_options(NYA_ArenaOptions options) {
 
 NYA_Arena _nya_arena_nodebug_create_with_options_on_stack(NYA_ArenaOptions options) {
     nya_assert(options.region_size >= nya_kibyte_to_byte(4), "Region size must be at least 4 KiB.");
-    nya_assert(options.region_size % options.alignment == 0, "Region size must be divisible by alignment.");
     nya_assert(options.alignment >= 8, "Alignment must be at least 8 bytes.");
     // a power of two, since the alignment is used as a mask.
     nya_assert((options.alignment & (options.alignment - 1)) == 0, "Alignment must be a power of two, got " FMTu8 ".", options.alignment);
+
+    // a size computed from data is a hint, and the caller should not have to know the default alignment to give one.
+    options.region_size = (options.region_size + options.alignment - 1) & ~((u64)options.alignment - 1);
+    nya_assert(options.region_size % options.alignment == 0);
     nya_assert(ASAN_PADDING % options.alignment == 0, "ASAN padding must be divisible by alignment.");
 
     NYA_Arena arena = {
