@@ -77,7 +77,7 @@ NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OU
     sqlite3* handle = nullptr;
 
     // NOMUTEX: this module is synchronous, so SQLite's internal locking would buy nothing; a cross-thread connection is outside this API.
-    int code = sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, nullptr);
+    int code = sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, options.vfs);
 
     if (code != SQLITE_OK) {
         // open_v2 hands back a handle even on failure so the message can be read off it; closing it is still needed.
@@ -183,6 +183,14 @@ NYA_Error nya_sql_query(
     out_result->last_insert_id = (s64)sqlite3_last_insert_rowid(database->handle);
 
     return NYA_OK;
+}
+
+NYA_Error nya_sql_ping(NYA_Database* database) {
+    NYA_Arena arena = nya_arena_create_on_stack(.name = "sql_ping");
+    defer     nya_arena_destroy_on_stack(&arena);
+
+    NYA_SqlResult result = { 0 };
+    return nya_sql_query(database, &arena, "PRAGMA schema_version", nullptr, 0, &result);
 }
 
 NYA_Error nya_sql_transaction_begin(NYA_Database* database) {

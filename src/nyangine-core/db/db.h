@@ -11,6 +11,7 @@
  *   db_migrate.h    what two schemas differ by, what of that is derivable, and what is refused
  *   db_blob.h       a content-addressed blob store: an object keyed by the SHA-256 of its own bytes
  *   db_jobs.h       a persistent job queue: retries, exponential backoff, deadlines, unique jobs
+ *   db_fault.h      a VFS that answers BUSY, I/O errors, a full disk, stalls and power cuts; tests only
  *
  * It sits below `http` and `accounts` and above `base` and `crypto`: everything that has to survive a
  * restart — sessions, accounts, the permission cache, a bot's state — is a table here, and nothing in
@@ -67,3 +68,5 @@
 #include "nyangine-core/db/db_jobs.h"
 // After db_jobs.h: a pool of threads, each on its own connection, that runs that queue's jobs in-process.
 #include "nyangine-core/db/db_jobworker.h"
+// After db_sql.h: a VFS that lies on purpose, for tests only; see db_fault.h.
+#include "nyangine-core/db/db_fault.h"

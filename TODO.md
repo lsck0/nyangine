@@ -1981,11 +1981,28 @@ the packager ones.
 - `[x]` Played sessions: `testing_session.h` drives the real application headless through the input queue,
   with no wall clock wait, and `testing_agent.h` puts a DQN or a NEAT population behind the choice of what
   to press. `./build run agent`, and a short run of each kind in `./build run test`.
-- `[ ]` Database faults in the simulation. Nothing makes SQLite fail or stall today; the only contention is
-  two real connections in `test_db_jobs`. A VFS shim, test builds only, that answers BUSY, IOERR or FULL or
-  adds latency to a read, write or sync, drawn from the run's seed as fault actions over a real database, the
-  job queue and an HTTP handler. The oracle: a handler answers 503 or retries and never 500s, a job backs off
-  and survives, the file passes `integrity_check` after a restart, and `/health` reports the database down.
+- `[x]` Database faults in the simulation. `db_fault.h` is a VFS over the default one, test builds only,
+  opened by name through `nya_sql_open(.vfs = NYA_DB_FAULT_VFS)`: per kind it answers BUSY, an IOERR on a
+  read, write or sync, or FULL, stalls a call, or drops every write from a chosen call on as a power cut
+  would. A stall and the busy handler's backoff sleep through a hook, which the simulation points at its own
+  clock. `testing_actions_db.c` arms and heals those faults from the seed over a real file, the job queue and
+  the accounts routes, and cuts the power anywhere in a commit before a restart. The oracle: a healthy disk
+  answers every call, a faulted one gets 503 and never 500 or 401, `/readyz` goes 503 while no read reaches
+  the file, every job is done after a drain on a healed disk, and after the cut `integrity_check` passes with
+  the transaction whole or absent. What it found, each with a case in `test_db_fault.c`:
+  - A session cookie behind a disk fault was a 401. `nya_account_find_by_id` turned every error into "no
+    such account" and the session check turned that into a refusal, so a hiccup signed a real user out.
+    Faults now propagate, and `nya_http_accounts_caller` answers a status instead of a `b8`: 200, 401 for
+    nobody, 503 when the database could not say.
+  - An I/O error mapped to 500 in `nya_http_status_from_error`. A failed read, write, sync or a full disk is
+    the disk's trouble and passes, so it is 503 now, beside a timeout; corruption stays 500.
+  - The web_server example's readiness check ran `SELECT 1`, which touches no page and stayed ready through
+    a disk that failed every read. `nya_sql_ping` runs `PRAGMA schema_version`, which takes the lock and reads
+    the header.
+  - `[ ]` Left: the accounts handlers still answer a database failure with a hand written 500 in a dozen
+    places (register, login, the TOTP and passkey routes); each wants `nya_http_response_error`. And the
+    session check reads the wall clock (`nya_clock_get_timestamp_s`) where it should read `nya_instant_now`,
+    so a simulated run cannot age a session.
 - `[ ]` Captured traffic in the simulation. The transport conditioner (loss, duplication, reordering),
   `test_attack`'s replay and tamper cases and the fuzzers each cover a piece, with no seed tying them
   together. Record the datagrams and HTTP requests a seeded session really sends, then replay them dropped,

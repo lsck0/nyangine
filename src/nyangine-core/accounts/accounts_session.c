@@ -103,8 +103,11 @@ NYA_Error nya_account_session_validate(NYA_Arena* arena, NYA_ConstCString token,
     if (!_nya_account_session_is_live(&session, now_s)) return refused;
 
     // The user is re-read on every validation, not cached, so disabling an account takes effect next request, not next login.
-    NYA_AccountUser user = { 0 };
-    if (!nya_account_find_by_id(arena, session.user_id, &user).ok) return refused;
+    NYA_AccountUser user  = { 0 };
+    NYA_Error       found = nya_account_find_by_id(arena, session.user_id, &user);
+
+    // a database fault is not a refusal: the caller answers it as unavailable rather than signing the user out.
+    if (!found.ok) return found.kind == NYA_ERROR_NOT_FOUND ? refused : found;
     if (user.disabled) return refused;
 
     // Idle expiry slides forward, bounded by the absolute one; written at most once a minute so a busy server isn't all row writes.
@@ -175,8 +178,11 @@ NYA_Error nya_account_session_rotate(NYA_Arena* arena, NYA_ConstCString token, N
 
     if (!_nya_account_session_is_live(&session, now_s)) return refused;
 
-    NYA_AccountUser user = { 0 };
-    if (!nya_account_find_by_id(arena, session.user_id, &user).ok || user.disabled) return refused;
+    NYA_AccountUser user  = { 0 };
+    NYA_Error       found = nya_account_find_by_id(arena, session.user_id, &user);
+
+    if (!found.ok) return found.kind == NYA_ERROR_NOT_FOUND ? refused : found;
+    if (user.disabled) return refused;
 
     // The incoming token is retired and a fresh one minted for the row; a later replay lands in the retired branch and kills the session.
     (void)snprintf(session.previous_hash, sizeof(session.previous_hash), "%s", session.token_hash);

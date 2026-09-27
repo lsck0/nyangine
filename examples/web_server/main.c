@@ -269,22 +269,16 @@ NYA_INTERNAL u64 note_count(void) {
 /* READINESS */
 
 /**
- * The real readiness check: whether the notes database answers a trivial query right now. Registered as
- * "db", so `GET /readyz` is 503 with `{"name":"db","ready":false}` in its list while the file is not
- * open — which is what keeps traffic off this instance until its storage is up, rather than answering
- * requests it can only 500. It reads program state, which is why the route is NYA_HTTP_AFFINITY_MAIN.
+ * The real readiness check: whether a read reaches the notes database right now. Registered as "db", so
+ * `GET /readyz` is 503 with `{"name":"db","ready":false}` in its list while the file is not open or the
+ * disk under it is failing — which is what keeps traffic off this instance, rather than answering
+ * requests it can only fail. It reads program state, which is why the route is NYA_HTTP_AFFINITY_MAIN.
  * */
 NYA_INTERNAL b8 example_db_ready(void* user) {
     nya_unused(user);
 
-    if (NOTES_DB == nullptr) return false;
-
-    NYA_Arena scratch = nya_arena_create_on_stack(.name = "readyz_db");
-    defer     nya_arena_destroy_on_stack(&scratch);
-
-    NYA_SqlResult result = { 0 };
-
-    return nya_sql_query(NOTES_DB, &scratch, "SELECT 1", nullptr, 0, &result).ok;
+    // a ping and not SELECT 1, which touches no page and so answered ready through a dead disk.
+    return NOTES_DB != nullptr && nya_sql_ping(NOTES_DB).ok;
 }
 
 /**

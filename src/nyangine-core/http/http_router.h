@@ -477,8 +477,8 @@ NYA_API NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA
 /**
  * The HTTP status an NYA_Error's kind maps to: NYA_ERROR_NOT_FOUND is 404, an argument or a parse the
  * caller got wrong is 400, a denied permission is 403, an existing thing is 409, an unsupported one is
- * 501, a timeout is 503, and anything that says this program itself is broken is 500. NYA_ERROR_NONE,
- * which is not an error, is 200.
+ * 501, a timeout or an I/O failure is 503, and anything that says this program itself is broken is
+ * 500. NYA_ERROR_NONE, which is not an error, is 200.
  *
  * The table a handler forwarding a call's failure would otherwise write by hand every time; see
  * nya_http_response_error.

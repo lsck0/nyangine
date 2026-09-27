@@ -171,6 +171,11 @@ void nya_simulation_actions_add(NYA_SimulationRun* run) {
     nya_simulation_check_add(run, "hierarchy", _nya_simulation_check_hierarchy);
     nya_simulation_check_add(run, "query_agrees", _nya_simulation_check_query_agrees);
     nya_simulation_check_add(run, "clock", _nya_simulation_check_clock);
+
+#ifdef NYA_MODULE_DB
+    // the database file lives under the save root, so without one there is no disk to fault.
+    if (_NYA_SIMULATION_ACTIONS.storage_available) _nya_simulation_db_add(run);
+#endif
 }
 
 void nya_simulation_actions_reflect_add(NYA_SimulationRun* run, const NYA_TypeReflection* const* types, u32 count) {
@@ -188,6 +193,10 @@ void nya_simulation_actions_reflect_add(NYA_SimulationRun* run, const NYA_TypeRe
 
 void nya_simulation_actions_remove(void) {
     if (!_NYA_SIMULATION_ACTIONS.initialized) return;
+
+#ifdef NYA_MODULE_DB
+    _nya_simulation_db_remove();
+#endif
 
     if (_NYA_SIMULATION_ACTIONS.storage_available) (void)nya_save_delete(NYA_SIMULATION_SAVE_FILE);
 

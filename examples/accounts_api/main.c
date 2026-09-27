@@ -164,7 +164,8 @@ NYA_INTERNAL NYA_Value note_dto_value(NYA_Arena* arena, const AccountNote* row) 
 /** The caller's own notes, and nobody else's. The filter is on the owner, in the query. */
 NYA_INTERNAL NYA_HttpStatus handle_notes_query(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     void* rows  = nullptr;
     u32   count = 0;
@@ -192,7 +193,8 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_query(NYA_HttpExchange* exchange) {
 /** Adds a note owned by the caller. */
 NYA_INTERNAL NYA_HttpStatus handle_notes_post(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     // The request body is read as the DTO through its reflection, then parsed into an SO — which is where the untrusted text is checked and where the *server*, not the client, fills in the owner and the timestamp. A client cannot claim a note it did not write: note_so_from_dto ignores any owner a DTO might carry, because the DTO has no such field to carry.
     NoteDtoV1 dto    = { 0 };
@@ -245,7 +247,8 @@ NYA_INTERNAL const NYA_TypeReflection ID_DTO_REFLECT = {
  * */
 NYA_INTERNAL NYA_HttpStatus handle_notes_delete(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     IdDto     target = { 0 };
     NYA_Error read   = nya_http_request_reflect(exchange->request, exchange->arena, &ID_DTO_REFLECT, &target);
@@ -268,7 +271,8 @@ NYA_INTERNAL NYA_HttpStatus handle_notes_delete(NYA_HttpExchange* exchange) {
 /** The caller's own sessions, the "signed-in devices" list. Never a token, only where and when. */
 NYA_INTERNAL NYA_HttpStatus handle_sessions_list(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     NYA_AccountSession* sessions = nullptr;
     u32                 count    = 0;
@@ -302,7 +306,8 @@ NYA_INTERNAL NYA_HttpStatus handle_sessions_list(NYA_HttpExchange* exchange) {
 /** Revokes one of the caller's own sessions by id. Somebody else's is not found, like a note. */
 NYA_INTERNAL NYA_HttpStatus handle_sessions_delete(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     IdDto     target = { 0 };
     NYA_Error read   = nya_http_request_reflect(exchange->request, exchange->arena, &ID_DTO_REFLECT, &target);

@@ -55,11 +55,11 @@ s32 main(void) {
         nya_assert(nya_http_status_from_error(NYA_ERROR_PARSE) == NYA_HTTP_STATUS_BAD_REQUEST);
         nya_assert(nya_http_status_from_error(NYA_ERROR_NOT_SUPPORTED) == NYA_HTTP_STATUS_NOT_IMPLEMENTED);
         nya_assert(nya_http_status_from_error(NYA_ERROR_TIMEOUT) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE);
+        nya_assert(nya_http_status_from_error(NYA_ERROR_IO) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "a disk that failed a read or a sync will likely answer the retry");
 
         // the whole internal group is 500: none of it is anything the caller did.
         nya_assert(nya_http_status_from_error(NYA_ERROR_NOT_OK) == NYA_HTTP_STATUS_INTERNAL_ERROR);
         nya_assert(nya_http_status_from_error(NYA_ERROR_OUT_OF_MEMORY) == NYA_HTTP_STATUS_INTERNAL_ERROR);
-        nya_assert(nya_http_status_from_error(NYA_ERROR_IO) == NYA_HTTP_STATUS_INTERNAL_ERROR);
         nya_assert(nya_http_status_from_error(NYA_ERROR_CORRUPT) == NYA_HTTP_STATUS_INTERNAL_ERROR);
     }
 
@@ -115,14 +115,14 @@ s32 main(void) {
         NYA_ConstCString secret = "the sql at /var/db/main.sqlite is corrupt";
 
         make_request(request, NYA_HTTP_METHOD_QUERY, "application/json");
-        NYA_HttpStatus status = run_error(arena, request, &response, nya_error(NYA_ERROR_IO, "%s", secret));
+        NYA_HttpStatus status = run_error(arena, request, &response, nya_error(NYA_ERROR_CORRUPT, "%s", secret));
 
         nya_assert(status == NYA_HTTP_STATUS_INTERNAL_ERROR);
         nya_assert(strstr((const char*)response.body, secret) == nullptr, "a 5xx JSON body must not carry the internal message");
         nya_assert(strstr((const char*)response.body, "Internal Server Error") != nullptr);
 
         make_request(request, NYA_HTTP_METHOD_QUERY, "text/html");
-        (void)run_error(arena, request, &response, nya_error(NYA_ERROR_IO, "%s", secret));
+        (void)run_error(arena, request, &response, nya_error(NYA_ERROR_CORRUPT, "%s", secret));
         nya_assert(strstr((const char*)response.body, secret) == nullptr, "nor may a 5xx HTML page");
     }
 

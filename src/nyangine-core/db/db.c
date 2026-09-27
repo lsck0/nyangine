@@ -12,3 +12,5 @@
 #include "nyangine-core/db/db_jobs.c"
 // After db_sql.c and db_jobs.c: opens a connection per worker and drives claim/complete/fail to clone a queue per worker.
 #include "nyangine-core/db/db_jobworker.c"
+// After db_sql.c: wraps the default VFS SQLite already has; compiled only under NYA_TESTING.
+#include "nyangine-core/db/db_fault.c"

@@ -281,7 +281,8 @@ NYA_HttpStatus _nya_http_files_handle_upload(NYA_HttpExchange* exchange) {
     nya_assert(_NYA_HTTP_FILES_STATE.open, "the file routes' handler ran with no mount");
 
     NYA_AccountUser caller = { 0 };
-    if (!nya_http_accounts_caller(exchange, &caller)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &caller);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     // Reject an oversize upload on the announced length, before the body is looked at. The server buffered it already (its own smaller ceiling is the
     // real bound; see the header), so this is the per-route limit on top.
@@ -366,7 +367,8 @@ NYA_HttpStatus _nya_http_files_handle_download(NYA_HttpExchange* exchange) {
     nya_assert(_NYA_HTTP_FILES_STATE.open, "the file routes' handler ran with no mount");
 
     NYA_AccountUser caller = { 0 };
-    if (!nya_http_accounts_caller(exchange, &caller)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &caller);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     char id_text[FILES_ID_TEXT] = { 0 };
     if (!nya_http_request_query_param(exchange->request, "id", id_text, sizeof(id_text))) {

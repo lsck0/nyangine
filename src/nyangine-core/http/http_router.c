@@ -425,12 +425,13 @@ NYA_HttpStatus nya_http_status_from_error(NYA_ErrorKind kind) {
         case NYA_ERROR_INVALID_ARGUMENT:
         case NYA_ERROR_PARSE:             return NYA_HTTP_STATUS_BAD_REQUEST;
         case NYA_ERROR_NOT_SUPPORTED:     return NYA_HTTP_STATUS_NOT_IMPLEMENTED;
-        case NYA_ERROR_TIMEOUT:           return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+        // a busy lock and a failed read, write or sync are the disk's trouble and pass; retrying later is the right answer, which is what a 503 says.
+        case NYA_ERROR_TIMEOUT:
+        case NYA_ERROR_IO:                return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
 
-        // everything left says this program is broken rather than that the caller did anything wrong: an exhausted arena, a failed read, a corrupt store, an unclassified failure. All 500.
+        // everything left says this program is broken rather than that the caller did anything wrong: an exhausted arena, a corrupt store, an unclassified failure. All 500.
         case NYA_ERROR_NOT_OK:
         case NYA_ERROR_OUT_OF_MEMORY:
-        case NYA_ERROR_IO:
         case NYA_ERROR_CORRUPT:
         case NYA_ERROR_COUNT:
         default:                          return NYA_HTTP_STATUS_INTERNAL_ERROR;

@@ -513,7 +513,8 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_logout(NYA_HttpExchange* e
 /** Who the cookie says you are. 401 when it says nobody. */
 NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_session(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     NYA_Object* body = nya_object_create(exchange->arena);
 
@@ -537,7 +538,8 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_session(NYA_HttpExchange* 
  * */
 NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_totp_enrol(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     _NYA_HttpAccountsTotpRow existing = { 0 };
     b8                       present  = _nya_http_accounts_totp_find(exchange, user.id, &existing);
@@ -578,7 +580,8 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_totp_enrol(NYA_HttpExchang
  * */
 NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_totp_confirm(NYA_HttpExchange* exchange) {
     NYA_AccountUser user = { 0 };
-    if (!nya_http_accounts_caller(exchange, &user)) return NYA_HTTP_STATUS_UNAUTHORIZED;
+    NYA_HttpStatus who = nya_http_accounts_caller(exchange, &user);
+    if (who != NYA_HTTP_STATUS_OK) return who;
 
     NYA_ConstCString code = nullptr;
     if (!_nya_http_accounts_request_code(exchange, &code)) return NYA_HTTP_STATUS_BAD_REQUEST;
@@ -730,7 +733,11 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_passkey_register_begin(NYA
     (void)nya_http_request_document(exchange->request, exchange->arena, &body);
 
     NYA_AccountUser user      = { 0 };
-    b8              signed_in = nya_http_accounts_caller(exchange, &user);
+    NYA_HttpStatus  who       = nya_http_accounts_caller(exchange, &user);
+    b8              signed_in = who == NYA_HTTP_STATUS_OK;
+
+    // signed out is a path of its own here; a database that could not say is not.
+    if (who != NYA_HTTP_STATUS_OK && who != NYA_HTTP_STATUS_UNAUTHORIZED) return who;
 
     if (!signed_in) {
         if (_STATE.config.registration != NYA_ACCOUNT_REGISTRATION_OPEN) return NYA_HTTP_STATUS_FORBIDDEN;
@@ -771,9 +778,12 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_passkey_register_finish(NY
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user       = { 0 };
-    b8              signed_in  = nya_http_accounts_caller(exchange, &user);
+    NYA_HttpStatus  who        = nya_http_accounts_caller(exchange, &user);
+    b8              signed_in  = who == NYA_HTTP_STATUS_OK;
     u64             user_id    = user.id;
     b8              via_cookie = false;
+
+    if (who != NYA_HTTP_STATUS_OK && who != NYA_HTTP_STATUS_UNAUTHORIZED) return who;
 
     if (!signed_in) {
         if (!_nya_http_accounts_read_sealed_user_cookie(exchange, PASSKEY_REGISTER_COOKIE, PASSKEY_REGISTER_SEAL_LABEL, &user_id)) return NYA_HTTP_STATUS_UNAUTHORIZED;
@@ -973,23 +983,28 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_HTTP_ACCOUNTS_ROUTER_PASSKEY = {
 
 // PUBLIC API IMPLEMENTATION
 
-b8 nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user) {
+NYA_HttpStatus nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user) {
     nya_memset(out_user, 0, sizeof(NYA_AccountUser));
 
-    if (!_STATE.open) return false;
+    if (!_STATE.open) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     NYA_HttpCookieValue cookie = { 0 };
-    if (!nya_http_cookie_read(exchange->request, NYA_HTTP_SESSION_COOKIE, &cookie)) return false;
+    if (!nya_http_cookie_read(exchange->request, NYA_HTTP_SESSION_COOKIE, &cookie)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     char token[NYA_ACCOUNTS_TOKEN_TEXT_BYTES] = { 0 };
-    if (cookie.size >= sizeof(token)) return false;
+    if (cookie.size >= sizeof(token)) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     nya_memcpy(token, cookie.text, cookie.size);
 
-    NYA_AccountSession session = { 0 };
-    if (!nya_account_session_validate(exchange->arena, token, &session).ok) return false;
+    // a refusal is nobody; anything else is the database failing to answer, which is not the caller's fault and not a sign-out.
+    NYA_AccountSession session   = { 0 };
+    NYA_Error          validated = nya_account_session_validate(exchange->arena, token, &session);
+    if (!validated.ok) return validated.kind == NYA_ERROR_PERMISSION_DENIED ? NYA_HTTP_STATUS_UNAUTHORIZED : nya_http_status_from_error(validated.kind);
 
-    return nya_account_find_by_id(exchange->arena, session.user_id, out_user).ok;
+    NYA_Error found = nya_account_find_by_id(exchange->arena, session.user_id, out_user);
+    if (!found.ok) return found.kind == NYA_ERROR_NOT_FOUND ? NYA_HTTP_STATUS_UNAUTHORIZED : nya_http_status_from_error(found.kind);
+
+    return NYA_HTTP_STATUS_OK;
 }
 
 const NYA_HttpRouter* nya_http_accounts_open(NYA_HttpAccountsConfig config) {

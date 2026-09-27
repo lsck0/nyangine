@@ -232,8 +232,11 @@ NYA_Error nya_account_passkey_assert_finish(NYA_Arena* arena, u64 user_id, const
     // A raw Ed25519 signature is exactly 64 bytes; anything else does not verify and is refused before any work.
     if (request->signature == nullptr || request->signature_size != NYA_CRYPTO_SIGNATURE_BYTES) return refused;
 
-    NYA_AccountUser user = { 0 };
-    if (!nya_account_find_by_id(arena, user_id, &user).ok || user.disabled) return refused;
+    NYA_AccountUser user  = { 0 };
+    NYA_Error       owner = nya_account_find_by_id(arena, user_id, &user);
+
+    if (!owner.ok) return owner.kind == NYA_ERROR_NOT_FOUND ? refused : owner;
+    if (user.disabled) return refused;
 
     // ── the stored credential this claims to be, and its public key ──
     void* rows  = nullptr;

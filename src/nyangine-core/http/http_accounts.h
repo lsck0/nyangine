@@ -216,12 +216,13 @@ NYA_API const NYA_HttpRouter* nya_http_accounts_open(NYA_HttpAccountsConfig conf
 NYA_API void nya_http_accounts_close(void);
 
 /**
- * The account this request's `__Host-session` cookie names, or false with the 401 already the caller's
- * to return.
+ * The account this request's `__Host-session` cookie names: NYA_HTTP_STATUS_OK with `out_user` filled,
+ * UNAUTHORIZED for nobody, or the status a database fault maps to (503), each the caller's to return.
  *
  * The one piece an application's own routes need from the login flow: a notes route or a settings route
  * reads the caller this way, so "who is asking" is answered by the same validation the session route
  * uses rather than by each route copying the cookie dance. A revoked, expired or forged cookie is
- * nobody. Answers false when no mount is live.
+ * nobody. Answers UNAUTHORIZED when no mount is live. A fault is not nobody: reading it as a 401 would
+ * sign a real user out because the disk hiccuped.
  * */
-NYA_API b8 nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user) __attr_no_discard;
+NYA_API NYA_HttpStatus nya_http_accounts_caller(NYA_HttpExchange* exchange, OUT NYA_AccountUser* out_user) __attr_no_discard;

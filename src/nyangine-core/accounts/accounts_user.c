@@ -223,7 +223,8 @@ NYA_Error nya_account_find_by_id(NYA_Arena* arena, u64 id, NYA_AccountUser* out_
 
     NYA_Error found = nya_orm_find(_NYA_ACCOUNTS.users, arena, nya_sql_s64((s64)id), out_user);
 
-    if (!found.ok) return nya_error(NYA_ERROR_NOT_FOUND, "no such account");
+    // only a missing row is "no such account"; a database that could not answer says so, or a fault reads as a deleted user.
+    if (!found.ok) return found.kind == NYA_ERROR_NOT_FOUND ? nya_error(NYA_ERROR_NOT_FOUND, "no such account") : found;
 
     return NYA_OK;
 }

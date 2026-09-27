@@ -11,3 +11,4 @@
 0x6E79616E67696E65  # a long mixed run over every action and fault
 0x00000000DEADBEEF  # spawn-heavy, reaches the entity ceiling and keeps going
 0xFFFFFFFFFFFFFFFF  # the opposite corner of the seed space from 1
+0x0000000000001234  # a disk fault behind a session cookie answered 401, and a failed read or sync 500

@@ -76,6 +76,9 @@ struct NYA_SqlOptions {
      * */
     const u8* key;
     u32       key_size;
+
+    /** The SQLite VFS to open through, by name, or null for the default. A test names NYA_DB_FAULT_VFS. */
+    NYA_ConstCString vfs;
 };
 
 /** One row. A named typedef because nya_derive_array needs a single token for its type. */
@@ -166,6 +169,12 @@ NYA_API NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sq
 NYA_API NYA_Error nya_sql_query(
     NYA_Database* database, NYA_Arena* arena, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count, OUT NYA_SqlResult* out_result
 ) __attr_no_discard;
+
+/**
+ * Whether a read reaches the file: `PRAGMA schema_version`, which takes the shared lock and reads the
+ * header. `SELECT 1` touches neither, so a readiness check built on it stays green through a dead disk.
+ * */
+NYA_API NYA_Error nya_sql_ping(NYA_Database* database) __attr_no_discard;
 
 // Transactions.
 NYA_API NYA_Error nya_sql_transaction_begin(NYA_Database* database) __attr_no_discard;
