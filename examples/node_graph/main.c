@@ -23,6 +23,9 @@
  *   panel with a heading and a subtitle, nya_ui_badge tags each node type, nya_ui_progress shows how much
  *   of the graph is wired, and nya_ui_breadcrumb draws the trail the panel sits under. None carry a colour
  *   of their own — they are the theme's panel, accent and text — so the whole thing follows a restyle.
+ * - nya_ui_context_menu on a right click: over a node it disconnects or deletes that node, over bare canvas it
+ *   adds one where the click was or resets the view. Which node is under the click comes from the boxes
+ *   nya_ui_last_rect reported for each node the pass before, which is also where the menu's trigger comes from.
  * - The two-pass shape every windowed `nya_ui_*` program has: the same frame function runs once from
  *   on_update as the input pass, where a drag becomes a gesture, and once from on_render as the draw pass.
  *   See ui.h's header for why input is read per tick and drawing happens per frame.
@@ -53,7 +56,7 @@
 #define PANEL_WIDTH 300.0F
 
 /** How many nodes and edges the model holds. Small and fixed: this is a demonstration graph, not an app. */
-#define NODES_MAX 6u
+#define NODES_MAX 8u
 #define EDGES_MAX 16u
 
 /** A muted dark ground, so the canvas and the panel read against it. */
@@ -102,6 +105,9 @@ typedef struct {
 
     NYA_UINodeLink edges[EDGES_MAX];
     u32            edge_count;
+
+    /** The key the next added node takes, so a deleted node's key is never reused by a stale link. */
+    u64            next_key;
 } Graph;
 
 /** The whole example's state, hung off the world so it survives a hot reload. */
@@ -112,6 +118,14 @@ typedef struct {
 
     /** The canvas: where it is panned to, how far it is zoomed, and the drag in flight. Owned here, outlives a pass. */
     NYA_UINodeEditor editor;
+
+    /** Where the canvas and each node's box landed last pass, which a right click is aimed against. */
+    NYA_Rectf        canvas;
+    NYA_Rectf        boxes[NODES_MAX];
+
+    /** What the context menu acts on: the node right clicked, zero for bare canvas, and where the click was. */
+    u64              target;
+    f32x2            target_at;
 
     /** The breadcrumb the side panel sits under, and where along it the trail is. */
     u32              crumb;
@@ -178,6 +192,7 @@ NYA_INTERNAL void graph_reset(Graph* graph) {
     graph->edges[3] = (NYA_UINodeLink){ .from_node = KEY_GRADE, .from_port = 0, .to_node = KEY_MIX, .to_port = 1 };
     graph->edges[4] = (NYA_UINodeLink){ .from_node = KEY_MIX, .from_port = 0, .to_node = KEY_OUTPUT, .to_port = 0 };
     graph->edge_count = 5;
+    graph->next_key   = KEY_OUTPUT + 1;
 }
 
 /* THE MODEL EDITS The two operations the editor's gestures drive. An input port takes one wire, so connecting to one that is already wired replaces its edge rather than doubling it — the same rule the node widget assumes when it lets a wired input be grabbed loose. */
@@ -216,6 +231,40 @@ NYA_INTERNAL void graph_connect(Graph* graph, NYA_UINodeLink link) {
     graph->edge_count += 1;
 }
 
+/** Drops every edge touching `key`, on either end. */
+NYA_INTERNAL void graph_unwire(Graph* graph, u64 key) {
+    for (u32 i = graph->edge_count; i > 0; i--) {
+        if (graph->edges[i - 1].from_node != key && graph->edges[i - 1].to_node != key) continue;
+
+        graph->edges[i - 1] = graph->edges[graph->edge_count - 1];
+        graph->edge_count  -= 1;
+    }
+}
+
+/** Removes node `key` and its wires, keeping the rest in order so the draw order does not shuffle. */
+NYA_INTERNAL void graph_remove(Graph* graph, u64 key) {
+    graph_unwire(graph, key);
+
+    for (u32 i = 0; i < graph->node_count; i++) {
+        if (graph->nodes[i].key != key) continue;
+
+        memmove(&graph->nodes[i], &graph->nodes[i + 1], (graph->node_count - i - 1) * sizeof(GraphNode));
+        graph->node_count -= 1;
+        return;
+    }
+}
+
+/** Adds an unwired blur node at `position` in graph space. */
+NYA_INTERNAL void graph_add(Graph* graph, f32x2 position) {
+    if (graph->node_count >= NODES_MAX) {
+        nya_log_warn("node_graph: the node table is full; nothing was added.");
+        return;
+    }
+
+    graph->nodes[graph->node_count++] = (GraphNode){ .key = graph->next_key++, .title = "blur", .type = NODE_FILTER, .position = position,
+                                                     .inputs = 1, .outputs = 1, .input_labels = BLUR_IN, .output_labels = BLUR_OUT };
+}
+
 /** How many input ports the whole graph has, the denominator of the "wired" progress bar. */
 NYA_INTERNAL u32 graph_input_ports(const Graph* graph) {
     u32 total = 0;
@@ -234,12 +283,48 @@ NYA_INTERNAL u32 graph_type_count(const Graph* graph, NodeType type) {
 
 /* THE FRAME */
 
+/** The node whose box last pass is topmost under `at`, or zero for bare canvas. Nodes draw back to front. */
+NYA_INTERNAL u64 node_under(const NodeGraph* state, f32x2 at) {
+    for (u32 i = state->graph.node_count; i > 0; i--) {
+        if (nya_rect_contains(state->boxes[i - 1], at)) return state->graph.nodes[i - 1].key;
+    }
+
+    return 0;
+}
+
+/** The right-click menu: node actions over a node, canvas actions over bare canvas. */
+NYA_INTERNAL void canvas_menu(NYA_UI* ui, NodeGraph* state, f32 scale) {
+    static const NYA_ConstCString NODE_MENU[]   = { "disconnect", nullptr, "delete node" };
+    static const NYA_ConstCString CANVAS_MENU[] = { "add blur node", "reset view" };
+
+    Graph* graph = &state->graph;
+
+    if (state->target != 0) {
+        u32 picked = nya_ui_context_menu(ui, "node", state->canvas, NYA_MOUSE_BUTTON_RIGHT, NODE_MENU, nya_carray_length(NODE_MENU));
+        if (picked == 0) graph_unwire(graph, state->target);
+        if (picked == 2) graph_remove(graph, state->target);
+        return;
+    }
+
+    u32 picked = nya_ui_context_menu(ui, "canvas", state->canvas, NYA_MOUSE_BUTTON_RIGHT, CANVAS_MENU, nya_carray_length(CANVAS_MENU));
+
+    // the click back through the pan and zoom, so the new node's corner lands where the menu opened.
+    f32   s  = scale * state->editor.zoom;
+    f32x2 at = { (state->target_at.x - state->canvas.x - state->editor.pan.x) / s, (state->target_at.y - state->canvas.y - state->editor.pan.y) / s };
+
+    if (picked == 0) graph_add(graph, at);
+    if (picked == 1) state->editor = (NYA_UINodeEditor){ .zoom = 1.0F };
+}
+
 /** The canvas panel: the node editor, its nodes and its wires, and the two gestures folded back into the model. */
-NYA_INTERNAL void canvas_panel(NYA_UI* ui, NodeGraph* state) {
+NYA_INTERNAL void canvas_panel(NYA_UI* ui, NodeGraph* state, f32 scale) {
     Graph* graph = &state->graph;
 
     // a definite size, because the editor fills its container and a container with none is a canvas with none.
     if (!nya_ui_panel_begin(ui, "canvas", (NYA_UIPanel){ .width = nya_ui_grow(1), .height = nya_ui_grow(1) })) return;
+
+    // declared ahead of the canvas, so the open menu claims the pointer before the nodes under it read the press.
+    canvas_menu(ui, state, scale);
 
     if (nya_ui_node_editor_begin(ui, "editor", &state->editor)) {
         // the nodes, each at its own position in graph space. Declaration order is draw order, back to front.
@@ -256,12 +341,15 @@ NYA_INTERNAL void canvas_panel(NYA_UI* ui, NodeGraph* state) {
                                       .output_labels = node->output_labels,
                                   },
                               &state->editor);
+
+            state->boxes[i] = nya_ui_last_rect(ui);
         }
 
         // the wires under the nodes, looked up against where this pass placed each end.
         for (u32 i = 0; i < graph->edge_count; i++) nya_ui_node_link(ui, &state->editor, graph->edges[i]);
 
         nya_ui_node_editor_end(ui, &state->editor);
+        state->canvas = nya_ui_last_rect(ui);
     }
 
     // the gestures the pass reported, read right after the end. On the draw pass both are false — no input is read there — so the model is edited once, on the input pass, exactly as a button is.
@@ -310,6 +398,7 @@ NYA_INTERNAL void side_panel(NYA_UI* ui, NodeGraph* state) {
 
     nya_ui_label(ui, "drag an output onto an input to wire", NYA_COLOR_LIGHT_GRAY);
     nya_ui_label(ui, "grab a wired input to cut it", NYA_COLOR_LIGHT_GRAY);
+    nya_ui_label(ui, "right click a node or the canvas", NYA_COLOR_LIGHT_GRAY);
 
     // pushed to the bottom, so the way to start over sits under the panel however tall the window is.
     nya_ui_size(ui, nya_ui_grow(1));
@@ -330,7 +419,7 @@ NYA_INTERNAL void frame_pass(NYA_Window* window, NYA_UIPass pass, NodeGraph* sta
     NYA_UIPanel root = { .direction = NYA_UI_DIRECTION_ROW, .width = nya_ui_grow(1), .height = nya_ui_grow(1), .frameless = true };
 
     if (nya_ui_panel_begin(ui, "root", root)) {
-        canvas_panel(ui, state);
+        canvas_panel(ui, state, nya_ui_scale(window));
         side_panel(ui, state);
         nya_ui_panel_end(ui);
     }
@@ -374,6 +463,12 @@ void node_graph_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(delta_time_s);
 
     NodeGraph* state = node_graph();
+
+    // a right click aims the menu it opens, at the node under it or at bare canvas; moving onto an item does not retarget it.
+    if (nya_input_mouse_button_just_pressed(NYA_MOUSE_BUTTON_RIGHT)) {
+        state->target_at = nya_input_mouse_position();
+        state->target    = node_under(state, state->target_at);
+    }
 
     // the input pass: a drag becomes a pan, a moved node or a wire, and the model is edited here.
     frame_pass(window, NYA_UI_PASS_INPUT, state);

@@ -31,6 +31,13 @@
  *
  * The whole 3D scene is drawn through a post chain (a render texture): the water and the crystals need a resolved
  * image to refract, and the light shafts and bloom are scene features nya_post_end runs over that same target.
+ *
+ * ## The panel
+ *
+ * A widget panel sits over the scene: an avatar with a tooltip, accordion folds for the wind, the herd and an RTL
+ * line, a dialog behind "reset wind", and toasts. The wind fold is a reflection inspector — it lists the fields of
+ * NYA_WindOptions that carry `@label` and bounds each slider by its `@range`. C swaps a ring cursor built in code for
+ * the system one. A timed run walks the folds and opens the dialog itself, so a headless run draws every widget.
  * */
 #include "genyarated/assets.h"
 #include "nyangine-core/nyangine.h"
@@ -135,6 +142,16 @@ static_assert(RIVER_COLS * RIVER_ROWS * 6u <= 65536, "the river mesh must fit si
 #define HUD_FONT      NYA_ASSET_FONTS_ALDRICH_TTF
 #define HUD_FONT_SIZE 16.0F
 
+/** The widget panel's width in pixels at scale 1, and how long its herd fold stands in while the balls settle. */
+#define PANEL_WIDTH   280.0F
+#define HERD_SETTLE_S 1.5F
+
+/** The custom cursor, a ring built in code, `CURSOR_SIZE` pixels square with the click point at its centre. */
+#define CURSOR_SIZE 16u
+
+/** The breeze the valley opens with, and what the panel's reset puts back. */
+static const NYA_WindOptions WIND_START = { .direction = { 1.0F, 0.0F, 0.25F }, .strength = 2.6F, .gustiness = 0.6F };
+
 enum {
     ENTITY_NONE = 0,
     ENTITY_GROUND,
@@ -199,6 +216,15 @@ struct Showcase {
 
     /** The last frame's fps, captured in on_render and logged at teardown so a headless run reports a number. */
     f32 last_fps;
+
+    /** The wind as the panel edits it; the panel lists whichever of its fields carry `@label`. */
+    NYA_WindOptions tuning;
+
+    /** The panel's open fold, whether its reset dialog is up, whether the herd settled, and the cursor in use. */
+    u32 fold;
+    b8  dialog_open;
+    b8  settled;
+    b8  custom_cursor;
 };
 
 NYA_INTERNAL Showcase* showcase(void) {
@@ -546,6 +572,122 @@ NYA_INTERNAL f32x3 ball_spawn(u32 index) {
     return (f32x3){ x, terrain_height(x, z) + BALL_RADIUS + 0.5F, z };
 }
 
+/* PANEL */
+
+/** A ring with a dot at its centre, built here so the custom cursor needs no asset. The engine copies the pixels. */
+NYA_INTERNAL b8 cursor_ring_set(void) {
+    u8 rgba[CURSOR_SIZE * CURSOR_SIZE * 4u];
+
+    for (u32 y = 0; y < CURSOR_SIZE; y++) {
+        for (u32 x = 0; x < CURSOR_SIZE; x++) {
+            f32 r = hypotf((f32)x + 0.5F - (CURSOR_SIZE * 0.5F), (f32)y + 0.5F - (CURSOR_SIZE * 0.5F));
+            u8* p = &rgba[((y * CURSOR_SIZE) + x) * 4u];
+
+            p[0] = 0xFF;
+            p[1] = 0xD8;
+            p[2] = 0x70;
+            p[3] = (fabsf(r - 6.0F) < 1.0F || r < 1.5F) ? 0xFF : 0x00;
+        }
+    }
+
+    return nya_cursor_set_image(rgba, CURSOR_SIZE, CURSOR_SIZE, CURSOR_SIZE / 2u, CURSOR_SIZE / 2u);
+}
+
+/**
+ * A slider for every f32 field of NYA_WindOptions carrying `@label`, bounded by its `@range`. The panel names no field:
+ * annotating another one in render_wind.h is all it takes to list it here.
+ * */
+NYA_INTERNAL b8 wind_inspector(NYA_UI* ui, NYA_WindOptions* tuning) {
+    const NYA_TypeReflection* type    = nya_reflect_of(NYA_WindOptions);
+    b8                        changed = false;
+
+    for (u32 i = 0; i < type->field_count; i++) {
+        const NYA_ReflectField* field = &type->fields[i];
+        if (field->type != nya_reflect_of(f32) || !nya_reflect_field_has_attribute(field, "label")) continue;
+
+        const NYA_ReflectAttribute* range = nya_reflect_field_attribute(field, "range");
+        f32                         low   = 0.0F;
+        f32                         high  = 1.0F;
+        if (range != nullptr && range->args != nullptr) (void)sscanf(range->args, "%f, %f", &low, &high);
+
+        f32* value = (f32*)((u8*)tuning + field->offset);
+        if (nya_ui_slider(ui, nya_reflect_field_attribute(field, "label")->args, value, low, high, (high - low) / 20.0F)) changed = true;
+    }
+
+    return changed;
+}
+
+/** The widget panel over the scene, its reset dialog and the toasts, run as the input pass and again as the draw pass. */
+NYA_INTERNAL void panel_pass(NYA_Window* window, NYA_UIPass pass, Showcase* state) {
+    NYA_UI* ui = nya_ui_begin(window, pass);
+
+    // the herd drops onto the banks at startup; the moment it has settled is worth a notification, posted once from input. A timed run settles it halfway, whatever its frame rate.
+    b8 due = state->elapsed_s >= HERD_SETTLE_S || (state->max_frames > 0 && state->frame_count * 2u >= state->max_frames);
+
+    if (pass == NYA_UI_PASS_INPUT && !state->settled && due) {
+        state->settled = true;
+        nya_ui_toast(ui, "the herd has settled");
+    }
+
+    if (nya_ui_panel_begin(ui, "widgets", (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .width = nya_ui_fixed(PANEL_WIDTH) })) {
+        if (nya_ui_panel_begin(ui, "who", (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
+            nya_ui_avatar(ui, "NY");
+            nya_ui_tooltip(ui, "who", nya_ui_last_rect(ui), "the valley's keeper");
+            nya_ui_label(ui, "showcase");
+            nya_ui_panel_end(ui);
+        }
+
+        nya_ui_separator(ui);
+
+        if (nya_ui_accordion_begin(ui, "wind", 0, &state->fold)) {
+            if (wind_inspector(ui, &state->tuning)) nya_wind_set(&state->wind, state->tuning.direction, state->tuning.strength, state->tuning.gustiness);
+            nya_ui_accordion_end(ui);
+        }
+
+        if (nya_ui_accordion_begin(ui, "herd", 1, &state->fold)) {
+            if (state->settled) {
+                nya_ui_label(ui, "six balls rolling the banks");
+            } else {
+                nya_ui_spinner(ui);
+                nya_ui_skeleton(ui, 0.0F, 0.0F);
+                nya_ui_skeleton(ui, 160.0F, 0.0F);
+            }
+            nya_ui_accordion_end(ui);
+        }
+
+        if (nya_ui_accordion_begin(ui, "language", 2, &state->fold)) {
+            // right to left, so the shaper's bidi pass reorders real Hebrew. No vendored font has the glyphs; the order is still resolved.
+            nya_ui_label(ui, "שלום עולם, hello world");
+            nya_ui_accordion_end(ui);
+        }
+
+        nya_ui_separator(ui);
+
+        if (nya_ui_button(ui, "reset wind")) state->dialog_open = true;
+        nya_ui_label(ui, "C cursor · Esc quit", NYA_COLOR_LIGHT_GRAY);
+
+        nya_ui_panel_end(ui);
+    }
+
+    if (nya_ui_dialog_begin(ui, "reset", "Reset the wind?", &state->dialog_open)) {
+        nya_ui_label(ui, "Back to the breeze the valley opened with.");
+
+        if (nya_ui_button(ui, "reset")) {
+            state->tuning      = WIND_START;
+            state->dialog_open = false;
+            nya_wind_set(&state->wind, WIND_START.direction, WIND_START.strength, WIND_START.gustiness);
+            nya_ui_toast(ui, "wind reset");
+        }
+
+        if (nya_ui_button(ui, "cancel")) state->dialog_open = false;
+
+        nya_ui_dialog_end(ui);
+    }
+
+    nya_ui_toasts(ui);
+    nya_ui_end(ui);
+}
+
 /* LAYER: CREATE / DESTROY */
 
 void showcase_layer_on_create(NYA_Window* window) {
@@ -555,6 +697,13 @@ void showcase_layer_on_create(NYA_Window* window) {
 
     // a dim dawn sky-blue behind everything, so the terrain's rim reads before the sky pass paints over it.
     nya_render_clear_color_set(window, (NYA_Color){ 0.06F, 0.08F, 0.12F, 1.0F });
+
+    // the panel's buttons and its dialog: enter confirms, escape backs out of the dialog before it quits.
+    nya_input_action_rebind(NYA_INPUT_ACTION_CONFIRM, NYA_KEY_RETURN);
+    nya_input_action_rebind(NYA_INPUT_ACTION_CANCEL, NYA_KEY_ESCAPE);
+
+    state->custom_cursor = cursor_ring_set();
+    if (!state->custom_cursor) nya_log_warn("showcase: the platform made no custom cursor; keeping the system one.");
 
     // one scratch arena builds every mesh and the physics heights; the GPU and Box3D keep their own copies, so it frees after registering. Big enough for the widest single mesh (a full tile or the river) staged at a time.
     NYA_Arena* scratch = nya_arena_create(.name = "showcase_build");
@@ -704,9 +853,20 @@ void showcase_layer_on_event(NYA_Window* window, NYA_Event* event) {
     nya_unused(window);
     nya_assert(event != nullptr);
 
-    if (event->type == NYA_EVENT_KEY_DOWN && event->as_key_event.key == NYA_KEY_ESCAPE) {
+    Showcase* state = showcase();
+
+    if (event->type != NYA_EVENT_KEY_DOWN) return;
+
+    // escape closes the dialog through the panel's cancel first, and only quits once nothing is open.
+    if (event->as_key_event.key == NYA_KEY_ESCAPE && !state->dialog_open) {
         nya_app_get()->should_quit = true;
         event->was_handled         = true;
+    }
+
+    if (event->as_key_event.key == NYA_KEY_C) {
+        state->custom_cursor = !state->custom_cursor && cursor_ring_set();
+        if (!state->custom_cursor) nya_cursor_set(NYA_CURSOR_DEFAULT);
+        event->was_handled = true;
     }
 }
 
@@ -752,8 +912,6 @@ NYA_INTERNAL void ball_steer(Showcase* state, u32 index, f32 delta_time_s) {
 }
 
 void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
-    nya_unused(window);
-
     Showcase* state = showcase();
 
     // the one per-frame advance the whole scene animates from: foliage, water and pollen all sample this field.
@@ -821,6 +979,14 @@ void showcase_layer_on_update(NYA_Window* window, f32 delta_time_s) {
             state->trail_next = (state->trail_next + 1u) % TRAIL_MARK_COUNT;
         }
     }
+
+    // a timed run walks the panel itself, each fold in turn and then the dialog, so a headless run draws every widget.
+    if (state->max_frames > 0) {
+        state->fold        = nya_min((state->frame_count * 3u) / state->max_frames, 2u);
+        state->dialog_open = state->frame_count * 4u >= state->max_frames * 3u;
+    }
+
+    panel_pass(window, NYA_UI_PASS_INPUT, state);
 
     // a timed run quits itself once it has drawn its frames, so a headless CI run terminates.
     state->frame_count++;
@@ -1067,6 +1233,8 @@ void showcase_layer_on_render(NYA_Window* window) {
 
     nya_render2d_textf_with_font(window, HUD_FONT, HUD_FONT_SIZE, 12.0F, 12.0F, NYA_COLOR_WHITE,
                                  "wind · water · balls · trails · crystals · light beams   %.1f fps   Esc quit", (f64)state->last_fps);
+
+    panel_pass(window, NYA_UI_PASS_DRAW, state);
 }
 
 /* MAIN */
@@ -1083,7 +1251,8 @@ s32 main(s32 argc, NYA_CString* argv) {
     *state = (Showcase){ .window = NYA_WINDOW_HANDLE_NONE };
 
     // one gently gusting field, blowing down the valley — the single source of every motion in the scene.
-    state->wind = nya_wind_field((NYA_WindOptions){ .direction = { 1.0F, 0.0F, 0.25F }, .strength = 2.6F, .gustiness = 0.6F });
+    state->tuning = WIND_START;
+    state->wind   = nya_wind_field(WIND_START);
 
     // an optional frame budget, so a headless or CI run draws a fixed number of frames and then quits.
     NYA_ConstCString frames = getenv("NYA_SHOWCASE_FRAMES");

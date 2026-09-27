@@ -266,6 +266,9 @@ b8 nya_ui_node(NYA_UI* ui, NYA_UINode node, NYA_UINodeEditor* editor) {
         }
     }
 
+    // a node takes no room in the layout, but its box is still what a tooltip or a context menu over it names.
+    _nya_ui.last = metrics.box;
+
     // recorded every pass, drawn or not, so a link declared after the nodes can find where each port ended up.
     for (u32 i = 0; i < node.outputs; i++) _nya_ui_node_port_record(editor, node.key, i, true, _nya_ui_node_port_anchor(&metrics, true, i));
     for (u32 i = 0; i < node.inputs; i++) _nya_ui_node_port_record(editor, node.key, i, false, _nya_ui_node_port_anchor(&metrics, false, i));

@@ -1292,6 +1292,34 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView = {
     .is_bitflags = false,
 };
 
+/* NYA_WindOptions, src/nyangine-core/renderer/render_wind.h */
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_WindOptions_strength_ATTRIBUTES[] = {
+    { .name = "label", .args = "Strength" },
+    { .name = "range", .args = "0.5, 6" },
+};
+
+static const NYA_ReflectAttribute _NYA_REFLECT_NYA_WindOptions_gustiness_ATTRIBUTES[] = {
+    { .name = "label", .args = "Gustiness" },
+    { .name = "range", .args = "0, 1" },
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_WindOptions_FIELDS[] = {
+    { .name = "direction", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_WindOptions, direction), .hint = NYA_HINT_NONE },
+    { .name = "strength", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_WindOptions, strength), .hint = NYA_HINT_NONE, .attributes = _NYA_REFLECT_NYA_WindOptions_strength_ATTRIBUTES, .attribute_count = 2 },
+    { .name = "gustiness", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_WindOptions, gustiness), .hint = NYA_HINT_NONE, .attributes = _NYA_REFLECT_NYA_WindOptions_gustiness_ATTRIBUTES, .attribute_count = 2 },
+    { .name = "seed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_WindOptions, seed), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_WindOptions = {
+    .name = "NYA_WindOptions",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_WindOptions),
+    .alignment = alignof(NYA_WindOptions),
+    .fields = _NYA_REFLECT_NYA_WindOptions_FIELDS,
+    .field_count = 4,
+};
+
 /* NYA_Render2DHaze, src/nyangine-core/renderer/renderer.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Render2DHaze_FIELDS[] = {
@@ -1581,6 +1609,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_PostLightShafts,
     &_NYA_REFLECT_NYA_PostMotionBlur,
     &_NYA_REFLECT_NYA_PostDebugView,
+    &_NYA_REFLECT_NYA_WindOptions,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_UIOverflow,

@@ -330,6 +330,9 @@ typedef struct {
     b8    pointer_down;
     b8    pointer_released;
 
+    /** The rectangle the widget or container declared last took, for nya_ui_last_rect. */
+    NYA_Rectf last;
+
     /**
      * Whether this input pass found the pointer inside a top level titled or draggable panel.
      *

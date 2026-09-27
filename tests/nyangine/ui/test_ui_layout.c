@@ -261,6 +261,23 @@ s32 main(void) {
         nya_check(contiguous(rects, 3, MARGIN, 1.0F, MARGIN + 100.0F), "with no pixel lost to rounding");
     }
 
+    // The last rect is what the last child took, and after a container's end, the container's own bounds; a second pass, since a fitted panel measures on its first.
+    for (u32 pass = 0; pass < 2; pass++) {
+        NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
+
+        if (nya_ui_panel_begin(ui, "last", row(nya_ui_fit()))) {
+            NYA_Rectf space = nya_ui_space(ui, 40.0F, 10.0F);
+            NYA_Rectf last  = nya_ui_last_rect(ui);
+            nya_ui_panel_end(ui);
+
+            NYA_Rectf panel = nya_ui_last_rect(ui);
+            nya_check(last.x == space.x && last.width == space.width && last.height == space.height, "the last child's rect");
+            nya_check(pass == 0 || nya_rect_contains(panel, (f32x2){ space.x, space.y }), "then the panel's around it");
+        }
+
+        nya_ui_end(ui);
+    }
+
     // Min and max bound any kind, and a bounded grow leaves its siblings their shares of what was left before.
     {
         NYA_Rectf  rects[3];

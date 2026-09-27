@@ -14,6 +14,7 @@
  *   nya_ui_card_begin, nya_ui_card_end          a framed container with a heading, a subtitle and a rule
  *   nya_ui_size                                 the next child's size along its container's direction
  *   nya_ui_space                                room in the layout for custom drawing, or a spacer
+ *   nya_ui_last_rect                            where the widget or container declared last landed
  *   nya_ui_scrim                                dims the whole window
  *   nya_ui_opacity_begin, nya_ui_opacity_end    fades everything between them, panel and all
  *   nya_ui_table_begin, nya_ui_table_end        rows whose cells line up in columns
@@ -1030,6 +1031,12 @@ NYA_API void nya_ui_size(NYA_UI* ui, NYA_UISize size);
  * `height` are pixels at scale 1; a zero across the container's direction fills it.
  * */
 NYA_API NYA_Rectf nya_ui_space(NYA_UI* ui, f32 width, f32 height);
+
+/**
+ * The rectangle the widget or container declared last took, in window pixels; after a container's end, the
+ * container's own, and after a node, its box. What a tooltip or a context menu over a widget is triggered by.
+ * */
+NYA_API NYA_Rectf nya_ui_last_rect(const NYA_UI* ui) __attr_no_discard;
 
 /** Dims the whole window in the style's scrim colour, under whatever is drawn after it. */
 NYA_API void nya_ui_scrim(NYA_UI* ui);

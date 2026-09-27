@@ -258,6 +258,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostLightShafts,
     &_NYA_REFLECT_NYA_PostMotionBlur,
     &_NYA_REFLECT_NYA_PostDebugView,
+    &_NYA_REFLECT_NYA_WindOptions,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_UIOverflow,

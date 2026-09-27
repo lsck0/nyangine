@@ -371,6 +371,8 @@ void nya_ui_panel_end(NYA_UI* ui) {
 
     // after the scrollbars, which belong to the panel, and back to where the container was opened from, so anything the caller draws between two panels lands in the layer it asked for rather than the last panel's.
     if (layout->layer != parent->layer) _nya_ui_layer_set(ui, parent->layer);
+
+    _nya_ui.last = layout->bounds;
 }
 
 b8 _nya_ui_float_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, NYA_Rectf at) {
@@ -405,6 +407,12 @@ b8 _nya_ui_claimed(f32x2 point) {
     }
 
     return false;
+}
+
+NYA_Rectf nya_ui_last_rect(const NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+
+    return _nya_ui.last;
 }
 
 void nya_ui_size(NYA_UI* ui, NYA_UISize size) {
@@ -739,7 +747,8 @@ NYA_Rectf _nya_ui_place(NYA_UISize own, f32x2 natural, b8 fill) {
     layout->across  = nya_max(layout->across, roundf(natural[cross]));
     layout->count  += 1;
 
-    return (NYA_Rectf){ position.x, position.y, taken.x, taken.y };
+    _nya_ui.last = (NYA_Rectf){ position.x, position.y, taken.x, taken.y };
+    return _nya_ui.last;
 }
 
 void _nya_ui_reveal(NYA_Rectf rect) {

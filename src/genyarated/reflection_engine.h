@@ -113,6 +113,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostEyeAdaptation;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostLightShafts;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostMotionBlur;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_WindOptions;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Render2DHaze;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIOverflow;
@@ -122,6 +123,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in genyarated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 84
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 85
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];

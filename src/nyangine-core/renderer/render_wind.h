@@ -39,6 +39,7 @@
 typedef struct NYA_WindField   NYA_WindField;
 typedef struct NYA_WindOptions NYA_WindOptions;
 
+// @reflect
 /**
  * How to build a field. Every field has a usable default, so `(NYA_WindOptions){ 0 }` is a light
  * breeze blowing along +x.
@@ -48,10 +49,10 @@ struct NYA_WindOptions {
     f32x3 direction;
 
     /** The steady push, in world units. Zero is read as one. */
-    f32 strength;
+    f32 strength; // @label(Strength) @range(0.5, 6)
 
     /** How much the gust swings the push, in [0, 1]. Zero is a dead-steady wind; one doubles and stills it in turn. */
-    f32 gustiness;
+    f32 gustiness; // @label(Gustiness) @range(0, 1)
 
     /** Phase offset, so two fields over the same ground gust out of step. Any value; zero is fine. */
     f32 seed;
