@@ -54,8 +54,8 @@
  * on a segment, and a suffix this server has a media type for. That refuses `..`, an absolute path, a
  * backslash, a percent escape, a NUL, and every byte an overlong UTF-8 sequence is made of, at startup
  * and by the same rule. Where the assets are still files rather than a baked blob, a handle naming a
- * symlink or a directory is refused as well: a link is a name for bytes somewhere else, which is the
- * whole thing this is trying not to serve.
+ * symlink or a directory, or passing through a symlinked directory, is refused as well: a link is a
+ * name for bytes somewhere else, which is the whole thing this is trying not to serve.
  *
  * ── what a name means ──
  *

@@ -347,6 +347,12 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
                 return NYA_HTTP_PARSE_REFUSED;
             }
 
+            // a second one makes the list "chunked, chunked", and chunked applied twice is a framing nobody agrees on (RFC 9112 6.1).
+            if (chunked) {
+                *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
+                return NYA_HTTP_PARSE_REFUSED;
+            }
+
             chunked = true;
         } else if (name_fits && nya_string_equals(name, "content-type")) {
             request->media_type = nya_http_media_type_parse(value, value_size);
@@ -380,7 +386,8 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         return NYA_HTTP_PARSE_REFUSED;
     }
 
-    if (chunked && has_length) {
+    // HTTP/1.0 has no chunked coding, so RFC 9112 6.1 has a 1.0 message that claims one treated as faulty framing: a 1.0 front end reads that body as the rest of the stream.
+    if (chunked && (has_length || !http_1_1)) {
         *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
         return NYA_HTTP_PARSE_REFUSED;
     }
@@ -1143,6 +1150,14 @@ _nya_http_decode_chunked(const u8* data, u64 size, u64 head_end, NYA_HttpRequest
         u64 digits = 0;
         while (digits < length && line[digits] != ';') digits++;
 
+        // a line only ends at CRLF here, so a bare CR or LF inside an extension is where a lenient front end ends it instead and reads the rest as data.
+        for (u64 index = digits; index < length; index++) {
+            if (_nya_http_is_field_char(line[index])) continue;
+
+            *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
+            return NYA_HTTP_PARSE_REFUSED;
+        }
+
         u64 chunk_size = 0;
         if (!_nya_http_parse_hex(line, digits, NYA_HTTP_MAX_BODY_BYTES, &chunk_size)) {
             // a size that parsed but is over the bound and a size that isn't hex are the same refusal from here; both mean this body is not one we'll assemble.
@@ -1192,6 +1207,14 @@ _nya_http_decode_chunked(const u8* data, u64 size, u64 head_end, NYA_HttpRequest
         }
 
         if (length == 0) break;
+
+        // dropped, but still held to a field's bytes: a bare LF in one is a line boundary to anything that splits on LF.
+        for (u64 index = 0; index < length; index++) {
+            if (_nya_http_is_field_char(line[index])) continue;
+
+            *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
+            return NYA_HTTP_PARSE_REFUSED;
+        }
     }
 
     out_request->body[decoded] = '\0';

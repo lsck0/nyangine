@@ -460,6 +460,20 @@ NYA_Error _nya_http_static_add(const NYA_HttpStaticFile* file, NYA_ConstCString 
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is a %s, and only a file is served", file->asset, NYA_FILETYPE_NAME_MAP[info.type]);
     }
 
+    // and every directory on the way to it, since the check above only sees the last name: a linked directory in the middle escapes the root just the same.
+    char directory[NYA_HTTP_MAX_STATIC_ASSET] = { 0 };
+
+    for (u64 index = root_size + 1; index < asset_size; index++) {
+        if (file->asset[index] != '/') continue;
+
+        nya_memcpy(directory, file->asset, index);
+        directory[index] = '\0';
+
+        if (nya_filesystem_info(directory, &info).ok && info.type != NYA_FILE_TYPE_DIRECTORY) {
+            return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is a %s on the way to '%s'", directory, NYA_FILETYPE_NAME_MAP[info.type], file->asset);
+        }
+    }
+
     if (file->size > NYA_HTTP_MAX_STATIC_FILE_BYTES) {
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "'%s' is " FMTu64 " bytes, past the %d a served file may be", file->asset, file->size,
                          NYA_HTTP_MAX_STATIC_FILE_BYTES);

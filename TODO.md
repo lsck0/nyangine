@@ -1094,8 +1094,15 @@ logged-in user.
   - The token endpoint is form encoded, as RFC 6749 section 4.1.3 requires: `NYA_REQUEST_BODY_FORM`
     landed in `plugins/curl/request.h` on 2026-09-23, so there is nothing to decide per provider.
 
-- `[~]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
-  path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
+- `[x]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
+  path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test:
+  `tests/nyangine/security/test_http_security.c` in process, `test_http_wire.c` over a real socket.
+  - Fixed by the wire pass: a slowloris held a slot forever (every read restarted the idle clock; now only a
+    request's first byte does), Transfer-Encoding twice, chunked on HTTP/1.0, a bare CR or LF in a chunk
+    extension or a trailer (all smuggled the request behind them), and a static handle through a symlinked
+    directory out of the root.
+  - Open: a slow reader still refreshes the clock on every byte it takes, so a peer that reads an answer a
+    byte at a time holds its slot. Bounding that is a minimum send rate, which is a policy decision.
 
 ## Phase 4 — the web client
 

@@ -50,7 +50,8 @@
  * NYA_HTTP_PARSE_REFUSED carrying the status that says why, and the connection is closed after it:
  * a stream this parser has given up on cannot be resynchronised, and guessing where the next request
  * starts is exactly the request smuggling bug. The same reasoning refuses a request that carries both
- * Content-Length and Transfer-Encoding rather than preferring one.
+ * Content-Length and Transfer-Encoding rather than preferring one, Transfer-Encoding twice, chunked on
+ * HTTP/1.0, and a bare CR or LF anywhere in the chunked framing.
  *
  * ── which verbs may carry a body ──
  *

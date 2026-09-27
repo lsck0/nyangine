@@ -126,8 +126,10 @@
 /**
  * How long a connection may sit without a complete request before it is dropped.
  *
- * Five seconds is far more than a local client needs and far less than a slowloris wants. It is the
- * bound that turns "hold every connection open forever" from an attack into a wait.
+ * Counted from a request's first byte, not its latest, so a head and body dripped a byte at a time
+ * are dropped here however steadily they drip. Five seconds is far more than a local client needs
+ * and far less than a slowloris wants. It is the bound that turns "hold every connection open
+ * forever" from an attack into a wait.
  * */
 #define NYA_HTTP_IDLE_TIMEOUT_MS 5000
 
