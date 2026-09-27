@@ -5,7 +5,7 @@
 -- What a plugin may actually call is narrower than this: a binding is only registered when the
 -- manifest asked for its permission and the game's build granted it. The permission is on every
 -- entry below, so a call that is missing at runtime can be traced to the manifest that did not ask
--- for it. See src/nyangine/core/core_plugin.h.
+-- for it. See src/nyangine-core/core/core_plugin.h.
 
 ---@class nya
 nya = {}
