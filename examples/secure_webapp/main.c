@@ -175,6 +175,8 @@ NYA_INTERNAL void members_component(NYA_Window* window, NYA_ConstCString display
 
 /** Draws `component` into HTML and ends the frame, so this pass's presses do not linger into the next. */
 NYA_INTERNAL void draw_once(void (*draw)(NYA_Window*, NYA_ConstCString), NYA_ConstCString arg) {
+    // an auto-sized panel takes the height the pass before measured, so a first pass settles it before the one that is sent.
+    draw(&WINDOW, arg);
     nya_ui_html_reset(&HTML);
     draw(&WINDOW, arg);
 

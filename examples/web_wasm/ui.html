@@ -22,32 +22,12 @@
     <title>nyangine · csr</title>
     <link rel="icon" href="data:," />
     <!--
-      The same stylesheet the HTML presenter emits for the SSR page (see nya_ui_html_document), so the
-      DOM the wasm module produces looks the same whether it was rendered on a server or, as here, in the
-      browser. The presenter writes only position and per-widget colour inline; these classes are the
-      rest of the look, keyed on the widget kind.
+      The look comes from the wasm module: nyangine_ui_style() is the stylesheet the HTML presenter
+      embeds in the SSR page (see nya_ui_html_style), so both render alike and this page keeps no copy.
     -->
+    <style id="nya-style"></style>
     <style>
-      :root { --bg:#14161c; --panel:#1c2029; --ink:#d8dbe2; --dim:#9498a2; --accent:#5a7cff; --line:#2a2f3a; }
-      html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-      #nya-surface { position:relative; width:100%; height:100vh; overflow:hidden; }
-      #nya-surface > * { position:absolute; box-sizing:border-box; transition:background .12s,border-color .12s,color .12s,opacity .12s,transform .08s; }
-      .nya-button:active, .nya-selectable:active { transform:translateY(1px); }
-      .nya-panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
-      .nya-label { color:var(--ink); white-space:nowrap; display:flex; align-items:center; padding:0 2px; }
-      .nya-button, .nya-selectable, .nya-dropdown { background:#262b36; color:var(--ink); border:1px solid var(--line); border-radius:5px; cursor:pointer; font:inherit; display:flex; align-items:center; justify-content:center; padding:0 8px; }
-      .nya-button:hover, .nya-selectable:hover { border-color:var(--accent); }
-      .nya-selectable[data-on="1"], .nya-toggle[data-on="1"] { background:var(--accent); color:#fff; border-color:var(--accent); }
-      .nya-toggle, .nya-radio { cursor:pointer; border:1px solid var(--line); border-radius:5px; background:#262b36; display:flex; align-items:center; justify-content:center; }
-      .nya-field input { width:100%; height:100%; background:#0f1116; color:var(--ink); border:1px solid var(--line); border-radius:5px; font:inherit; padding:0 6px; box-sizing:border-box; }
-      .nya-slider input { width:100%; }
-      .nya-scrim { background:rgba(0,0,0,.5); }
-      .nya-rule, .nya-underline { background:var(--line); }
-      .nya-underline { background:var(--accent); }
-      .nya-stripe { background:rgba(255,255,255,.03); }
-      [data-disabled="1"] { opacity:.4; pointer-events:none; }
-      [data-focused="1"] { outline:2px solid var(--accent); outline-offset:-1px; }
-      #nya-status { position:fixed; left:8px; bottom:8px; font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; color:var(--dim); }
+      #nya-status { position:fixed; left:8px; bottom:8px; font:12px/1.4 monospace; color:#9498a2; }
       #nya-status .err { color:#ff7b72; }
     </style>
   </head>
@@ -93,8 +73,10 @@
           // the component's input then draw pass, and returns the new body.
           const render = Module.cwrap("nyangine_ui_render", "string", []);
           const event = Module.cwrap("nyangine_ui_event", "string", ["string", "string"]);
+          const style = Module.cwrap("nyangine_ui_style", "string", []);
 
           morph(render());
+          document.getElementById("nya-style").textContent = style();
           status.textContent = "wasm module loaded — the UI is running client-side.";
 
           // A click on any element the presenter marked interactive is forwarded straight into wasm, and

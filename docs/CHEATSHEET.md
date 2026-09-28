@@ -4856,7 +4856,7 @@ The presenter that draws a UI pass as HTML, so the same component code that runs
 
 ```c
 // types
-struct NYA_UIHtml { NYA_UIPresenter presenter; f32x2 cell; char body[NYA_UI_HTML_MAX]; u32 used; u32 sequence; NYA_Rectf rects[NYA_UI_HTML_MAX_WIDGETS]; NYA_UIWidgetKind kinds[NYA_UI_HTML_MAX_WIDGETS]; NYA_Rectf value_rects[NYA_UI_HTML_MAX_WIDGETS]; s32 layer; b8 overflowed; NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 depth; }  // The HTML presenter's caller-owned buffer, which outlives a pass and allocates nothing.
+struct NYA_UIHtml { NYA_UIPresenter presenter; f32x2 cell; f32x2 surface; char body[NYA_UI_HTML_MAX]; u32 used; u32 sequence; NYA_Rectf rects[NYA_UI_HTML_MAX_WIDGETS]; NYA_UIWidgetKind kinds[NYA_UI_HTML_MAX_WIDGETS]; NYA_Rectf value_rects[NYA_UI_HTML_MAX_WIDGETS]; s32 layer; b8 overflowed; NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 depth; }  // The HTML presenter's caller-owned buffer, which outlives a pass and allocates nothing.
 enum NYA_TwitterCard { NYA_TWITTER_CARD_NONE = 0, NYA_TWITTER_CARD_SUMMARY, NYA_TWITTER_CARD_SUMMARY_LARGE_IMAGE, }  // Which Twitter Card a link unfurls as, or none.
 struct NYA_PageMeta { NYA_ConstCString title; NYA_ConstCString description; NYA_ConstCString canonical_url; NYA_ConstCString image_url; NYA_ConstCString image_alt; NYA_ConstCString site_name; NYA_ConstCString author_name; NYA_ConstCString type; NYA_TwitterCard twitter_card; NYA_ConstCString locale; NYA_ConstCString oembed_url; }
 
@@ -4877,6 +4877,7 @@ u32 nya_ui_html_count(const NYA_UIHtml* html)  // How many widgets the last pass
 b8 nya_ui_html_overflowed(const NYA_UIHtml* html)  // Whether the last pass wanted more room than NYA_UI_HTML_MAX, so its HTML is truncated.
 b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, OUT NYA_Rectf* out_rect)  // The rectangle widget `id` was drawn at, for a server turning a click on `wN` into a pointer.
 b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, OUT NYA_UIWidgetKind* out_kind, OUT NYA_Rectf* out_value_rect)
+u32 nya_ui_html_style(const NYA_UIHtml* html, OUT char* out, u32 capacity)
 u32 nya_ui_html_document(const NYA_UIHtml* html, OUT char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce)
 u32 nya_ui_html_document_meta(const NYA_UIHtml* html, OUT char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce, const NYA_PageMeta* meta)  // nya_ui_html_document, plus the social-media embedding metadata in `meta` woven into the `<head>`.
 b8 nya_ui_page_meta_url_ok(NYA_ConstCString url)  // Whether `url` is a URL safe to place in `href`/`src`: a well-formed absolute http(s) URL and nothing else.

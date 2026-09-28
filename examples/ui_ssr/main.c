@@ -114,6 +114,7 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
             nya_ui_label(ui, line);
 
             if (nya_ui_panel_begin(ui, "buttons", (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
+                nya_ui_size(ui, nya_ui_grow(1));
                 if (nya_ui_button(ui, "-1")) app->count--;
                 nya_ui_size(ui, nya_ui_grow(1));
                 if (nya_ui_button(ui, "+1")) app->count++;
@@ -153,6 +154,8 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
 NYA_INTERNAL void render(AppState* app) {
     component(&WINDOW, NYA_UI_PASS_INPUT, app);
 
+    // an auto-sized panel takes the height the pass before measured, which may be another session's tree; one pass over this one settles it.
+    component(&WINDOW, NYA_UI_PASS_DRAW, app);
     nya_ui_html_reset(&HTML);
     component(&WINDOW, NYA_UI_PASS_DRAW, app);
 

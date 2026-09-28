@@ -128,6 +128,9 @@ struct NYA_UIHtml {
     /** One character cell in pixels, the metric measurement is a multiple of; see the header. */
     f32x2 cell;
 
+    /** The window the last pass was laid out in, in pixels: the size the page gives the surface. */
+    f32x2 surface;
+
     /** The elements this pass drew, concatenated. Not a whole page — nya_ui_html_document wraps it. */
     char body[NYA_UI_HTML_MAX];
     u32  used;
@@ -241,7 +244,8 @@ struct NYA_PageMeta {
  * Prepares `html` and its presenter. `cell` is the pixel metric text is measured in; zero for the default.
  *
  * A monospace cell rather than a real face, for the reason the recorder uses one: the layout is then
- * exact arithmetic, the browser re-measures with its own font anyway, and the two agree on structure.
+ * exact arithmetic, and nya_ui_html_style sets the browser's font to a monospace face whose advance fits
+ * that cell, so text lands inside the rectangle the layout gave it.
  * */
 NYA_API void nya_ui_html_init(NYA_UIHtml* html, f32x2 cell);
 
@@ -278,6 +282,14 @@ NYA_API b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, OUT NYA_Rectf* out_r
  * kind that has none. False for an id the last pass did not draw, in which case both are zeroed.
  * */
 NYA_API b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, OUT NYA_UIWidgetKind* out_kind, OUT NYA_Rectf* out_value_rect) __attr_no_discard;
+
+/**
+ * Writes the stylesheet the body is drawn with into `out`, null terminated: the surface sized to the window
+ * the pass was laid out in, the font sized to the cell, and one rule per widget kind. Returns the bytes
+ * written, terminator excluded. nya_ui_html_document embeds it; a page that mounts the body itself, like
+ * the wasm one, puts it in a `<style>` element so both look the same.
+ * */
+NYA_API u32 nya_ui_html_style(const NYA_UIHtml* html, OUT char* out, u32 capacity);
 
 /**
  * Writes a whole page around the body: a doctype, the one stylesheet that colours every widget kind, the

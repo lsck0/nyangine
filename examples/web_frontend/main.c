@@ -236,8 +236,8 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, Ctx* ctx) {
 
         // The composer: a field bound to the session's draft, and an add button beside it. Typing posts a "text" write-back that the server types into this same buffer; pressing add records ACTION_ADD.
         if (nya_ui_panel_begin(ui, "compose", (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
-            (void)nya_ui_text_input(ui, "new todo", app->draft, sizeof(app->draft));
             nya_ui_size(ui, nya_ui_grow(1));
+            (void)nya_ui_text_input(ui, "new todo", app->draft, sizeof(app->draft));
             if (nya_ui_button(ui, "add")) ctx->action = ACTION_ADD;
 
             nya_ui_panel_end(ui);
@@ -268,8 +268,8 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, Ctx* ctx) {
                     ctx->action_done = checked;
                 }
 
-                nya_ui_label(ui, todo->text);
                 nya_ui_size(ui, nya_ui_grow(1));
+                nya_ui_label(ui, todo->text);
 
                 if (nya_ui_button(ui, "delete")) {
                     ctx->action    = ACTION_DELETE;

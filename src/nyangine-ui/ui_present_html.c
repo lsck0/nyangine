@@ -154,13 +154,59 @@ b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, NYA_UIWidgetKind* out_kind
 
 // THE DOCUMENT
 
+/** Bytes the stylesheet renders to, terminator included: the fixed sheet below is about 3 KiB. */
+enum { _NYA_UI_HTML_STYLE_MAX = 4096 };
+
 /**
- * The one stylesheet and the thin client, kept as a literal because it is the whole front-end a program
- * ships. The stylesheet colours each widget kind by class; the script forwards a click or an input on
- * anything carrying `data-nya` to the server and swaps whatever HTML comes back into the surface.
+ * The advance of a monospace glyph in em. Every common face is at or under 0.6 (DejaVu Sans Mono and Menlo
+ * 0.602, SF Mono and Liberation Mono 0.600, Consolas 0.55), so a font sized cell / 0.61 never outruns its cell.
+ * */
+NYA_INTERNAL const f32 _NYA_UI_HTML_ADVANCE_EM = 0.61F;
+
+/**
+ * The one stylesheet, colouring each widget kind by class. nya_ui_html_style puts the surface's size and font
+ * in front of it, since those follow the window and the cell; everything here is fixed.
+ * */
+NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_STYLE =
+    ":root{--bg:#101218;--panel:#1c2029;--ink:#d8dbe2;--accent:#5a7cff;--line:#2a2f3a;color-scheme:dark}\n"
+    "html,body{margin:0;min-height:100vh;color:var(--ink);background:var(--bg)}\n"
+    "body{display:flex;align-items:center;justify-content:center;"
+    "font-family:ui-monospace,'SF Mono','JetBrains Mono','DejaVu Sans Mono',Menlo,Consolas,'Liberation Mono',monospace}\n"
+    "#nya-surface{position:relative;flex:none;overflow:hidden}\n"
+    "#nya-surface>*{position:absolute;box-sizing:border-box;white-space:nowrap;display:flex;align-items:center;"
+    "transition:background .12s,border-color .12s,color .12s,opacity .12s,transform .08s}\n"
+    ".nya-button:active,.nya-selectable:active{transform:translateY(1px)}\n"
+    ".nya-panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45)}\n"
+    ".nya-panel[data-frameless]{background:none;border:0;box-shadow:none}\n"
+    ".nya-title{position:absolute;display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden}\n"
+    ".nya-button,.nya-selectable,.nya-dropdown,.nya-toggle{background:#262b36;border:1px solid var(--line);border-radius:5px;cursor:pointer;"
+    "justify-content:center;overflow:hidden}\n"
+    ".nya-button:hover,.nya-selectable:hover,.nya-toggle:hover{border-color:var(--accent)}\n"
+    ".nya-selectable[data-on=\"1\"]{background:var(--accent);color:#fff;border-color:var(--accent)}\n"
+    ".nya-toggle,.nya-slider,.nya-field{justify-content:space-between;padding:0 8px}\n"
+    ".nya-toggle i{width:28px;height:16px;border-radius:8px;background:var(--nya-track,var(--line));position:relative}\n"
+    ".nya-toggle i::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--ink);transition:left .12s}\n"
+    ".nya-toggle[data-on=\"1\"] i{background:var(--nya-accent,var(--accent))}\n"
+    ".nya-toggle[data-on=\"1\"] i::after{left:14px}\n"
+    ".nya-radio{cursor:pointer;justify-content:center}\n"
+    ".nya-field input,.nya-slider input{position:absolute;margin:0;box-sizing:border-box}\n"
+    ".nya-field input{background:var(--nya-track,#0f1116);color:var(--ink);border:1px solid var(--line);border-radius:var(--nya-radius,5px);"
+    "font:inherit;padding:0 var(--nya-pad,6px)}\n"
+    ".nya-field input:focus{outline:none;border-color:var(--accent)}\n"
+    ".nya-slider input{accent-color:var(--nya-accent,var(--accent))}\n"
+    ".nya-scrim{background:rgba(0,0,0,.5)}\n"
+    ".nya-rule{background:var(--line)}\n"
+    ".nya-underline{background:var(--accent)}\n"
+    ".nya-stripe{background:rgba(255,255,255,.03)}\n"
+    "[data-disabled=\"1\"]{opacity:.4;pointer-events:none}\n"
+    "[data-focused=\"1\"]{outline:2px solid var(--accent);outline-offset:-1px}\n";
+
+/**
+ * The page around the stylesheet and the body, with the thin client: the script forwards a click or an
+ * input on anything carrying `data-nya` to the server and swaps whatever HTML comes back into the surface.
  *
- * `%s` four times: the title (escaped), the social-media embedding metadata block (each field escaped, or
- * empty), the body's elements, and the script's nonce attribute.
+ * `%s` five times: the title (escaped), the social-media embedding metadata block (each field escaped, or
+ * empty), the stylesheet, the body's elements, and the script's nonce attribute.
  */
 NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "<!doctype html>\n"
@@ -168,28 +214,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "<title>%s</title>\n"
     "<link rel=\"icon\" href=\"data:,\">\n"
     "%s"
-    "<style>\n"
-    "  :root{--bg:#14161c;--panel:#1c2029;--ink:#d8dbe2;--dim:#9498a2;--accent:#5a7cff;--line:#2a2f3a}\n"
-    "  html,body{margin:0;height:100%%;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}\n"
-    "  #nya-surface{position:relative;width:100%%;height:100vh;overflow:hidden}\n"
-    "  #nya-surface>*{position:absolute;box-sizing:border-box;transition:background .12s,border-color .12s,color .12s,opacity .12s,transform .08s}\n"
-    "  .nya-button:active,.nya-selectable:active{transform:translateY(1px)}\n"
-    "  .nya-panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.35)}\n"
-    "  .nya-label{color:var(--ink);white-space:nowrap;display:flex;align-items:center;padding:0 2px}\n"
-    "  .nya-button,.nya-selectable,.nya-dropdown{background:#262b36;color:var(--ink);border:1px solid var(--line);border-radius:5px;"
-    "cursor:pointer;font:inherit;display:flex;align-items:center;justify-content:center;padding:0 8px}\n"
-    "  .nya-button:hover,.nya-selectable:hover{border-color:var(--accent)}\n"
-    "  .nya-selectable[data-on=\"1\"],.nya-toggle[data-on=\"1\"]{background:var(--accent);color:#fff;border-color:var(--accent)}\n"
-    "  .nya-toggle,.nya-radio{cursor:pointer;border:1px solid var(--line);border-radius:5px;background:#262b36;display:flex;align-items:center;justify-content:center}\n"
-    "  .nya-field input{width:100%%;height:100%%;background:var(--nya-track,#0f1116);color:var(--ink);border:1px solid var(--line);border-radius:var(--nya-radius,5px);font:inherit;padding:0 var(--nya-pad,6px);box-sizing:border-box}\n"
-    "  .nya-slider input{width:100%%;accent-color:var(--nya-accent,var(--accent))}\n"
-    "  .nya-scrim{background:rgba(0,0,0,.5)}\n"
-    "  .nya-rule,.nya-underline{background:var(--line)}\n"
-    "  .nya-underline{background:var(--accent)}\n"
-    "  .nya-stripe{background:rgba(255,255,255,.03)}\n"
-    "  [data-disabled=\"1\"]{opacity:.4;pointer-events:none}\n"
-    "  [data-focused=\"1\"]{outline:2px solid var(--accent);outline-offset:-1px}\n"
-    "</style></head><body>\n"
+    "<style>\n%s</style></head><body>\n"
     "<div id=\"nya-surface\">\n%s</div>\n"
     "<script%s>\n"
     "(function(){\n"
@@ -216,6 +241,21 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "})();\n"
     "</script></body></html>\n";
 
+u32 nya_ui_html_style(const NYA_UIHtml* html, char* out, u32 capacity) {
+    nya_assert(html != nullptr && out != nullptr && capacity > 0);
+    nya_assert(html->cell.x > 0.0F && html->cell.y > 0.0F, "a style is written for a presenter prepared by nya_ui_html_init");
+
+    s32 written = snprintf(out, capacity, "#nya-surface{width:%dpx;height:%dpx;font-size:%.2fpx;line-height:%dpx}\n%s", (s32)html->surface.x,
+                           (s32)html->surface.y, (f64)(html->cell.x / _NYA_UI_HTML_ADVANCE_EM), (s32)html->cell.y, _NYA_UI_HTML_STYLE);
+
+    if (written <= 0) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    return (u32)nya_min((u32)written, capacity - 1);
+}
+
 u32 nya_ui_html_document(const NYA_UIHtml* html, char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce) {
     return nya_ui_html_document_meta(html, out, capacity, title, script_nonce, nullptr);
 }
@@ -241,7 +281,10 @@ u32 nya_ui_html_document_meta(const NYA_UIHtml* html, char* out, u32 capacity, N
     char meta_head[NYA_PAGE_META_HEAD_MAX] = { 0 };
     if (meta != nullptr) _nya_ui_html_meta_head(meta, meta_head, sizeof(meta_head));
 
-    s32 written = snprintf(out, capacity, _NYA_UI_HTML_PAGE, safe_title, meta_head, html->body, nonce_attr);
+    char style[_NYA_UI_HTML_STYLE_MAX] = { 0 };
+    (void)nya_ui_html_style(html, style, sizeof(style));
+
+    s32 written = snprintf(out, capacity, _NYA_UI_HTML_PAGE, safe_title, meta_head, style, html->body, nonce_attr);
 
     if (written <= 0) {
         out[0] = '\0';
@@ -262,6 +305,9 @@ void _nya_ui_html_look_build(void* state, u32 depth, const NYA_UIStyle* style, f
     nya_ui_look_scale(style, scale, out);
 
     for (u32 i = 0; i < NYA_UI_TEXT_COUNT; i++) out->line_heights[i] = html->cell.y;
+
+    // the shape presenter's rule; left at zero the layout reserves no bar and the title lands under the first row.
+    out->title_bar = roundf(html->cell.y + (out->padding * 0.5F));
 
     html->looks[depth] = *out;
 }
@@ -328,9 +374,11 @@ void _nya_ui_html_layer_set(void* state, NYA_Window* window, s32 layer) {
 
 void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     NYA_UIHtml* html = state;
-    (void)window;
 
     nya_assert(html != nullptr && widget != nullptr);
+
+    // the layout placed every rect inside this window, so the page sizes the surface to it; see nya_ui_html_style.
+    if (window != nullptr) html->surface = (f32x2){ (f32)window->screen_width, (f32)window->screen_height };
 
     u32 id = html->sequence++;
 
@@ -361,6 +409,8 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
 
     switch (widget->kind) {
         case NYA_UI_WIDGET_PANEL:
+            // a frameless panel only groups its children; the stylesheet hides its frame, and a fill here would show it.
+            if (widget->as_panel.options != nullptr && widget->as_panel.options->frameless) break;
             _nya_ui_html_style_color(html, "background", style->panel);
             // The ink is the colour of the outline the GPU draws around a panel; here it is the border's.
             _nya_ui_html_style_color(html, "border-color", style->ink);
@@ -382,14 +432,18 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
             _nya_ui_html_style_color(html, "--nya-track", style->track);
             break;
 
-        // The button family shares a body colour and a rounded border; a selectable or toggle that's on takes the accent (the colour the stylesheet's `[data-on]` rule uses), since an inline fill would otherwise sit over that rule and hide the chosen state.
+        // The button family shares a body colour and a rounded border; a selectable that's on takes the accent (the colour the stylesheet's `[data-on]` rule uses), since an inline fill would otherwise sit over that rule and hide the chosen state. A toggle shows its state on its switch, which reads the accent and track as properties, as the GPU draws its pill.
         case NYA_UI_WIDGET_BUTTON:
         case NYA_UI_WIDGET_SELECTABLE:
         case NYA_UI_WIDGET_TOGGLE:
         case NYA_UI_WIDGET_RADIO:
         case NYA_UI_WIDGET_DROPDOWN: {
-            b8 chosen = (widget->kind == NYA_UI_WIDGET_SELECTABLE || widget->kind == NYA_UI_WIDGET_TOGGLE)
-                        && widget->as_choice.on && !widget->state.disabled;
+            b8 chosen = widget->kind == NYA_UI_WIDGET_SELECTABLE && widget->as_choice.on && !widget->state.disabled;
+
+            if (widget->kind == NYA_UI_WIDGET_TOGGLE) {
+                _nya_ui_html_style_color(html, "--nya-accent", style->accent);
+                _nya_ui_html_style_color(html, "--nya-track", style->track);
+            }
 
             NYA_Color fill = chosen ? style->accent : _nya_ui_html_button_color(&style->button, &widget->state);
 
@@ -402,8 +456,14 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
         // The accent under a chosen tab is the accent colour, flat.
         case NYA_UI_WIDGET_UNDERLINE: _nya_ui_html_style_color(html, "background", style->accent); break;
 
-        // The rest keep the stylesheet's fill: a label and text follow the per-widget colour above, the rule and stripe are fixed sheets, and the field and slider carried their look as the custom properties above rather than a fill on the div.
+        // A label keeps the per-widget colour above and sits where its alignment puts it inside the rect the layout gave it.
         case NYA_UI_WIDGET_LABEL:
+            if (widget->as_label.align != NYA_UI_ALIGN_START) {
+                _nya_ui_html_put(html, widget->as_label.align == NYA_UI_ALIGN_CENTER ? ";justify-content:center" : ";justify-content:flex-end");
+            }
+            break;
+
+        // The rest keep the stylesheet's fill: the rule and stripe are fixed sheets, and the field and slider carried their look as the custom properties above rather than a fill on the div.
         case NYA_UI_WIDGET_COLOR_PICKER:
         case NYA_UI_WIDGET_CHART:
         case NYA_UI_WIDGET_ICON:
@@ -422,6 +482,9 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     if (widget->state.disabled) _nya_ui_html_put(html, " data-disabled=\"1\"");
     if (widget->state.focused) _nya_ui_html_put(html, " data-focused=\"1\"");
     if (widget->state.held) _nya_ui_html_put(html, " data-held=\"1\"");
+    if (widget->kind == NYA_UI_WIDGET_PANEL && widget->as_panel.options != nullptr && widget->as_panel.options->frameless) {
+        _nya_ui_html_put(html, " data-frameless=\"1\"");
+    }
 
     // The event a click on this widget stands for, so the thin client knows what to send back: only the widgets a person acts on carry one; a label or a rule is inert.
     switch (widget->kind) {
@@ -456,27 +519,50 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
         case NYA_UI_WIDGET_SECTION:
         case NYA_UI_WIDGET_CHROME: _nya_ui_html_escape(html, widget->label); break;
 
-        case NYA_UI_WIDGET_TOGGLE: _nya_ui_html_put(html, widget->as_choice.on ? "on" : "off"); break;
+        // The label on the left and the switch on the right, as the GPU draws it; the stylesheet turns the empty `<i>` into the pill.
+        case NYA_UI_WIDGET_TOGGLE:
+            _nya_ui_html_escape(html, widget->label);
+            _nya_ui_html_put(html, "<i></i>");
+            break;
 
         case NYA_UI_WIDGET_DROPDOWN:
             _nya_ui_html_escape(html, widget->as_dropdown.shown != nullptr ? widget->as_dropdown.shown : widget->label);
             _nya_ui_html_put(html, " \xe2\x96\xbe");
             break;
 
-        case NYA_UI_WIDGET_SLIDER:
-            // A real range input, so the browser gives the drag and keyboard for free; the value the layout computed is its position, and `data-nya="input"` is added by the frame's default.
-            _nya_ui_html_putf(html, "<input type=\"range\" min=\"0\" max=\"1000\" value=\"%d\" data-nya=\"input\">", (s32)(widget->as_slider.t * 1000.0F));
+        case NYA_UI_WIDGET_SLIDER: {
+            // A real range input over the track the input pass reads, so the browser gives the drag and keyboard for free and the label beside it stays visible; `data-nya="input"` is the value event.
+            NYA_Rectf track = widget->as_slider.track;
+            _nya_ui_html_escape(html, widget->label);
+            _nya_ui_html_putf(html, "<input type=\"range\" min=\"0\" max=\"1000\" value=\"%d\" data-nya=\"input\" style=\"left:%dpx;top:0;width:%dpx;height:100%%\">",
+                              (s32)(widget->as_slider.t * 1000.0F), (s32)(track.x - widget->rect.x), (s32)track.width);
             break;
+        }
 
-        case NYA_UI_WIDGET_FIELD:
+        case NYA_UI_WIDGET_FIELD: {
             // A real text input: `data-nya="text"` marks it as a text write-back (the event the client posts as `{ id, event: "text", value }`, distinct from the slider's `"input"`, so a server knows to set the field's text rather than aim a pointer), and `maxlength` bounds what a browser sends to the field's capacity, which the server truncates to the same so neither can overrun.
+            NYA_Rectf box = widget->as_field.field.box;
+            _nya_ui_html_escape(html, widget->label);
             _nya_ui_html_putf(html, "<input type=\"text\" maxlength=\"%d\" value=\"", (s32)(NYA_UI_TEXT_INPUT_MAX - 1));
             _nya_ui_html_escape(html, widget->as_field.field.buffer != nullptr ? widget->as_field.field.buffer : "");
-            _nya_ui_html_put(html, "\" data-nya=\"text\">");
+            _nya_ui_html_putf(html, "\" data-nya=\"text\" style=\"left:%dpx;top:%dpx;width:%dpx;height:%dpx\">", (s32)(box.x - widget->rect.x),
+                              (s32)(box.y - widget->rect.y), (s32)box.width, (s32)box.height);
+            break;
+        }
+
+        // The title in the bar the layout reserved, centred between the chrome at either end, as the GPU draws it.
+        case NYA_UI_WIDGET_PANEL:
+            if (widget->label[0] != '\0') {
+                f32x2 inset = widget->as_panel.inset;
+                f32x2 room  = widget->as_panel.title_room;
+                _nya_ui_html_putf(html, "<span class=\"nya-title\" style=\"left:%dpx;right:%dpx;top:%dpx;height:%dpx\">", (s32)(inset.x + room.x),
+                                  (s32)(inset.x + room.y), (s32)inset.y, (s32)widget->as_panel.bar);
+                _nya_ui_html_escape(html, widget->label);
+                _nya_ui_html_put(html, "</span>");
+            }
             break;
 
-        // The rest are marks and fills the stylesheet draws from the class and rectangle alone: a scrim is a dim sheet, a rule and underline are lines, a panel is a frame; their label, when they have one, is a title the frame already showed nothing of, so it goes in as text.
-        case NYA_UI_WIDGET_PANEL:
+        // The rest are marks and fills the stylesheet draws from the class and rectangle alone: a scrim is a dim sheet, a rule and underline are lines; their label, when they have one, goes in as text.
         case NYA_UI_WIDGET_SCRIM:
         case NYA_UI_WIDGET_COLOR_PICKER:
         case NYA_UI_WIDGET_CHART:

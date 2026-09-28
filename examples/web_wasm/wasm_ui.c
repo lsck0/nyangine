@@ -3,7 +3,7 @@
  *
  * The client-side-rendered slice: the same immediate-mode UI component the ui_ssr example serves from a
  * server, compiled to WebAssembly and driven entirely in the browser. No round trip — the component, its
- * state, the input pass and the HTML presenter all run in wasm. `web/ui.html` calls the two exports
+ * state, the input pass and the HTML presenter all run in wasm. `ui.html` calls the three exports
  * below, mounts the returned HTML into a surface, and forwards a click straight back into wasm.
  *
  * This is the CSR counterpart of wasm_demo.c's headless serialize proof: where that demo showed the
@@ -274,6 +274,7 @@ static void component(NYA_Window* window, NYA_UIPass pass, AppState* app) {
             nya_ui_label(ui, line);
 
             if (nya_ui_panel_begin(ui, "buttons", (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
+                nya_ui_size(ui, nya_ui_grow(1));
                 if (nya_ui_button(ui, "-1")) app->count--;
                 nya_ui_size(ui, nya_ui_grow(1));
                 if (nya_ui_button(ui, "+1")) app->count++;
@@ -378,6 +379,19 @@ const char* nyangine_ui_render(void) {
     start();
     render_settled();
     return nya_ui_html_body(&HTML);
+}
+
+/**
+ * The stylesheet the HTML presenter draws with, sized to this pass's window and cell: the same one ui_ssr's
+ * page embeds, so the two look alike without the page keeping a copy. Call after nyangine_ui_render.
+ */
+EMSCRIPTEN_KEEPALIVE
+const char* nyangine_ui_style(void) {
+    static char style[4096];
+
+    start();
+    (void)nya_ui_html_style(&HTML, style, sizeof(style));
+    return style;
 }
 
 /**

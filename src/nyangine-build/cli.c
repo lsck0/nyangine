@@ -101,20 +101,18 @@ NYA_INTERNAL void wasm_ui_runner(NYA_ArgCommand* command) {
     if (!nya_filesystem_exists(WASM_UI_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_JS_OUTPUT);
     if (!nya_filesystem_exists(WASM_UI_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_WASM_OUTPUT);
 
-    // Both exports, by reading the loader back: the page calls both, so either one dropped means a page that cannot render or cannot forward a click, whatever emcc's exit code said.
+    // Every export, by reading the loader back: the page calls each, so one dropped means a page that cannot render, style or forward a click, whatever emcc's exit code said.
     NYA_String* loader = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(WASM_UI_JS_OUTPUT, loader), "while reading %s back", WASM_UI_JS_OUTPUT);
 
-    NYA_ConstCString loader_text = nya_string_to_cstring(arena, loader);
-    if (!nya_string_contains(loader_text, WASM_UI_RENDER_SYMBOL)) {
-        nya_log_panic("%s does not name %s: the export was dropped.", WASM_UI_JS_OUTPUT, WASM_UI_RENDER_SYMBOL);
-    }
-    if (!nya_string_contains(loader_text, WASM_UI_EVENT_SYMBOL)) {
-        nya_log_panic("%s does not name %s: the export was dropped.", WASM_UI_JS_OUTPUT, WASM_UI_EVENT_SYMBOL);
+    NYA_ConstCString       loader_text = nya_string_to_cstring(arena, loader);
+    const NYA_ConstCString symbols[]   = { WASM_UI_RENDER_SYMBOL, WASM_UI_EVENT_SYMBOL, WASM_UI_STYLE_SYMBOL };
+    for (u32 i = 0; i < nya_carray_length(symbols); i++) {
+        if (!nya_string_contains(loader_text, symbols[i])) nya_log_panic("%s does not name %s: the export was dropped.", WASM_UI_JS_OUTPUT, symbols[i]);
     }
 
-    nya_log_info("Built %s and %s; %s and %s are exported. Serve %s over HTTP and open ui.html.", WASM_UI_JS_OUTPUT, WASM_UI_WASM_OUTPUT,
-                 WASM_UI_RENDER_SYMBOL, WASM_UI_EVENT_SYMBOL, WASM_OUTPUT_DIRECTORY);
+    nya_log_info("Built %s and %s; %s, %s and %s are exported. Serve %s over HTTP and open ui.html.", WASM_UI_JS_OUTPUT, WASM_UI_WASM_OUTPUT,
+                 WASM_UI_RENDER_SYMBOL, WASM_UI_EVENT_SYMBOL, WASM_UI_STYLE_SYMBOL, WASM_OUTPUT_DIRECTORY);
 }
 
 /**

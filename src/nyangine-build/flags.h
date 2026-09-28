@@ -280,10 +280,12 @@
 #define WASM_UI_SOURCE     "./examples/web_wasm/wasm_ui.c"
 #define WASM_UI_JS_OUTPUT  WASM_OUTPUT_DIRECTORY "/nyangine_ui.js"
 #define WASM_UI_WASM_OUTPUT WASM_OUTPUT_DIRECTORY "/nyangine_ui.wasm"
-// The two C symbols the page calls, named here so the -sEXPORTED_FUNCTIONS below and the verifier that
-// greps the loader cannot drift. render() draws one pass to HTML; event() feeds a click back in.
+// The three C symbols the page calls, named here so the -sEXPORTED_FUNCTIONS below and the verifier that
+// greps the loader cannot drift. render() draws one pass to HTML; event() feeds a click back in; style()
+// is the presenter's stylesheet, so the page keeps no copy of it.
 #define WASM_UI_RENDER_SYMBOL "nyangine_ui_render"
 #define WASM_UI_EVENT_SYMBOL  "nyangine_ui_event"
+#define WASM_UI_STYLE_SYMBOL  "nyangine_ui_style"
 
 /*
  * Unlike the headless wasm_demo, the UI reads its state through NYA_App, whose type embeds the renderer,
@@ -306,7 +308,7 @@
     "-DNYA_WEB_PROFILE",                                              \
     "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-format", \
     WASM_UI_VENDOR_INCLUDES,                                           \
-    "-sEXPORTED_FUNCTIONS=_" WASM_UI_RENDER_SYMBOL ",_" WASM_UI_EVENT_SYMBOL, \
+    "-sEXPORTED_FUNCTIONS=_" WASM_UI_RENDER_SYMBOL ",_" WASM_UI_EVENT_SYMBOL ",_" WASM_UI_STYLE_SYMBOL, \
     "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
     "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineUiModule",          \
     "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"
