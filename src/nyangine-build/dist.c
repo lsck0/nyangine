@@ -203,7 +203,7 @@ NYA_INTERNAL const DistTarget DIST_TARGETS[] = {
         .payload        = STEAM_WINDOWS_X86_64_DIRECTORY,
         .archive_suffix = "steam-windows-x86_64.zip",
     },
-    /* The wasm build, and nothing in it yet. The slot is here so the layout does not move when it lands: the same dist/<target>/ shape, the same LICENSE and CHANGELOG.md, the same data/ and plugins/ trees a player edits. What will fill it: the engine compiled to wasm, a canvas/WebGPU rendering backend, and the nyangine UI compiled to HTML, CSS and JS. That is a build target and two backends, not a packaging change, so it is deliberately not started here. Until the rule exists this stages an empty directory rather than failing, because `./build dist` has to keep working meanwhile. */
+    /* The wasm builds exist (`./build wasm`, `wasm-ui`, `wasm-game`) but nothing stages them here yet; the slot keeps the dist/<target>/ layout fixed until it does, and an empty directory keeps `./build dist` working meanwhile. */
     {
         .name        = "web",
         .description = "The wasm build. Empty until the target exists; see the note in dist.c.",

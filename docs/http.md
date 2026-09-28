@@ -708,8 +708,11 @@ the table is allocated when the first stream is mounted and not before.
 
 ## What belongs to a proxy
 
-TLS, and any request bound above the ones here. Bind to loopback and put a proxy in front. This is the server half of "one stack for everything", not a public-facing web server,
-and that is a decision recorded in `TODO.md` rather than an omission.
+Nothing has to. TLS is in process (`certificate_path` and `key_path` on `NYA_HttpConfig`, through
+OpenSSL today; see `tls.h`), and connections, requests and sockets are limited per address. A proxy
+is optional: put one in front for request bounds above the ones here, or to share one address
+between programs. Behind one, every client shares the proxy's per address budget, since the address
+is the socket's peer and never a forwarded header.
 
 ## The first resource
 

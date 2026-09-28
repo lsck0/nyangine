@@ -99,8 +99,8 @@
  * `requests_per_second`; an empty bucket answers 429 with Retry-After and closes. The address is the
  * socket's peer, never a forwarded header, so behind a proxy every client shares the proxy's budget.
  *
- * What is *not* here yet: TLS, and any request bound above the ones in http_types.h. Until TLS
- * lands, bind to loopback and put a proxy in front.
+ * TLS is in process: set `certificate_path` and `key_path` below. What is not here is any request bound
+ * above the ones in http_types.h; a proxy in front is optional, for those.
  *
  * ── thread safety ──
  *

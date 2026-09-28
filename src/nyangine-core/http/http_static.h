@@ -76,12 +76,12 @@
  * second validator is a second answer that can disagree with the first, and in a release build the
  * bytes come out of the executable's `.rodata` and have no modification time that is not a fiction.
  *
- * ── no content coding ──
+ * ── content coding ──
  *
- * Responses go out as they are stored, with no `Content-Encoding` and no `Vary: Accept-Encoding`. The
- * compressor this engine vendors is LZ4, which is not a registered HTTP content coding and which no
- * browser can decode; gzip and brotli are a dependency decision of their own, not a side effect of
- * serving a page. A `Vary` on a response that does not vary only splits every cache entry in two.
+ * This module sets no `Content-Encoding` itself: a static answer leaves here as it is stored. The server
+ * then passes every answer through nya_http_response_compress, which in a build with
+ * NYA_HTTP_COMPRESSION codes it br, gzip or deflate by the client's Accept-Encoding and adds the Vary;
+ * see http_message.h.
  *
  * The build does compress the bundle where compression pays here: `src/nyangine-build/pp/asset.c` stores each
  * asset LZ4-compressed inside the executable when that is smaller, so a release carries the bundle
