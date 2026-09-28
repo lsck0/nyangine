@@ -20,8 +20,11 @@ NYA_INTERNAL b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* ent
 /** b2OverlapResultFcn for nya_physics2d_entity_at: narrows a broadphase hit to a real point test. */
 NYA_INTERNAL bool _nya_physics2d_point_query_callback(b2ShapeId shape, void* context);
 
-/** b2PreSolveFcn: discards the contact when one side is a one-way surface passed the right way. */
-NYA_INTERNAL bool _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context);
+/** b2PreSolveFcn: empties the manifold when one side is a one-way surface passed the right way. */
+NYA_INTERNAL void _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Manifold* manifold, void* context);
+
+/** b2PreContinuousFcn: the same veto for a time of impact, so a fast body is not stopped short of a ledge it may pass. */
+NYA_INTERNAL bool _nya_physics2d_pre_continuous(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context);
 
 /**
  * Whether a contact between `surface` and `mover` should be solved.
@@ -92,9 +95,9 @@ void nya_system_physics2d_init(void) {
     // read back rather than hardcoded, so it follows Box2D.
     system->contact_recycle_distance = b2World_GetContactRecycleDistance(system->world);
 
-    // installed unconditionally: pre-solve is the only place to veto a contact, and the callback returns at once
-    // for pairs without a one-way side, which is almost all of them.
-    b2World_SetPreSolveCallback(system->world, _nya_physics2d_pre_solve, nullptr);
+    // installed unconditionally: these are the only places to veto a contact, and both return at once for pairs
+    // without a one-way side, which is almost all of them.
+    b2World_SetPreSolveCallback(system->world, _nya_physics2d_pre_solve, _nya_physics2d_pre_continuous, nullptr);
 
     nya_log_info("Physics2D system initialized (%.1f world units per metre, %u sub steps).", (f64)system->pixels_per_meter, system->sub_step_count);
 }
@@ -757,7 +760,7 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
 
         case NYA_PHYSICS2D_SHAPE_CHAIN: {
             if (options->points == nullptr || options->point_count < 4) {
-                // four is Box2D's minimum for an open chain: the end segments are ghosts that only supply neighbour normals.
+                // two solid points and a ghost at each end, which only supplies the neighbour normal and never collides.
                 nya_log_error("Entity '%s' asked for a chain body with %u points; an open chain needs at least 4.", name, options->point_count);
                 return false;
             }
@@ -777,8 +780,11 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
 
             b2ChainDef chain_def = b2DefaultChainDef();
 
-            chain_def.points        = points;
-            chain_def.count         = (int)options->point_count;
+            // box2d takes the ghost ends apart from the solid points, and rejects a chain without them.
+            chain_def.ghost1        = points[0];
+            chain_def.points        = &points[1];
+            chain_def.pointCount    = (int)options->point_count - 2;
+            chain_def.ghost2        = points[options->point_count - 1];
             chain_def.materials     = &material;
             chain_def.materialCount = 1;
             chain_def.isLoop        = false;
@@ -790,7 +796,13 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
             // terrain is where pickups land, so a chain sensors cannot see would make ground triggers inert.
             chain_def.enableSensorEvents = true;
 
-            (void)b2CreateChain(body, &chain_def);
+            // box2d answers bad input with a null id and a log line, which would leave a floor that is not there.
+            b2ChainId chain = b2CreateChain(body, &chain_def);
+            if (!b2Chain_IsValid(chain)) {
+                nya_log_error("Entity '%s' asked for a chain Box2D rejected; its points are not finite or too close together.", name);
+                return false;
+            }
+
             return true;
         }
 
@@ -980,7 +992,7 @@ b8 _nya_physics2d_one_way_admits(const NYA_Entity* surface, const NYA_Entity* mo
     return side >= 0.0F;
 }
 
-bool _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context) {
+bool _nya_physics2d_pre_continuous(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context) {
     nya_unused(point, context);
 
     NYA_Entity* a = b2Body_GetUserData(b2Shape_GetBody(shape_a));
@@ -996,6 +1008,11 @@ bool _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point,
     if (!_nya_physics2d_one_way_admits(b, a, (b2Vec2){ -normal.x, -normal.y })) return false;
 
     return true;
+}
+
+void _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Manifold* manifold, void* context) {
+    // the veto reads only the normal, so no point is picked out of the manifold for it.
+    if (!_nya_physics2d_pre_continuous(shape_a, shape_b, b2Pos_zero, manifold->normal, context)) manifold->pointCount = 0;
 }
 
 bool _nya_physics2d_point_query_callback(b2ShapeId shape, void* context) {
