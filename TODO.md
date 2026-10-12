@@ -41,13 +41,84 @@ The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 - **Layering: a server links the whole engine.** `[x]` for http/net — **done 2026-09-24.** `net`/`http` carry no `core`/renderer/SDL include, `core_event` is SDL-free, so `nyangine.h`/`nyangine.c` pull the server half under `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)`, and the reflection table is split into an SDL-free `reflection_engine_server.c` (by source dir — step 7's per-component table, early). **`examples/headless_server` builds+links+runs under `-DNYA_NO_SDL -DNYA_SERVER` on the `NYA_SERVER_VENDORS` subset: 175 KiB, `ldd` names no libSDL3, serves `/status`→200, exits 0** (~53× smaller than the `--gc-sections` `--server` build). Build: `./build run example headless_server --server` (an opt-in `.headless` marker; full-graph `--server` path for other examples unchanged). Still open on the SDL side: `NYA_App` embeds renderer/asset/window by value, so anything using `nya_app_get` (e.g. `core_asset` for a bundle) can't go headless — that's the components/profiles refactor (`NYA_App`-by-value, core-split step 5).
 - **Components + profiles.** `[ ]` The whole "everything is a plugin" refactor: one descriptor per component the build reads, and named profiles (`cli`/`tui`/`server`/`desktop`/`game`/`web`). This is what makes the vendor subset and a true headless build real rather than link-time GC.
 - **Accounts.** `[x]` for the route lift — **done 2026-09-24.** The login flow is a mountable router: `nya_http_accounts_open(config) → NYA_HttpRouter*` (register/login/login-totp/logout/session + totp enrol/confirm, `__Host-session` cookie, sealed `__Host-login` half-step, no enumeration, throttle+replay guard preserved) in `src/nyangine-core/http/http_accounts.{h,c}` (http layer, since accounts is rank 5 and may not include http). `examples/accounts_api` mounts it: 1053→472 lines. Prior: passkeys/WebAuthn factor (`a4749383`). Passwordless-primary landed too (passkey register/login routes in `http_accounts.c`).
-- **TLS in process + ACME.** `[~]` `tls` does server + verified **client** sessions; **ACME v2** client landed (`fbfef27e` — JWS/HTTP-01/CSR, tested against a signature-verifying mock CA). TLS terminates in `http`'s own accept loop now (OpenSSL, `tls.h`). Open: an end-to-end ACME run against a live/pebble CA, and mbedTLS in place of the system OpenSSL.
+- **TLS in process + ACME.** `[⏭]` dropped 2026-10-12: the platform terminates TLS, see "Requested (2026-10-12)". Was: `[~]` `tls` does server + verified **client** sessions; **ACME v2** client landed (`fbfef27e` — JWS/HTTP-01/CSR, tested against a signature-verifying mock CA). TLS terminates in `http`'s own accept loop now (OpenSSL, `tls.h`). Open: an end-to-end ACME run against a live/pebble CA, and mbedTLS in place of the system OpenSSL.
 - **CI.** `[x]` Fixed 2026-09-24 (`fb03c964` + `81b49da4`): the Linux→Windows cross-compile was broken (per-host vs per-target module flags, `SIO_UDP_CONNRESET`/`if_nametoindex`, `RELATIVE` macro, ACME unused-fns under NYA_NO_TLS) — all 3 Windows targets now build+link, all 350 test sources compile for Windows. Added a nightly scheduled fuzz/sim/bench workflow (`919f6500`, hardened). Watch: a fresh green master run to confirm on the runner.
 - **Renderer.** `[~]` SSR + SSAO post passes, a **GPU compute pipeline** + a compute particle field (`93f86ef3`), and a **raymarched volumetric fog** compute pass (2026-09-24, `NYA_RENDER_FEATURE_VOLUMETRICS` + `volumetric_fog` setting, brought up on Vulkan) landed — all desktop-only. Open: more compute effects (GPU fluids, more volumetrics).
 - **Model/SO/DTO web profile.** `[x]` Landed (`40e0be9c`): conversion split (model↔so↔dto, total functions), versioned DTOs, and a compile-time + lint `web` profile that refuses `*_model.h`/`*_so.h`; `@secret` encrypted serde fields (`77a4539b`). notes resource refactored as the worked example.
 - **Multi-binary apps.** `[~]` One project builds many hot-reloadable app binaries (`68b383b0` — generic host, `nya_app_entry_*` contract, argv[0] selection, gnyame default + gnyame-cli). A step toward components/profiles. Open: fold into the components refactor.
 - **Smaller open items:** an end-to-end ACME run against a live/pebble CA. (Landed 2026-09-24: in-process TLS termination + an OpenSSL-3 close fix, `./build coverage`/`typos`/`verify`(CBMC)/`format`(advisory)/`commit-check`, a conventional-commit hook, a devenv/nix toolchain plus a `devenv.nix` fix carrying libz/brotli/libstdc++/openssl on `LD_LIBRARY_PATH` so a self-rebuilt `./build` runs in-shell, the code-editor widget, the `./build new <name>` scaffolder, four more CBMC proofs (verify now covers 6 parsers: base64, CBOR, HTTP line, RFC 3339, integer, URL percent-decode), a `.webmanifest` media type so a CSR bundle is an installable PWA, and **core-split steps 1–4**: `core_runtime.h` names the SDL-free core floor, http lost its last SDL call, `core_event` went SDL-free (`SDL_Mutex*` → `NYA_OsMutex`), and a `NYA_SERVER` include seam now compiles http/net/crypto/tls/db/accounts with no core or renderer — plan in `docs/layering-core-split.md`.)
 - **One-off (pending user):** git-history rewrite to strip the historical `Co-Authored-By: Claude` trailers and normalize every commit to a one-line conventional message — prepared (`filter-repo` message-callback in scratch, backup branch `backup-pre-rewrite`), blocked on the destructive-action guard; needs the user to run the force-push.
+
+## Requested (2026-10-12): deploy target is the homelab
+
+TL;DR: a nyangine server ships as a container image and runs as a service (a stack) on the homelab's apps swarm,
+behind its edge, with Grafana collecting everything.
+
+- `[ ]` **Remove TLS from the engine.** TLS terminates on the platform an app is deployed to (the homelab edge:
+  Cloudflare and traefik), never in process. Remove `tls` (OpenSSL server and client sessions), the in-process
+  termination in `http`'s accept loop, the ACME v2 client (`fbfef27e`) and its mock CA tests, the `acme` plugin,
+  the `NYA_NO_TLS` switch, and every TLS item below ("TLS in process + ACME", mbedTLS, the pebble run). Keep
+  outbound HTTPS for clients (curl plugin) only if a client still needs it, and say which one.
+- `[ ]` **Drop the abuse layer the edge already provides.** Behind the homelab edge every request has passed
+  Cloudflare's bot defence and traefik's per-client and per-route rate and in-flight limits (and the stricter login
+  limit on a route's `loginPaths`). Remove from the server:
+  - the per-address request rate buckets (`_NYA_HttpRateBucket`, `_nya_http_rate_take` in `http_server.c`) and
+    the per-address connection cap (`max_connections_per_address`); keep only the global `NYA_HTTP_MAX_CONNECTIONS`
+    ceiling, which is a memory bound, not abuse control;
+  - `http_pow` (the proof-of-work wall, "for a server with no IP to rate-limit"), unless a non-homelab target
+    still needs it;
+  - the address half of `accounts_throttle` (the edge limits per address).
+  Keep, because the edge cannot do them: the per-username login throttle in `accounts_throttle` (credential
+  stuffing spread over many addresses), the TOTP and request replay guards, CSRF, idempotency keys, request size
+  and parser bounds (memory safety), and `base_rate` (outbound limits the bots and the curl plugin owe Discord,
+  Twitch and Telegram). Update `http.h`'s overview, which says connections and requests are limited per address.
+- `[ ]` **Correct under the homelab's failure model.** Scale to zero, swarm rescheduling a task onto another
+  worker, an edge retry and a flaky client all hit the server; every write path must hold up:
+  - **ACID:** every state change is one `db` transaction; a task killed mid-request (scale to zero, reschedule,
+    OOM) leaves the old state or the new one, never half; durable `db_jobs` survive a restart and run once;
+  - **idempotent:** every mutating route takes an idempotency key (`http_idempotency`) or is idempotent by
+    construction, so a retried POST does the work once and answers the same; jobs and webhooks likewise;
+  - **replay-resistant:** sessions, TOTP, sealed tokens, webhooks and signed requests carry a nonce or timestamp
+    window and refuse a second use;
+  - **lossy networks:** WebSocket, `net` and replication tolerate dropped, duplicated, reordered and delayed
+    packets (sequence numbers, acks, dedup windows, timeouts with backoff), and resume after a reconnect;
+  - **proven, not claimed:** the deterministic simulation harness injects exactly those faults (drop, duplicate,
+    reorder, delay, corrupt; process kill and restart mid-transaction; disk full; clock skew) and checks the
+    invariants; this answers `prompt.txt`'s "does the DST stuff modify/drop/repeat packages".
+- `[ ]` **WebSockets reconnect and resume everywhere.** `base_reconnect.h` (capped doubling backoff, attempts,
+  a deliberate close is final) is used only by the curl plugin's client; Discord, Twitch and Steam roll their own.
+  - `http_net_websocket` (native client) and `platform/web/web_socket.h` (browser/wasm) take a `NYA_ReconnectPolicy`
+    and reconnect through `base_reconnect`, the same path as the first connect;
+  - the SSR pages get a small client script that reconnects with jittered backoff and shows a "reconnecting" state:
+    behind the homelab every scale to zero and every swarm reschedule drops every open socket;
+  - resume, not just reconnect: per-connection sequence numbers, acks and a bounded replay window server side, so a
+    client resumes from its last acked message and the gap is replayed or the client is told to resync; dedup by
+    sequence so a replayed message is applied once; a resume token bound to the session, refused after expiry;
+  - fold the Discord, Twitch and Steam reconnect loops onto `base_reconnect` where their protocols allow;
+  - covered by the simulation harness: drop, duplicate and reorder frames, kill the server mid-stream, restart it.
+- `[ ]` **Deployable as a homelab app.** The contract is `~/projects/homelab/src/apps/_template/app.nix`
+  (`src/apps/nyangine/app.nix` already deploys `examples/web_server`, today with `enable = false` and traces and
+  profiles off). A server built with nyangine must:
+  - build from a Dockerfile into a small image (scratch or distroless) and run from a swarm stack file;
+  - listen on plain HTTP on one port; the edge owns TLS, bot defence, rate limits and SSO;
+  - serve a `health` path that answers below 500 when up (`/healthz`, `/readyz` exist in `http_health`);
+  - start fast and keep no state in memory that matters: apps scale to zero after 15 min idle and the first request
+    wakes them, so all state lives in a declared volume (`stateful`, `volumes.<name>.backup`);
+  - take its configuration from the environment (`WEB_SERVER_ORIGIN` style, `{{homelab.*}}` templated values);
+  - expect to sit behind a proxy: trust `X-Forwarded-*` / the real client address only from the edge.
+- `[ ]` **Hook into the Grafana stack** (Prometheus, Loki, Tempo, Pyroscope behind Grafana):
+  - **metrics:** a Prometheus text endpoint (`metrics.<name>` in app.nix: scraped on its published port, never
+    routed publicly; the edge denies the path on public routes). RED metrics already exist in `http_observe.c`;
+    add process and runtime gauges (arena use, frame or tick time, job queue depth) with bounded label cardinality;
+  - **traces:** OTLP export to `OTEL_EXPORTER_OTLP_ENDPOINT` (the node's relay, `{{homelab.otlp-grpc}}`, gRPC, or
+    OTLP/HTTP), honouring `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`; W3C `traceparent` propagation in and
+    out. `http_observe.c` has OTLP spans; check they speak the exporter the relay accepts;
+  - **profiles:** continuous profiling to Pyroscope through the same relay, if cheap enough;
+  - **logs:** structured lines (logfmt or JSON, one event per line) on stdout/stderr, carrying `trace_id`/`span_id`
+    so Loki links to Tempo; promtail collects container output, so no file or network log shipping in process;
+  - **browser telemetry:** the SSR pages may send to `<host>/otlp` (the edge forwards it).
+  - Verify end to end against the homelab: a request shows up as a trace in Tempo, its log lines in Loki and its
+    counters in Prometheus, all in one Grafana view.
 
 ## Backlog (2026-09-25)
 
