@@ -4,6 +4,11 @@ some more thoughts:
 - get rid of devenv.
 - i want terrain/foliage sculpting just like in unreal, and smart tiling in 2d
 - i want to use it in a project as simple as .nyangine/... src/main.c project.nya
+- use grafana k6 to loadtest a simple sqlite webserver with posts. aim high. 100k concurrent users
+  high on 2 cpu cores and 2gb ram, check this: https://youtu.be/QGWKCaglSBI, https://github.com/arjaythedev/twelve-dollar-server-challenge/tree/main
+- do AGRESSIVE BENCHMARKING
+- maybe start sqlite up with some perf settings?
+- can we try to not use JS in SSR?
 
 # nyangine: what is left
 
