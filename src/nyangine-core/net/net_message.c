@@ -63,3 +63,14 @@ NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size
 
     return nya_deserialize(arena, data + 4, length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, out_object);
 }
+
+u64 nya_net_message_object_size(const u8* data, u64 size) {
+    if (data == nullptr || size < 4) return 0;
+
+    u32 length = 0;
+    for (u32 i = 0; i < 4; i++) length |= (u32)data[i] << (i * 8);
+
+    if (length > size - 4) return 0;
+
+    return 4 + (u64)length;
+}

@@ -8,6 +8,7 @@
  * ./build run example pong_multiplayer                         # one player, listening on nobody
  * ./pong_multiplayer.example --listen 27015                    # host a game
  * ./pong_multiplayer.example --connect 127.0.0.1 --port 27015  # join it from another terminal
+ * ./pong_multiplayer.example --connect 127.0.0.1 --port 27015 --pretend-mod aimbot  # and be refused for it
  * ```
  *
  * `w`/`s` or the arrow keys move your paddle.
@@ -25,6 +26,13 @@
  *
  * The ball is not predicted: only the server integrates it, and clients draw the replica the
  * snapshots carry.
+ *
+ * ## Content
+ *
+ * HELLO carries the build, the asset bundle and every loaded mod (replicate_content.h), and the server
+ * refuses a player whose content differs. `--pretend-mod <name>` adds a plugin this client does not
+ * really have, which is what a mismatched mod looks like without installing one; the refusal names it
+ * on screen.
  * */
 #include "genyarated/assets.h"
 #include "nyangine-core/nyangine.h"
@@ -73,6 +81,12 @@
 /** The layer's id. Compared by content, so it survives a code reload. */
 #define LAYER_ID "pong"
 
+/** The flag that adds a made-up plugin to this client's content manifest. */
+#define FLAG_PRETEND_MOD "--pretend-mod"
+
+/** The version the made-up plugin claims. */
+#define PRETEND_MOD_VERSION "0.0.1"
+
 /* TYPES */
 
 /** What a thing is. `type` on NYA_Entity, and what the draw switches on. */
@@ -108,6 +122,9 @@ typedef struct {
     u32 scores[2];
 
     NYA_NetLaunchConfig launch;
+
+    /** `--pretend-mod`'s name, or null. */
+    NYA_ConstCString pretend_mod;
 } Pong;
 
 NYA_INTERNAL Pong* pong(void) {
@@ -334,6 +351,17 @@ void pong_layer_on_render(NYA_Window* window) {
 
     nya_render2d_textf_with_font(window, NYA_ASSET_FONTS_ALDRICH_TTF, 14.0F, 12.0F, 12.0F, NYA_COLOR_GRAY, "rtt %.0f ms · loss %.0f%% · %llu corrections",
                                  (f64)stats.rtt_ms, (f64)stats.packet_loss * 100.0, (unsigned long long)nya_net_client_correction_count());
+
+    // the server said which entry of this client's content it would not accept; that sentence is the whole screen.
+    const NYA_NetContentMismatch* refused = nya_net_client_content_mismatch();
+
+    if (refused != nullptr) {
+        char line[NYA_NET_CONTENT_DESCRIBE_MAX];
+        (void)nya_net_content_mismatch_describe(refused, line, sizeof(line));
+
+        nya_render2d_textf_with_font(window, NYA_ASSET_FONTS_ALDRICH_TTF, 16.0F, center_x - COURT_HALF_WIDTH + 16.0F, center_y, NYA_COLOR_LIGHT_GRAY,
+                                     "refused: %s", line);
+    }
 }
 
 /* WIRING */
@@ -343,11 +371,25 @@ NYA_INTERNAL void pong_net_start(void) {
     NYA_NetLaunchConfig* launch = &pong()->launch;
 
     if (launch->role == NYA_NET_ROLE_CLIENT) {
+        // what this build really runs, plus the made-up plugin when asked for one.
+        NYA_NetContentManifest content = { 0 };
+        NYA_EXPECT(nya_net_content_collect(&content), "while listing this client's content");
+
+        if (pong()->pretend_mod != nullptr) {
+            NYA_NetContentEntry pretend = { .kind = NYA_NET_CONTENT_PLUGIN };
+            (void)snprintf(pretend.id, sizeof(pretend.id), "%s", pong()->pretend_mod);
+            (void)snprintf(pretend.version, sizeof(pretend.version), "%s", PRETEND_MOD_VERSION);
+
+            NYA_Error added = nya_net_content_add(&content, pretend);
+            if (!added.ok) nya_log_warn("Not pretending to have '%s': %s", pong()->pretend_mod, (NYA_ConstCString)added.message);
+        }
+
         NYA_Error connected = nya_net_client_connect(launch->address, launch->port, launch->name, (NYA_NetClientConfig){
             .replicated_flag   = FLAG_REPLICATED,
             .on_apply_command  = nya_callback(pong_apply_command),
             .on_sample_command = nya_callback(pong_sample_command),
             .conditions        = launch->conditions,
+            .content           = &content,
         });
 
         if (connected.ok) return;
@@ -365,6 +407,8 @@ NYA_INTERNAL void pong_net_start(void) {
         .max_speed        = PADDLE_SPEED_LIMIT,
         .conditions       = launch->conditions,
         .allowlist        = launch->allowlist,
+        // a player's HUD skin is their own business; anything that touches the court is compared.
+        .allow_client_only_plugins = true,
     }), "while starting the server");
 
     // Listening is the only difference between a lone player and a host. The world does not change.
@@ -401,6 +445,10 @@ s32 main(s32 argc, NYA_CString* argv) {
     Pong* state = nya_arena_alloc(nya_world()->allocator, sizeof(Pong));
     *state      = (Pong){ .window = NYA_WINDOW_HANDLE_NONE, .ball = NYA_ENTITY_HANDLE_NONE, .launch = launch };
     nya_world_user_data_set(state);
+
+    for (s32 i = 1; i + 1 < argc; i++) {
+        if (nya_string_equals(argv[i], FLAG_PRETEND_MOD)) state->pretend_mod = argv[i + 1];
+    }
 
     // Before the window: the layer's on_create spawns the ball, and only a server may.
     pong_net_start();

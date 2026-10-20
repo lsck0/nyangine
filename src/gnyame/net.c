@@ -87,6 +87,9 @@ void gny_net_start(void) {
         .position_bits    = GNY_NET_POSITION_BITS,
         .conditions       = GNY_LAUNCH.conditions,
         .allowlist        = GNY_LAUNCH.allowlist,
+        // plugins were loaded before this, so the manifest the server collects names them; a cosmetic one a
+        // player adds on their own side does not lock them out.
+        .allow_client_only_plugins = true,
     };
 
     // a listening server keeps its identity, so players who pinned its key can come back. Without one it makes a throwaway.

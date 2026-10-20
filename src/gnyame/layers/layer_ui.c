@@ -61,6 +61,15 @@ void gny_layer_ui_on_render(NYA_Window* window) {
             // kept as an empty line while running, so the panel does not jump when physics stops.
             nya_ui_label(ui, nya_physics2d_enabled() ? "" : nya_string_hud_paused(), GNY_UI_WARNING);
 
+            // the server named which of this player's mods it would not take, and that is what to update.
+            const NYA_NetContentMismatch* refused = nya_net_client_content_mismatch();
+
+            if (refused != nullptr) {
+                char line[NYA_NET_CONTENT_DESCRIBE_MAX];
+                (void)nya_net_content_mismatch_describe(refused, line, sizeof(line));
+                nya_ui_label(ui, nya_string_hud_refused(line), GNY_UI_WARNING);
+            }
+
             nya_ui_panel_end(ui);
         }
 

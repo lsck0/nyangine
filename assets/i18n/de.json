@@ -74,6 +74,7 @@
   "hud_hovering": "zeigt auf %s",
   "hud_boxes": "kisten %u (%u wach)",
   "hud_paused": "PHYSIK ANGEHALTEN",
+  "hud_refused": "vom Server abgewiesen: %s",
   "caption_thud": "[rums]",
   "caption_fire": "[feuer knistert]",
   "hud_greeting": "Hallo, %s!",

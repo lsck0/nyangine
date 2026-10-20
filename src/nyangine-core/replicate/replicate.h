@@ -13,6 +13,7 @@
  * ```
  * replicate_command.h   one tick of a player's intent, and the function that turns it into movement
  * replicate_snapshot.h  the replicated world at one tick, the delta of two, and who stands for whom
+ * replicate_content.h   the build, assets and mods a player must share with the server to join it
  * replicate_server.h    the authority: admits players, applies commands, sends snapshots, rewinds
  * replicate_client.h    the other side: predicts, reconciles, and interpolates what it does not own
  * replicate_chat.h      a layer over the event channel both of those provide
@@ -54,6 +55,8 @@
 #include "nyangine-core/replicate/replicate_command.h"
 // Names NYA_Entity, so it pulls core_entity.h in on its own rather than relying on nyangine.h's order.
 #include "nyangine-core/replicate/replicate_snapshot.h"
+// Before the halves, whose configs and HELLO carry a manifest.
+#include "nyangine-core/replicate/replicate_content.h"
 /**/
 // The two halves of the architecture. Last: each names the transport, the snapshot and the command.
 #include "nyangine-core/replicate/replicate_client.h"

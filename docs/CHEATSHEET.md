@@ -1640,6 +1640,7 @@ b8 nya_asset_unload(NYA_AssetHandle handle)  // Queues an asset for unloading, b
 void nya_asset_load_queued(void)  // Loads everything queued now rather than at the end of the frame.
 u64 nya_asset_generation(void)  // The generation the latest load handed out.
 NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle)  // Sets a window's icon from an asset, without the asset system taking it on.
+b8 nya_asset_bundle_digest(OUT NYA_CryptoSha256Digest* out_digest)
 NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle)  // NYA_ASSET_STATUS_FAILED for anything that could not load, so a caller can react without a hook.
 b8 nya_asset_is_missing(NYA_AssetHandle handle)  // Whether an asset is one a caller should draw a placeholder for: absent, or loaded and failed.
 void nya_asset_missing_report(NYA_ConstCString handle)  // Logs that `handle` is missing, once for that handle and never again.
@@ -5155,13 +5156,14 @@ b8 nya_net_key_from_hex(NYA_ConstCString hex, OUT u8* out_key)  // Parses exactl
 enum NYA_NetMessageKind { NYA_NET_MSG_HELLO = 1, NYA_NET_MSG_COMMAND = 2, NYA_NET_MSG_WELCOME = 16, NYA_NET_MSG_REJECT = 17, NYA_NET_MSG_SNAPSHOT = 18, NYA_NET_MSG_PEER_JOINED = 19, NYA_NET_MSG_PEER_LEFT = 20, NYA_NET_MSG_GAME_EVENT = 21, NYA_NET_MSG_COUNT, }
 
 // macros
-NYA_NET_PROTOCOL_VERSION 2  // Bumped on any change either side could misread.
+NYA_NET_PROTOCOL_VERSION 3  // Bumped on any change either side could misread.
 
 // functions
 void nya_net_message_begin(NYA_String* out, NYA_NetMessageKind kind)  // Starts a message: appends the kind byte, so the caller can then append its body.
 NYA_NetMessageKind nya_net_message_kind(const u8* data, u64 size, OUT u64* out_body_offset)  // The kind a received payload names, and where its body starts.
 NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out, const NYA_Object* object)  // Appends `object` as a serde_nya document, length-prefixed.
 NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size, OUT NYA_Object** out_object)  // Reads a length-prefixed serde_nya document back.
+u64 nya_net_message_object_size(const u8* data, u64 size)  // The bytes the length-prefixed document at `data` takes, prefix included, or zero when `size` cannot hold it.
 ```
 
 ### net_port.h
@@ -5226,7 +5228,7 @@ u32 nya_net_loopback_session(const NYA_NetTransport* transport)  // The session 
 // types
 enum NYA_NetRole { NYA_NET_ROLE_NONE = 0, NYA_NET_ROLE_SERVER, NYA_NET_ROLE_CLIENT, NYA_NET_ROLE_COUNT, }  // What this process is, with respect to the simulation.
 enum NYA_NetChannel { NYA_NET_CHANNEL_UNRELIABLE = 0, NYA_NET_CHANNEL_RELIABLE, NYA_NET_CHANNEL_COUNT, }  // Which delivery guarantee a message wants.
-enum NYA_NetDisconnect { NYA_NET_DISCONNECT_NONE = 0, NYA_NET_DISCONNECT_REQUESTED, NYA_NET_DISCONNECT_TIMEOUT, NYA_NET_DISCONNECT_FULL, NYA_NET_DISCONNECT_VERSION, NYA_NET_DISCONNECT_PROTOCOL, NYA_NET_DISCONNECT_SERVER_CLOSED, NYA_NET_DISCONNECT_IDENTITY, NYA_NET_DISCONNECT_CHEATING, NYA_NET_DISCONNECT_KICKED, NYA_NET_DISCONNECT_COUNT, }  // Why a peer is no longer connected.
+enum NYA_NetDisconnect { NYA_NET_DISCONNECT_NONE = 0, NYA_NET_DISCONNECT_REQUESTED, NYA_NET_DISCONNECT_TIMEOUT, NYA_NET_DISCONNECT_FULL, NYA_NET_DISCONNECT_VERSION, NYA_NET_DISCONNECT_PROTOCOL, NYA_NET_DISCONNECT_SERVER_CLOSED, NYA_NET_DISCONNECT_IDENTITY, NYA_NET_DISCONNECT_CHEATING, NYA_NET_DISCONNECT_KICKED, NYA_NET_DISCONNECT_CONTENT, NYA_NET_DISCONNECT_COUNT, }  // Why a peer is no longer connected.
 struct NYA_NetPeerId { u32 index; u32 generation; }  // Identifies a connected peer for as long as it is connected.
 
 // macros
@@ -5280,7 +5282,7 @@ typedef void (*NYA_NetSampleCommandFn)(OUT NYA_NetCommand* command)  // Called o
 typedef void (*NYA_NetGameEventFn)(const NYA_Object* event)  // Called when the server sends a game event.
 typedef void (*NYA_NetPeerChangeFn)(NYA_NetPeerId peer, NYA_ConstCString name, b8 joined)  // Called when another player joins or leaves.
 enum NYA_NetClientState { NYA_NET_CLIENT_DISCONNECTED = 0, NYA_NET_CLIENT_CONNECTING, NYA_NET_CLIENT_HANDSHAKING, NYA_NET_CLIENT_PLAYING, NYA_NET_CLIENT_STATE_COUNT, }
-struct NYA_NetClientConfig { u64 replicated_flag; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_sample_command; NYA_CallbackHandle on_game_event; NYA_CallbackHandle on_peer_change; f32 correction_threshold; u32 extrapolation_limit_ms; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetKeyPair identity; NYA_NetConditions conditions; }
+struct NYA_NetClientConfig { u64 replicated_flag; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_sample_command; NYA_CallbackHandle on_game_event; NYA_CallbackHandle on_peer_change; f32 correction_threshold; u32 extrapolation_limit_ms; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetKeyPair identity; NYA_NetConditions conditions; const NYA_NetContentManifest* content; }
 
 // macros
 NYA_NET_EXTRAPOLATION_LIMIT_MS_DEFAULT 100  // How long replicas are extrapolated past the newest snapshot when the config does not say.
@@ -5294,6 +5296,7 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
 void nya_net_client_disconnect(void)
 NYA_NetClientState nya_net_client_state(void)
 NYA_NetDisconnect nya_net_client_disconnect_reason(void)  // Why the last disconnection happened.
+const NYA_NetContentMismatch* nya_net_client_content_mismatch(void)
 void nya_net_client_tick(u64 tick, f32 delta_time_s)  // One tick: sample input, predict, send, and apply whatever arrived.
 NYA_EntityHandle nya_net_client_entity(void)  // The entity this client controls, in this process's handle space.
 NYA_EntityHandle nya_net_client_entity_remote(void)  // The same entity as the *server* names it.
@@ -5324,6 +5327,41 @@ b8 nya_net_command_holds(const NYA_NetCommand* command, u32 bit)  // Whether `ac
 void nya_net_command_set(NYA_NetCommand* command, u32 bit, b8 held)  // Sets or clears `bit`.
 ```
 
+### replicate_content.h
+
+What a player has to share with a server to play on it: the build, the baked asset bundle and every mod.
+
+```c
+// types
+enum NYA_NetContentKind { NYA_NET_CONTENT_BUILD = 0, NYA_NET_CONTENT_ASSETS, NYA_NET_CONTENT_PLUGIN, NYA_NET_CONTENT_KIND_COUNT, }  // In the order a manifest sorts by, so the build is always the first difference named.
+enum NYA_NetContentDifference { NYA_NET_CONTENT_SAME = 0, NYA_NET_CONTENT_MISSING, NYA_NET_CONTENT_EXTRA, NYA_NET_CONTENT_VERSION, NYA_NET_CONTENT_DIGEST, NYA_NET_CONTENT_DIFFERENCE_COUNT, }  // Which way the first differing entry differs, seen from the server.
+struct NYA_NetContentEntry { NYA_NetContentKind kind; char id[NYA_NET_CONTENT_ID_MAX]; char version[NYA_NET_CONTENT_VERSION_MAX]; NYA_CryptoSha256Digest digest; b8 client_only; }
+struct NYA_NetContentManifest { NYA_NetContentEntry entries[NYA_NET_CONTENT_ENTRY_MAX]; u32 entry_count; }
+struct NYA_NetContentPolicy { b8 allow_client_only; }
+struct NYA_NetContentMismatch { NYA_NetContentDifference difference; NYA_NetContentKind kind; char id[NYA_NET_CONTENT_ID_MAX]; char server_version[NYA_NET_CONTENT_VERSION_MAX]; char client_version[NYA_NET_CONTENT_VERSION_MAX]; }  // The first entry two manifests disagree on, or `difference` NYA_NET_CONTENT_SAME.
+
+// macros
+NYA_NET_CONTENT_ID_MAX NYA_PLUGIN_NAME_MAX  // An entry's id, terminator included: a plugin's name, or the fixed ids below.
+NYA_NET_CONTENT_VERSION_MAX 48  // An entry's version, terminator included.
+NYA_NET_CONTENT_ENTRY_MAX (NYA_PLUGIN_MAX + 2)  // Every plugin that can be loaded, plus the build and the asset bundle.
+NYA_NET_CONTENT_ENCODED_MAX  // The largest encoding: the hash, the count, then per entry kind, flags, two lengths, both strings and a digest.
+NYA_NET_CONTENT_DESCRIBE_MAX 192  // What nya_net_content_mismatch_describe writes at most, terminator included.
+NYA_NET_CONTENT_ID_BUILD "build"  // The ids of the two entries that are not plugins.
+NYA_NET_CONTENT_ID_ASSETS "assets"
+NYA_NET_CONTENT_ASSETS_BAKED "baked"  // The asset entry's version: whether this executable carries a baked bundle or reads assets off disk.
+NYA_NET_CONTENT_ASSETS_DISK "disk"
+
+// functions
+NYA_Error nya_net_content_add(NYA_NetContentManifest* manifest, NYA_NetContentEntry entry)  // Inserts `entry` in order.
+b8 nya_net_content_remove(NYA_NetContentManifest* manifest, NYA_NetContentKind kind, NYA_ConstCString id)  // Takes the entry of `kind` called `id` out, keeping the rest in order.
+NYA_Error nya_net_content_collect(OUT NYA_NetContentManifest* out_manifest)
+void nya_net_content_hash(const NYA_NetContentManifest* manifest, OUT NYA_CryptoSha256Digest* out_hash)  // SHA-256 over every entry that is not client-only, in order, each field length-prefixed.
+NYA_NetContentMismatch nya_net_content_compare( const NYA_NetContentManifest* server, const NYA_NetContentManifest* client, NYA_NetContentPolicy policy )  // The first entry, in manifest order, on which `server` and `client` disagree under `policy`.
+void nya_net_content_encode(NYA_String* out, const NYA_NetContentManifest* manifest)  // Appends the hash, then the entries.
+NYA_Error nya_net_content_decode(const u8* data, u64 size, OUT NYA_NetContentManifest* out_manifest)  // Reads exactly `size` bytes back.
+u64 nya_net_content_mismatch_describe(const NYA_NetContentMismatch* mismatch, OUT char* out, u64 capacity)  // "plugin 'hello' is 0.2.0 on the server and 0.1.0 here", and the like.
+```
+
 ### replicate_server.h
 
 ```c
@@ -5332,7 +5370,7 @@ typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCS
 typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle entity)  // Called when a player leaves, before their entity is despawned.
 typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant)  // Whether `entity` is worth sending to `peer` this tick.
 typedef void (*NYA_NetServerEventFn)(NYA_NetPeerId peer, const NYA_Object* event)  // Called when a client sends a game-defined event.
-struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; u32 lag_history_ticks; }
+struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; const NYA_NetContentManifest* content; b8 allow_client_only_plugins; u32 lag_history_ticks; }
 struct NYA_NetServerPeer { NYA_NetPeerId peer; char name[NYA_NET_MAX_NAME]; NYA_EntityHandle entity; b8 accepted; b8 is_local; u8 public_key[NYA_NET_KEY_SIZE]; }  // One connected player, as the game sees them.
 
 // macros
@@ -5349,6 +5387,7 @@ NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port)  // Star
 NYA_Error nya_net_server_listen_transport(NYA_NetTransport* transport)  // Starts accepting players over `transport`, one the caller already made and listened with.
 b8 nya_net_server_is_listening(void)  // Whether a socket is open.
 u16 nya_net_server_port(void)  // The port players reach this server on, or zero when it is not listening.
+const NYA_NetContentManifest* nya_net_server_content(void)  // What joining players are compared against: the config's manifest, or what was collected at start.
 const u8* nya_net_server_public_key(void)  // The key players pin to be sure they reached this server, or null until it listens.
 NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_transport)  // Attaches a local player over a loopback transport, and hands back the client end.
 NYA_NetPeerId nya_net_server_local_peer(void)  // The local player's peer id, or NYA_NET_PEER_NONE on a dedicated server.

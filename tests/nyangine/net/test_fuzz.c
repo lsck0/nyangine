@@ -331,6 +331,59 @@ s32 main(void) {
     printf("  3000 hostile server messages survived\n");
   }
 
+  printf("TEST: a HELLO whose content manifest is mutated\n");
+  {
+    NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
+      .replicated_flag = FLAG_REPLICATED, .on_spawn_player = nya_callback(spawn_player), .on_apply_command = nya_callback(apply_command),
+    }));
+
+    // a transport that is not a loopback, so the server reads the manifest; the peer is one it never heard of, so
+    // whatever the server sends or drops goes nowhere.
+    NYA_NetTransport* remote = nullptr;
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &remote));
+
+    NYA_String* valid = nya_string_create(arena);
+    nya_net_message_begin(valid, NYA_NET_MSG_HELLO);
+
+    NYA_Object* body = nya_object_create(arena);
+    nya_object_add(body, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(body, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "mutant" });
+    NYA_EXPECT(nya_net_message_write_object(arena, valid, body));
+
+    u64 document_end = valid->length;
+    nya_net_content_encode(valid, nya_net_server_content());
+
+    static u8 hello[1 + 512 + NYA_NET_CONTENT_ENCODED_MAX];
+    nya_assert(valid->length <= sizeof(hello));
+
+    u32 admitted = 0;
+
+    for (u32 iteration = 0; iteration < 20000; iteration++) {
+      nya_memcpy(hello, valid->items, valid->length);
+
+      // the document stays whole on most rounds, so the mutations reach the manifest behind it.
+      u64 size = valid->length;
+      if (iteration % 8 == 0) size = mutate(hello + 1, valid->length - 1, sizeof(hello) - 1) + 1;
+      else size = document_end + mutate(hello + document_end, valid->length - document_end, sizeof(hello) - document_end);
+
+      NYA_NetPeerId stranger = { .index = 3, .generation = 7 };
+      _nya_net_server_handle_message(remote, stranger, hello, size, 1);
+
+      if (nya_net_server_peer(stranger) != nullptr) {
+        admitted++;
+        nya_net_server_kick(stranger, NYA_NET_DISCONNECT_KICKED);
+        nya_system_sim_apply_commands();
+      }
+    }
+
+    nya_net_server_stop();
+    nya_net_transport_destroy(remote);
+
+    // only a mutation that left the manifest intact gets in, and then as the server's own content.
+    printf("  20000 mutated HELLOs, %u admitted\n", admitted);
+  }
+
   printf("TEST: what a server makes of a hostile joined client\n");
   {
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){

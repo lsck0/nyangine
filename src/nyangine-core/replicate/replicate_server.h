@@ -16,6 +16,7 @@
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-core/core/core_entity.h"
 #include "nyangine-core/replicate/replicate_command.h"
+#include "nyangine-core/replicate/replicate_content.h"
 #include "nyangine-core/replicate/replicate_snapshot.h"
 #include "nyangine-core/net/net_transport.h"
 #include "nyangine-core/net/net_types.h"
@@ -152,6 +153,19 @@ struct NYA_NetServerConfig {
     NYA_NetConditions conditions;
 
     /*
+     * ── content ──
+     */
+
+    /**
+     * What a joining player's build, assets and mods must match. Null takes nya_net_content_collect when the server
+     * starts, so plugins load before it; copied either way.
+     * */
+    const NYA_NetContentManifest* content;
+
+    /** Leave client-only plugins out of the comparison. Off by default, since client_only is the plugin's own claim. */
+    b8 allow_client_only_plugins;
+
+    /*
      * ── lag compensation ──
      */
 
@@ -230,6 +244,9 @@ NYA_API b8 nya_net_server_is_listening(void) __attr_no_discard;
  * in a HUD, and to put in whatever tells a player where the game is.
  * */
 NYA_API u16 nya_net_server_port(void) __attr_no_discard;
+
+/** What joining players are compared against: the config's manifest, or what was collected at start. Null when stopped. */
+NYA_API const NYA_NetContentManifest* nya_net_server_content(void) __attr_no_discard;
 
 /** The key players pin to be sure they reached this server, or null until it listens. */
 NYA_API const u8* nya_net_server_public_key(void) __attr_no_discard;

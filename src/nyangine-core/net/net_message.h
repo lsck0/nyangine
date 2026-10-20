@@ -18,13 +18,14 @@ typedef enum NYA_NetMessageKind NYA_NetMessageKind;
 /**
  * Bumped on any change either side could misread. Checked at the handshake.
  * */
-#define NYA_NET_PROTOCOL_VERSION 2
+#define NYA_NET_PROTOCOL_VERSION 3
 
 enum NYA_NetMessageKind {
     // client to server
 
     /**
-     * "May I join, and here is who I am." Reliable, and the first thing a client ever sends.
+     * "May I join, and here is who I am." Reliable, and the first thing a client ever sends: a document, then the
+     * client's content manifest (nya_net_content_encode).
      * */
     NYA_NET_MSG_HELLO = 1,
 
@@ -77,3 +78,7 @@ NYA_API NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out
  * Reads a length-prefixed serde_nya document back.
  * */
 NYA_API NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size, OUT NYA_Object** out_object) __attr_no_discard;
+
+/** The bytes the length-prefixed document at `data` takes, prefix included, or zero when `size` cannot hold it. */
+NYA_API u64 nya_net_message_object_size(const u8* data, u64 size) __attr_no_discard;
+
