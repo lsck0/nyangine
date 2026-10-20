@@ -19,7 +19,7 @@ jobs:
   # Vendors build once per cache key here and are saved before anything else runs, so the jobs below
   # restore them instead of each compiling the same hour of dependencies in parallel.
   vendor-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -37,9 +37,9 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       # DXC does not build under MinGW, so the Windows jobs use these instead of compiling their own.
       - name: Compile shaders
@@ -54,7 +54,7 @@ jobs:
 
   check-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -72,9 +72,9 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       # No clang-format gate yet: the tree does not satisfy its own .clang-format today, so turning this
       # on means one reformatting commit across every source file first. Worth doing, not worth hiding
@@ -91,7 +91,7 @@ jobs:
 
   test-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -109,10 +109,10 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: test
 
       - name: Run tests
@@ -135,7 +135,7 @@ jobs:
   # a virtual display through lavapipe, and audio goes to SDL's dummy driver.
   examples-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
@@ -153,10 +153,10 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: examples
 
       - name: Install a virtual display and a software Vulkan driver
@@ -191,7 +191,7 @@ jobs:
 
   build-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
@@ -209,10 +209,10 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: build
 
       # Linux, Windows and Steam Windows, the last two cross compiled.
@@ -266,7 +266,7 @@ jobs:
   # others, then the game, checked against the runtime's glibc and started inside Valve's sniper image.
   build-steam-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
@@ -284,15 +284,15 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: steam-linux
 
-      - uses: ./.github/actions/setup-steamrt
+      - uses: $/.github/actions/setup-steamrt
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       - name: Stage the Steam Linux distribution
         run: ./build dist steam-linux
@@ -319,7 +319,7 @@ jobs:
   # the per-push path (scheduled.yml runs the same check nightly) so a regression in a workflow is caught
   # in the change that introduces it. Advisory: SARIF upload is off, which would need security-events: write.
   workflow-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -339,6 +339,9 @@ jobs:
           # Scan the workflow directory; do not upload SARIF, which would need security-events: write.
           advanced-security: false
           inputs: .github/workflows/
+          # Pinned, and the same version as a local `zizmor .github/`: an unpinned latest added the
+          # self-repository audit overnight and failed every push with exit 12. Bump it deliberately.
+          version: 1.31.1
 
   # The Windows host path, which the Linux jobs above cannot cover.
   #
@@ -369,9 +372,9 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-windows
+      - uses: $/.github/actions/setup-windows
         with:
-          llvm-version: 22
+          llvm-version: 23
 
   test-windows:
     needs: [vendor-windows, vendor-linux]
@@ -401,10 +404,10 @@ jobs:
           name: compiled-shaders
           path: assets/shader/compiled/
 
-      - uses: ./.github/actions/setup-windows
+      - uses: $/.github/actions/setup-windows
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: test
 
       - name: Run tests
@@ -450,10 +453,10 @@ jobs:
           name: compiled-shaders
           path: assets/shader/compiled/
 
-      - uses: ./.github/actions/setup-windows
+      - uses: $/.github/actions/setup-windows
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: build
 
       # On this host `release` is the Windows and Steam Windows executables; there is no Linux target to ask for.

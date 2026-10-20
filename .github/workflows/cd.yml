@@ -15,7 +15,7 @@ permissions: {}
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
       contents: write
@@ -41,9 +41,9 @@ jobs:
           # through the API.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       # After setup, which bootstraps ./build: the version comes out of the build system rather than
       # out of a regex over one of its headers, so the tag is checked against the same value the
@@ -89,9 +89,9 @@ jobs:
 
       # The sniper SDK sysroot and its vendors, so `dist` can build the Steam Linux target below. CI
       # saves the cache this restores; a tag rarely changes the vendors, and a miss only costs time.
-      - uses: ./.github/actions/setup-steamrt
+      - uses: $/.github/actions/setup-steamrt
         with:
-          llvm-version: 22
+          llvm-version: 23
           save: "false"
 
       # One command, and the same one a developer runs. It builds every release target this host can

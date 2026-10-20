@@ -1029,8 +1029,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
       .handle    = NYA_ASSET_SHADER_WATER_FRAG,
-      // Two samplers: captured scene at t0, planar reflection at t1; two uniform blocks: lighting at b0, water look at b1.
-      .as_shader = { .num_samplers = 2, .num_uniform_buffers = 2 },
+      // Three samplers, matching water.frag.hlsl and the bind in render3d.c: scene at t0, reflection at t1, distance at t2.
+      .as_shader = { .num_samplers = 3, .num_uniform_buffers = 2 },
   }), "while queueing the water fragment shader");
 
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){

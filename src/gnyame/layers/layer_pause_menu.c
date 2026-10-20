@@ -213,14 +213,14 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
 
         // only while they are gone, since a window that is showing has its own close button and needs no second
         // switch. This is the whole of what "the caller owns the flag" buys: the UI cannot show a window again.
-        if (!_GNY_LOOK_WINDOW.open || !_GNY_WIDGETS_WINDOW.open) {
-            if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
-                if (!_GNY_LOOK_WINDOW.open && nya_ui_button(ui, nya_string_menu_look())) _GNY_LOOK_WINDOW = (NYA_UIWindowState){ .open = true };
-                if (!_GNY_GUILD_WINDOW.open && nya_ui_button(ui, "guild")) _GNY_GUILD_WINDOW = (NYA_UIWindowState){ .open = true };
-                if (!_GNY_WIDGETS_WINDOW.open && nya_ui_button(ui, nya_string_menu_widgets())) _GNY_WIDGETS_WINDOW = (NYA_UIWindowState){ .open = true };
+        b8 any_closed = !_GNY_LOOK_WINDOW.open || !_GNY_WIDGETS_WINDOW.open;
 
-                nya_ui_panel_end(ui);
-            }
+        if (any_closed && nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
+            if (!_GNY_LOOK_WINDOW.open && nya_ui_button(ui, nya_string_menu_look())) _GNY_LOOK_WINDOW = (NYA_UIWindowState){ .open = true };
+            if (!_GNY_GUILD_WINDOW.open && nya_ui_button(ui, "guild")) _GNY_GUILD_WINDOW = (NYA_UIWindowState){ .open = true };
+            if (!_GNY_WIDGETS_WINDOW.open && nya_ui_button(ui, nya_string_menu_widgets())) _GNY_WIDGETS_WINDOW = (NYA_UIWindowState){ .open = true };
+
+            nya_ui_panel_end(ui);
         }
 
         if (nya_ui_button(ui, nya_string_menu_main_menu())) gny_screen_request(GNY_SCREEN_MAIN_MENU);

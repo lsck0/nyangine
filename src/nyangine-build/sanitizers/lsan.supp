@@ -11,3 +11,5 @@ leak:VULKAN_CreateDeviceResources
 leak:VULKAN_INTERNAL_DeterminePhysicalDevice
 # libwayland queues an event on the event thread and the compositor connection outlives the test process
 leak:Wayland_EventThreadFunc
+# libX11's input method on Xvfb, reached through SDL's keyboard init: allocated once and never freed (doc_render, undo_editor)
+leak:X11_InitIM

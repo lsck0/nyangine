@@ -103,7 +103,7 @@ Bootstrap it once from a fresh clone:
 ```bash
 git submodule update --init --recursive
 clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix \
-    -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+    -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread
 ```
 
 `./build` with no arguments lists every command. The first run builds every vendored dependency,
