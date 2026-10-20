@@ -379,9 +379,6 @@ s32 nya_render2d_layer(NYA_Window* window) {
 void nya_render2d_flush(NYA_Window* window) {
     nya_trace_scope_fallback(NYA_TRACE_BATCH2D);
 
-    // timed per call: the run count is the draw call count, and the total is what it costs.
-    nya_scope_function();
-
     nya_assert(window != nullptr);
 
     NYA_RenderSystemWindow* render = &window->render_system;

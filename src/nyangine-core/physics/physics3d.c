@@ -91,7 +91,6 @@ void nya_system_physics3d_deinit(void) {
 }
 
 void nya_system_physics3d_update(f32 delta_time_s) {
-    nya_scope_function();
     nya_trace_scope(NYA_TRACE_PHYSICS3D);
 
     NYA_Physics3DSystem* system = &nya_world()->physics3d_system;

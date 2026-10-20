@@ -175,7 +175,6 @@ void nya_system_audio_update(f32 delta_time_s) {
 
     if (!propagation->enabled || !system->ready) return;
 
-    nya_scope("audio_propagation");
     nya_trace_scope(NYA_TRACE_AUDIO_PROPAGATION);
 
     NYA_AudioRayFn trace = system->ray_functions[propagation->space];
