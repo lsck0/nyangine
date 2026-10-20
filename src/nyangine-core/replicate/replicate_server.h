@@ -16,6 +16,7 @@
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-core/core/core_entity.h"
 #include "nyangine-core/replicate/replicate_command.h"
+#include "nyangine-core/replicate/replicate_content.h"
 #include "nyangine-core/replicate/replicate_snapshot.h"
 #include "nyangine-core/net/net_transport.h"
 #include "nyangine-core/net/net_types.h"
@@ -31,6 +32,18 @@ typedef struct NYA_NetServerPeer   NYA_NetServerPeer;
 
 /** Violations a player may run up before being kicked, when the config does not say. */
 #define NYA_NET_VIOLATION_LIMIT_DEFAULT 32
+
+/** The largest game event a client may send, in bytes of document. A chat line or an action request is a few dozen. */
+#ifndef NYA_NET_EVENT_MAX_BYTES
+#define NYA_NET_EVENT_MAX_BYTES 4096
+#endif
+
+/**
+ * Game events a client may send back to back, and how many a second it earns back. Each one past that is dropped
+ * and counted as a violation, so a flood ends in a kick instead of an arena per event on the server.
+ * */
+#define NYA_NET_EVENT_BURST             32
+#define NYA_NET_EVENT_REFILL_PER_SECOND 16
 
 /**
  * The default hysteresis band, as a fraction of the relevance radius.
@@ -135,6 +148,12 @@ struct NYA_NetServerConfig {
     /** Violations a player may run up, decaying by one a second, before being kicked. Zero is NYA_NET_VIOLATION_LIMIT_DEFAULT. */
     u32 violation_limit;
 
+    /**
+     * The bits of NYA_NetCommand.actions the game numbers. A command holding any other bit is dropped and counted as
+     * a violation. Zero accepts every bit, for a game that has not said which it uses.
+     * */
+    u64 action_mask;
+
     /** Fractional bits positions and velocities are sent with. Zero is NYA_NET_POSITION_BITS_DEFAULT. */
     u32 position_bits;
 
@@ -150,6 +169,19 @@ struct NYA_NetServerConfig {
 
     /** A bad network on purpose, for what this server sends to remote players. */
     NYA_NetConditions conditions;
+
+    /*
+     * ── content ──
+     */
+
+    /**
+     * What a joining player's build, assets and mods must match. Null takes nya_net_content_collect when the server
+     * starts, so plugins load before it; copied either way.
+     * */
+    const NYA_NetContentManifest* content;
+
+    /** Leave client-only plugins out of the comparison. Off by default, since client_only is the plugin's own claim. */
+    b8 allow_client_only_plugins;
 
     /*
      * ── lag compensation ──
@@ -230,6 +262,9 @@ NYA_API b8 nya_net_server_is_listening(void) __attr_no_discard;
  * in a HUD, and to put in whatever tells a player where the game is.
  * */
 NYA_API u16 nya_net_server_port(void) __attr_no_discard;
+
+/** What joining players are compared against: the config's manifest, or what was collected at start. Null when stopped. */
+NYA_API const NYA_NetContentManifest* nya_net_server_content(void) __attr_no_discard;
 
 /** The key players pin to be sure they reached this server, or null until it listens. */
 NYA_API const u8* nya_net_server_public_key(void) __attr_no_discard;

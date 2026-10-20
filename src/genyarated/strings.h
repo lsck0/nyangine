@@ -33,6 +33,7 @@ typedef enum {
     NYA_STRING_HUD_OFFLINE,
     NYA_STRING_HUD_PAUSED,
     NYA_STRING_HUD_PLAYERS,
+    NYA_STRING_HUD_REFUSED,
     NYA_STRING_HUD_ROBOTS_DQN,
     NYA_STRING_HUD_ROBOTS_NEAT,
     NYA_STRING_HUD_ROBOTS_RUN,
@@ -134,6 +135,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "hud_offline",
     "hud_paused",
     "hud_players",
+    "hud_refused",
     "hud_robots_dqn",
     "hud_robots_neat",
     "hud_robots_run",
@@ -317,6 +319,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_hud_paused(void) {
 /** `hud_players` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_hud_players(u32 a0) {
     return _nya_i18n_format_plural(NYA_STRING_HUD_PLAYERS, (s64)a0, a0);
+}
+
+/** `hud_refused` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_hud_refused(NYA_ConstCString a0) {
+    return _nya_i18n_format(NYA_STRING_HUD_REFUSED, a0);
 }
 
 /** `hud_robots_dqn` */

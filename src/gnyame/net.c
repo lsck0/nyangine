@@ -21,6 +21,11 @@
  * */
 #define GNY_COMMAND_BIT(action) ((u32)((action) - NYA_INPUT_ACTION_USER))
 
+/** The four movement bits, all a command may hold; the server drops one holding any other. */
+#define GNY_COMMAND_ACTION_MASK                                                                                        \
+    ((1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_LEFT)) | (1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_RIGHT))                \
+     | (1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_UP)) | (1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_DOWN)))
+
 /**
  * A long term key pair kept at `relative` under the save root.
  *
@@ -84,9 +89,13 @@ void gny_net_start(void) {
         .on_spawn_player  = nya_callback(gny_net_spawn_player),
         .on_apply_command = nya_callback(gny_net_apply_command),
         .max_speed        = speed * GNY_NET_SPEED_HEADROOM,
+        .action_mask      = GNY_COMMAND_ACTION_MASK,
         .position_bits    = GNY_NET_POSITION_BITS,
         .conditions       = GNY_LAUNCH.conditions,
         .allowlist        = GNY_LAUNCH.allowlist,
+        // plugins were loaded before this, so the manifest the server collects names them; a cosmetic one a
+        // player adds on their own side does not lock them out.
+        .allow_client_only_plugins = true,
     };
 
     // a listening server keeps its identity, so players who pinned its key can come back. Without one it makes a throwaway.
@@ -202,12 +211,15 @@ NYA_EntityHandle gny_net_spawn_player(NYA_NetPeerId peer, NYA_ConstCString name)
 
     f32 spacing = NYA_CONFIG.game.player_spawn_spacing > 0.0F ? NYA_CONFIG.game.player_spawn_spacing : GNY_PLAYER_SPAWN_SPACING;
 
+    // the host first: its loopback id is the last index there is, and remote players count from zero behind it.
+    u32 seat = peer.index == NYA_NET_LOOPBACK_PEER.index ? 0 : peer.index + 1;
+
     // no physics body: movement is written by the command function, identically on both sides.
     return nya_entity_spawn(
         .name      = "player",
         .type      = GNY_ENTITY_PLAYER,
         .flags     = GNY_FLAG_REPLICATED | GNY_ENTITY_FLAG_AUDIBLE,
-        .position  = { (f32)peer.index * spacing, 0.0F, 0.0F },
+        .position  = { (f32)seat * spacing, 0.0F, 0.0F },
         .state     = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE,
         .on_render = nya_callback(gny_net_player_on_render)
     );

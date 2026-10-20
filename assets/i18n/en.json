@@ -76,6 +76,7 @@
   "hud_hovering": "hovering %s",
   "hud_boxes": "boxes %u (%u awake)",
   "hud_paused": "PHYSICS PAUSED",
+  "hud_refused": "refused by the server: %s",
   "caption_thud": "[thud]",
   "caption_fire": "[fire crackling]",
   "hud_greeting": "Hello, %s!",

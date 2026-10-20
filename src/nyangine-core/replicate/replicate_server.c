@@ -26,8 +26,8 @@ typedef struct {
 /** How far past the time elapsed since its last command a client's tick may run, for clocks that drift and bunch. */
 #define _NYA_NET_SERVER_COMMAND_SLACK 64
 
-/** The most a HELLO may be, in bytes. */
-#define _NYA_NET_SERVER_MAX_HELLO 512
+/** The most a HELLO may be, in bytes: its document, then the content manifest. */
+#define _NYA_NET_SERVER_MAX_HELLO (512 + NYA_NET_CONTENT_ENCODED_MAX)
 
 typedef struct {
     NYA_NetServerPeer public_state;
@@ -74,6 +74,10 @@ typedef struct {
     /** The size of the newest snapshot sent, for the stats. */
     u32 snapshot_bytes;
 
+    /** Game events this peer may still send, and when the bucket was last topped up. See NYA_NET_EVENT_BURST. */
+    f32 event_tokens;
+    u64 event_refilled_ms;
+
     /* bandwidth */
 
     /**
@@ -100,6 +104,9 @@ typedef struct {
     NYA_Arena* allocator;
 
     NYA_NetServerConfig config;
+
+    /** What remote players must match. `config.content` points at the caller's copy, which may not outlive start. */
+    NYA_NetContentManifest content;
 
     /** Opened by nya_net_server_listen. Null for single player. */
     NYA_NetTransport* udp;
@@ -168,6 +175,12 @@ NYA_INTERNAL void _nya_net_server_apply_commands(_NYA_NetServerPeerState* state,
 /** Counts a broken rule against a peer, kicking it once its score passes the limit. */
 NYA_INTERNAL void _nya_net_server_violation(_NYA_NetServerPeerState* state, NYA_ConstCString what);
 NYA_INTERNAL void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* body, u64 size);
+
+/** Sends REJECT with `reason` and whatever `detail` adds to it, then drops the peer with the same reason. */
+NYA_INTERNAL void _nya_net_server_refuse(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_Arena* scratch, NYA_NetDisconnect reason, NYA_Object* detail);
+
+/** Whether `state` may send one more game event now, spending a token if so. */
+NYA_INTERNAL b8 _nya_net_server_event_allow(_NYA_NetServerPeerState* state) __attr_no_discard;
 NYA_INTERNAL void _nya_net_server_send_snapshots(u64 tick);
 
 /**
@@ -204,10 +217,13 @@ NYA_INTERNAL void _nya_net_server_release(_NYA_NetServerBaseline* slot);
 /** The peer slot for an id, or null when it names nothing live. */
 NYA_INTERNAL _NYA_NetServerPeerState* _nya_net_server_find(NYA_NetPeerId peer) __attr_no_discard;
 
+/** The same, for an id a transport reported: the slot must also belong to that transport, so two cannot be confused. */
+NYA_INTERNAL _NYA_NetServerPeerState* _nya_net_server_find_on(const NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
+
 /** Takes a slot for a newly connected peer, or null when the server is full. */
 NYA_INTERNAL _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
 
-NYA_INTERNAL void _nya_net_server_remove(NYA_NetPeerId peer, NYA_NetDisconnect reason);
+NYA_INTERNAL void _nya_net_server_remove(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason);
 
 /** Tells everyone but `about` that a peer joined or left. */
 NYA_INTERNAL void _nya_net_server_broadcast_roster(NYA_NetPeerId about, NYA_ConstCString name, b8 joined);
@@ -236,9 +252,18 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config) {
         config.lag_history_ticks = NYA_NET_LAG_HISTORY;
     }
 
+    // before the state is taken: a server that cannot say what it runs has nothing to compare a player against.
+    NYA_NetContentManifest content = { 0 };
+    if (config.content != nullptr) content = *config.content;
+    else NYA_TRY(nya_net_content_collect(&content));
+
+    // the caller's pointer dies with the call; the copy below is what HELLO is compared with.
+    config.content = nullptr;
+
     _NYA_NET_SERVER = (_NYA_NetServerState){
         .running    = true,
         .config     = config,
+        .content    = content,
         .allocator  = nya_arena_create(.name = "net_server"),
         .tick_arena = nya_arena_create(.name = "net_server_tick"),
         .local_peer = NYA_NET_PEER_NONE,
@@ -369,6 +394,10 @@ u16 nya_net_server_port(void) {
     return nya_net_transport_port(_NYA_NET_SERVER.udp);
 }
 
+const NYA_NetContentManifest* nya_net_server_content(void) {
+    return _NYA_NET_SERVER.running ? &_NYA_NET_SERVER.content : nullptr;
+}
+
 const u8* nya_net_server_public_key(void) {
     if (_NYA_NET_SERVER.udp == nullptr) return nullptr;
 
@@ -463,7 +492,7 @@ void nya_net_server_kick(NYA_NetPeerId peer, NYA_NetDisconnect reason) {
     nya_net_transport_disconnect(state->transport, peer, reason);
 
     // removed now: the transport raises no event for a disconnect the caller requested.
-    _nya_net_server_remove(peer, reason);
+    _nya_net_server_remove(state->transport, peer, reason);
 }
 
 NYA_Error nya_net_server_send_event(NYA_NetPeerId peer, const NYA_Object* event) {
@@ -678,7 +707,7 @@ void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick) {
                 nya_log_debug("Transport connection from %s.", nya_net_transport_peer_address(transport, event.peer));
             } break;
 
-            case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: _nya_net_server_remove(event.peer, event.reason); break;
+            case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: _nya_net_server_remove(transport, event.peer, event.reason); break;
 
             case NYA_NET_TRANSPORT_EVENT_MESSAGE: {
                 _nya_net_server_handle_message(transport, event.peer, event.data, event.size, tick);
@@ -704,7 +733,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
         return;
     }
 
-    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+    _NYA_NetServerPeerState* state = _nya_net_server_find_on(transport, peer);
 
     // everything but HELLO requires an accepted peer.
     if (state == nullptr || !state->public_state.accepted) return;
@@ -713,6 +742,17 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
         case NYA_NET_MSG_COMMAND: _nya_net_server_handle_command(state, body, body_size, tick); break;
 
         case NYA_NET_MSG_GAME_EVENT: {
+            // both before anything is parsed: parsing is what a flood or an oversized document costs the server.
+            if (body_size > NYA_NET_EVENT_MAX_BYTES) {
+                _nya_net_server_violation(state, "a game event past NYA_NET_EVENT_MAX_BYTES");
+                break;
+            }
+
+            if (!_nya_net_server_event_allow(state)) {
+                _nya_net_server_violation(state, "more game events than NYA_NET_EVENT_BURST allows");
+                break;
+            }
+
             NYA_NetServerEventFn on_client_event = nya_callback_get(_NYA_NET_SERVER.config.on_client_event);
 
             if (on_client_event == nullptr) {
@@ -778,6 +818,18 @@ void _nya_net_server_handle_command(_NYA_NetServerPeerState* state, const u8* bo
 
         if (command->tick - state->last_command_tick > elapsed + _NYA_NET_SERVER_COMMAND_SLACK) {
             _nya_net_server_violation(state, "a command tick from the future");
+            if (!state->public_state.accepted) return;
+            continue;
+        }
+
+        u64 action_mask = _NYA_NET_SERVER.config.action_mask;
+
+        if (action_mask != 0 && (command->actions & ~action_mask) != 0) {
+            // taken as seen, so the copies of it riding in the next packets are not counted against the peer again.
+            state->last_command_tick        = command->tick;
+            state->last_command_server_tick = tick;
+
+            _nya_net_server_violation(state, "an action bit the game never registered");
             if (!state->public_state.accepted) return;
             continue;
         }
@@ -858,7 +910,7 @@ void _nya_net_server_violation(_NYA_NetServerPeerState* state, NYA_ConstCString 
 void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* body, u64 size) {
     // a second HELLO is ignored before anything is read: refusing one would drop the transport peer and leave the
     // player's slot with nothing to free it, and a valid one would give one player two entities.
-    _NYA_NetServerPeerState* existing = _nya_net_server_find(peer);
+    _NYA_NetServerPeerState* existing = _nya_net_server_find_on(transport, peer);
     if (existing != nullptr && existing->public_state.accepted) return;
 
     /* Refused on size before parsing, since parsing is what is being protected. */
@@ -888,49 +940,66 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 
     /* Refused before any state is exchanged. */
     if (their_protocol != NYA_NET_PROTOCOL_VERSION || their_snapshot != NYA_NET_SNAPSHOT_VERSION) {
-        NYA_String* payload = nya_string_create(scratch);
-
-        nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
-
-        NYA_Object* reject = nya_object_create(scratch);
-        nya_object_add(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_VERSION });
-        nya_object_add(reject, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-        nya_object_add(reject, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-
-        NYA_EXPECT(nya_net_message_write_object(scratch, payload, reject));
-
-        (void)nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
+        NYA_Object* detail = nya_object_create(scratch);
+        nya_object_add(detail, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+        nya_object_add(detail, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
 
         nya_log_warn("Refused a peer speaking protocol %llu/%llu; this build speaks %d/%d.", (unsigned long long)their_protocol,
                  (unsigned long long)their_snapshot, NYA_NET_PROTOCOL_VERSION, NYA_NET_SNAPSHOT_VERSION);
 
-        // and dropped now rather than left to time out holding a connection slot. The disconnect carries the
-        // reason itself, so a peer whose REJECT was lost still learns why; only the version numbers are lost with it.
-        nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_VERSION);
+        _nya_net_server_refuse(transport, peer, scratch, NYA_NET_DISCONNECT_VERSION, detail);
         return;
+    }
+
+    // sanitised like a chat line: the name reaches the server's log, every roster and every chat line.
+    char their_name[NYA_NET_MAX_NAME] = { 0 };
+    if (name != nullptr && name->type == NYA_TYPE_STRING) (void)nya_net_chat_sanitize(name->as_string, their_name, sizeof(their_name));
+    if (their_name[0] == '\0') (void)snprintf(their_name, sizeof(their_name), "player");
+
+    // the host is this process, so its content is the server's by construction, and its HELLO carries none.
+    if (!nya_net_transport_is_local(transport)) {
+        u64 document = nya_net_message_object_size(body, size);
+        nya_assert(document > 0 && document <= size, "a HELLO whose document read cannot be measured");
+
+        NYA_NetContentManifest theirs  = { 0 };
+        NYA_Error              decoded = nya_net_content_decode(body + document, size - document, &theirs);
+
+        if (!decoded.ok) {
+            nya_log_warn("Refused '%s', whose content manifest did not decode: %s", their_name, (NYA_ConstCString)decoded.message);
+            nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_PROTOCOL);
+            return;
+        }
+
+        NYA_NetContentPolicy   policy   = { .allow_client_only = _NYA_NET_SERVER.config.allow_client_only_plugins };
+        NYA_NetContentMismatch mismatch = nya_net_content_compare(&_NYA_NET_SERVER.content, &theirs, policy);
+
+        if (mismatch.difference != NYA_NET_CONTENT_SAME) {
+            char line[NYA_NET_CONTENT_DESCRIBE_MAX];
+            (void)nya_net_content_mismatch_describe(&mismatch, line, sizeof(line));
+            nya_log_warn("Refused '%s': %s.", their_name, line);
+
+            // every string bounded by the mismatch's own arrays, so the REJECT stays a few hundred bytes.
+            NYA_Object* detail = nya_object_create(scratch);
+            nya_object_add(detail, "content_difference", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = (u64)mismatch.difference });
+            nya_object_add(detail, "content_kind", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = (u64)mismatch.kind });
+            nya_object_add(detail, "content_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = mismatch.id });
+            nya_object_add(detail, "content_server", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = mismatch.server_version });
+            nya_object_add(detail, "content_client", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = mismatch.client_version });
+
+            _nya_net_server_refuse(transport, peer, scratch, NYA_NET_DISCONNECT_CONTENT, detail);
+            return;
+        }
     }
 
     _NYA_NetServerPeerState* state = existing != nullptr ? existing : _nya_net_server_admit(transport, peer);
 
     if (state == nullptr) {
-        NYA_String* payload = nya_string_create(scratch);
-        nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
-
-        NYA_Object* reject = nya_object_create(scratch);
-        nya_object_add(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_FULL });
-
-        NYA_EXPECT(nya_net_message_write_object(scratch, payload, reject));
-        (void)nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
-
         // the same as a version refusal: a full server has no slot to lend one while it times out.
-        nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_FULL);
+        _nya_net_server_refuse(transport, peer, scratch, NYA_NET_DISCONNECT_FULL, nullptr);
         return;
     }
 
-    NYA_ConstCString their_name = name != nullptr && name->type == NYA_TYPE_STRING ? name->as_string : "player";
-
-    // copied and truncated: the length came from a peer, and the scratch arena dies with this function.
-    (void)snprintf(state->public_state.name, sizeof(state->public_state.name), "%s", their_name);
+    nya_memcpy(state->public_state.name, their_name, sizeof(their_name));
 
     state->public_state.accepted = true;
     state->public_state.is_local = nya_net_transport_is_local(transport);
@@ -969,6 +1038,40 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
     nya_log_info("Player '%s' joined from %s.", state->public_state.name, nya_net_transport_peer_address(transport, peer));
 
     _nya_net_server_broadcast_roster(peer, state->public_state.name, true);
+}
+
+void _nya_net_server_refuse(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_Arena* scratch, NYA_NetDisconnect reason, NYA_Object* detail) {
+    nya_assert(transport != nullptr && scratch != nullptr);
+    nya_assert(reason != NYA_NET_DISCONNECT_NONE && (u32)reason < NYA_NET_DISCONNECT_COUNT);
+
+    NYA_Object* reject = detail != nullptr ? detail : nya_object_create(scratch);
+    nya_object_add(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = (u64)reason });
+
+    NYA_String* payload = nya_string_create(scratch);
+    nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
+    NYA_EXPECT(nya_net_message_write_object(scratch, payload, reject));
+
+    (void)nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
+
+    // dropped now rather than left to time out holding a connection slot. The disconnect carries the reason itself,
+    // so a peer whose REJECT was lost still learns why; only the detail is lost with it.
+    nya_net_transport_disconnect(transport, peer, reason);
+}
+
+b8 _nya_net_server_event_allow(_NYA_NetServerPeerState* state) {
+    nya_assert(state != nullptr);
+
+    u64 now_ms     = nya_clock_get_monotonic_ms();
+    u64 elapsed_ms = _nya_net_elapsed_ms(now_ms, state->event_refilled_ms);
+
+    state->event_refilled_ms = now_ms;
+    state->event_tokens      = nya_min(state->event_tokens + ((f32)elapsed_ms * (f32)NYA_NET_EVENT_REFILL_PER_SECOND / 1000.0F), (f32)NYA_NET_EVENT_BURST);
+
+    if (state->event_tokens < 1.0F) return false;
+
+    state->event_tokens -= 1.0F;
+
+    return true;
 }
 
 void _nya_net_server_send_snapshots(u64 tick) {
@@ -1279,6 +1382,14 @@ _NYA_NetServerPeerState* _nya_net_server_find(NYA_NetPeerId peer) {
     return state;
 }
 
+_NYA_NetServerPeerState* _nya_net_server_find_on(const NYA_NetTransport* transport, NYA_NetPeerId peer) {
+    nya_assert(transport != nullptr);
+
+    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+
+    return state != nullptr && state->transport == transport ? state : nullptr;
+}
+
 _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_NetPeerId peer) {
     if (peer.index >= NYA_NET_MAX_PEERS) return nullptr;
     if (_NYA_NET_SERVER.peer_count >= _NYA_NET_SERVER.config.max_players) return nullptr;
@@ -1294,8 +1405,10 @@ _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_
     }
 
     *state = (_NYA_NetServerPeerState){
-        .transport = transport,
-        .public_state = { .peer = peer, .entity = NYA_ENTITY_HANDLE_NONE },
+        .transport         = transport,
+        .public_state      = { .peer = peer, .entity = NYA_ENTITY_HANDLE_NONE },
+        .event_tokens      = (f32)NYA_NET_EVENT_BURST,
+        .event_refilled_ms = nya_clock_get_monotonic_ms(),
     };
 
     _NYA_NET_SERVER.peer_count++;
@@ -1303,8 +1416,8 @@ _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_
     return state;
 }
 
-void _nya_net_server_remove(NYA_NetPeerId peer, NYA_NetDisconnect reason) {
-    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+void _nya_net_server_remove(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason) {
+    _NYA_NetServerPeerState* state = _nya_net_server_find_on(transport, peer);
     if (state == nullptr) return;
 
     b8 was_accepted = state->public_state.accepted;

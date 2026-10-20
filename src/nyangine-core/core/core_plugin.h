@@ -133,6 +133,7 @@
 #include "nyangine-std/base/base_object.h"
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/core/core_system.h"
+#include "nyangine-core/crypto/crypto_hash.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -373,6 +374,13 @@ struct NYA_PluginManifest {
 
     /** Plugins this one refuses to run beside, whichever of the two arrives second. */
     NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX];
+
+    /**
+     * Changes only what this player sees or hears, never the simulation. A server that allows client-only plugins
+     * leaves it out of the content a joining player must match; see replicate_content.h. A claim the plugin makes,
+     * so a server that does not trust it keeps the default and compares it like any other.
+     * */
+    b8 client_only;
 };
 
 /**
@@ -391,6 +399,9 @@ struct NYA_Plugin {
      * kept separate so the two are never confused at a call site.
      * */
     NYA_PluginPermission permissions;
+
+    /** nya_plugin_content_digest as it was at load: what a multiplayer handshake compares. */
+    NYA_CryptoSha256Digest content_digest;
 
     /** Whether its hooks run. See nya_plugin_enable. */
     b8 enabled;

@@ -44,6 +44,15 @@ typedef struct {
     /** True when this client created the transport and must therefore destroy it. */
     b8 owns_transport;
 
+    /** The arena an owned transport lives in, which goes with it. */
+    NYA_Arena* transport_allocator;
+
+    /** What HELLO tells the server this client runs. */
+    NYA_NetContentManifest content;
+
+    /** What the server's content refusal named. `difference` NYA_NET_CONTENT_SAME when there was none. */
+    NYA_NetContentMismatch content_mismatch;
+
     char name[NYA_NET_MAX_NAME];
 
     NYA_NetPeerId peer;
@@ -142,6 +151,9 @@ NYA_INTERNAL void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32
 
 NYA_INTERNAL void _nya_net_client_reset(void);
 
+/** What a REJECT's detail says about content, bounded and printable whatever the server sent. */
+NYA_INTERNAL NYA_NetContentMismatch _nya_net_client_content_mismatch_from(const NYA_Object* reject) __attr_no_discard;
+
 /** nya_net_client_tick behind the system registry's signature, reading the tick off the world. */
 
 /*
@@ -198,7 +210,8 @@ NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString 
     }
 
     // the transport was allocated from this setup allocator, and attach made its own.
-    _NYA_NET_CLIENT.owns_transport = true;
+    _NYA_NET_CLIENT.owns_transport      = true;
+    _NYA_NET_CLIENT.transport_allocator = allocator;
 
     return NYA_OK;
 }
@@ -213,7 +226,15 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
 
     if (config.correction_threshold <= 0.0F) config.correction_threshold = _NYA_NET_CLIENT_DEFAULT_THRESHOLD;
 
+    // over a loopback the server is this process and reads no manifest, so there is nothing to collect.
+    NYA_NetContentManifest content = { 0 };
+    if (config.content != nullptr) content = *config.content;
+    else if (!nya_net_transport_is_local(transport)) NYA_TRY(nya_net_content_collect(&content));
+
+    config.content = nullptr;
+
     _NYA_NET_CLIENT = (_NYA_NetClientState){
+        .content     = content,
         .active      = true,
         .delay_ticks = _NYA_NET_CLIENT_DELAY_MIN_TICKS * 2.0F,
         .arrival_gap_ticks = 1.0F,
@@ -263,9 +284,6 @@ void nya_net_client_disconnect(void) {
         nya_net_transport_disconnect(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer, NYA_NET_DISCONNECT_REQUESTED);
     }
 
-    // only if this client created it. A listen server's loopback end belongs to the server.
-    if (_NYA_NET_CLIENT.owns_transport) nya_net_transport_destroy(_NYA_NET_CLIENT.transport);
-
     _nya_net_client_reset();
 }
 
@@ -275,6 +293,10 @@ NYA_NetClientState nya_net_client_state(void) {
 
 NYA_NetDisconnect nya_net_client_disconnect_reason(void) {
     return _NYA_NET_CLIENT.disconnect_reason;
+}
+
+const NYA_NetContentMismatch* nya_net_client_content_mismatch(void) {
+    return _NYA_NET_CLIENT.content_mismatch.difference == NYA_NET_CONTENT_SAME ? nullptr : &_NYA_NET_CLIENT.content_mismatch;
 }
 
 void nya_net_client_tick(u64 tick, f32 delta_time_s) {
@@ -409,10 +431,13 @@ void _nya_net_client_drain(f32 delta_time_s) {
 
                 nya_log_info("Disconnected (%d).", (int)event.reason);
 
-                // the transport belongs to whoever created it, and a caller may reconnect after reading the reason.
-                NYA_NetDisconnect reason = event.reason;
+                // reset closes a transport this client opened and leaves one it was handed to its owner. Returning
+                // straight after, since the loop's transport may be gone; a caller may reconnect after reading the reason.
+                NYA_NetDisconnect      reason   = event.reason;
+                NYA_NetContentMismatch mismatch = _NYA_NET_CLIENT.content_mismatch;
                 _nya_net_client_reset();
                 _NYA_NET_CLIENT.disconnect_reason = reason;
+                _NYA_NET_CLIENT.content_mismatch  = mismatch;
 
                 return;
             }
@@ -447,6 +472,8 @@ void _nya_net_client_send_hello(void) {
 
     if (!nya_net_message_write_object(scratch, payload, hello).ok) return;
 
+    if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) nya_net_content_encode(payload, &_NYA_NET_CLIENT.content);
+
     (void)nya_net_transport_send(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
 }
 
@@ -469,19 +496,29 @@ void _nya_net_client_handle_message(const u8* data, u64 size, f32 delta_time_s) 
 
             NYA_Object* reject = nullptr;
 
-            NYA_NetDisconnect reason = NYA_NET_DISCONNECT_PROTOCOL;
+            NYA_NetDisconnect      reason   = NYA_NET_DISCONNECT_PROTOCOL;
+            NYA_NetContentMismatch mismatch = { .difference = NYA_NET_CONTENT_SAME };
 
             if (nya_net_message_read_object(scratch, body, body_size, &reject).ok && reject != nullptr) {
                 NYA_Value* value = nya_object_get(reject, "reason");
                 if (value != nullptr && value->type == NYA_TYPE_U64 && value->as_u64 < NYA_NET_DISCONNECT_COUNT) {
                     reason = (NYA_NetDisconnect)value->as_u64;
                 }
+
+                if (reason == NYA_NET_DISCONNECT_CONTENT) mismatch = _nya_net_client_content_mismatch_from(reject);
             }
 
-            nya_log_error("The server refused the connection (%d).", (int)reason);
+            if (mismatch.difference != NYA_NET_CONTENT_SAME) {
+                char line[NYA_NET_CONTENT_DESCRIBE_MAX];
+                (void)nya_net_content_mismatch_describe(&mismatch, line, sizeof(line));
+                nya_log_error("The server refused the connection: %s.", line);
+            } else {
+                nya_log_error("The server refused the connection (%d).", (int)reason);
+            }
 
             _nya_net_client_reset();
             _NYA_NET_CLIENT.disconnect_reason = reason;
+            _NYA_NET_CLIENT.content_mismatch  = mismatch;
         } break;
 
         case NYA_NET_MSG_PEER_JOINED:
@@ -504,11 +541,15 @@ void _nya_net_client_handle_message(const u8* data, u64 size, f32 delta_time_s) 
 
             b8 joined = kind == NYA_NET_MSG_PEER_JOINED;
 
-            nya_log_info("Player '%s' %s.", name->as_string, joined ? "joined" : "left");
+            // bounded and cleaned here: a server is a peer too, and the game shows this name to its player.
+            char clean[NYA_NET_MAX_NAME] = { 0 };
+            if (nya_net_chat_sanitize(name->as_string, clean, sizeof(clean)) == 0) (void)snprintf(clean, sizeof(clean), "player");
+
+            nya_log_info("Player '%s' %s.", clean, joined ? "joined" : "left");
 
             NYA_NetPeerChangeFn on_peer_change = nya_callback_get(_NYA_NET_CLIENT.config.on_peer_change);
 
-            if (on_peer_change != nullptr) on_peer_change(who, name->as_string, joined);
+            if (on_peer_change != nullptr) on_peer_change(who, clean, joined);
         } break;
 
         case NYA_NET_MSG_GAME_EVENT: {
@@ -794,6 +835,11 @@ void _nya_net_client_reset(void) {
      */
     if (_NYA_NET_CLIENT.replicas != nullptr) nya_net_replica_map_despawn_all(_NYA_NET_CLIENT.replicas);
 
+    // only if this client created it; a listen server's loopback end belongs to the server. Here rather than in
+    // disconnect, so a refusal or a dropped connection does not leave a socket open behind every retry.
+    if (_NYA_NET_CLIENT.owns_transport) nya_net_transport_destroy(_NYA_NET_CLIENT.transport);
+    if (_NYA_NET_CLIENT.transport_allocator != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.transport_allocator);
+
     if (_NYA_NET_CLIENT.tick_arena != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.tick_arena);
     if (_NYA_NET_CLIENT.allocator != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.allocator);
 
@@ -802,6 +848,35 @@ void _nya_net_client_reset(void) {
         .entity_local  = NYA_ENTITY_HANDLE_NONE,
         .peer          = NYA_NET_PEER_NONE,
     };
+}
+
+NYA_NetContentMismatch _nya_net_client_content_mismatch_from(const NYA_Object* reject) {
+    nya_assert(reject != nullptr);
+
+    NYA_Value* difference = nya_object_get(reject, "content_difference");
+    NYA_Value* kind       = nya_object_get(reject, "content_kind");
+
+    // a refusal for content that does not say how still counts as one, so the player is told something.
+    NYA_NetContentMismatch mismatch = { .difference = NYA_NET_CONTENT_DIFFERENCE_COUNT, .kind = NYA_NET_CONTENT_KIND_COUNT };
+
+    if (difference != nullptr && difference->type == NYA_TYPE_U64 && difference->as_u64 > NYA_NET_CONTENT_SAME && difference->as_u64 < NYA_NET_CONTENT_DIFFERENCE_COUNT) {
+        mismatch.difference = (NYA_NetContentDifference)difference->as_u64;
+    }
+
+    if (kind != nullptr && kind->type == NYA_TYPE_U64 && kind->as_u64 < NYA_NET_CONTENT_KIND_COUNT) mismatch.kind = (NYA_NetContentKind)kind->as_u64;
+
+    NYA_ConstCString keys[3]       = { "content_id", "content_server", "content_client" };
+    char*            fields[3]     = { mismatch.id, mismatch.server_version, mismatch.client_version };
+    u64              capacities[3] = { sizeof(mismatch.id), sizeof(mismatch.server_version), sizeof(mismatch.client_version) };
+
+    for (u32 i = 0; i < 3; i++) {
+        NYA_Value* value = nya_object_get(reject, (NYA_CString)keys[i]);
+        if (value == nullptr || value->type != NYA_TYPE_STRING || value->as_string == nullptr) continue;
+
+        _nya_net_content_copy_printable(fields[i], capacities[i], value->as_string);
+    }
+
+    return mismatch;
 }
 
 void nya_net_client_system_tick(f32 delta_time_s) {

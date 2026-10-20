@@ -101,6 +101,36 @@ s32 main(void) {
         printf("  a plugin hashes the same twice, and a non-plugin hashes to nothing\n");
     }
 
+    printf("TEST: the content digest covers assets, and the signed digest does not\n");
+    {
+        plugin_write("skinned");
+        NYA_ConstCString skinned = plugin_directory(arena, "skinned");
+
+        NYA_CryptoSha256Digest code_before    = { 0 };
+        NYA_CryptoSha256Digest content_before = { 0 };
+        nya_assert(nya_plugin_digest(skinned, &code_before).ok);
+        nya_assert(nya_plugin_content_digest(skinned, &content_before).ok, "a plugin without assets has a content digest");
+        nya_assert(nya_memcmp(code_before.bytes, content_before.bytes, sizeof(code_before.bytes)) != 0, "the two digests share a domain");
+
+        plugin_file_write("skinned", NYA_PLUGIN_ASSET_DIRECTORY "/levels/one.txt", "a level\n");
+
+        NYA_CryptoSha256Digest code_after    = { 0 };
+        NYA_CryptoSha256Digest content_after = { 0 };
+        nya_assert(nya_plugin_digest(skinned, &code_after).ok);
+        nya_assert(nya_plugin_content_digest(skinned, &content_after).ok, "a nested asset was not hashed");
+
+        nya_assert(nya_memcmp(code_before.bytes, code_after.bytes, sizeof(code_before.bytes)) == 0, "an asset changed what is signed");
+        nya_assert(nya_memcmp(content_before.bytes, content_after.bytes, sizeof(content_before.bytes)) != 0, "an asset did not change the content digest");
+
+        plugin_file_write("skinned", NYA_PLUGIN_ASSET_DIRECTORY "/levels/one.txt", "another level\n");
+
+        NYA_CryptoSha256Digest content_edited = { 0 };
+        nya_assert(nya_plugin_content_digest(skinned, &content_edited).ok);
+        nya_assert(nya_memcmp(content_after.bytes, content_edited.bytes, sizeof(content_after.bytes)) != 0, "an edited asset hashed the same");
+
+        printf("  adding or editing an asset moves the content digest and leaves the signature's alone\n");
+    }
+
     printf("TEST: a signature by a pinned key verifies, using the crypto API directly\n");
     {
         // The primitive, on the plugin's own digest: this is what nya_plugin_signature_write signs and nya_plugin_signature_verify checks, shown here against the raw Ed25519 calls with a test key.

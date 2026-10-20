@@ -12,6 +12,7 @@
 #include "nyangine-std/base/base_string.h"
 #include "nyangine-core/core/core_event.h"
 #include "nyangine-core/core/core_window.h"
+#include "nyangine-core/crypto/crypto_hash.h"
 #include "nyangine-core/renderer/renderer.h"
 #include "genyarated/assets.h"
 #include "SDL3_image/SDL_image.h"
@@ -603,6 +604,13 @@ NYA_API u64 nya_asset_generation(void) __attr_no_discard;
  * Sets a window's icon from an asset, without the asset system taking it on.
  * */
 NYA_API NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle) __attr_no_discard;
+
+/**
+ * One SHA-256 over every asset baked into this executable, each entry as its path, size and the integrity hash the
+ * build recorded, in the build's order. False with a zeroed digest when nothing is baked: without
+ * NYA_ASSET_PREFER_BLOB the assets are whatever is on disk, hot reloading, and there is no bundle to name.
+ * */
+NYA_API b8 nya_asset_bundle_digest(OUT NYA_CryptoSha256Digest* out_digest) __attr_no_discard;
 
 /** NYA_ASSET_STATUS_FAILED for anything that could not load, so a caller can react without a hook. */
 NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_discard;

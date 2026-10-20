@@ -98,11 +98,14 @@ s32 main(void) {
     {
         NYA_CONFIG.game.player_spawn_spacing = 0.0F;
         NYA_Entity* fallback                 = nya_entity_get(gny_net_spawn_player((NYA_NetPeerId){ .index = 3, .generation = 1 }, "fallback"));
-        nya_check(fallback != nullptr && fallback->position.x == 3.0F * GNY_PLAYER_SPAWN_SPACING, "slot 3 spawns three default spacings out");
+        nya_check(fallback != nullptr && fallback->position.x == 4.0F * GNY_PLAYER_SPAWN_SPACING, "slot 3 sits behind the host, four default spacings out");
 
         NYA_CONFIG.game.player_spawn_spacing = 10.0F;
         NYA_Entity* configured               = nya_entity_get(gny_net_spawn_player((NYA_NetPeerId){ .index = 3, .generation = 1 }, "configured"));
-        nya_check(configured != nullptr && configured->position.x == 30.0F, "and three configured spacings once one is set");
+        nya_check(configured != nullptr && configured->position.x == 40.0F, "and four configured spacings once one is set");
+
+        NYA_Entity* host = nya_entity_get(gny_net_spawn_player(NYA_NET_LOOPBACK_PEER, "host"));
+        nya_check(host != nullptr && host->position.x == 0.0F, "the host spawns first in line");
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

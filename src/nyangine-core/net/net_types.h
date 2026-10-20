@@ -117,6 +117,9 @@ enum NYA_NetDisconnect {
     /** A moderator dropped the player. Not cheating and not the player's own request; see permission.h. */
     NYA_NET_DISCONNECT_KICKED,
 
+    /** The build, the asset bundle or a mod differs from the server's. The REJECT names which; see replicate_content.h. */
+    NYA_NET_DISCONNECT_CONTENT,
+
     NYA_NET_DISCONNECT_COUNT,
 };
 

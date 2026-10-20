@@ -15,6 +15,7 @@
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-core/core/core_entity.h"
 #include "nyangine-core/replicate/replicate_command.h"
+#include "nyangine-core/replicate/replicate_content.h"
 #include "nyangine-core/replicate/replicate_snapshot.h"
 #include "nyangine-core/net/net_transport.h"
 #include "nyangine-core/net/net_types.h"
@@ -103,6 +104,12 @@ struct NYA_NetClientConfig {
 
     /** A bad network on purpose, for what this client sends. */
     NYA_NetConditions conditions;
+
+    /**
+     * What this client tells the server it runs. Null takes nya_net_content_collect at attach, which is what a game
+     * wants; copied either way. Unused over a loopback, whose server is this process.
+     * */
+    const NYA_NetContentManifest* content;
 };
 
 /*
@@ -140,6 +147,12 @@ NYA_API NYA_NetClientState nya_net_client_state(void) __attr_no_discard;
 
 /** Why the last disconnection happened. For showing a player something better than "connection lost". */
 NYA_API NYA_NetDisconnect nya_net_client_disconnect_reason(void) __attr_no_discard;
+
+/**
+ * Which entry the server named when it refused this client's content, or null when the last refusal was not about
+ * content. Kept after the disconnect, until the next attach, so a menu can say which mod to update.
+ * */
+NYA_API const NYA_NetContentMismatch* nya_net_client_content_mismatch(void) __attr_no_discard;
 
 /**
  * One tick: sample input, predict, send, and apply whatever arrived.

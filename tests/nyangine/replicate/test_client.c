@@ -45,7 +45,7 @@ static void sample_command(OUT NYA_NetCommand* command) {
 }
 
 /** The peer id the loopback pair always uses: one peer, index zero, generation one. */
-#define LOOPBACK_PEER ((NYA_NetPeerId){ .index = 0, .generation = 1 })
+#define LOOPBACK_PEER NYA_NET_LOOPBACK_PEER
 
 /** Attaches a client to one end of a fresh pair and returns the other end for the test to drive. */
 static NYA_NetTransport* attach_client(NYA_Arena* arena, NYA_NetClientConfig config) {

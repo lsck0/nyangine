@@ -658,6 +658,38 @@ NYA_Error nya_asset_read(NYA_Arena* arena, NYA_AssetHandle handle, OUT u8** out_
     return NYA_OK;
 }
 
+b8 nya_asset_bundle_digest(OUT NYA_CryptoSha256Digest* out_digest) {
+    nya_assert(out_digest != nullptr);
+
+    *out_digest = (NYA_CryptoSha256Digest){ 0 };
+
+#ifdef NYA_ASSET_PREFER_BLOB
+    NYA_CryptoSha256 sha256 = { 0 };
+    nya_crypto_sha256_begin(&sha256);
+
+    for (u64 i = 0; i < NYA_ASSET_BLOB_HEADER_COUNT; i++) {
+        const NYA_AssetBlobHeader* header = &NYA_ASSET_BLOB_HEADER[i];
+
+        // the terminator after the path keeps "a" + "bc" apart from "ab" + "c".
+        nya_crypto_sha256_update(&sha256, (const u8*)header->path, strlen(header->path) + 1);
+
+        // little endian whatever the host, so two platforms with one bundle agree.
+        u8 fields[16];
+        for (u32 b = 0; b < 8; b++) {
+            fields[b]     = (u8)((header->size >> (b * 8)) & 0xFF);
+            fields[b + 8] = (u8)((header->hash >> (b * 8)) & 0xFF);
+        }
+        nya_crypto_sha256_update(&sha256, fields, sizeof(fields));
+    }
+
+    nya_crypto_sha256_end(&sha256, out_digest);
+
+    return true;
+#else
+    return false;
+#endif
+}
+
 NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle) {
     if (handle == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "asset handle is null");
 
