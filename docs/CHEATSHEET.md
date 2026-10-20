@@ -5647,7 +5647,7 @@ A retried unsafe request runs once. The layer that makes `POST` safe to send twi
 
 ```c
 // types
-struct NYA_HttpIdempotencyOptions { u64 ttl_s; }  // What the store is shaped like.
+struct NYA_HttpIdempotencyOptions { u64 ttl_s; NYA_Database* database; }  // What the store is shaped like.
 
 // macros
 NYA_HTTP_IDEMPOTENCY_MAX_ENTRIES 128  // Keys held at once.
@@ -5655,13 +5655,14 @@ NYA_HTTP_IDEMPOTENCY_MAX_KEY 200  // Bytes of a key, terminator included.
 NYA_HTTP_IDEMPOTENCY_MAX_BODY_BYTES 2048  // Bytes of a stored answer's body.
 NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES 16  // Bytes of the request fingerprint: 128 bits of BLAKE2b over the method, path and body.
 NYA_HTTP_IDEMPOTENCY_TTL_S 300  // How long an entry lives past its last touch, in seconds, when the options leave it unset.
+NYA_HTTP_IDEMPOTENCY_TABLE "nya_http_idempotency"  // The table the durable store keeps its answers in, inside the database it was given.
 nya_http_idempotency_init(arena, ...)  // Takes the options by name.
 
 // functions
 NYA_Error _nya_http_idempotency_init(NYA_Arena* arena, NYA_HttpIdempotencyOptions options)
 void nya_http_idempotency_deinit(void)
 NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // Dedupes an unsafe request by its `Idempotency-Key`.
-void nya_http_idempotency_reset(void)  // Forgets every stored key, keeping the lock and the ceiling registration.
+void nya_http_idempotency_reset(void)  // Forgets every key held in memory, keeping the lock and the ceiling registration.
 u32 nya_http_idempotency_count(void)  // How many keys are held right now, which is the ceiling's live count.
 ```
 
