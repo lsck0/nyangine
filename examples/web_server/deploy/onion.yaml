@@ -17,7 +17,7 @@ services:
   web:
     image: registry.lsck0.dev/web_server:latest
     # No `ports:` — the app faces the tor container over the `onion` network, never the host. It
-    # still binds the wildcard (the image's ENTRYPOINT already passes --address 0.0.0.0), which is
+    # still binds the wildcard (the image already sets WEB_SERVER_ADDRESS=0.0.0.0), which is
     # the whole reason no application change is needed to go from the swarm to Tor.
     expose:
       - "8000"
@@ -32,7 +32,7 @@ services:
       # WEB_SERVER_ATTESTATION_SEED: "<32 bytes base64url — inject as a secret, do not commit>"
     # The scratch image carries no curl, so it probes itself; the same healthcheck the swarm uses.
     healthcheck:
-      test: ["CMD", "/web_server.example", "--healthcheck", "--port", "8000"]
+      test: ["CMD", "/web_server", "--healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 3

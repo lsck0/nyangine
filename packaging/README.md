@@ -46,6 +46,7 @@ the template.
 | `windows/` | winget and scoop                        | `windows-winget`, `windows-scoop` |
 | `lua-api/` | plugin authors                          | `lua-api`           |
 | `steam/`   | SteamPipe, both depots                  | `steam-linux`, `steam-windows` |
+| `docker/`  | an OCI image of the `web_server` example | none, see `docker/README.md` |
 
 For another game, change `PROJECT_NAME` in `src/nyangine-build/flags.h`, `name` in `steam/upload.sh`, and the
 names, descriptions, urls and identifiers in the manifests.
@@ -151,3 +152,9 @@ No SteamStub DRM wrapper: it rewrites the executable, which breaks the integrity
 ## Web
 
 `dist/web/` is a slot, and empty until the wasm target exists. See `src/nyangine-build/dist.c`.
+
+## Container
+
+`docker/Dockerfile` builds the `web_server` example into a `FROM scratch` image. It is not a `dist`
+target: docker builds it from the source tree rather than `./build` staging it. See
+[docker/README.md](docker/README.md).

@@ -82,7 +82,7 @@
  * --server` builds exactly it and skips the rest. The web_server example is not yet a headless binary
  * — core, http and crypto sit behind NYA_NO_SDL in nyangine.h, so the example still compiles the full
  * engine graph and links the full set. This list is the target that seam is being cut toward, and the
- * thing the server bootstrap needs the day it is; see examples/web_server/deploy/README.md.
+ * thing the server bootstrap needs the day it is; see packaging/docker/README.md.
  * */
 #define NYA_SERVER_VENDORS_LINUX_X86_64                                                            \
     &vendor_libbacktrace_linux_x86_64, &vendor_curl_linux_x86_64,   &vendor_lua_linux_x86_64,      \
