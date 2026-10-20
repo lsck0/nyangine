@@ -336,8 +336,8 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
     new_argv[*argc + 1]  = nullptr;
     *argc               += 1;
 
-    // replace process with the new binary
-    execvp(argv[0], (char* const*)new_argv);
+    // replace process with the new binary. argv[0] is how this process was itself started, not outside input.
+    execvp(argv[0], (char* const*)new_argv); // NOLINT(clang-analyzer-optin.taint.GenericTaint)
     perror("execvp");
     exit(EXIT_FAILURE);
 }

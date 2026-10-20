@@ -19,6 +19,9 @@ Checks:
     -bugprone-multiple-statement-macro,
     -bugprone-narrowing-conversions,
     -bugprone-reserved-identifier,
+    # new in clang-tidy 23. A C enum constant is an int, so every OR of flag enumerators trips it, even
+    # `1ULL << 0` once it is an enumerator; the fix would be a cast at each of them, which hides real ones.
+    -bugprone-signed-bitwise,
     -bugprone-signal-handler,
     -bugprone-suspicious-include,
     -bugprone-suspicious-missing-comma,
@@ -53,6 +56,9 @@ Checks:
     -readability-non-const-parameter,
     -readability-redundant-control-flow,
     -readability-suspicious-call-argument,
+    # new in clang-tidy 23. Where an initializer breaks is clang-format's call, and the tree never adopted
+    # a trailing-comma rule; its default also strips the comma from one-line initializers.
+    -readability-trailing-comma,
   ]
 WarningsAsErrors: ""
 HeaderFilterRegex: "^.*/src/(nyangine|gnyame|build)/.*"
