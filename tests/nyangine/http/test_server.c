@@ -504,6 +504,54 @@ s32 main(void) {
         nya_os_fault_plan_detach();
     }
 
+    // TEST: a peer that shuts its sending side after the request still gets the whole answer, even one that did not go out at once.
+    {
+        u16   port = start_server((NYA_HttpConfig){ .requests_per_second = U32_MAX, .request_burst = U32_MAX });
+        defer nya_system_http_deinit();
+
+        nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
+
+        // every send of the first pass finds the host's buffer full, so the answer is still queued when the end of the stream is read.
+        NYA_OsFaultPlan plan = { .seed = 1, .sockets = NYA_OS_FAULT_SOCKETS_ACCEPTED };
+        plan.rules[NYA_OS_FAULT_SOCKET_SEND] = (NYA_OsFaultRule){ .probability_ppm = NYA_OS_FAULT_PPM, .kinds = 1U << NYA_OS_FAULT_WOULD_BLOCK };
+        nya_assert(nya_os_fault_plan_attach(&plan));
+        defer nya_os_fault_plan_detach();
+
+        NYA_OsSocket client = connect_to(port);
+        defer             nya_os_socket_close(client);
+
+        NYA_ConstCString request = "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n";
+        u64              wrote   = 0;
+        nya_assert(nya_os_socket_send(client, (const u8*)request, strlen(request), &wrote) == NYA_OS_SOCKET_OK && wrote == strlen(request));
+        nya_os_socket_close_send(client);
+
+        nya_system_http_tick();
+        nya_os_fault_heal(&plan);
+
+        u64 filled = 0;
+        b8  ended  = false;
+        for (u32 attempt = 0; attempt < 400 && !ended; attempt++) {
+            nya_system_http_tick();
+
+            u64                read   = 0;
+            NYA_OsSocketStatus status = nya_os_socket_receive(client, (u8*)answer + filled, sizeof(answer) - filled - 1, &read);
+
+            if (status == NYA_OS_SOCKET_OK) filled += read;
+            else if (status == NYA_OS_SOCKET_WOULD_BLOCK) sleep_ms(2);
+            else ended = true;
+        }
+        answer[filled] = '\0';
+
+        nya_assert(plan.injected[NYA_OS_FAULT_SOCKET_SEND] > 0, "the first pass's sends were held back");
+        nya_assert(ended, "the server closed once the answer was out");
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"), "and the answer arrived, got '%.64s'", answer);
+
+        const char* blank  = strstr(answer, "\r\n\r\n");
+        const char* length = strstr(answer, "Content-Length: ");
+        nya_assert(blank != nullptr && length != nullptr);
+        nya_assert((u64)(blank + 4 - answer) + strtoull(length + 16, nullptr, 10) == filled, "all of it: " FMTu64 " bytes", filled);
+    }
+
     // TEST: every answer has its own id, and the request's log line carries it.
     {
         static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };

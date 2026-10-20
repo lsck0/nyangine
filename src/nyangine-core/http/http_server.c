@@ -93,6 +93,12 @@ struct _NYA_HttpConnection {
     /** Answered with `Connection: close`, so it is dropped as soon as the answer is queued. */
     b8 closing;
 
+    /**
+     * The peer ended its half of the stream. Nothing more will arrive, but what it is owed still goes out: a
+     * client that shuts down its sending side after the request is waiting for the answer, not gone.
+     * */
+    b8 peer_closed;
+
     /** Answered with a 101, so the bytes on it are frames and http_websocket_server.c owns them. */
     b8 upgraded;
 
@@ -880,7 +886,7 @@ void _nya_http_pass(void) {
             }
         }
 
-        if (!_nya_http_receive(connection, slot)) {
+        if (!connection->peer_closed && !_nya_http_receive(connection, slot)) {
             _nya_http_close(connection);
             continue;
         }
@@ -889,6 +895,9 @@ void _nya_http_pass(void) {
             _nya_http_close(connection);
             continue;
         }
+
+        // every whole request the peer sent before its end was answered above, so what is left can never complete; with the budget spent, the next pass answers the rest first.
+        if (connection->peer_closed && budget > 0) connection->closing = true;
 
         // an exchange that was just handed over owns the connection until its answer is written.
         if (threaded && atomic_load_explicit(&slot->state, memory_order_acquire) != _NYA_HTTP_SLOT_IDLE) continue;
@@ -1120,8 +1129,14 @@ b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
     } else {
         NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->received + connection->received_size, room, &read);
 
-        // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both the connection going, which is what false means to the caller.
+        // Nothing waiting is the ordinary answer. The end of the stream is the peer done sending, and an answer still owed is flushed before the close; a broken connection reads the same here and fails that flush instead.
         if (status == NYA_OS_SOCKET_WOULD_BLOCK) return true;
+
+        if (status == NYA_OS_SOCKET_CLOSED) {
+            connection->peer_closed = true;
+            return true;
+        }
+
         if (status != NYA_OS_SOCKET_OK) return false;
     }
 
