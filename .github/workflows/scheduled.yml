@@ -30,7 +30,7 @@ jobs:
   # or a corpus that no longer passes — so the campaign below can never report a vacuous green — and then
   # the time-boxed campaign runs, with any crash it discovers failing the job and kept as an artifact.
   fuzz:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -144,7 +144,7 @@ jobs:
   # the exact command that replays it, so a seed that fails is captured here and reproduces bit for bit
   # on a developer's machine. A single failing seed fails the job and every seed's replay line is kept.
   simulation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -201,7 +201,7 @@ jobs:
   # compared against the previous night's, cached under a stable key; a case that slows past a threshold
   # is flagged, and a gross regression fails the job. The numbers are kept as an artifact either way.
   bench:
-    runs-on: ${{ vars.BENCH_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.BENCH_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 60
     permissions:
       contents: read
@@ -317,7 +317,7 @@ jobs:
   # human review misses — an unpinned action, an over-broad token, a script-injection sink. Advisory, and
   # kept off the per-push path so a new zizmor release tightening a rule never blocks an unrelated merge.
   workflow-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read

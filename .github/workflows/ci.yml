@@ -19,7 +19,7 @@ jobs:
   # Vendors build once per cache key here and are saved before anything else runs, so the jobs below
   # restore them instead of each compiling the same hour of dependencies in parallel.
   vendor-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -54,7 +54,7 @@ jobs:
 
   check-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -91,7 +91,7 @@ jobs:
 
   test-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -135,7 +135,7 @@ jobs:
   # a virtual display through lavapipe, and audio goes to SDL's dummy driver.
   examples-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
@@ -191,7 +191,7 @@ jobs:
 
   build-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
@@ -266,7 +266,7 @@ jobs:
   # others, then the game, checked against the runtime's glibc and started inside Valve's sniper image.
   build-steam-linux:
     needs: vendor-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
@@ -319,7 +319,7 @@ jobs:
   # the per-push path (scheduled.yml runs the same check nightly) so a regression in a workflow is caught
   # in the change that introduces it. Advisory: SARIF upload is off, which would need security-events: write.
   workflow-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
