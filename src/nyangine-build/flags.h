@@ -99,7 +99,9 @@
 // -mfma is not implied by -mavx2, and nn/nn_simd.h falls back to separate multiply and add without it.
 // -mf16c turns the half float casts in NYA_Vertex3D into one instruction instead of a libgcc call per channel.
 // Every AVX2 CPU has FMA3 and F16C (all came with Haswell), so neither adds a requirement.
-#define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-mf16c", "-fdefer-ts", "-fenable-matrix", "-ggdb"
+// -Wno-psabi: clang 23 warns that a 256-bit f128 vector passed by value changes the ABI without AVX-512. Every
+// translation unit here is built with the same -m flags, so no call crosses that boundary.
+#define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-mf16c", "-Wno-psabi", "-fdefer-ts", "-fenable-matrix", "-ggdb"
 // -Wframe-larger-than: a Windows thread gets 1 MB of stack against Linux's 8, so a frame that fits here can
 // overflow there, and only CI on Windows would say so. A quarter of that stays one frame's share. Unoptimized
 // builds count compound literal temporaries too, so `*big = (T){ 0 }` of a large T is caught; memset it instead.
