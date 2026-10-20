@@ -12,6 +12,40 @@ static NYA_Database* open_memory(NYA_Arena* arena) {
   return db;
 }
 
+/** A file of its own, for what `:memory:` cannot show: the journal, and a second connection's lock. */
+#define TUNED_PATH "./_test_db_sql_tuned.db"
+
+static void remove_tuned(void) {
+  (void)remove(TUNED_PATH);
+  (void)remove(TUNED_PATH "-wal");
+  (void)remove(TUNED_PATH "-shm");
+  (void)remove(TUNED_PATH "-journal");
+}
+
+/** A pragma's one value. */
+static NYA_Value* pragma_value(NYA_Database* db, NYA_Arena* arena, NYA_ConstCString name) {
+  char sql[64];
+  (void)snprintf(sql, sizeof(sql), "PRAGMA %s", name);
+
+  NYA_SqlResult result = { 0 };
+  NYA_EXPECT(nya_sql_query(db, arena, sql, nullptr, 0, &result));
+  nya_assert_eq(result.rows->length, 1ULL);
+
+  // busy_timeout is the one pragma whose column is not named after it.
+  NYA_ConstCString column = strcmp(name, "busy_timeout") == 0 ? "timeout" : name;
+  NYA_Value*       value  = nya_object_get(result.rows->items[0], (NYA_CString)column);
+  nya_assert(value != nullptr, "PRAGMA %s came back without its column", name);
+  return value;
+}
+
+static s64 pragma_s64(NYA_Database* db, NYA_Arena* arena, NYA_ConstCString name) {
+  return pragma_value(db, arena, name)->as_s64;
+}
+
+static NYA_ConstCString pragma_text(NYA_Database* db, NYA_Arena* arena, NYA_ConstCString name) {
+  return pragma_value(db, arena, name)->as_string;
+}
+
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_sql");
   defer      nya_arena_destroy(arena);
@@ -335,6 +369,174 @@ s32 main(void) {
     nya_assert(nya_string_contains(json, "\"name\""), "got %s", nya_string_to_cstring(arena, json));
     nya_assert(nya_string_contains(json, "nyangine"));
     nya_assert(nya_string_contains(json, "\"score\""));
+  }
+
+  // TEST: a file opens tuned: WAL, synchronous NORMAL, the busy timeout, the page cache, temp tables in memory, foreign keys on
+  {
+    (void)remove(TUNED_PATH);
+    defer remove_tuned();
+
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, TUNED_PATH, &db));
+    defer nya_sql_close(db);
+
+    nya_assert(nya_string_equals(pragma_text(db, arena, "journal_mode"), "wal"));
+    // the numbers are SQLite's own encodings: NORMAL is 1, MEMORY is 2, and a negative cache size is KiB.
+    nya_assert_eq(pragma_s64(db, arena, "synchronous"), 1LL);
+    nya_assert_eq(pragma_s64(db, arena, "busy_timeout"), (s64)NYA_SQL_BUSY_TIMEOUT_MS_DEFAULT);
+    nya_assert_eq(pragma_s64(db, arena, "cache_size"), -(s64)NYA_SQL_CACHE_SIZE_KIB_DEFAULT);
+    nya_assert_eq(pragma_s64(db, arena, "temp_store"), 2LL);
+    nya_assert_eq(pragma_s64(db, arena, "foreign_keys"), 1LL);
+    nya_assert_eq(pragma_s64(db, arena, "mmap_size"), 0LL);
+    nya_assert_eq(pragma_s64(db, arena, "wal_autocheckpoint"), (s64)NYA_SQL_WAL_AUTOCHECKPOINT_PAGES_DEFAULT);
+    nya_assert_eq(pragma_s64(db, arena, "journal_size_limit"), (s64)NYA_SQL_JOURNAL_SIZE_LIMIT_BYTES_DEFAULT);
+  }
+
+  // TEST: every knob is honoured, and DELETE with the default level gets FULL, the level it cannot be corrupted at
+  {
+    (void)remove(TUNED_PATH);
+    defer remove_tuned();
+
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(
+        arena, TUNED_PATH, &db, .journal = NYA_SQL_JOURNAL_DELETE, .busy_timeout_ms = 250, .cache_size_kib = 4096, .mmap_size_bytes = 1 << 20,
+        .wal_autocheckpoint_pages = 500, .journal_size_limit_bytes = 1 << 22
+    ));
+    defer nya_sql_close(db);
+
+    nya_assert(nya_string_equals(pragma_text(db, arena, "journal_mode"), "delete"));
+    nya_assert_eq(pragma_s64(db, arena, "synchronous"), 2LL);
+    nya_assert_eq(pragma_s64(db, arena, "busy_timeout"), 250LL);
+    nya_assert_eq(pragma_s64(db, arena, "cache_size"), -4096LL);
+    nya_assert_eq(pragma_s64(db, arena, "mmap_size"), 1LL << 20);
+    nya_assert_eq(pragma_s64(db, arena, "wal_autocheckpoint"), 500LL);
+    nya_assert_eq(pragma_s64(db, arena, "journal_size_limit"), 1LL << 22);
+
+    NYA_Database* durable = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, TUNED_PATH, &durable, .synchronous = NYA_SQL_SYNCHRONOUS_FULL));
+    defer nya_sql_close(durable);
+    nya_assert_eq(pragma_s64(durable, arena, "synchronous"), 2LL);
+
+    nya_assert(nya_sql_open(arena, TUNED_PATH, &durable, .journal = NYA_SQL_JOURNAL_COUNT).kind == NYA_ERROR_INVALID_ARGUMENT);
+    nya_assert(nya_sql_open(arena, TUNED_PATH, &durable, .synchronous = NYA_SQL_SYNCHRONOUS_COUNT).kind == NYA_ERROR_INVALID_ARGUMENT);
+  }
+
+  // TEST: the same SQL a second time reuses its prepared statement, through exec_bound, query and the ORM's calls alike
+  {
+    NYA_Database* db = open_memory(arena);
+    defer         nya_sql_close(db);
+
+    NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER NOT NULL)"));
+    NYA_SqlStatementCacheStats before = nya_sql_statement_cache_get_stats(db);
+
+    for (s64 i = 0; i < 10; i++) NYA_EXPECT(nya_sql_exec_bound(db, "INSERT INTO t (v) VALUES (?)", (NYA_SqlValue[]){ nya_sql_s64(i) }, 1));
+
+    NYA_SqlStatementCacheStats after = nya_sql_statement_cache_get_stats(db);
+    nya_assert_eq(after.misses - before.misses, 1ULL);
+    nya_assert_eq(after.hits - before.hits, 9ULL);
+    nya_assert_eq(after.count - before.count, 1U);
+
+    // a bound value does not outlive its call: the reused statement starts unbound, so a missing value is refused, not the last one reused.
+    nya_assert(nya_sql_exec_bound(db, "INSERT INTO t (v) VALUES (?)", nullptr, 0).kind == NYA_ERROR_INVALID_ARGUMENT);
+
+    NYA_SqlResult result = { 0 };
+    NYA_EXPECT(nya_sql_query(db, arena, "SELECT COUNT(*) AS n, SUM(v) AS total FROM t", nullptr, 0, &result));
+    nya_assert_eq(nya_object_get(result.rows->items[0], "n")->as_s64, 10LL);
+    nya_assert_eq(nya_object_get(result.rows->items[0], "total")->as_s64, 45LL);
+  }
+
+  // TEST: a statement that failed its step is reset, so its next use runs clean
+  {
+    NYA_Database* db = open_memory(arena);
+    defer         nya_sql_close(db);
+
+    NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER NOT NULL)"));
+
+    NYA_ConstCString insert = "INSERT INTO t (id, v) VALUES (?, ?)";
+    NYA_EXPECT(nya_sql_exec_bound(db, insert, (NYA_SqlValue[]){ nya_sql_s64(1), nya_sql_s64(1) }, 2));
+    nya_assert(nya_sql_exec_bound(db, insert, (NYA_SqlValue[]){ nya_sql_s64(1), nya_sql_s64(2) }, 2).kind == NYA_ERROR_INVALID_ARGUMENT);
+    NYA_EXPECT(nya_sql_exec_bound(db, insert, (NYA_SqlValue[]){ nya_sql_s64(2), nya_sql_s64(2) }, 2), "the constraint failure did not stick to the statement");
+
+    // and holds no lock afterwards: a close with a statement mid-step would log a failure, a VACUUM refuse outright.
+    NYA_EXPECT(nya_sql_exec(db, "VACUUM"));
+  }
+
+  // TEST: a cached SELECT * sees a column added after it was prepared
+  {
+    NYA_Database* db = open_memory(arena);
+    defer         nya_sql_close(db);
+
+    NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (a INTEGER)"));
+    NYA_EXPECT(nya_sql_exec(db, "INSERT INTO t VALUES (1)"));
+
+    NYA_SqlResult result = { 0 };
+    NYA_EXPECT(nya_sql_query(db, arena, "SELECT * FROM t", nullptr, 0, &result));
+    nya_assert(nya_object_get(result.rows->items[0], "b") == nullptr);
+
+    NYA_EXPECT(nya_sql_exec(db, "ALTER TABLE t ADD COLUMN b INTEGER NOT NULL DEFAULT 7"));
+    NYA_EXPECT(nya_sql_query(db, arena, "SELECT * FROM t", nullptr, 0, &result));
+    nya_assert(nya_object_get(result.rows->items[0], "b") != nullptr, "SQLite re-prepared the cached statement against the new schema");
+    nya_assert_eq(nya_object_get(result.rows->items[0], "b")->as_s64, 7LL);
+  }
+
+  // TEST: past its capacity the cache evicts the least recently used statement and keeps the hot one
+  {
+    NYA_Database* db = open_memory(arena);
+    defer         nya_sql_close(db);
+
+    NYA_SqlResult    result = { 0 };
+    NYA_ConstCString hot    = "SELECT 0 AS hot";
+    NYA_EXPECT(nya_sql_query(db, arena, hot, nullptr, 0, &result));
+
+    char sql[64];
+    for (u32 i = 1; i <= NYA_SQL_STATEMENT_CACHE_MAX + 8; i++) {
+      (void)snprintf(sql, sizeof(sql), "SELECT %u AS cold", i);
+      NYA_EXPECT(nya_sql_query(db, arena, sql, nullptr, 0, &result));
+      nya_assert_eq(nya_object_get(result.rows->items[0], "cold")->as_s64, (s64)i);
+      NYA_EXPECT(nya_sql_query(db, arena, hot, nullptr, 0, &result));
+    }
+
+    NYA_SqlStatementCacheStats stats = nya_sql_statement_cache_get_stats(db);
+    nya_assert_eq(stats.count, (u32)NYA_SQL_STATEMENT_CACHE_MAX);
+    nya_assert(stats.evictions >= 8, "8 more statements than the cache holds, " FMTu64 " evicted", stats.evictions);
+
+    u64 hits = stats.hits;
+    NYA_EXPECT(nya_sql_query(db, arena, hot, nullptr, 0, &result));
+    // the statement used every other call was never the one evicted.
+    nya_assert_eq(nya_sql_statement_cache_get_stats(db).hits, hits + 1);
+
+    // the first cold one is long gone; asking again is a miss that prepares it anew.
+    u64 misses = nya_sql_statement_cache_get_stats(db).misses;
+    NYA_EXPECT(nya_sql_query(db, arena, "SELECT 1 AS cold", nullptr, 0, &result));
+    nya_assert_eq(nya_sql_statement_cache_get_stats(db).misses, misses + 1);
+  }
+
+  // TEST: a transaction takes the write lock at BEGIN, so a second connection's write waits rather than racing it to a BUSY_SNAPSHOT
+  {
+    (void)remove(TUNED_PATH);
+    defer remove_tuned();
+
+    NYA_Database* holder = nullptr;
+    NYA_Database* other  = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, TUNED_PATH, &holder));
+    defer nya_sql_close(holder);
+    NYA_EXPECT(nya_sql_open(arena, TUNED_PATH, &other, .busy_timeout_ms = -1));
+    defer nya_sql_close(other);
+
+    NYA_EXPECT(nya_sql_exec(holder, "CREATE TABLE t (v INTEGER)"));
+    NYA_EXPECT(nya_sql_transaction_begin(holder));
+    nya_assert(nya_sql_exec(other, "INSERT INTO t VALUES (1)").kind == NYA_ERROR_TIMEOUT, "BEGIN alone already holds the write lock");
+    NYA_EXPECT(nya_sql_transaction_rollback(holder));
+    NYA_EXPECT(nya_sql_exec(other, "INSERT INTO t VALUES (1)"));
+  }
+
+  // TEST: optimize runs on a live connection, and a close after it is clean
+  {
+    NYA_Database* db = open_memory(arena);
+    NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (a INTEGER)"));
+    NYA_EXPECT(nya_sql_exec(db, "CREATE INDEX t_a ON t (a)"));
+    NYA_EXPECT(nya_sql_optimize(db));
+    nya_sql_close(db);
   }
 
   printf("PASSED: test_db_sql\n");

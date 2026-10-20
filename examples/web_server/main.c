@@ -1160,6 +1160,9 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
 /** How long the loop sleeps between ticks. The sockets are the listener thread's; see the file note. */
 #define TICK_SLEEP_MS 5
 
+/** How often the notes connection refreshes its planner statistics: the few hours SQLite's documentation asks of a connection that stays open. */
+#define OPTIMIZE_INTERVAL_MS (4ULL * 60 * 60 * 1000)
+
 /**
  * Workers behind the listener.
  *
@@ -1484,7 +1487,8 @@ s32 main(s32 argc, char** argv) {
     }
 
     /* The sockets are the listener thread's now, so what this loop owes the server is the other half: nya_system_http_tick answers the exchanges whose routes asked for this thread and drains the WebSockets. It returns rather than blocking, exactly as it did when it was the whole drain, so a program with other work to do still puts this beside it instead of around it. */
-    u64 pushed_at_ms = 0;
+    u64 pushed_at_ms    = 0;
+    u64 optimized_at_ms = nya_clock_get_timestamp_ms();
 
     // Until a signal has begun the drain and it has finished: the requests in flight answered, or the deadline reached.
     while (!nya_http_server_shutdown_is_complete()) {
@@ -1499,11 +1503,24 @@ s32 main(s32 argc, char** argv) {
             trace_flush(otlp_file);
         }
 
+        // the open already ran it; this keeps the statistics level with a table that grows for as long as the server is up.
+        if (now_ms - optimized_at_ms >= OPTIMIZE_INTERVAL_MS) {
+            optimized_at_ms = now_ms;
+            NYA_Error optimized = nya_sql_optimize(NOTES_DB);
+            if (!optimized.ok) nya_log_warn("Could not optimize the notes database: %s", (NYA_ConstCString)optimized.message);
+        }
+
         // as net_echo and the frame limiter do: a real sleep, so the loop does not spin a core. The os layer's own, not SDL's: this loop is the one part of the server that is timing and nothing else, so it has no reason to reach through the window library for a sleep.
         nya_os_time_sleep_ms(TICK_SLEEP_MS);
     }
 
     nya_log_info("Drained after " FMTu64 " requests.", nya_http_server_request_count());
+
+    NYA_SqlStatementCacheStats statements = nya_sql_statement_cache_get_stats(NOTES_DB);
+    nya_log_info(
+        "Notes statements: " FMTu32 " cached, " FMTu64 " reused, " FMTu64 " prepared, " FMTu64 " evicted.", statements.count, statements.hits,
+        statements.misses, statements.evictions
+    );
     trace_flush(otlp_file);
 
     /* A hot copy of the notes on the way out, beside them under the save root. The online backup API rather than a file copy, so the snapshot is consistent even with a write mid-copy; named by the second, because a backup refuses to overwrite an older one. See db_backup.h. */

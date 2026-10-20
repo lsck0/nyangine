@@ -3,7 +3,8 @@
  * readiness check that could not see a dead disk, an account lookup that read a fault as a deleted
  * user, and a session cookie read as nobody, a 401 that signs a real user out, when the disk failed.
  *
- * A real file, since a fault below the pager needs one: `:memory:` never calls the VFS.
+ * A real file, since a fault below the pager needs one: `:memory:` never calls the VFS. Each case that
+ * means the same under both journals runs under both; the rest say why they hold to one.
  **/
 
 #include "nyangine-core/nyangine.c"
@@ -12,7 +13,9 @@
 #include <string.h>
 
 #define DB_PATH      "./_test_db_fault.db"
-#define JOURNAL_PATH "./_test_db_fault.db-journal"
+#define JOURNAL_PATH DB_PATH "-journal"
+#define WAL_PATH     DB_PATH "-wal"
+#define SHM_PATH     DB_PATH "-shm"
 
 enum {
     /** Rows the power cut's transaction writes: enough that half of them surviving would show. */
@@ -34,9 +37,14 @@ static void sleep_counted(void* context, NYA_Duration duration) {
     SLEPT_NS += duration.ns;
 }
 
+static const NYA_SqlJournal JOURNALS[] = { NYA_SQL_JOURNAL_WAL, NYA_SQL_JOURNAL_DELETE };
+
+// a log a lost delete left behind would be replayed onto the next fresh file, so every one goes.
 static void remove_files(void) {
     (void)remove(DB_PATH);
     (void)remove(JOURNAL_PATH);
+    (void)remove(WAL_PATH);
+    (void)remove(SHM_PATH);
 }
 
 static u64 count_rows(NYA_Database* db, NYA_Arena* arena) {
@@ -51,13 +59,13 @@ static b8 integrity_ok(NYA_Database* db, NYA_Arena* arena) {
     return nya_string_equals(nya_object_get(result.rows->items[0], "integrity_check")->as_string, "ok");
 }
 
-static NYA_Database* open_fresh(NYA_Arena* arena) {
+// FULL, so a commit syncs under either journal and a sync fault has a call to land on.
+static NYA_Database* open_fresh(NYA_Arena* arena, NYA_SqlJournal journal) {
     remove_files();
 
     NYA_Database* db = nullptr;
-    NYA_EXPECT(nya_sql_open(arena, DB_PATH, &db, .vfs = NYA_DB_FAULT_VFS));
+    NYA_EXPECT(nya_sql_open(arena, DB_PATH, &db, .vfs = NYA_DB_FAULT_VFS, .journal = journal, .synchronous = NYA_SQL_SYNCHRONOUS_FULL));
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER)"));
-    NYA_EXPECT(nya_sql_exec(db, "PRAGMA busy_timeout = 5000"));
     return db;
 }
 
@@ -70,8 +78,9 @@ s32 main(void) {
     defer remove_files();
 
     // TEST: a counted BUSY is waited out by the busy handler, on the hook's clock and not the wall's
+    // DELETE only: a WAL connection keeps its shared lock on the file and locks through shared memory, so a file lock fault never reaches it.
     {
-        NYA_Database* db = open_fresh(arena);
+        NYA_Database* db = open_fresh(arena, NYA_SQL_JOURNAL_DELETE);
         defer nya_sql_close(db);
 
         u64 hits = nya_db_fault_hits();
@@ -93,16 +102,56 @@ s32 main(void) {
         nya_assert_eq(count_rows(db, arena), 1ULL);
     }
 
-    // TEST: a write, a sync and a full disk each fail their statement whole, and the next one succeeds
+    // TEST: an open meeting a held lock waits it out. sqlean's init reads the schema before the busy timeout was set, and failed the open at once
+    for (u32 j = 0; j < nya_carray_length(JOURNALS); j++) {
+        nya_sql_close(open_fresh(arena, JOURNALS[j]));
+
+        u64 hits = nya_db_fault_hits();
+        SLEPT_NS = 0;
+        nya_db_fault_arm(.kind = NYA_DB_FAULT_BUSY, .count = 3);
+
+        NYA_Database* db = nullptr;
+        NYA_EXPECT(nya_sql_open(arena, DB_PATH, &db, .vfs = NYA_DB_FAULT_VFS, .journal = JOURNALS[j]), "three busy answers are inside the default busy timeout");
+        defer nya_sql_close(db);
+
+        nya_assert_eq(nya_db_fault_hits() - hits, 3ULL);
+        nya_assert(SLEPT_NS > 0, "the open backed off through the hook");
+    }
+
+    // TEST: under WAL a writer waits on another connection's write lock through the busy timeout, and fails as a timeout past it
     {
-        NYA_Database* db = open_fresh(arena);
+        NYA_Database* holder = open_fresh(arena, NYA_SQL_JOURNAL_WAL);
+        defer nya_sql_close(holder);
+
+        NYA_Database* waiter = nullptr;
+        NYA_EXPECT(nya_sql_open(arena, DB_PATH, &waiter, .vfs = NYA_DB_FAULT_VFS, .busy_timeout_ms = 200));
+        defer nya_sql_close(waiter);
+
+        NYA_EXPECT(nya_sql_transaction_begin(holder));
+        NYA_EXPECT(nya_sql_exec(holder, "INSERT INTO t (v) VALUES (1)"));
+
+        SLEPT_NS = 0;
+        nya_assert(nya_sql_exec(waiter, "INSERT INTO t (v) VALUES (2)").kind == NYA_ERROR_TIMEOUT);
+        nya_assert(SLEPT_NS >= 200 * (NYA_NS_PER_SECOND / 1000), "the waiter slept its whole timeout on the hook, not " FMTs64 " ns", SLEPT_NS);
+
+        // a writer never blocks a reader under WAL: the waiter still reads the last commit.
+        nya_assert_eq(count_rows(waiter, arena), 0ULL);
+
+        NYA_EXPECT(nya_sql_transaction_commit(holder));
+        NYA_EXPECT(nya_sql_exec(waiter, "INSERT INTO t (v) VALUES (2)"), "the lock is free once the holder commits");
+        nya_assert_eq(count_rows(waiter, arena), 2ULL);
+    }
+
+    // TEST: a write, a sync and a full disk each fail their statement whole, and the next one succeeds
+    for (u32 j = 0; j < nya_carray_length(JOURNALS); j++) {
+        NYA_Database* db = open_fresh(arena, JOURNALS[j]);
         defer nya_sql_close(db);
 
         NYA_DbFaultKind kinds[] = { NYA_DB_FAULT_IOERR_WRITE, NYA_DB_FAULT_IOERR_FSYNC, NYA_DB_FAULT_FULL };
 
         for (u32 i = 0; i < nya_carray_length(kinds); i++) {
             nya_db_fault_arm(.kind = kinds[i], .count = 1);
-            nya_assert(nya_sql_exec(db, "INSERT INTO t (v) VALUES (1)").kind == NYA_ERROR_IO);
+            nya_assert(nya_sql_exec(db, "INSERT INTO t (v) VALUES (1)").kind == NYA_ERROR_IO, "journal %u, fault %d", j, (s32)kinds[i]);
             nya_assert(!nya_db_fault_armed(kinds[i]));
 
             NYA_EXPECT(nya_sql_exec(db, "INSERT INTO t (v) VALUES (2)"), "the same connection recovers once the disk does");
@@ -112,9 +161,9 @@ s32 main(void) {
         nya_assert(integrity_ok(db, arena));
     }
 
-    // TEST: a readiness check has to reach the file. SELECT 1 never does, so it stayed green through a dead disk
-    {
-        NYA_Database* db = open_fresh(arena);
+    // TEST: a readiness check has to reach the file. SELECT 1 never does, so it stayed green through a dead disk; under WAL a cached schema_version did too
+    for (u32 j = 0; j < nya_carray_length(JOURNALS); j++) {
+        NYA_Database* db = open_fresh(arena, JOURNALS[j]);
         defer nya_sql_close(db);
 
         NYA_EXPECT(nya_sql_ping(db));
@@ -130,8 +179,8 @@ s32 main(void) {
     }
 
     // TEST: a stall waits on the hook, then the call goes through
-    {
-        NYA_Database* db = open_fresh(arena);
+    for (u32 j = 0; j < nya_carray_length(JOURNALS); j++) {
+        NYA_Database* db = open_fresh(arena, JOURNALS[j]);
         defer nya_sql_close(db);
 
         SLEPT_NS = 0;
@@ -141,8 +190,10 @@ s32 main(void) {
     }
 
     // TEST: a power cut anywhere in a commit leaves a whole file with the transaction all there or not at all
-    for (u32 after = 0; after <= CUT_AFTER_MAX; after++) {
-        NYA_Database* db = open_fresh(arena);
+    for (u32 cut_case = 0; cut_case < nya_carray_length(JOURNALS) * (CUT_AFTER_MAX + 1); cut_case++) {
+        NYA_SqlJournal journal = JOURNALS[cut_case / (CUT_AFTER_MAX + 1)];
+        u32            after   = cut_case % (CUT_AFTER_MAX + 1);
+        NYA_Database*  db      = open_fresh(arena, journal);
         NYA_EXPECT(nya_sql_exec(db, "INSERT INTO t (v) VALUES (0)"));
 
         u64 hits = nya_db_fault_hits();
@@ -158,7 +209,7 @@ s32 main(void) {
         nya_sql_close(db);
         nya_db_fault_disarm_all();
 
-        NYA_EXPECT(nya_sql_open(arena, DB_PATH, &db, .vfs = NYA_DB_FAULT_VFS));
+        NYA_EXPECT(nya_sql_open(arena, DB_PATH, &db, .vfs = NYA_DB_FAULT_VFS, .journal = journal));
 
         u64 rows = count_rows(db, arena);
         nya_assert(integrity_ok(db, arena), "the file is corrupt after a cut %u calls into the commit", after);
@@ -169,8 +220,9 @@ s32 main(void) {
     }
 
     // TEST: a disk fault behind a session cookie is 503, not the 401 that signs the user out; a missing row is still nobody
+    // DELETE only: under WAL the account's pages are still cached from the insert, and a read served from cache is right, not a fault to map.
     {
-        NYA_Database* db = open_fresh(arena);
+        NYA_Database* db = open_fresh(arena, NYA_SQL_JOURNAL_DELETE);
         defer nya_sql_close(db);
 
         NYA_EXPECT(nya_accounts_open(arena, db));
