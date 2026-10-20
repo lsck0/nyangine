@@ -4,8 +4,8 @@
  * The note as the program works with it: the SO ("system object") of "Model, SO, DTO", and the home of
  * the four conversions between the three shapes. It differs from the Model where it earns its keep —
  * `written_at_s` is the engine's own `u64` clock type here, where the stored row keeps sqlite's signed
- * INTEGER — which is the parsed-type gap the SO exists to hold. It is server only, so it carries the
- * web-profile guard and may see both the Model and the DTO; the DTO, being the shared shape, sees neither.
+ * INTEGER — which is the parsed-type gap the SO exists to hold. It is server only and may see both the
+ * Model and the DTO; the DTO, being the shared shape, sees neither.
  *
  * The conversions are the only conversions there are for a note, each a total function named by the
  * style's from/to vocabulary. Three are total; note_so_from_dto is fallible, because a DTO off a client
@@ -14,8 +14,6 @@
  * always in the middle, which is what keeps a client from ever writing an `owner`.
  * */
 #pragma once
-
-#include "nyangine-std/base/base_web_profile.h"
 
 #include "nyangine-std/base/base_error.h"
 #include "nyangine-std/base/base_validate.h"

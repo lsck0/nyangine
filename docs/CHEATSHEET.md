@@ -238,8 +238,8 @@ Most basic includes, macros, and (compile-time) mode/platform/compiler detection
 // types
 typedef enum { NYA_EXECUTION_MODE_DEBUG = 0, NYA_EXECUTION_MODE_DEVELOPER = 1, NYA_EXECUTION_MODE_RELEASE = 2, NYA_EXECUTION_MODE_STEAM = 3, NYA_EXECUTION_MODE_TEST = 4, NYA_EXECUTION_MODE_COUNT, NYA_EXECUTION_MODE_CURRENT = NYA_EXECUTION_MODE, } NYA_ExecutionMode
 typedef enum { NYA_COMPILER_NULL, NYA_COMPILER_MSVC, NYA_COMPILER_CLANG, NYA_COMPILER_GCC, NYA_COMPILER_COUNT, NYA_COMPILER_CURRENT = NYA_COMPILER_MSVC, NYA_COMPILER_CURRENT = NYA_COMPILER_CLANG, NYA_COMPILER_CURRENT = NYA_COMPILER_GCC, NYA_COMPILER_CURRENT = NYA_COMPILER_NULL, } NYA_Compiler
-typedef enum { NYA_OS_NULL, NYA_OS_WASM, NYA_OS_WINDOWS, NYA_OS_LINUX, NYA_OS_MAC, NYA_OS_COUNT, NYA_OS_CURRENT = NYA_OS_WASM, NYA_OS_CURRENT = NYA_OS_WINDOWS, NYA_OS_CURRENT = NYA_OS_LINUX, NYA_OS_CURRENT = NYA_OS_MAC, NYA_OS_CURRENT = NYA_OS_NULL, } NYA_OperatingSystem
-typedef enum { NYA_ARCH_NULL, NYA_ARCH_WASM32, NYA_ARCH_WASM64, NYA_ARCH_X86, NYA_ARCH_X86_64, NYA_ARCH_ARM32, NYA_ARCH_ARM64, NYA_ARCH_COUNT, NYA_ARCH_CURRENT = NYA_ARCH_WASM32, NYA_ARCH_CURRENT = NYA_ARCH_WASM64, NYA_ARCH_CURRENT = NYA_ARCH_X86, NYA_ARCH_CURRENT = NYA_ARCH_X86_64, NYA_ARCH_CURRENT = NYA_ARCH_ARM32, NYA_ARCH_CURRENT = NYA_ARCH_ARM64, NYA_ARCH_CURRENT = NYA_ARCH_NULL, } NYA_Architecture
+typedef enum { NYA_OS_NULL, NYA_OS_WINDOWS, NYA_OS_LINUX, NYA_OS_MAC, NYA_OS_COUNT, NYA_OS_CURRENT = NYA_OS_WINDOWS, NYA_OS_CURRENT = NYA_OS_LINUX, NYA_OS_CURRENT = NYA_OS_MAC, NYA_OS_CURRENT = NYA_OS_NULL, } NYA_OperatingSystem
+typedef enum { NYA_ARCH_NULL, NYA_ARCH_X86, NYA_ARCH_X86_64, NYA_ARCH_ARM32, NYA_ARCH_ARM64, NYA_ARCH_COUNT, NYA_ARCH_CURRENT = NYA_ARCH_X86, NYA_ARCH_CURRENT = NYA_ARCH_X86_64, NYA_ARCH_CURRENT = NYA_ARCH_ARM32, NYA_ARCH_CURRENT = NYA_ARCH_ARM64, NYA_ARCH_CURRENT = NYA_ARCH_NULL, } NYA_Architecture
 
 // macros
 NYA_VERSION VERSION
@@ -1420,7 +1420,6 @@ typedef int16_t s16
 typedef int32_t s32
 typedef int64_t s64
 typedef __int128_t s128
-typedef float f16
 typedef _Float16 f16
 typedef float f32
 typedef double f64
@@ -1456,7 +1455,6 @@ typedef const char* NYA_ConstCString
 typedef enum { NYA_TYPE_NULL, NYA_TYPE_VOID, NYA_TYPE_VOID_POINTER, NYA_TYPE_B8, NYA_TYPE_B16, NYA_TYPE_B32, NYA_TYPE_B64, NYA_TYPE_B128, NYA_TYPE_U8, NYA_TYPE_U16, NYA_TYPE_U32, NYA_TYPE_U64, NYA_TYPE_U128, NYA_TYPE_S8, NYA_TYPE_S16, NYA_TYPE_S32, NYA_TYPE_S64, NYA_TYPE_S128, NYA_TYPE_F16, NYA_TYPE_F32, NYA_TYPE_F64, NYA_TYPE_F128, NYA_TYPE_B8_POINTER, NYA_TYPE_B16_POINTER, NYA_TYPE_B32_POINTER, NYA_TYPE_B64_POINTER, NYA_TYPE_B128_POINTER, NYA_TYPE_U8_POINTER, NYA_TYPE_U16_POINTER, NYA_TYPE_U32_POINTER, NYA_TYPE_U64_POINTER, NYA_TYPE_U128_POINTER, NYA_TYPE_S8_POINTER, NYA_TYPE_S16_POINTER, NYA_TYPE_S32_POINTER, NYA_TYPE_S64_POINTER, NYA_TYPE_S128_POINTER, NYA_TYPE_F16_POINTER, NYA_TYPE_F32_POINTER, NYA_TYPE_F64_POINTER, NYA_TYPE_F128_POINTER, NYA_TYPE_CHAR, NYA_TYPE_WCHAR, NYA_TYPE_STRING, NYA_TYPE_WSTRING, NYA_TYPE_OBJECT, NYA_TYPE_ARRAY, NYA_TYPE_COUNT, } NYA_Type
 
 // macros
-NYA_F16_IS_F32 1
 nya_cast_to_u8(val)
 nya_cast_to_u16(val)
 nya_cast_to_u32(val)
@@ -5177,7 +5175,7 @@ NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port)
 
 ```c
 // types
-enum NYA_NetTransportKind { NYA_NET_TRANSPORT_LOOPBACK = 0, NYA_NET_TRANSPORT_UDP, NYA_NET_TRANSPORT_STEAM, NYA_NET_TRANSPORT_WEBSOCKET, NYA_NET_TRANSPORT_KIND_COUNT, }
+enum NYA_NetTransportKind { NYA_NET_TRANSPORT_LOOPBACK = 0, NYA_NET_TRANSPORT_UDP, NYA_NET_TRANSPORT_STEAM, NYA_NET_TRANSPORT_KIND_COUNT, }
 enum NYA_NetTransportEventKind { NYA_NET_TRANSPORT_EVENT_NONE = 0, NYA_NET_TRANSPORT_EVENT_CONNECTED, NYA_NET_TRANSPORT_EVENT_DISCONNECTED, NYA_NET_TRANSPORT_EVENT_MESSAGE, NYA_NET_TRANSPORT_EVENT_KIND_COUNT, }
 struct NYA_NetTransportEvent { NYA_NetTransportEventKind kind; NYA_NetPeerId peer; const u8* data; u64 size; NYA_NetChannel channel; NYA_NetDisconnect reason; }  // One thing that happened, drained by nya_net_transport_poll.
 struct NYA_NetPeerStats { f32 rtt_ms; f32 jitter_ms; f32 packet_loss; u64 bytes_sent; u64 bytes_received; u64 packets_sent; u64 packets_received; u32 bytes_sent_per_second; u32 bytes_received_per_second; u64 retransmits; u64 packets_rejected; u32 snapshot_bytes; u32 violations; f32 interpolation_delay_ms; }  // What a connection is currently costing, for a debug overlay and for the client's clock sync.
@@ -5810,27 +5808,6 @@ NYA_HTTP_MULTIPART_MAX_PART_HEADER_BYTES 512  // Bytes one part's header block m
 NYA_Error nya_http_multipart_boundary(NYA_ConstCString content_type, OUT char* out_boundary, u64 capacity, OUT u64* out_size)
 NYA_Error nya_http_multipart_reader_init(OUT NYA_HttpMultipartReader* reader, const u8* body, u64 body_size, NYA_ConstCString content_type)  // Binds `reader` to `body` and the boundary in `content_type`.
 NYA_HttpMultipartStep nya_http_multipart_next(NYA_HttpMultipartReader* reader, OUT NYA_HttpMultipartPart* out_part)  // The next part, or the reason there is not one.
-```
-
-### http_net_websocket.h
-
-A net transport over a WebSocket, so a browser can be a peer of a native server.
-
-```c
-// types
-struct NYA_NetWsOptions { NYA_ConstCString path; u32 version; }  // How a WebSocket net transport is configured.
-
-// macros
-NYA_NET_WS_DEFAULT_PATH "/ws/net"  // The route mounted when NYA_NetWsOptions.path is null.
-NYA_NET_WS_TAG_JOIN 0x01U  // The first byte of every transport frame, telling control from data on one stream.
-NYA_NET_WS_TAG_ACCEPT 0x02U
-NYA_NET_WS_TAG_DATA 0x03U
-NYA_NET_WS_JOIN_SIZE (1 + 4 + NYA_NET_KEY_SIZE)  // A join frame: the tag, the version as four little-endian bytes, and the key.
-NYA_NET_WS_ACCEPT_SIZE (1 + 4)  // An accept frame: the tag and the server's version, so a client learns it is in.
-
-// functions
-NYA_Error nya_net_transport_ws_create(NYA_Arena* arena, NYA_NetWsOptions options, OUT NYA_NetTransport** out_transport)  // A server-side net transport over a WebSocket.
-void nya_net_ws_join_encode(u32 version, const u8 key[NYA_NET_KEY_SIZE], OUT u8 out_frame[NYA_NET_WS_JOIN_SIZE])  // Writes the join frame a client sends first: NYA_NET_WS_TAG_JOIN, `version` little-endian, then `key`.
 ```
 
 ### http_observe.h
@@ -7909,92 +7886,6 @@ b8 nya_terminal_image_draw(u16 column, u16 row, const u8* rgba, u32 width, u32 h
 void nya_terminal_image_clear(void)  // Removes every image this module has placed.
 u32 nya_terminal_ink(f32 red, f32 green, f32 blue)
 u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint)  // One code point out of UTF-8 bytes.
-```
-
-### web_clock.h
-
-The browser's two clocks, in milliseconds, for the client-side (CSR) path.
-
-```c
-// functions
-u64 nya_web_clock_monotonic_ms(void)
-u64 nya_web_clock_wall_ms(void)  // Milliseconds since the Unix epoch, from the browser's `Date.now()`.
-```
-
-### web_fetch.h
-
-One HTTP request over the browser's `fetch`, as a polled handle rather than a blocking call.
-
-```c
-// types
-typedef enum { NYA_WEB_FETCH_PENDING, NYA_WEB_FETCH_DONE, NYA_WEB_FETCH_FAILED, } NYA_WebFetchStatus  // Where an in-flight request has got to.
-
-// functions
-NYA_WebFetch* nya_web_fetch_create(NYA_Arena* arena, NYA_ConstCString method, NYA_ConstCString url, const u8* body, u64 body_size, NYA_ConstCString content_type)
-void nya_web_fetch_destroy(NYA_WebFetch* fetch)  // Releases `fetch` and the browser-side reply it holds, abandoning the request if it is still in flight.
-NYA_WebFetchStatus nya_web_fetch_poll(NYA_WebFetch* fetch)  // Where `fetch` has got to.
-u32 nya_web_fetch_status_code(const NYA_WebFetch* fetch)
-s64 nya_web_fetch_body(const NYA_WebFetch* fetch, OUT u8* buffer, u64 capacity)
-```
-
-### web_input.h
-
-Canvas pointer and keyboard input, drained the way the engine drains a device queue.
-
-```c
-// types
-typedef enum { NYA_WEB_INPUT_MOUSE_MOVED, NYA_WEB_INPUT_MOUSE_DOWN, NYA_WEB_INPUT_MOUSE_UP, NYA_WEB_INPUT_WHEEL, NYA_WEB_INPUT_KEY_DOWN, NYA_WEB_INPUT_KEY_UP, } NYA_WebInputKind  // What a queued event is.
-typedef struct { NYA_WebInputKind kind; f32 x, y; f32 delta_x, delta_y; s32 button; u32 key; b8 repeat; } NYA_WebInputEvent  // One drained event.
-
-// macros
-NYA_WEB_KEY_LEFT 0x01000001u
-NYA_WEB_KEY_RIGHT 0x01000002u
-NYA_WEB_KEY_UP 0x01000003u
-NYA_WEB_KEY_DOWN 0x01000004u
-
-// functions
-b8 nya_web_input_attach(NYA_ConstCString selector)  // Starts listening on the canvas `selector` names (a CSS selector, e.g.
-void nya_web_input_detach(void)  // Stops listening and drops any queued events.
-b8 nya_web_input_poll(OUT NYA_WebInputEvent* out_event)
-```
-
-### web_random.h
-
-The browser's cryptographic random source, and nothing else. One function.
-
-```c
-// functions
-b8 nya_web_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpredictable bytes from the browser's `crypto.getRandomValues`.
-```
-
-### web_socket.h
-
-A client WebSocket over the browser's `WebSocket`, polled the way the engine polls a net transport.
-
-```c
-// types
-typedef enum { NYA_WEB_SOCKET_CONNECTING, NYA_WEB_SOCKET_OPEN, NYA_WEB_SOCKET_CLOSED, } NYA_WebSocketPhase  // Where a link is in its life.
-
-// functions
-NYA_WebSocketLink* nya_web_socket_open(NYA_Arena* arena, NYA_ConstCString url)
-void nya_web_socket_close(NYA_WebSocketLink* link)  // Closes `link` and releases the handle and its inbound queue.
-NYA_WebSocketPhase nya_web_socket_phase(const NYA_WebSocketLink* link)  // Where `link` is in its life.
-b8 nya_web_socket_send(NYA_WebSocketLink* link, const u8* bytes, u64 size)  // Sends `size` bytes of `bytes` as one binary message.
-s64 nya_web_socket_receive(NYA_WebSocketLink* link, OUT u8* buffer, u64 capacity)  // Takes the oldest queued inbound message into `buffer`, at most `capacity` bytes, and returns its full length.
-```
-
-### web_storage.h
-
-A persistent key → bytes store for the client, over the browser's localStorage.
-
-```c
-// macros
-NYA_WEB_STORAGE_KEY_MAX 128  // Longest key this stores, terminator included.
-
-// functions
-b8 nya_web_storage_set(NYA_ConstCString key, const u8* value, u64 size)  // Stores `size` bytes of `value` under `key`, replacing whatever was there.
-s64 nya_web_storage_get(NYA_ConstCString key, OUT u8* buffer, u64 capacity)  // Reads the value stored under `key` into `buffer`, writing at most `capacity` bytes.
-b8 nya_web_storage_delete(NYA_ConstCString key)  // Removes `key` from the store.
 ```
 
 ## os
