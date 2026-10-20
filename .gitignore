@@ -120,3 +120,6 @@ secrets/**/*.jks
 secrets/**/*.keystore
 !secrets/**/*.enc
 !secrets/**/*.example
+
+# agent worktrees and session state
+/.claude/

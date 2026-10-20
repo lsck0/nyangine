@@ -175,11 +175,9 @@ what gets built), then the removals and moves (they decide where everything else
 - `[~]` **CI is red.** Done 2026-10-20 (wave 1): locally green, not yet on GitHub: LLVM pinned to 23 everywhere, zizmor 1.31.1 pinned and the actions referenced as `$/`, runners on `ubuntu-24.04`, the water pipeline declares its third sampler, `X11_InitIM` suppressed, steam's OpenSSL 1.1 failure removed with TLS. `.clang-tidy` now disables `bugprone-signed-bitwise` and `readability-trailing-comma` (review). Still open: water3d's `VUID-vkCmdDraw-renderPass-02684` and `-None-09600`. `vendor-windows` and `build-steam-linux` fail on "clang is not LLVM 22", and
   `workflow-audit` (zizmor) exits 12. Fix all three and see a green push run and a green scheduled run.
 - `[ ]` **Android works.** An APK of gnyame (or an example) built by `./build` with the NDK at
-  `/opt/android-ndk` and the SDK at `/opt/android-sdk`, installed on an emulator, rendering and taking input.
-  This reverses "Android is not scope" in `AGENTS.md`. The NDK (r30) is usable; the SDK is not: `/opt/android-sdk`
-  holds only the deprecated `tools` 26.1.1, root owned, with no platform-tools, build-tools, platforms, emulator or
-  system image, and only JDK 27 is installed. Provisioned 2026-10-20 by the dotfiles module `programming/android`: SDK at
-  `~/.local/share/android-sdk` (build-tools 35.0.1, platform 35, emulator, AVD `nya35`), JDK 21 on the next sync. In the
+  `/opt/android-ndk` (r30) and the SDK at `~/.local/share/android-sdk` (dotfiles module `programming/android`:
+  build-tools 35.0.1, platform 35, emulator, AVD `nya35`; JDK 21 on the next sync), installed on the emulator,
+  rendering and taking input. No Gradle: aapt2, d8 and apksigner directly. `AGENTS.md` now lists Android as scope. In the
   code: `<immintrin.h>` and `-mavx*` are unconditional, there is no `OS_ANDROID`, and `main.c` needs `SDL_main`.
 
 ### Features
@@ -1944,8 +1942,8 @@ In scope, deliberately: not only a server, but the client too.
 
 # Requested
 
-Everything asked for that is not already covered by a section below. Android is explicitly out of scope and is
-not listed.
+Everything asked for that is not already covered by a section below. Android was out of scope then
+(reversed 2026-10-20) and is not listed.
 
 ## `[~]` Plugins
 

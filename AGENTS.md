@@ -13,8 +13,8 @@ It started as a game engine. It is becoming the framework for all of its author'
 for enterprise level desktop applications, web applications and games, plus TUI and CLI programs, all
 composing in one program. Priorities, in order when they conflict: security, privacy, stability,
 performance, then lines of code. `TODO.md` states that scope, and its "Roadmap" section is the plan and
-the order of work. Read it before choosing what to build. What is not scope: Android, a second game, and scaling a
-server past one machine.
+the order of work. Read it before choosing what to build. What is not scope: a second game and scaling a server past
+one machine. Android is scope since 2026-10-20 (see `TODO.md`).
 
 Style: data oriented procedural C. Plain structs and functions that transform them, arenas rather
 than `malloc`, assertions kept in release builds, fixed capacities with the bound written down. The
