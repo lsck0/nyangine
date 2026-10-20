@@ -5,7 +5,7 @@ inputs:
   llvm-version:
     description: LLVM major version to install from apt.llvm.org.
     required: false
-    default: "22"
+    default: "23"
   ccache-key:
     description: Names this job's compiler cache. Empty leaves ccache unconfigured and nothing restored.
     required: false
@@ -161,7 +161,7 @@ runs:
 
     - name: Bootstrap build system
       shell: bash
-      run: clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+      run: clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread
 
     - name: Build vendored dependencies
       shell: bash

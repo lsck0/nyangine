@@ -24,7 +24,7 @@ git submodule update --init --recursive
 and bootstrap the build system with
 
 ```bash
-clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread
 ```
 
 then run
@@ -56,7 +56,7 @@ direnv allow    # or, without direnv: devenv shell
 ./build
 ```
 
-That drops you into a shell with exactly the LLVM 22 clang CI builds with, plus mold, cmake, ninja,
+That drops you into a shell with exactly the LLVM 23 clang CI builds with, plus mold, cmake, ninja,
 make, the coverage and spell-check tools the gates need, and the system libraries the vendored SDL
 stack compiles against — all pinned. `devenv.nix` documents the two things it does not cover
 (Windows cross-compilation, which the toolchain header hardwires to a distro sysroot, and
@@ -85,5 +85,5 @@ In theory, building works on Windows. In practice, I don't use Windows, so who k
 builds the Windows targets only, and cannot compile the shaders; a Linux host builds everything.
 
 ```bash
-clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
+clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
 ```

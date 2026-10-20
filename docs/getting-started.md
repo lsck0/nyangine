@@ -13,7 +13,7 @@ The build system is a C program that compiles itself. Bootstrap it once:
 
 ```bash
 clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix \
-    -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+    -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread
 ```
 
 From then on `./build` recompiles itself whenever its own sources change. Run it bare to see

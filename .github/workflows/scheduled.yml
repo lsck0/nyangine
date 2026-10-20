@@ -81,7 +81,7 @@ jobs:
 
       - uses: ./.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: fuzz
 
       # afl-clang-fast (the instrumenting compiler) and afl-fuzz (the driver). AFL_CC points the wrapper
@@ -165,7 +165,7 @@ jobs:
 
       - uses: ./.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: simulation
 
       - name: Run the simulation over random seeds
@@ -219,7 +219,7 @@ jobs:
 
       - uses: ./.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: bench
 
       # Last night's numbers, to compare against. A stable key with a restore prefix, so each run reads

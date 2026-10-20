@@ -29,6 +29,7 @@ CompileFlags:
       -Wno-gnu,
       -Wno-initializer-overrides,
       -Wno-keyword-macro,
+      -Wno-psabi,
       -DDEBUG=true,
       -DNYA_EXECUTION_MODE=0,
       -DNYA_ASSET_PREFER_BLOB,

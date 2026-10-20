@@ -39,7 +39,7 @@ jobs:
 
       - uses: ./.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       # DXC does not build under MinGW, so the Windows jobs use these instead of compiling their own.
       - name: Compile shaders
@@ -74,7 +74,7 @@ jobs:
 
       - uses: ./.github/actions/setup-linux
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       # No clang-format gate yet: the tree does not satisfy its own .clang-format today, so turning this
       # on means one reformatting commit across every source file first. Worth doing, not worth hiding
@@ -112,7 +112,7 @@ jobs:
       - uses: ./.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: test
 
       - name: Run tests
@@ -156,7 +156,7 @@ jobs:
       - uses: ./.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: examples
 
       - name: Install a virtual display and a software Vulkan driver
@@ -212,7 +212,7 @@ jobs:
       - uses: ./.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: build
 
       # Linux, Windows and Steam Windows, the last two cross compiled.
@@ -287,12 +287,12 @@ jobs:
       - uses: ./.github/actions/setup-linux
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: steam-linux
 
       - uses: ./.github/actions/setup-steamrt
         with:
-          llvm-version: 22
+          llvm-version: 23
 
       - name: Stage the Steam Linux distribution
         run: ./build dist steam-linux
@@ -371,7 +371,7 @@ jobs:
 
       - uses: ./.github/actions/setup-windows
         with:
-          llvm-version: 22
+          llvm-version: 23
 
   test-windows:
     needs: [vendor-windows, vendor-linux]
@@ -404,7 +404,7 @@ jobs:
       - uses: ./.github/actions/setup-windows
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: test
 
       - name: Run tests
@@ -453,7 +453,7 @@ jobs:
       - uses: ./.github/actions/setup-windows
         id: setup
         with:
-          llvm-version: 22
+          llvm-version: 23
           ccache-key: build
 
       # On this host `release` is the Windows and Steam Windows executables; there is no Linux target to ask for.

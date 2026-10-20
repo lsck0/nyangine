@@ -22,7 +22,7 @@
 
 FROM debian:trixie AS builder
 
-# clang 22 and lld from apt.llvm.org — the engine needs a clang this new, and Debian's default is
+# clang 23 and lld from apt.llvm.org — the engine needs a clang this new, and Debian's default is
 # older. cmake, make and git build the vendored dependencies; libssl-dev is the system OpenSSL the
 # `tls` module and curl link against; pkg-config and ca-certificates round out the vendor configures.
 #
@@ -42,9 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgles2-mesa-dev libegl1-mesa-dev libgbm-dev libdrm-dev libasound2-dev \
         libpulse-dev libudev-dev libdbus-1-dev \
     && wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh \
-    && chmod +x /tmp/llvm.sh && /tmp/llvm.sh 22 \
-    && ln -sf /usr/bin/clang-22 /usr/bin/clang \
-    && ln -sf /usr/bin/ld.lld-22 /usr/bin/ld.lld \
+    && chmod +x /tmp/llvm.sh && /tmp/llvm.sh 23 \
+    && ln -sf /usr/bin/clang-23 /usr/bin/clang \
+    && ln -sf /usr/bin/ld.lld-23 /usr/bin/ld.lld \
     && rm -rf /var/lib/apt/lists/* /tmp/llvm.sh
 
 WORKDIR /src
@@ -54,7 +54,7 @@ COPY . .
 # release reads its web bundle out of that blob, so it has to exist), then the server example as a
 # shipping artifact. `--server` builds it release + stripped and does not run it; see example.c.
 RUN clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix \
-        -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread \
+        -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread \
     && ./build build assets \
     && ./build run example web_server --server
 

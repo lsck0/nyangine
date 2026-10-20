@@ -1,5 +1,5 @@
 # The release archive, not a source build: `./build` cross compiles every Windows vendor from a Linux
-# host and would drag mingw-w64, git-lfs, clang 22 and seventeen submodules into the closure to
+# host and would drag mingw-w64, git-lfs, clang 23 and seventeen submodules into the closure to
 # produce a binary the release already has. We ship binaries only.
 #
 # @VERSION@ and @SHA256_LINUX@ are filled in by `./build dist linux-nixos`.

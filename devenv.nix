@@ -10,34 +10,34 @@
 # There is no `languages.c` here on purpose. devenv's C module pulls an unpinned gcc/clang, and the
 # whole reason this file exists is that the engine is fussy about the compiler: it needs a clang new
 # enough for C2Y (`-std=c2y`), `-fdefer-ts`, `-fenable-matrix` and the `_Float16` half floats behind
-# `-mf16c`. apt.llvm.org's clang-22 is what CI and the deploy path settled on, and mixing versions is
-# exactly the fragility this replaces, so the toolchain is pinned by hand to LLVM 22 below.
+# `-mf16c`. apt.llvm.org's clang-23 is what CI and the deploy path settled on, and mixing versions is
+# exactly the fragility this replaces, so the toolchain is pinned by hand to LLVM 23 below.
 
 {
   packages = [
     # ── The compiler, pinned. ──────────────────────────────────────────────────────────────────
-    # LLVM 22, the version .github/ci-packages.txt installs from apt.llvm.org and .github/actions/
-    # setup-linux asserts (`clang --version | grep "clang version 22."`). The nixpkgs input is the
-    # devenv rolling channel (see devenv.yaml), which carries llvmPackages_22; the major is what the
+    # LLVM 23, the version .github/ci-packages.txt installs from apt.llvm.org and .github/actions/
+    # setup-linux asserts (`clang --version | grep "clang version 23."`). The nixpkgs input is the
+    # devenv rolling channel (see devenv.yaml), which carries llvmPackages_23; the major is what the
     # engine's C2Y flags need, and holding it fixed is the point.
     #
     #   .clang        clang / clang++ / clang-cpp — the wrapped driver the build calls unversioned.
     #   .clang-tools  clang-format (asset.c) and clang-tidy (check.c --strict), both called by bare name.
-    #   .compiler-rt  the sanitizer/profile runtime the coverage build links (apt: libclang-rt-22-dev).
-    pkgs.llvmPackages_22.clang
-    pkgs.llvmPackages_22.clang-tools
-    pkgs.llvmPackages_22.compiler-rt
+    #   .compiler-rt  the sanitizer/profile runtime the coverage build links (apt: libclang-rt-23-dev).
+    pkgs.llvmPackages_23.clang
+    pkgs.llvmPackages_23.clang-tools
+    pkgs.llvmPackages_23.compiler-rt
 
     # llvm-cov and llvm-profdata (test.c's coverage gate, `./build coverage`), plus llvm-ar/-ranlib/
-    # -strip that the make-based vendors reach for. They ship with clang; here that means llvm_22.
-    pkgs.llvm_22
+    # -strip that the make-based vendors reach for. They ship with clang; here that means llvm_23.
+    pkgs.llvm_23
 
     # ── Linkers. ───────────────────────────────────────────────────────────────────────────────
     # mold is the debug/dev linker on Linux (FLAGS_DEBUG_LINUX_X86_64: -fuse-ld=mold, flags.h). lld is
     # the release and host-native linker and the one the cmake vendors use (-fuse-ld=lld). clang finds
     # either by name on PATH once -fuse-ld= names it.
     pkgs.mold
-    pkgs.lld_22
+    pkgs.lld_23
 
     # ── Vendor build tools. ──────────────────────────────────────────────────────────────────────
     # The vendored dependencies (src/nyangine-build/vendor/*) configure and build through these: cmake+ninja
@@ -157,7 +157,7 @@
   enterShell = ''
     echo "nyangine toolchain: $(clang --version | head -n1)"
     echo "linkers: mold $(mold --version | head -n1 | cut -d' ' -f2), $(ld.lld --version | head -n1)"
-    echo "bootstrap with:  clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread"
+    echo "bootstrap with:  clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread"
     echo "then:            ./build"
 
     # `./build ` tab-completion, wired with no manual step. `./build completions <shell>` prints a

@@ -8,7 +8,7 @@ inputs:
   llvm-version:
     description: LLVM major version, part of the cache key like in setup-linux.
     required: false
-    default: "22"
+    default: "23"
   save:
     description: Save the cache when it missed. CD restores only.
     required: false

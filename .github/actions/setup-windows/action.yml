@@ -13,7 +13,7 @@ inputs:
   llvm-version:
     description: LLVM major version to require. MSYS2 ships one clang; this asserts which.
     required: false
-    default: "22"
+    default: "23"
   ccache-key:
     description: Names this job's compiler cache. Empty leaves ccache unconfigured and nothing restored.
     required: false
@@ -149,7 +149,7 @@ runs:
       # -o build.exe: host.h names BUILD_TOOL_BINARY "build.exe" and nya_rebuild_yourself compiles
       # over that name. Any other name would leave a stale binary re-executing itself.
       # -lbcrypt: platform/random calls BCryptGenRandom. See PLATFORM_LINK_WINDOWS in flags.h.
-      run: clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
+      run: clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
 
     - name: Build vendored dependencies
       shell: msys2 {0}
