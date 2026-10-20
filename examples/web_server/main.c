@@ -9,6 +9,7 @@
  * ./build run example web_server            # serves on 127.0.0.1:47800 until interrupted
  * ./web_server.example --port 8080
  * ./web_server.example --address 0.0.0.0 --port 8000   # bind every interface, as the container does
+ * WEB_SERVER_ADDRESS=0.0.0.0 WEB_SERVER_PORT=8000 ./web_server.example   # the same, how the container says it
  * WEB_SERVER_OTLP_FILE=spans.jsonl ./web_server.example # a span per request, as OTLP/JSON lines
  * # ctrl-c or SIGTERM drains the requests in flight, then backs notes.db up beside itself
  *
@@ -154,7 +155,7 @@
 
 #include "nyangine-core/nyangine.c"
 
-/* This server opens no window, no renderer and no frame loop, so the only SDL it touches is the one call that brings the library's own state up for the asset system to hang off, and the sleep between ticks — and that second one is the os layer's own primitive, `nya_os_time_sleep_ms`, which is the same in either build and is what is used below in place of SDL_Delay. The include is guarded because a server has no reason to name SDL at all: the day the engine grows a headless build this file compiles straight through under NYA_NO_SDL. That day is not here yet — core (the asset, save, callback and event systems this uses), http and crypto all sit behind the same NYA_NO_SDL wall in nyangine.h today, so the guard buys the seam, not a headless binary. See this example's Dockerfile and deploy/README.md for what that means for shipping one. */
+/* This server opens no window, no renderer and no frame loop, so the only SDL it touches is the one call that brings the library's own state up for the asset system to hang off, and the sleep between ticks — and that second one is the os layer's own primitive, `nya_os_time_sleep_ms`, which is the same in either build and is what is used below in place of SDL_Delay. The include is guarded because a server has no reason to name SDL at all: the day the engine grows a headless build this file compiles straight through under NYA_NO_SDL. That day is not here yet — core (the asset, save, callback and event systems this uses), http and crypto all sit behind the same NYA_NO_SDL wall in nyangine.h today, so the guard buys the seam, not a headless binary. See packaging/docker/README.md for what that means for shipping one. */
 #ifndef NYA_NO_SDL
 #include "SDL3/SDL_init.h"
 #endif
@@ -1152,6 +1153,10 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
 /** Default port. Loopback only unless `address` is set; see NYA_HttpConfig. */
 #define DEFAULT_PORT 47800
 
+/** The environment a container configures the server through; a flag of the same name wins over each. */
+#define ENV_ADDRESS "WEB_SERVER_ADDRESS"
+#define ENV_PORT    "WEB_SERVER_PORT"
+
 /** How long the loop sleeps between ticks. The sockets are the listener thread's; see the file note. */
 #define TICK_SLEEP_MS 5
 
@@ -1185,14 +1190,26 @@ NYA_INTERNAL void trace_flush(NYA_ConstCString path) {
     if (!flushed.ok) nya_log_warn("Could not export the spans to %s: %s", path, (NYA_ConstCString)flushed.message);
 }
 
+/** Parses a port from `source` (a flag or an environment name, for the error), false on anything but 0 to 65535. */
+NYA_INTERNAL b8 port_parse(NYA_ConstCString source, NYA_ConstCString text, OUT u16* out_port) {
+    // atoi would turn "80a" into 80 and "http" into 0, serving on a port nobody asked for
+    if (nya_type_parse(NYA_TYPE_U16, (const u8*)text, strlen(text), out_port)) return true;
+
+    nya_log_error("%s expects a number from 0 to 65535, got '%s'.", source, text);
+    return false;
+}
+
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;
+
+    NYA_ConstCString port_from_environment = getenv(ENV_PORT);
+    if (port_from_environment != nullptr && !port_parse(ENV_PORT, port_from_environment, &port)) return EXIT_FAILURE;
 
     NYA_ConstCString certificate_path = "";
     NYA_ConstCString key_path         = "";
 
-    /* What to bind. Empty is the NYA_HttpConfig default, which is loopback only: the safe thing for an example on a laptop, where nothing outside the machine should reach it. A deployment behind nothing — a container whose only job is this server — has to be told to bind the wildcard, which is what `--address 0.0.0.0` is for; the Dockerfile passes exactly that. See NYA_HttpConfig. */
-    NYA_ConstCString address = "";
+    /* What to bind. Empty is the NYA_HttpConfig default, which is loopback only: the safe thing for an example on a laptop, where nothing outside the machine should reach it. A deployment behind nothing — a container whose only job is this server — has to be told to bind the wildcard, which is what `--address 0.0.0.0` or WEB_SERVER_ADDRESS is for; packaging/docker/Dockerfile sets the latter. See NYA_HttpConfig. */
+    NYA_ConstCString address = getenv(ENV_ADDRESS) != nullptr ? getenv(ENV_ADDRESS) : "";
 
     // A lone flag rather than a pair: --healthcheck turns this binary into a client of itself for one request and then exits, which is what a container's HEALTHCHECK runs. See below.
     b8 health_check = false;
@@ -1226,15 +1243,10 @@ s32 main(s32 argc, char** argv) {
 
         if (strcmp(argv[i], "--port") != 0) continue;
 
-        // atoi would turn "80a" into 80 and "http" into 0, serving on a port nobody asked for
-        NYA_ConstCString text = argv[i + 1];
-        if (!nya_type_parse(NYA_TYPE_U16, (const u8*)text, strlen(text), &port)) {
-            nya_log_error("--port expects a number from 0 to 65535, got '%s'.", text);
-            return EXIT_FAILURE;
-        }
+        if (!port_parse("--port", argv[i + 1], &port)) return EXIT_FAILURE;
     }
 
-    /* The container's liveness probe, and the one an image built FROM scratch can run: no curl in the image, so the binary probes itself. It GETs `/` on the loopback port through the curl client the server already links and exits 0 only on a 200, which is exactly what a Docker HEALTHCHECK wants — a zero or a non-zero. It starts none of the server, so it is cheap and safe to run every few seconds. Pass the same --port the server was given; the address is always loopback here, which the wildcard the server binds includes. See this example's Dockerfile. */
+    /* The container's liveness probe, and the one an image built FROM scratch can run: no curl in the image, so the binary probes itself. It GETs `/` on the loopback port through the curl client the server already links and exits 0 only on a 200, which is exactly what a Docker HEALTHCHECK wants — a zero or a non-zero. It starts none of the server, so it is cheap and safe to run every few seconds. It reads the same --port or WEB_SERVER_PORT the server was given; the address is always loopback here, which the wildcard the server binds includes. See packaging/docker/Dockerfile. */
     if (health_check) {
         NYA_Arena* arena = nya_arena_create(.name = "healthcheck");
         defer       nya_arena_destroy(arena);
