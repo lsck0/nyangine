@@ -13,6 +13,9 @@
  * */
 #define _NYA_PLUGIN_DIGEST_DOMAIN "nyangine.plugin.signature.v1"
 
+/** The content digest's own tag, so it can never equal the signed digest it starts from. */
+#define _NYA_PLUGIN_CONTENT_DOMAIN "nyangine.plugin.content.v1"
+
 /** The first line of `plugin.sig`, which says what the file is and which layout the rest of it uses. */
 #define _NYA_PLUGIN_SIGNATURE_MAGIC "nyangine-plugin-signature 1"
 
@@ -54,6 +57,14 @@ NYA_INTERNAL void _nya_plugin_hex_encode(const u8* data, u64 size, OUT char* out
  * */
 NYA_INTERNAL NYA_Error _nya_plugin_digest_feed(NYA_CryptoSha256* sha256, NYA_ConstCString directory, NYA_ConstCString relative, b8 required)
     __attr_no_discard;
+
+/**
+ * Appends every regular file under `<directory>/<relative>` to `names`, as a path relative to `directory`.
+ * Bounded by NYA_PLUGIN_ASSET_DEPTH_MAX and NYA_PLUGIN_ASSET_FILE_MAX rather than asserted: the tree is the plugin's.
+ * */
+NYA_INTERNAL NYA_Error _nya_plugin_content_collect(
+    NYA_Arena* arena, NYA_ConstCString directory, NYA_ConstCString relative, u32 depth, NYA_ArrayᐸNYA_Stringᐳ* names
+) __attr_no_discard;
 
 /** Byte order, shorter first on a shared prefix, so `src/` is hashed in an order an author can predict. */
 NYA_INTERNAL s32 _nya_plugin_signature_name_compare(const NYA_String* a, const NYA_String* b) __attr_no_discard;
@@ -113,6 +124,43 @@ NYA_Error nya_plugin_digest(NYA_ConstCString directory, OUT NYA_CryptoSha256Dige
             (void)snprintf(relative, sizeof(relative), "%s/%s", NYA_PLUGIN_SOURCE_DIRECTORY, nya_string_to_cstring(arena, name));
 
             NYA_TRY(_nya_plugin_digest_feed(&sha256, directory, relative, true));
+        }
+    }
+
+    nya_crypto_sha256_end(&sha256, out_digest);
+
+    return NYA_OK;
+}
+
+NYA_Error nya_plugin_content_digest(NYA_ConstCString directory, OUT NYA_CryptoSha256Digest* out_digest) {
+    if (directory == nullptr || out_digest == nullptr) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "nya_plugin_content_digest needs a directory and somewhere to write");
+    }
+
+    *out_digest = (NYA_CryptoSha256Digest){ 0 };
+
+    NYA_CryptoSha256Digest code = { 0 };
+    NYA_TRY(nya_plugin_digest(directory, &code));
+
+    NYA_CryptoSha256 sha256 = { 0 };
+    nya_crypto_sha256_begin(&sha256);
+    nya_crypto_sha256_update(&sha256, (const u8*)_NYA_PLUGIN_CONTENT_DOMAIN, sizeof(_NYA_PLUGIN_CONTENT_DOMAIN) - 1);
+    nya_crypto_sha256_update(&sha256, code.bytes, sizeof(code.bytes));
+
+    char assets[NYA_PLUGIN_PATH_MAX];
+    (void)snprintf(assets, sizeof(assets), "%s/%s", directory, NYA_PLUGIN_ASSET_DIRECTORY);
+
+    if (nya_filesystem_is_directory(assets)) {
+        NYA_Arena* arena = nya_arena_create(.name = "plugin_content_digest");
+        defer      nya_arena_destroy(arena);
+
+        NYA_ArrayᐸNYA_Stringᐳ* names = nya_array_create(arena, NYA_String);
+        NYA_TRY(_nya_plugin_content_collect(arena, directory, NYA_PLUGIN_ASSET_DIRECTORY, 0, names));
+
+        nya_array_sort(names, _nya_plugin_signature_name_compare);
+
+        nya_array_foreach (names, name) {
+            NYA_TRY(_nya_plugin_digest_feed(&sha256, directory, nya_string_to_cstring(arena, name), true));
         }
     }
 
@@ -338,6 +386,46 @@ NYA_Error _nya_plugin_digest_feed(NYA_CryptoSha256* sha256, NYA_ConstCString dir
     nya_crypto_sha256_update(sha256, length, sizeof(length));
 
     nya_crypto_sha256_update(sha256, contents->items, contents->length);
+
+    return NYA_OK;
+}
+
+NYA_Error _nya_plugin_content_collect(NYA_Arena* arena, NYA_ConstCString directory, NYA_ConstCString relative, u32 depth, NYA_ArrayᐸNYA_Stringᐳ* names) {
+    nya_assert(arena != nullptr && directory != nullptr && relative != nullptr && names != nullptr);
+
+    if (depth >= NYA_PLUGIN_ASSET_DEPTH_MAX) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s/%s' nests deeper than %d directories", directory, relative, NYA_PLUGIN_ASSET_DEPTH_MAX);
+    }
+
+    char path[NYA_PLUGIN_PATH_MAX];
+    s32  written = snprintf(path, sizeof(path), "%s/%s", directory, relative);
+    if (written < 0 || (u64)written >= sizeof(path)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a path under '%s' is too long", directory);
+
+    NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;
+    NYA_TRY(nya_filesystem_list(arena, path, &entries));
+
+    nya_array_foreach (entries, entry) {
+        char child[NYA_PLUGIN_PATH_MAX];
+        written = snprintf(child, sizeof(child), "%s/%s", relative, nya_string_to_cstring(arena, entry->name));
+        if (written < 0 || (u64)written >= sizeof(child)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a path under '%s' is too long", directory);
+
+        switch (entry->type) {
+            case NYA_FILE_TYPE_DIRECTORY: NYA_TRY(_nya_plugin_content_collect(arena, directory, child, depth + 1, names)); break;
+
+            case NYA_FILE_TYPE_FILE: {
+                if (names->length >= NYA_PLUGIN_ASSET_FILE_MAX) {
+                    return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' has more than %d asset files", directory, NYA_PLUGIN_ASSET_FILE_MAX);
+                }
+
+                nya_array_push_back(names, *nya_string_from(arena, child));
+            } break;
+
+            case NYA_FILE_TYPE_SYMLINK:
+            case NYA_FILE_TYPE_UNKNOWN:
+            case NYA_FILE_TYPE_COUNT:
+            default:                    return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s/%s' is not a file or a directory", directory, child);
+        }
+    }
 
     return NYA_OK;
 }

@@ -2576,8 +2576,8 @@ Lua plugins: a directory on disk becomes a manifest, a permission set and a VM o
 enum NYA_PluginPermission : u64
 enum NYA_PluginPermission : u64 { NYA_PLUGIN_PERMISSION_NONE = 0, NYA_PLUGIN_PERMISSION_UI = 1ULL << 0, NYA_PLUGIN_PERMISSION_INPUT = 1ULL << 1, NYA_PLUGIN_PERMISSION_KEYBINDING = 1ULL << 2, NYA_PLUGIN_PERMISSION_ENTITIES = 1ULL << 3, NYA_PLUGIN_PERMISSION_AUDIO = 1ULL << 4, NYA_PLUGIN_PERMISSION_ASSETS = 1ULL << 5, NYA_PLUGIN_PERMISSION_FILESYSTEM = 1ULL << 6, NYA_PLUGIN_PERMISSION_NETWORK = 1ULL << 7, }  // What a plugin may touch.
 struct NYA_PluginDependency { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; }  // One entry of a manifest's `dependencies` or `conflicts` list.
-struct NYA_PluginManifest { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; char engine_version[NYA_PLUGIN_VERSION_MAX]; char author[NYA_PLUGIN_AUTHOR_MAX]; char license[NYA_PLUGIN_LICENSE_MAX]; char description[NYA_PLUGIN_DESCRIPTION_MAX]; char repository[NYA_PLUGIN_URL_MAX]; NYA_PluginPermission permissions; NYA_PluginDependency dependencies[NYA_PLUGIN_DEPENDENCY_MAX]; NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX]; }
-struct NYA_Plugin { NYA_PluginManifest manifest; char directory[NYA_PLUGIN_PATH_MAX]; NYA_PluginPermission permissions; b8 enabled; u32 error_count; b8 has_frame; b8 has_tick; b8 has_render; void* _state; }  // One loaded plugin.
+struct NYA_PluginManifest { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; char engine_version[NYA_PLUGIN_VERSION_MAX]; char author[NYA_PLUGIN_AUTHOR_MAX]; char license[NYA_PLUGIN_LICENSE_MAX]; char description[NYA_PLUGIN_DESCRIPTION_MAX]; char repository[NYA_PLUGIN_URL_MAX]; NYA_PluginPermission permissions; NYA_PluginDependency dependencies[NYA_PLUGIN_DEPENDENCY_MAX]; NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX]; b8 client_only; }
+struct NYA_Plugin { NYA_PluginManifest manifest; char directory[NYA_PLUGIN_PATH_MAX]; NYA_PluginPermission permissions; NYA_CryptoSha256Digest content_digest; b8 enabled; u32 error_count; b8 has_frame; b8 has_tick; b8 has_render; void* _state; }  // One loaded plugin.
 
 // macros
 NYA_PLUGIN_DIRECTORY "./plugins"  // Where nya_plugin_load_all looks.
@@ -2641,9 +2641,12 @@ NYA_PLUGIN_SIGNATURE_FILE "plugin.sig"  // The signature, beside `manifest.nya` 
 NYA_PLUGIN_PUBLISHER_MAX 96  // A publisher name in a signature: who a pinned key belongs to, and what `plugin.sig` records.
 NYA_PLUGIN_TRUSTED_KEY_MAX 16  // How many publisher keys the program may pin.
 NYA_PLUGIN_REQUIRE_SIGNATURE true  // Whether an unsigned or untrusted plugin is refused.
+NYA_PLUGIN_ASSET_DEPTH_MAX 8  // How deep `assets/` may nest, and how many files it may hold, before nya_plugin_content_digest refuses it.
+NYA_PLUGIN_ASSET_FILE_MAX 1024
 
 // functions
 NYA_Error nya_plugin_digest(NYA_ConstCString directory, OUT NYA_CryptoSha256Digest* out_digest)
+NYA_Error nya_plugin_content_digest(NYA_ConstCString directory, OUT NYA_CryptoSha256Digest* out_digest)
 NYA_Error nya_plugin_trust_key(NYA_ConstCString publisher, const NYA_CryptoSignPublicKey* public_key)  // Pins `public_key` as `publisher`'s, so a plugin signed by it will verify.
 NYA_Error nya_plugin_signature_verify(NYA_ConstCString directory, OUT char* out_publisher, u64 capacity)
 NYA_Error nya_plugin_signature_write( NYA_ConstCString directory, NYA_ConstCString publisher, const NYA_CryptoSignSecretKey* secret_key, const NYA_CryptoSignPublicKey* public_key )

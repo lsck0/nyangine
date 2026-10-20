@@ -318,6 +318,10 @@ NYA_Error nya_plugin_load(NYA_ConstCString directory) {
 
     NYA_TRY(_nya_plugin_admit(directory, &manifest));
 
+    // before the scripts run: a plugin with the filesystem permission may write into its own assets.
+    NYA_CryptoSha256Digest content_digest = { 0 };
+    NYA_TRY(nya_plugin_content_digest(directory, &content_digest));
+
     _NYA_PluginSlot* slot = _nya_plugin_slot_free();
 
     if (slot == nullptr) {
@@ -327,7 +331,7 @@ NYA_Error nya_plugin_load(NYA_ConstCString directory) {
 
     *slot = (_NYA_PluginSlot){
         .used   = true,
-        .plugin = { .manifest = manifest, .permissions = manifest.permissions, .enabled = true },
+        .plugin = { .manifest = manifest, .permissions = manifest.permissions, .content_digest = content_digest, .enabled = true },
     };
 
     (void)snprintf(slot->plugin.directory, sizeof(slot->plugin.directory), "%s", directory);

@@ -115,7 +115,8 @@ static void plugins_write_all(void) {
     plugin_manifest_write("twin_a", "twin_a", "0.1.0", "");
     plugin_file_write("twin_a", NYA_PLUGIN_ENTRY_FILE, "function spawn() return 'a' end\n");
 
-    plugin_manifest_write("twin_b", "twin_b", "0.1.0", "");
+    /* Also claims to be cosmetic, which only a multiplayer handshake reads. */
+    plugin_manifest_write("twin_b", "twin_b", "0.1.0", "    client_only: b8 true;\n");
     plugin_file_write("twin_b", NYA_PLUGIN_ENTRY_FILE, "function spawn() return 'b' end\n");
 }
 
@@ -146,6 +147,11 @@ s32 main(void) {
         nya_assert(nya_string_equals(manifest.author, "the test"));
         nya_assert(nya_string_equals(manifest.license, "MIT"));
         nya_assert(manifest.permissions == NYA_PLUGIN_PERMISSION_NONE, "a manifest that asks for nothing gets nothing");
+        nya_assert(!manifest.client_only, "a plugin is part of the simulation unless it says otherwise");
+
+        NYA_PluginManifest cosmetic = { 0 };
+        NYA_EXPECT(nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/twin_b", &cosmetic));
+        nya_assert(cosmetic.client_only, "client_only was not read off the manifest");
     }
 
     // TEST: a misspelled permission refuses the manifest. Skipping it in silence would read as a permission the plugin never asked for, which is the one mistake this boundary exists to catch.

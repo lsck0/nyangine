@@ -10,6 +10,7 @@
  *
  * Everything in the module:
  *   nya_plugin_digest            the one canonical hash of a plugin's contents, signer and loader alike
+ *   nya_plugin_content_digest    that digest plus everything under `assets/`, what multiplayer compares
  *   nya_plugin_trust_key         pin a publisher's public key; the host calls this, nothing else can
  *   nya_plugin_signature_verify  whether a plugin's `plugin.sig` is a pinned key's over its digest
  *   nya_plugin_signature_write   produce that `plugin.sig`, which is what the signing tool calls
@@ -100,6 +101,21 @@
  * a plugin, and hashing it would produce a digest for nothing.
  * */
 NYA_API NYA_Error nya_plugin_digest(NYA_ConstCString directory, OUT NYA_CryptoSha256Digest* out_digest) __attr_no_discard;
+
+/** How deep `assets/` may nest, and how many files it may hold, before nya_plugin_content_digest refuses it. */
+#define NYA_PLUGIN_ASSET_DEPTH_MAX 8
+#define NYA_PLUGIN_ASSET_FILE_MAX  1024
+
+/**
+ * nya_plugin_digest under its own domain tag, then every regular file under `assets/` in byte order of its
+ * relative path, fed the same way. Not what is signed: assets are data the plugin reads, and a texture swap
+ * must not invalidate a publisher's signature. It is what two players compare, since a different level file
+ * in a mod that touches the simulation is a different game; see replicate_content.h.
+ *
+ * Refuses a link under `assets/` (a digest over files only would skip what it points at) and a tree past
+ * NYA_PLUGIN_ASSET_DEPTH_MAX or NYA_PLUGIN_ASSET_FILE_MAX.
+ * */
+NYA_API NYA_Error nya_plugin_content_digest(NYA_ConstCString directory, OUT NYA_CryptoSha256Digest* out_digest) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
