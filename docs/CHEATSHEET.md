@@ -7061,7 +7061,10 @@ NYA_Error nya_orm_select( NYA_OrmTable* table, NYA_Arena* arena, NYA_ConstCStrin
 
 ```c
 // types
-struct NYA_SqlOptions { NYA_ConstCString path; const u8* key; u32 key_size; NYA_ConstCString vfs; }  // What nya_sql_open takes besides the arena and where to put the connection.
+enum NYA_SqlJournal { NYA_SQL_JOURNAL_WAL, NYA_SQL_JOURNAL_DELETE, NYA_SQL_JOURNAL_COUNT, }  // How a connection journals its writes.
+enum NYA_SqlSynchronous { NYA_SQL_SYNCHRONOUS_DEFAULT, NYA_SQL_SYNCHRONOUS_NORMAL, NYA_SQL_SYNCHRONOUS_FULL, NYA_SQL_SYNCHRONOUS_COUNT, }  // How hard a commit waits for the disk.
+struct NYA_SqlOptions { NYA_ConstCString path; const u8* key; u32 key_size; NYA_ConstCString vfs; NYA_SqlJournal journal; NYA_SqlSynchronous synchronous; s64 busy_timeout_ms; u32 cache_size_kib; u64 mmap_size_bytes; u32 wal_autocheckpoint_pages; u64 journal_size_limit_bytes; }  // What nya_sql_open takes besides the arena and where to put the connection.
+struct NYA_SqlStatementCacheStats { u64 hits; u64 misses; u64 evictions; u32 count; }  // How a connection's statement cache has done since it opened.
 typedef NYA_Object* NYA_SqlRow  // One row.
 enum NYA_SqlValueKind { NYA_SQL_VALUE_NULL, NYA_SQL_VALUE_S64, NYA_SQL_VALUE_F64, NYA_SQL_VALUE_TEXT, NYA_SQL_VALUE_BLOB, NYA_SQL_VALUE_COUNT, }
 struct NYA_SqlValue { NYA_SqlValueKind kind; union { s64 as_s64; f64 as_f64; NYA_ConstCString as_text; struct { const u8* data; u64 size; } as_blob; }; }  // One bound parameter.
@@ -7069,6 +7072,11 @@ struct NYA_SqlResult { NYA_ArrayᐸNYA_SqlRowᐳ* rows; u64 rows_affected; s64 l
 
 // macros
 NYA_SQL_KEY_SIZE 32
+NYA_SQL_STATEMENT_CACHE_MAX 64  // Prepared statements one connection keeps, keyed by their SQL text.
+NYA_SQL_BUSY_TIMEOUT_MS_DEFAULT 5000  // How long a statement waits on another connection's lock before it fails as NYA_ERROR_TIMEOUT.
+NYA_SQL_CACHE_SIZE_KIB_DEFAULT 16384  // SQLite's page cache per connection, in KiB, against SQLite's own 2 MiB.
+NYA_SQL_WAL_AUTOCHECKPOINT_PAGES_DEFAULT 1000  // Pages the write-ahead log grows by before a commit checkpoints it into the file.
+NYA_SQL_JOURNAL_SIZE_LIMIT_BYTES_DEFAULT (64ULL * 1024 * 1024)
 nya_sql_null()
 nya_sql_s64(value)
 nya_sql_f64(value)
@@ -7078,11 +7086,13 @@ nya_sql_open(arena, database_path, out_database, ...)  // Opens `path`, creating
 
 // functions
 NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OUT NYA_Database** out_database)  // What nya_sql_open expands to.
-void nya_sql_close(NYA_Database* database)  // Closes the connection.
+void nya_sql_close(NYA_Database* database)
+NYA_Error nya_sql_optimize(NYA_Database* database)
+NYA_SqlStatementCacheStats nya_sql_statement_cache_get_stats(const NYA_Database* database)  // The statement cache's counters, for a metrics row or a test that a statement was reused.
 NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql)  // Runs a statement that returns no rows.
 NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count)  // One statement, with parameters bound to its `?` placeholders.
 NYA_Error nya_sql_query( NYA_Database* database, NYA_Arena* arena, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count, OUT NYA_SqlResult* out_result )  // Runs one statement and collects every row into `out_result`.
-NYA_Error nya_sql_ping(NYA_Database* database)  // Whether a read reaches the file: `PRAGMA schema_version`, which takes the shared lock and reads the header.
+NYA_Error nya_sql_ping(NYA_Database* database)
 NYA_Error nya_sql_transaction_begin(NYA_Database* database)
 NYA_Error nya_sql_transaction_commit(NYA_Database* database)
 NYA_Error nya_sql_transaction_rollback(NYA_Database* database)

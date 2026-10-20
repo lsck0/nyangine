@@ -49,11 +49,14 @@
 
 // ───────────────────────────────────── TYPES ─────────────────────────────────────
 
-typedef struct NYA_Database   NYA_Database;
-typedef struct NYA_SqlOptions NYA_SqlOptions;
-typedef struct NYA_SqlResult  NYA_SqlResult;
-typedef struct NYA_SqlValue   NYA_SqlValue;
-typedef enum NYA_SqlValueKind NYA_SqlValueKind;
+typedef struct NYA_Database                NYA_Database;
+typedef struct NYA_SqlOptions              NYA_SqlOptions;
+typedef struct NYA_SqlResult               NYA_SqlResult;
+typedef struct NYA_SqlValue                NYA_SqlValue;
+typedef struct NYA_SqlStatementCacheStats  NYA_SqlStatementCacheStats;
+typedef enum NYA_SqlValueKind              NYA_SqlValueKind;
+typedef enum NYA_SqlJournal                NYA_SqlJournal;
+typedef enum NYA_SqlSynchronous            NYA_SqlSynchronous;
 
 /**
  * Bytes in the key a database is encrypted under: 32, which is crypto_secret.h's NYA_CryptoKey32 and
@@ -62,7 +65,66 @@ typedef enum NYA_SqlValueKind NYA_SqlValueKind;
  * */
 #define NYA_SQL_KEY_SIZE 32
 
-/** What nya_sql_open takes besides the arena and where to put the connection. */
+/**
+ * Prepared statements one connection keeps, keyed by their SQL text; past it the least recently used
+ * is finalized. web_server's notes connection settles at 6, so 64 leaves room for a connection that
+ * carries accounts, jobs and blobs too. Each entry costs SQLite one compiled program.
+ * */
+#ifndef NYA_SQL_STATEMENT_CACHE_MAX
+#define NYA_SQL_STATEMENT_CACHE_MAX 64
+#endif
+
+/** How long a statement waits on another connection's lock before it fails as NYA_ERROR_TIMEOUT. db_jobs.c's default too. */
+#define NYA_SQL_BUSY_TIMEOUT_MS_DEFAULT 5000
+
+/**
+ * SQLite's page cache per connection, in KiB, against SQLite's own 2 MiB. bench_db_file.c over a 3 MiB
+ * table: a point read 1.14 us at 2 MiB and 1.05 us here, 8 readers beside a writer 554 ns a read
+ * against 430-480. Filled only as pages are read, and per connection: a pool of 8 can reach 8 times it.
+ * */
+#define NYA_SQL_CACHE_SIZE_KIB_DEFAULT 16384
+
+/** Pages the write-ahead log grows by before a commit checkpoints it into the file. SQLite's default. */
+#define NYA_SQL_WAL_AUTOCHECKPOINT_PAGES_DEFAULT 1000
+
+/**
+ * What the write-ahead log or rollback journal is truncated to after a checkpoint or commit, so one
+ * large transaction does not leave a file that size on disk forever. 64 MiB.
+ * */
+#define NYA_SQL_JOURNAL_SIZE_LIMIT_BYTES_DEFAULT (64ULL * 1024 * 1024)
+
+/** How a connection journals its writes. */
+enum NYA_SqlJournal {
+    /** A write-ahead log: readers never block the writer or each other, and a commit is one append. */
+    NYA_SQL_JOURNAL_WAL,
+
+    /** The rollback journal, deleted at every commit: one file on disk, for a filesystem without shared memory. */
+    NYA_SQL_JOURNAL_DELETE,
+
+    NYA_SQL_JOURNAL_COUNT,
+};
+
+/** How hard a commit waits for the disk. */
+enum NYA_SqlSynchronous {
+    /** NORMAL under WAL and FULL under DELETE: the cheapest level that a power cut cannot corrupt the file at. */
+    NYA_SQL_SYNCHRONOUS_DEFAULT,
+
+    /**
+     * Under WAL, a commit is not synced and a checkpoint is: a power cut can lose the last commits but
+     * never corrupts the file. Under DELETE, a power cut at the wrong moment can corrupt it.
+     * */
+    NYA_SQL_SYNCHRONOUS_NORMAL,
+
+    /**
+     * Every commit is synced before it returns, so a committed write survives a power cut. For data that
+     * cannot be redone; bench_db_file.c measured a commit at 4.4 ms under WAL against NORMAL's 4.3 us.
+     * */
+    NYA_SQL_SYNCHRONOUS_FULL,
+
+    NYA_SQL_SYNCHRONOUS_COUNT,
+};
+
+/** What nya_sql_open takes besides the arena and where to put the connection. Zero is the default for every field. */
 struct NYA_SqlOptions {
     /** The file, created if it is not there, or ":memory:" for one that never touches disk. */
     NYA_ConstCString path;
@@ -79,6 +141,38 @@ struct NYA_SqlOptions {
 
     /** The SQLite VFS to open through, by name, or null for the default. A test names NYA_DB_FAULT_VFS. */
     NYA_ConstCString vfs;
+
+    NYA_SqlJournal     journal;
+    NYA_SqlSynchronous synchronous;
+
+    /** Zero is NYA_SQL_BUSY_TIMEOUT_MS_DEFAULT; negative fails at once on a held lock. */
+    s64 busy_timeout_ms;
+
+    /** Zero is NYA_SQL_CACHE_SIZE_KIB_DEFAULT. */
+    u32 cache_size_kib;
+
+    /**
+     * Bytes of the file SQLite reads through a memory map instead of read(). Off unless asked for: an
+     * I/O error on a mapped page is a SIGBUS that ends the process rather than a NYA_ERROR_IO the
+     * caller can answer with a 503, and at 256 MiB bench_db_file.c measured no gain (1.11 us a point read).
+     * */
+    u64 mmap_size_bytes;
+
+    /** Zero is NYA_SQL_WAL_AUTOCHECKPOINT_PAGES_DEFAULT. */
+    u32 wal_autocheckpoint_pages;
+
+    /** Zero is NYA_SQL_JOURNAL_SIZE_LIMIT_BYTES_DEFAULT. */
+    u64 journal_size_limit_bytes;
+};
+
+/** How a connection's statement cache has done since it opened. */
+struct NYA_SqlStatementCacheStats {
+    u64 hits;
+    u64 misses;
+    u64 evictions;
+
+    /** Statements cached now, at most NYA_SQL_STATEMENT_CACHE_MAX. */
+    u32 count;
 };
 
 /** One row. A named typedef because nya_derive_array needs a single token for its type. */
@@ -135,6 +229,11 @@ struct NYA_SqlResult {
 /**
  * Opens `path`, creating it if it is not there. Use ":memory:" for a database that never touches disk.
  *
+ * The connection comes up tuned for a server: a write-ahead log, synchronous NORMAL, a busy timeout,
+ * a 16 MiB page cache, temporary tables in memory (so nothing of the data reaches an unencrypted temp
+ * file), foreign keys enforced, and `PRAGMA optimize=0x10002` so the planner has statistics from the
+ * first query. Each is an option; see NYA_SqlOptions.
+ *
  * Anything beyond the path is an option, so a call that wants none reads as it always did:
  *
  * ```c
@@ -152,11 +251,25 @@ struct NYA_SqlResult {
  * */
 NYA_API NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OUT NYA_Database** out_database) __attr_no_discard;
 
-/** Closes the connection. Safe on null, so an unwind path does not need to check. */
+/**
+ * Closes the connection, after finalizing its cached statements and running `PRAGMA optimize`, which
+ * SQLite asks of every connection on its way out. Safe on null, so an unwind path does not need to check.
+ * */
 NYA_API void nya_sql_close(NYA_Database* database);
 
 /**
- * Runs a statement that returns no rows.
+ * Runs `PRAGMA optimize`: analyzes the tables whose statistics have gone stale since the last run, and
+ * nothing when none have. Open and close run it already; a connection that stays open for days calls
+ * this every few hours, as SQLite's documentation asks.
+ * */
+NYA_API NYA_Error nya_sql_optimize(NYA_Database* database) __attr_no_discard;
+
+/** The statement cache's counters, for a metrics row or a test that a statement was reused. */
+NYA_API NYA_SqlStatementCacheStats nya_sql_statement_cache_get_stats(const NYA_Database* database) __attr_no_discard;
+
+/**
+ * Runs a statement that returns no rows. Several separated by `;` are allowed, so it never goes
+ * through the statement cache; nya_sql_exec_bound and nya_sql_query do.
  * */
 NYA_API NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql) __attr_no_discard;
 
@@ -171,12 +284,17 @@ NYA_API NYA_Error nya_sql_query(
 ) __attr_no_discard;
 
 /**
- * Whether a read reaches the file: `PRAGMA schema_version`, which takes the shared lock and reads the
- * header. `SELECT 1` touches neither, so a readiness check built on it stays green through a dead disk.
+ * Whether a read reaches the file: `PRAGMA schema_version`, which takes the shared lock, and the
+ * file's header read through the VFS, past the page cache. `SELECT 1` touches neither, so a readiness
+ * check built on it stays green through a dead disk.
  * */
 NYA_API NYA_Error nya_sql_ping(NYA_Database* database) __attr_no_discard;
 
-// Transactions.
+/**
+ * `BEGIN IMMEDIATE`: takes the write lock up front, waiting through the busy timeout. A deferred BEGIN
+ * that reads and then writes under WAL fails with SQLITE_BUSY at the write, without waiting, whenever
+ * another connection committed in between.
+ * */
 NYA_API NYA_Error nya_sql_transaction_begin(NYA_Database* database) __attr_no_discard;
 NYA_API NYA_Error nya_sql_transaction_commit(NYA_Database* database) __attr_no_discard;
 NYA_API NYA_Error nya_sql_transaction_rollback(NYA_Database* database) __attr_no_discard;
