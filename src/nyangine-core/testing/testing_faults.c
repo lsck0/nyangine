@@ -170,33 +170,38 @@ NYA_INTERNAL void _nya_faults_udp_leave(void) {
     _NYA_FAULTS.plan.time_simulated                            = false;
 }
 
-NYA_INTERNAL void _nya_faults_udp_open(void) {
-    _NYA_SimulationFaults* faults = &_NYA_FAULTS;
-
-    faults->udp_arena = nya_arena_create(.name = "simulation_faults_udp");
-
-    NYA_EXPECT(nya_net_transport_udp_create(faults->udp_arena, (NYA_NetUdpOptions){ 0 }, &faults->udp_server), "while making the simulated UDP server");
-    NYA_EXPECT(nya_net_transport_udp_create(faults->udp_arena, (NYA_NetUdpOptions){ 0 }, &faults->udp_client), "while making the simulated UDP client");
-    NYA_EXPECT(nya_net_transport_listen(faults->udp_server, 0), "the host had no free UDP port");
-    NYA_EXPECT(nya_net_transport_connect(faults->udp_client, "127.0.0.1", nya_net_transport_port(faults->udp_server)));
-
-    faults->udp_server_connected = false;
-    faults->udp_client_connected = false;
-    faults->udp_sent             = 0;
-    faults->udp_received         = 0;
-}
-
 NYA_INTERNAL void _nya_faults_udp_close(void) {
     _NYA_SimulationFaults* faults = &_NYA_FAULTS;
     if (faults->udp_arena == nullptr) return;
 
-    nya_net_transport_destroy(faults->udp_client);
-    nya_net_transport_destroy(faults->udp_server);
+    if (faults->udp_client != nullptr) nya_net_transport_destroy(faults->udp_client);
+    if (faults->udp_server != nullptr) nya_net_transport_destroy(faults->udp_server);
     nya_arena_destroy(faults->udp_arena);
 
-    faults->udp_arena  = nullptr;
-    faults->udp_client = nullptr;
-    faults->udp_server = nullptr;
+    faults->udp_arena            = nullptr;
+    faults->udp_client           = nullptr;
+    faults->udp_server           = nullptr;
+    faults->udp_server_connected = false;
+    faults->udp_client_connected = false;
+}
+
+/** A fresh pair, listening and dialling. On an error nothing is left open, and the pair is down until the next restart. */
+NYA_INTERNAL NYA_Error _nya_faults_udp_open(void) {
+    _NYA_SimulationFaults* faults = &_NYA_FAULTS;
+    nya_assert(faults->udp_arena == nullptr, "a UDP pair is already open");
+
+    faults->udp_arena    = nya_arena_create(.name = "simulation_faults_udp");
+    faults->udp_sent     = 0;
+    faults->udp_received = 0;
+
+    NYA_Error opened = nya_net_transport_udp_create(faults->udp_arena, (NYA_NetUdpOptions){ 0 }, &faults->udp_server);
+    if (opened.ok) opened = nya_net_transport_udp_create(faults->udp_arena, (NYA_NetUdpOptions){ 0 }, &faults->udp_client);
+    if (opened.ok) opened = nya_net_transport_listen(faults->udp_server, 0);
+    if (opened.ok) opened = nya_net_transport_connect(faults->udp_client, "127.0.0.1", nya_net_transport_port(faults->udp_server));
+
+    if (!opened.ok) _nya_faults_udp_close();
+
+    return opened;
 }
 
 /** One message the server took: checked whole, then in order. */
@@ -232,6 +237,8 @@ NYA_INTERNAL void _nya_faults_udp_pump(NYA_SimulationRun* run) {
     _NYA_SimulationFaults* faults = &_NYA_FAULTS;
     NYA_NetTransportEvent  event  = { 0 };
 
+    if (faults->udp_arena == nullptr) return;
+
     while (nya_net_transport_poll(faults->udp_server, &event)) {
         switch (event.kind) {
             case NYA_NET_TRANSPORT_EVENT_CONNECTED: {
@@ -261,9 +268,10 @@ NYA_INTERNAL b8 _nya_faults_udp_connected(void) {
     return _NYA_FAULTS.udp_server_connected && _NYA_FAULTS.udp_client_connected;
 }
 
+/** A fresh pair on a healthy random source. Failing then is the host's trouble, and the run cannot go on without one. */
 NYA_INTERNAL void _nya_faults_udp_restart(void) {
     _nya_faults_udp_close();
-    _nya_faults_udp_open();
+    NYA_EXPECT(_nya_faults_udp_open(), "while opening the simulated UDP pair");
 }
 
 /*
@@ -857,12 +865,32 @@ NYA_INTERNAL void _nya_faults_fault_udp(NYA_SimulationRun* run) {
 }
 
 NYA_INTERNAL void _nya_faults_fault_udp_restart(NYA_SimulationRun* run) {
-    nya_unused(run);
+    _NYA_SimulationFaults* faults = &_NYA_FAULTS;
 
     _nya_faults_udp_enter();
     defer _nya_faults_udp_leave();
 
-    _nya_faults_udp_restart();
+    _nya_faults_udp_close();
+
+    // sometimes the random source fails in the middle of making the pair: a cookie key, an identity. That is a refusal, never a crash.
+    if (nya_simulation_chance(run, 40)) {
+        faults->plan.rules[NYA_OS_FAULT_RANDOM] = (NYA_OsFaultRule){
+            .fail_call = faults->plan.calls[NYA_OS_FAULT_RANDOM] + 1 + nya_simulation_below(run, 3),
+            .fail_kind = NYA_OS_FAULT_FAIL,
+        };
+    }
+
+    u64       injected = faults->plan.injected[NYA_OS_FAULT_RANDOM];
+    NYA_Error opened   = _nya_faults_udp_open();
+
+    faults->plan.rules[NYA_OS_FAULT_RANDOM] = (NYA_OsFaultRule){ 0 };
+
+    b8 starved = faults->plan.injected[NYA_OS_FAULT_RANDOM] != injected;
+    if (!opened.ok && !starved) nya_simulation_fail(run, "a UDP pair could not be made on a healthy host: %s", opened.message);
+
+    nya_simulation_trace(run, opened.ok);
+
+    if (!opened.ok) NYA_EXPECT(_nya_faults_udp_open(), "while opening the simulated UDP pair after a starved random source");
 }
 
 NYA_INTERNAL void _nya_faults_fault_disk(NYA_SimulationRun* run) {
@@ -925,7 +953,7 @@ void nya_simulation_faults_add(NYA_SimulationRun* run) {
     nya_assert(nya_os_fault_plan_attach(&faults->plan), "another fault plan is attached to the simulation's thread");
 
     _nya_faults_udp_enter();
-    _nya_faults_udp_open();
+    NYA_EXPECT(_nya_faults_udp_open(), "while opening the simulated UDP pair");
     _nya_faults_udp_leave();
 
     nya_simulation_action_add(run, "udp_send", 20, _nya_faults_do_udp_send);

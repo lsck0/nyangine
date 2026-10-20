@@ -61,10 +61,23 @@ enum {
     /** Transfers one run sends under distinct keys. Every one is audited, so this bounds the audit's queries too. */
     _NYA_SIMULATION_DB_TRANSFER_MAX = 256,
 
+    /** Blobs the run remembers to read back, the newest replacing the oldest past it. */
+    _NYA_SIMULATION_DB_BLOB_MAX = 64,
+
+    /** Largest blob the put action stores: past a SQLite page, so one object spans several. */
+    _NYA_SIMULATION_DB_BLOB_BYTES_MAX = 6000,
+
     /** Bytes of a transfer's key and of the answer it got, terminator included. */
     _NYA_SIMULATION_DB_TRANSFER_KEY_MAX    = 32,
     _NYA_SIMULATION_DB_TRANSFER_ANSWER_MAX = 64,
 };
+
+/** One blob a put acknowledged: its id, and what its bytes hash to and how many there were. */
+typedef struct {
+    NYA_BlobId id;
+    u64        hash;
+    u64        size;
+} _NYA_SimulationDbBlob;
 
 /** One transfer the run sent, and the answer it was acknowledged with, if it was. */
 typedef struct {
@@ -93,6 +106,7 @@ typedef struct {
     NYA_Arena*            connection;
     NYA_Database*         database;
     NYA_JobQueue*         queue;
+    NYA_BlobStore*        blobs;
     const NYA_HttpRouter* accounts;
 
     /** Per action, reset at the top of each. */
@@ -112,6 +126,9 @@ typedef struct {
 
     _NYA_SimulationDbTransfer transfers[_NYA_SIMULATION_DB_TRANSFER_MAX];
     u32                       transfer_count;
+
+    _NYA_SimulationDbBlob blobs_acknowledged[_NYA_SIMULATION_DB_BLOB_MAX];
+    u64                   blob_count;
 } _NYA_SimulationDb;
 
 NYA_INTERNAL _NYA_SimulationDb _NYA_SIMULATION_DB = { 0 };
@@ -217,6 +234,8 @@ NYA_INTERNAL NYA_Error _nya_simulation_db_open(void) {
     NYA_SqlValue opening[] = { nya_sql_s64(_NYA_SIMULATION_DB_BALANCE) };
     NYA_TRY(nya_sql_exec_bound(db->database, "INSERT OR IGNORE INTO simulated_balances (id, balance) VALUES (1, ?), (2, 0)", opening, 1));
 
+    NYA_TRY(nya_blob_store_open(db->connection, db->database, &db->blobs));
+
     // the store's memory is the process's, so every open is a restart that starts it empty and finds the rows it left.
     NYA_TRY(nya_http_idempotency_init(db->connection, .ttl_s = _NYA_SIMULATION_DB_IDEMPOTENCY_TTL_S, .database = db->database));
 
@@ -262,10 +281,12 @@ NYA_INTERNAL void _nya_simulation_db_close(void) {
     nya_http_accounts_close();
     nya_accounts_close();
     nya_jobs_close(db->queue);
+    if (db->blobs != nullptr) nya_blob_store_close(db->blobs);
     nya_sql_close(db->database);
 
     db->database = nullptr;
     db->queue    = nullptr;
+    db->blobs    = nullptr;
     db->accounts = nullptr;
 
     nya_arena_free_all(db->connection);
@@ -432,6 +453,53 @@ NYA_INTERNAL void _nya_simulation_db_transfer_audit(NYA_SimulationRun* run) {
  * ACTIONS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+NYA_INTERNAL void _nya_simulation_db_do_blob_put(NYA_SimulationRun* run) {
+    _NYA_SimulationDb* db      = &_NYA_SIMULATION_DB;
+    b8                 healthy = _nya_simulation_db_healthy();
+    nya_arena_free_all(db->scratch);
+
+    u64 size  = 1 + nya_simulation_below(run, _NYA_SIMULATION_DB_BLOB_BYTES_MAX);
+    u8* bytes = nya_arena_alloc(db->scratch, size);
+    for (u64 i = 0; i < size; i++) bytes[i] = (u8)nya_simulation_roll(run);
+
+    NYA_BlobId id  = { 0 };
+    NYA_Error  put = nya_blob_put(db->blobs, bytes, size, &id);
+
+    nya_simulation_trace(run, put.ok);
+
+    if (!put.ok) {
+        // a full disk or a failing fsync is the disk's trouble, and a refusal is the right answer to it.
+        if (healthy) nya_simulation_fail(run, "a blob put failed on a healthy disk: %s", put.message);
+        return;
+    }
+
+    db->blobs_acknowledged[db->blob_count % _NYA_SIMULATION_DB_BLOB_MAX] = (_NYA_SimulationDbBlob){ .id = id, .hash = nya_hash_wyhash(bytes, size), .size = size };
+    db->blob_count++;
+}
+
+NYA_INTERNAL void _nya_simulation_db_do_blob_get(NYA_SimulationRun* run) {
+    _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
+    if (db->blob_count == 0) return;
+
+    b8 healthy = _nya_simulation_db_healthy();
+    nya_arena_free_all(db->scratch);
+
+    u64                    known = nya_min(db->blob_count, (u64)_NYA_SIMULATION_DB_BLOB_MAX);
+    _NYA_SimulationDbBlob* blob  = &db->blobs_acknowledged[nya_simulation_below(run, known)];
+
+    u8*       bytes = nullptr;
+    u64       size  = 0;
+    NYA_Error got   = nya_blob_get(db->blobs, blob->id, db->scratch, &bytes, &size);
+
+    if (got.ok && (size != blob->size || nya_hash_wyhash(bytes, size) != blob->hash)) {
+        nya_simulation_fail(run, "blob %s read back as different bytes", blob->id.hex);
+        return;
+    }
+
+    // acknowledged before any power cut the run took, so on a healthy disk it is there and whole.
+    if (!got.ok && healthy) nya_simulation_fail(run, "acknowledged blob %s could not be read on a healthy disk: %s", blob->id.hex, got.message);
+}
 
 NYA_INTERNAL void _nya_simulation_db_do_transfer(NYA_SimulationRun* run) {
     b8 healthy = _nya_simulation_db_healthy();
@@ -762,6 +830,8 @@ NYA_INTERNAL void _nya_simulation_db_add(NYA_SimulationRun* run) {
     nya_simulation_fault_add(run, "fault_db_arm", 5, _nya_simulation_db_fault_arm);
     nya_simulation_fault_add(run, "fault_db_heal", 5, _nya_simulation_db_fault_heal);
     nya_simulation_fault_add(run, "fault_db_power_loss", 2, _nya_simulation_db_fault_power_loss);
+    nya_simulation_action_add(run, "db_blob_put", 5, _nya_simulation_db_do_blob_put);
+    nya_simulation_action_add(run, "db_blob_get", 5, _nya_simulation_db_do_blob_get);
     nya_simulation_action_add(run, "db_transfer", 6, _nya_simulation_db_do_transfer);
     nya_simulation_action_add(run, "db_transfer_retry", 4, _nya_simulation_db_do_transfer_retry);
     nya_simulation_action_add(run, "db_transfer_audit", 2, _nya_simulation_db_do_transfer_audit);
