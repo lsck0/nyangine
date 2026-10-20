@@ -159,7 +159,7 @@
  * itself is target independent; only the modules that ride along with it differ, so the Windows target
  * rules pass FLAGS_PLUGINS_WINDOWS_X86_64 to pin the Windows module set no matter the building host.
  */
-#define FLAGS_PLUGIN_LIST "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", "-DNYA_PLUGIN_ACME", FLAGS_PLUGIN_PERMISSIONS
+#define FLAGS_PLUGIN_LIST "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
 #define FLAGS_PLUGINS               FLAGS_MODULES, FLAGS_PLUGIN_LIST
 #define FLAGS_PLUGINS_WINDOWS_X86_64 FLAGS_MODULES_WINDOWS_X86_64, FLAGS_PLUGIN_LIST
 
@@ -214,7 +214,7 @@
 #define FLAGS_BUILD_TOOL "-DNYA_NO_SDL"
 
 // A headless server: no SDL and no core, the http/net half of the engine only. NYA_SERVER opens the
-// seam nyangine.h and nyangine.c both cut around crypto/tls/net/acme/http, so those compile while core
+// seam nyangine.h and nyangine.c both cut around crypto/tls/net/http, so those compile while core
 // and the renderer do not. The module set is the server's — db, tls and HTTP compression, exactly what
 // NYA_SERVER_VENDORS_LINUX_X86_64 has libraries for — but deliberately not FLAGS_PLUGIN_LIST: the Lua
 // plugin reaches nya_app_get, which is core, so a plugin build would drag the wall back in. An example

@@ -32,14 +32,6 @@
 // on it. Its own header answers when the build has no TLS library at all.
 #include "nyangine-core/tls/tls.h"
 
-// Beside tls: an ACME client that gets and renews the certificate tls is handed. It signs with crypto and
-// reaches the CA over a transport the program wires, so it needs no socket of its own; its OpenSSL half
-// (the CSR) answers NYA_ERROR_NOT_SUPPORTED where there is no OpenSSL, the same as tls. A plugin now,
-// opt-in behind NYA_PLUGIN_ACME (in the default plugin list), since a program that never renews a cert
-// has no use for it.
-#ifdef NYA_PLUGIN_ACME
-#include "nyangine-plugins/acme/acme.h"
-#endif
 
 // net and http carry no include of core, the renderer or SDL (grep proves it), so a headless server
 // takes them without the SDL half of the engine: NYA_SERVER is that build. Every existing build is

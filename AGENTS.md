@@ -28,7 +28,7 @@ src/nyangine-build/    the build system: rules, CLI, hooks, preprocessor passes 
 src/nyangine-std/      what is useful outside the engine too: os, platform, base, math, serde
 src/nyangine-core/     the engine: the app loop and every module above std (see the table)
 src/nyangine-ui/       the immediate mode UI toolkit and its presenters (shape, cells, HTML, DOM)
-src/nyangine-plugins/  optional dependencies behind a flag: curl, lua, discord, steam, acme, oidc, bots
+src/nyangine-plugins/  optional dependencies behind a flag: curl, lua, discord, steam, oidc, bots
 src/nyangine-editor/   reserved for the editor; empty
 src/gnyame/            the game that exercises it; src/gnyame_cli/ is its command line app
 src/genyarated/        written by the preprocessor passes; never edit by hand
@@ -66,7 +66,7 @@ and `serde` live in `src/nyangine-std/`, `ui` in `src/nyangine-ui/`, the plugins
 | `http`     | an HTTP/1.1 server, routing and layers, TLS, accounts, uploads, OpenAPI generated from the routes |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay, the trace, the crash window, and drawing physics and networks   |
-| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam, acme, oidc    |
+| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam, oidc          |
 
 Not in the engine yet, and planned in `TODO.md`'s roadmap: the component system (every module above
 `base`, `platform` and `math` added or removed by one line in `assets/config/plugins.nya`; today only

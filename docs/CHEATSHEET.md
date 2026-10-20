@@ -29,7 +29,7 @@ See also the [prose](README.md) for why things are shaped the way they are, and 
 - [`permission`](#permission) — Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit.
 - [`db`](#db) — One database file: bound statements, a reflected struct as a row, derived migrations.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
-- [`plugins`](#plugins) — Optional dependencies behind a flag: curl, lua, discord, steam, oidc, pgp, and the ACME client.
+- [`plugins`](#plugins) — Optional dependencies behind a flag: curl, lua, discord, steam, oidc and pgp.
 - [`platform`](#platform) — What the host is, and how to talk to it: signals, the terminal and ipc.
 - [`os`](#os) — The syscalls themselves: files, pages, the two clocks, random bytes, processes.
 
@@ -7271,47 +7271,7 @@ u64 nya_trace_capture_format(const NYA_TraceEvent* events, u32 count, const NYA_
 
 ## plugins
 
-Optional dependencies behind a flag: curl, lua, discord, steam, oidc, pgp, and the ACME client.
-
-### acme.h
-
-── the acme module ──
-
-```c
-// types
-typedef enum { NYA_ACME_ALGORITHM_ES256 = 0, NYA_ACME_ALGORITHM_EDDSA, } NYA_AcmeAlgorithm  // Which signature the account key carries, and which `alg` its JWS protected header names.
-typedef enum { NYA_ACME_METHOD_GET = 0, NYA_ACME_METHOD_HEAD, NYA_ACME_METHOD_POST, } NYA_AcmeMethod  // How a request reaches the CA.
-typedef struct { NYA_AcmeMethod method; NYA_ConstCString url; const u8* body; u64 body_size; } NYA_AcmeHttpRequest  // One request for the transport to make: a method, a URL, and for a POST the JWS bytes.
-typedef struct { u16 status; NYA_String* body; NYA_ConstCString replay_nonce; NYA_ConstCString location; NYA_ConstCString content_type; u32 retry_after_seconds; } NYA_AcmeHttpResponse  // What the transport fills in from the CA's reply.
-typedef NYA_Error (*NYA_AcmeTransportFn)(void* userdata, NYA_Arena* arena, const NYA_AcmeHttpRequest* request, OUT NYA_AcmeHttpResponse* out_response)  // Performs one request and fills `out_response`.
-typedef struct { NYA_AcmeTransportFn perform; void* userdata; } NYA_AcmeTransport  // The transport the program supplies; see NYA_AcmeTransportFn.
-typedef struct { NYA_String* chain_pem; NYA_String* private_key_pem; } NYA_AcmeCertificate  // What an obtain produces: the chain to serve and the private key it was issued against.
-typedef struct { NYA_ConstCString directory_url; const NYA_ConstCString* domains; u64 domain_count; const NYA_AcmeAccountKey* account_key; NYA_ConstCString contact_email; NYA_AcmeChallengeStore* challenges; NYA_AcmeTransport transport; } NYA_AcmeConfig  // Everything one obtain needs: where the CA is, what to certify, who to sign as, and how to reach it.
-
-// macros
-NYA_ACME_HTTP01_PREFIX "/.well-known/acme-challenge/"  // The path prefix an HTTP-01 challenge is served under, RFC 8555 section 8.3.
-NYA_ACME_MAX_DOMAINS 64  // The most domains one order may carry, which bounds the CSR and the authorization loop.
-NYA_ACME_MAX_POLLS 30  // How many times an authorization or an order is polled before the obtain gives up.
-NYA_ACME_POLL_INTERVAL_MS 2000  // How long a poll waits when the CA sends no Retry-After, in milliseconds.
-NYA_ACME_RENEW_BEFORE_DAYS 30  // Renew this many days before a certificate expires, when a caller names no other window.
-
-// functions
-NYA_Error nya_acme_account_key_create(NYA_Arena* arena, NYA_AcmeAlgorithm algorithm, OUT NYA_AcmeAccountKey** out_key)  // A fresh account key of `algorithm`, allocated from `arena`.
-NYA_Error nya_acme_account_key_from_eddsa_seed(NYA_Arena* arena, const u8 seed[32], OUT NYA_AcmeAccountKey** out_key)  // The EdDSA account key a stored 32 byte seed belongs to, so a program keeps one seed rather than a key file.
-void nya_acme_account_key_destroy(NYA_AcmeAccountKey* key)  // Wipes the private half and releases the key.
-NYA_AcmeAlgorithm nya_acme_account_key_algorithm(const NYA_AcmeAccountKey* key)  // Which algorithm the key carries.
-NYA_Error nya_acme_jwk(NYA_Arena* arena, const NYA_AcmeAccountKey* key, OUT NYA_Object** out_jwk)  // The public JWK of the account key, as the object a newAccount request embeds.
-NYA_Error nya_acme_jwk_thumbprint(const NYA_AcmeAccountKey* key, OUT NYA_CryptoSha256Digest* out_thumbprint)
-NYA_Error nya_acme_jws_sign(NYA_Arena* arena, const NYA_AcmeAccountKey* key, NYA_ConstCString url, NYA_ConstCString nonce, NYA_ConstCString kid, const NYA_Object* payload, OUT NYA_Object** out_jws)  // Builds the signed JWS object a POST carries, RFC 7515 flattened JSON.
-NYA_Error nya_acme_key_authorization(NYA_Arena* arena, NYA_ConstCString token, const NYA_AcmeAccountKey* key, OUT NYA_ConstCString* out_key_authorization)
-NYA_AcmeChallengeStore* nya_acme_challenge_store_create(NYA_Arena* arena)  // A challenge store, empty.
-void nya_acme_challenge_store_destroy(NYA_AcmeChallengeStore* store)  // Forgets every challenge, leaving the store empty and reusable.
-NYA_Error nya_acme_challenge_store_add(NYA_AcmeChallengeStore* store, NYA_ConstCString token, NYA_ConstCString key_authorization)  // Registers `key_authorization` under `token`, so a request for the token's challenge path is answered.
-void nya_acme_challenge_store_remove(NYA_AcmeChallengeStore* store, NYA_ConstCString token)  // Forgets the token, once its order is done.
-b8 nya_acme_challenge_response(const NYA_AcmeChallengeStore* store, NYA_ConstCString request_path, OUT NYA_ConstCString* out_body)  // The body to serve for `request_path`, or false when the path is not a live challenge.
-NYA_Error nya_acme_obtain(NYA_Arena* arena, const NYA_AcmeConfig* config, OUT NYA_AcmeCertificate* out_certificate)  // Runs the whole RFC 8555 flow and fills `out_certificate`.
-NYA_Error nya_acme_needs_renewal(NYA_ConstCString chain_pem, u32 renew_before_days, OUT b8* out_needs_renewal)
-```
+Optional dependencies behind a flag: curl, lua, discord, steam, oidc and pgp.
 
 ### request.h
 
