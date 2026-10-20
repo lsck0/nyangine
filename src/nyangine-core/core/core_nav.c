@@ -33,48 +33,75 @@ NYA_INTERNAL u32 _nya_nav_heuristic(NYA_NavPoint a, NYA_NavPoint b, b8 diagonal)
     return (_NYA_NAV_STEP_DIAGONAL * lo) + (_NYA_NAV_STEP_ORTHOGONAL * (hi - lo));
 }
 
+/** `heap_position` of a cell not on the open list. */
+#define _NYA_NAV_NOT_OPEN U32_MAX
+
 /*
- * A binary min-heap over cell indices, keyed by `open_score`.
+ * A binary min-heap over cell indices, keyed by `open_score`. Each open cell is in it once: a cheaper route lowers
+ * its key in place; a second entry per route breaks heap order once their shared key drops, and A* then returned
+ * longer paths than Dijkstra (200 against 192 in test_nav).
  */
-NYA_INTERNAL void _nya_nav_heap_push(NYA_NavGrid* grid, u32* length, u32 cell, u32 score) {
-    grid->open_score[cell] = score;
-
-    u32 i             = (*length)++;
-    grid->open_heap[i] = cell;
-
-    while (i > 0) {
-        u32 parent = (i - 1) / 2;
-        if (grid->open_score[grid->open_heap[parent]] <= grid->open_score[grid->open_heap[i]]) break;
-
-        u32 swap                = grid->open_heap[parent];
-        grid->open_heap[parent] = grid->open_heap[i];
-        grid->open_heap[i]      = swap;
-
-        i = parent;
-    }
+NYA_INTERNAL void _nya_nav_open_place(NYA_NavGrid* grid, u32 at, u32 cell) {
+    grid->open_heap[at]       = cell;
+    grid->heap_position[cell] = at;
 }
 
-NYA_INTERNAL u32 _nya_nav_heap_pop(NYA_NavGrid* grid, u32* length) {
-    u32 top = grid->open_heap[0];
+NYA_INTERNAL void _nya_nav_open_up(NYA_NavGrid* grid, u32 at) {
+    u32 cell = grid->open_heap[at];
 
-    grid->open_heap[0] = grid->open_heap[--(*length)];
+    while (at > 0) {
+        u32 parent = (at - 1) / 2;
+        if (grid->open_score[grid->open_heap[parent]] <= grid->open_score[cell]) break;
 
-    u32 i = 0;
-    for (;;) {
-        u32 left     = (2 * i) + 1;
-        u32 right    = left + 1;
-        u32 smallest = i;
-
-        if (left < *length && grid->open_score[grid->open_heap[left]] < grid->open_score[grid->open_heap[smallest]]) smallest = left;
-        if (right < *length && grid->open_score[grid->open_heap[right]] < grid->open_score[grid->open_heap[smallest]]) smallest = right;
-        if (smallest == i) break;
-
-        u32 swap                  = grid->open_heap[smallest];
-        grid->open_heap[smallest] = grid->open_heap[i];
-        grid->open_heap[i]        = swap;
-
-        i = smallest;
+        _nya_nav_open_place(grid, at, grid->open_heap[parent]);
+        at = parent;
     }
+
+    _nya_nav_open_place(grid, at, cell);
+}
+
+/** Opens `cell` at `score`, or lowers the score of its entry when it was `seen` this search and is still open. */
+NYA_INTERNAL void _nya_nav_open_push(NYA_NavGrid* grid, u32* length, u32 cell, u32 score, b8 seen) {
+    if (seen && grid->heap_position[cell] != _NYA_NAV_NOT_OPEN) {
+        nya_assert(score <= grid->open_score[cell], "an open cell's score only drops");
+
+        grid->open_score[cell] = score;
+        _nya_nav_open_up(grid, grid->heap_position[cell]);
+        return;
+    }
+
+    nya_assert(*length < grid->width * grid->height, "every cell is on the open list at most once");
+
+    grid->open_score[cell] = score;
+
+    u32 at = (*length)++;
+    _nya_nav_open_place(grid, at, cell);
+    _nya_nav_open_up(grid, at);
+}
+
+NYA_INTERNAL u32 _nya_nav_open_pop(NYA_NavGrid* grid, u32* length) {
+    nya_assert(*length > 0);
+
+    u32 top                  = grid->open_heap[0];
+    grid->heap_position[top] = _NYA_NAV_NOT_OPEN;
+
+    if (--(*length) == 0) return top;
+
+    u32 cell = grid->open_heap[*length];
+    u32 at   = 0;
+
+    for (;;) {
+        u32 child = (2 * at) + 1;
+        if (child >= *length) break;
+
+        if (child + 1 < *length && grid->open_score[grid->open_heap[child + 1]] < grid->open_score[grid->open_heap[child]]) child++;
+        if (grid->open_score[grid->open_heap[child]] >= grid->open_score[cell]) break;
+
+        _nya_nav_open_place(grid, at, grid->open_heap[child]);
+        at = child;
+    }
+
+    _nya_nav_open_place(grid, at, cell);
 
     return top;
 }
@@ -102,6 +129,8 @@ NYA_Error nya_nav_grid_create(NYA_Arena* arena, u32 width, u32 height, OUT NYA_N
         .visit_stamp = nya_arena_alloc(arena, cells * sizeof(u32)),
         .open_heap   = nya_arena_alloc(arena, cells * sizeof(u32)),
         .open_score  = nya_arena_alloc(arena, cells * sizeof(u32)),
+
+        .heap_position = nya_arena_alloc(arena, cells * sizeof(u32)),
     };
 
     // Stamps start at zero and the counter starts at zero, so the first search's stamp of 1 already
@@ -181,7 +210,7 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
     grid->came_from[start]   = start;
     grid->visit_stamp[start] = grid->stamp;
 
-    _nya_nav_heap_push(grid, &open_length, start, _nya_nav_heuristic(from, to, options.diagonal));
+    _nya_nav_open_push(grid, &open_length, start, _nya_nav_heuristic(from, to, options.diagonal), false);
 
     // Eight neighbours, orthogonals first so a four-neighbour search is the first half of this table.
     const s32 offsets[8][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
@@ -191,7 +220,7 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
     b8  found    = false;
 
     while (open_length > 0) {
-        u32 current = _nya_nav_heap_pop(grid, &open_length);
+        u32 current = _nya_nav_open_pop(grid, &open_length);
 
         if (current == target) {
             found = true;
@@ -230,7 +259,7 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
             grid->came_from[neighbour]   = current;
             grid->visit_stamp[neighbour] = grid->stamp;
 
-            _nya_nav_heap_push(grid, &open_length, neighbour, tentative + _nya_nav_heuristic((NYA_NavPoint){ nx, ny }, to, options.diagonal));
+            _nya_nav_open_push(grid, &open_length, neighbour, tentative + _nya_nav_heuristic((NYA_NavPoint){ nx, ny }, to, options.diagonal), seen);
         }
     }
 

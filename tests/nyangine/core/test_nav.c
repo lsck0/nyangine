@@ -5,6 +5,49 @@
 #include "nyangine-core/nyangine.c"
 #include "nyangine-core/nyangine.h"
 
+/** Random grids for the optimality property test, and start and goal pairs on each. */
+#define PATH_SEEDS 300
+#define PATH_PAIRS 12
+
+/** splitmix64, so a failing seed replays. */
+typedef struct {
+    u64 state;
+} Rng;
+
+__attr_no_sanitize("unsigned-integer-overflow") static u64 rng_next(Rng* rng) {
+    u64 z = (rng->state += 0x9E3779B97F4A7C15ULL);
+    z     = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z     = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+
+    return z ^ (z >> 31);
+}
+
+/**
+ * The cost of a path at nya_nav_path's step costs, asserting every step is a move it may make: adjacent, onto an
+ * open cell, and a diagonal past two walls only when corners may be cut.
+ * */
+static u32 path_cost(const NYA_NavGrid* grid, const NYA_NavPoint* path, u32 length, b8 cut_corners) {
+    u32 cost = 0;
+
+    for (u32 i = 1; i < length; i++) {
+        s32 dx = path[i].x - path[i - 1].x;
+        s32 dy = path[i].y - path[i - 1].y;
+
+        nya_assert(abs(dx) <= 1 && abs(dy) <= 1 && (dx != 0 || dy != 0), "step %u moves one cell", i);
+        nya_assert(nya_nav_walkable(grid, path[i].x, path[i].y), "step %u lands on an open cell", i);
+
+        b8 diagonal = dx != 0 && dy != 0;
+        if (diagonal && !cut_corners) {
+            nya_assert(nya_nav_walkable(grid, path[i - 1].x + dx, path[i - 1].y) || nya_nav_walkable(grid, path[i - 1].x, path[i - 1].y + dy),
+                       "step %u does not squeeze between two walls", i);
+        }
+
+        cost += diagonal ? _NYA_NAV_STEP_DIAGONAL : _NYA_NAV_STEP_ORTHOGONAL;
+    }
+
+    return cost;
+}
+
 /** Blocks a vertical wall at `x` from y0 to y1 inclusive. */
 static void wall(NYA_NavGrid* grid, s32 x, s32 y0, s32 y1) {
     for (s32 y = y0; y <= y1; y++) nya_nav_cost_set(grid, x, y, NYA_NAV_BLOCKED);
@@ -299,6 +342,63 @@ s32 main(void) {
         NYA_Error missing = nya_nav_grid_from_tilemap(arena, &map, "water", &grid);
         nya_check(!missing.ok && missing.kind == NYA_ERROR_NOT_FOUND, "a layer the map does not have is not found");
         nya_check(!nya_nav_grid_from_tilemap(arena, nullptr, "collision", &grid).ok, "and no map is refused");
+    }
+
+    // TEST: A* finds a path exactly as cheap as the flow field's Dijkstra
+    {
+        // the flow field is a full Dijkstra sweep, the oracle for both: it has no heap and no pruning to get wrong.
+        u32 compared = 0;
+
+        for (u64 seed = 1; seed <= PATH_SEEDS; seed++) {
+            Rng rng  = { .state = seed };
+            u32 size = 8 + (u32)(rng_next(&rng) % 40);
+
+            NYA_NavGrid* grid = nullptr;
+            NYA_EXPECT(nya_nav_grid_create(arena, size, size, &grid));
+
+            NYA_NavFlow* flow = nullptr;
+            NYA_EXPECT(nya_nav_flow_create(arena, grid, &flow));
+
+            // from open fields to mazes, plus walls with gaps, which is where forced neighbours come from.
+            u32 density_percent = (u32)(rng_next(&rng) % 45);
+            for (s32 y = 0; y < (s32)size; y++) {
+                for (s32 x = 0; x < (s32)size; x++) {
+                    if (rng_next(&rng) % 100 < density_percent) nya_nav_cost_set(grid, x, y, NYA_NAV_BLOCKED);
+                }
+            }
+            if (seed % 3 == 0) wall(grid, (s32)(size / 2), 0, (s32)size - 3);
+
+            NYA_NavPoint* path      = nya_arena_alloc(arena, (u64)size * size * sizeof(NYA_NavPoint));
+            u32           path_room = size * size;
+
+            for (u32 pair = 0; pair < PATH_PAIRS; pair++) {
+                NYA_NavPoint from = { (s32)(rng_next(&rng) % size), (s32)(rng_next(&rng) % size) };
+                NYA_NavPoint to   = { (s32)(rng_next(&rng) % size), (s32)(rng_next(&rng) % size) };
+
+                nya_nav_cost_set(grid, from.x, from.y, NYA_NAV_COST_DEFAULT);
+                nya_nav_cost_set(grid, to.x, to.y, NYA_NAV_COST_DEFAULT);
+
+                for (u32 corners = 0; corners < 2; corners++) {
+                    NYA_NavOptions options = { .diagonal = true, .cut_corners = corners == 1 };
+
+                    u32 astar_length = nya_nav_path(grid, from, to, path, path_room, options);
+                    u32 astar_cost   = astar_length > 0 ? path_cost(grid, path, astar_length, options.cut_corners) : NYA_NAV_UNREACHABLE;
+
+                    // the flow field has nya_nav_path's default corner rule only.
+                    if (corners == 0) {
+                        nya_nav_flow_build(flow, to);
+                        u32 dijkstra = nya_nav_flow_distance(flow, from.x, from.y);
+
+                        compared++;
+                        nya_check(astar_cost == dijkstra, "seed %llu %ux%u, (%d,%d) to (%d,%d): A* costs %u, Dijkstra %u", (unsigned long long)seed, size, size,
+                                  from.x, from.y, to.x, to.y, astar_cost, dijkstra);
+                    }
+
+                }
+            }
+        }
+
+        printf("  %u A* paths compared against Dijkstra\n", compared);
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

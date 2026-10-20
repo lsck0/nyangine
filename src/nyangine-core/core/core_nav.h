@@ -78,6 +78,9 @@ struct NYA_NavGrid {
     u32* visit_stamp;
     u32* open_heap;
     u32* open_score;
+
+    /** Where each open cell sits in `open_heap`, so a cheaper route reorders its entry instead of adding one. */
+    u32* heap_position;
     u32  stamp;
 };
 
