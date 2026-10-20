@@ -12,6 +12,7 @@
 
 #include "nyangine-std/base/base_attributes.h"
 #include "nyangine-std/base/base_basic.h"
+#include "nyangine-std/base/base_error.h"
 #include "nyangine-std/base/base_memory.h"
 #include "nyangine-std/base/base_types.h"
 
@@ -74,6 +75,12 @@ struct NYA_ArenaOptions {
      * */
     b8 garbage_collection_enabled;
     u8 garbage_collection_threshold;
+
+    /**
+     * Most bytes of regions the arena may hold, for the fallible path only: nya_arena_try_alloc refuses an
+     * allocation that would take a region past it, and nya_arena_alloc never refuses. Zero is no budget.
+     * */
+    u64 budget_bytes;
 };
 
 struct NYA_Arena {
@@ -183,6 +190,7 @@ NYA_API void nya_arena_actions_set_callback(NYA_ArenaActionCallback callback);
 #define nya_arena_create_with_options(options)            _nya_arena_debug_create_with_options(options, __FUNCTION__, __FILE__, __LINE__)
 #define nya_arena_create_with_options_on_stack(options)   _nya_arena_debug_create_with_options_on_stack(options, __FUNCTION__, __FILE__, __LINE__)
 #define nya_arena_alloc(arena, size)                      _nya_arena_debug_alloc(arena, size, __FUNCTION__, __FILE__, __LINE__)
+#define nya_arena_try_alloc(arena, size)                  _nya_arena_debug_try_alloc(arena, size, __FUNCTION__, __FILE__, __LINE__)
 #define nya_arena_realloc(arena, ptr, old_size, new_size) _nya_arena_debug_realloc(arena, ptr, old_size, new_size, __FUNCTION__, __FILE__, __LINE__)
 #define nya_arena_free(arena, ptr, size)                  _nya_arena_debug_free(arena, ptr, size, __FUNCTION__, __FILE__, __LINE__)
 #define nya_arena_free_all(arena)                         _nya_arena_debug_free_all(arena, __FUNCTION__, __FILE__, __LINE__)
@@ -197,6 +205,7 @@ NYA_API void nya_arena_actions_set_callback(NYA_ArenaActionCallback callback);
 #define nya_arena_create_with_options          _nya_arena_nodebug_create_with_options
 #define nya_arena_create_with_options_on_stack _nya_arena_nodebug_create_with_options_on_stack
 #define nya_arena_alloc                        _nya_arena_nodebug_alloc
+#define nya_arena_try_alloc                    _nya_arena_nodebug_try_alloc
 #define nya_arena_realloc                      _nya_arena_nodebug_realloc
 #define nya_arena_free                         _nya_arena_nodebug_free
 #define nya_arena_free_all                     _nya_arena_nodebug_free_all
@@ -207,6 +216,23 @@ NYA_API void nya_arena_actions_set_callback(NYA_ArenaActionCallback callback);
 #define nya_arena_move                         _nya_arena_nodebug_move
 #endif // (NYA_DEBUG || defined(NYA_ARENA_FORCE_DEBUG)) && !defined(NYA_ARENA_FORCE_NODEBUG)
 // clang-format on
+
+/*
+ * nya_arena_try_alloc(arena, size), a macro above beside nya_arena_alloc, is the fallible allocation: null where
+ * nya_arena_alloc would assert. It refuses when a new region would take the arena past `budget_bytes`, when the
+ * system has no memory, and under NYA_TESTING when the thread's fault plan starves NYA_OS_FAULT_ALLOCATION. `size`
+ * must not be zero, so null always means refused.
+ */
+
+/**
+ * Whether `size` more bytes fit within the budget, as an error: the fallible allocation, given straight back.
+ * The admission check a request path makes once, before work whose allocations cannot all be fallible.
+ *
+ * ```c
+ * if (!nya_arena_try_reserve(slot->arena, expected_bytes).ok) return refuse(NYA_HTTP_STATUS_SERVICE_UNAVAILABLE);
+ * ```
+ * */
+NYA_API NYA_Error nya_arena_try_reserve(NYA_Arena* arena, u64 size) __attr_no_discard;
 
 NYA_API u64 nya_arena_memory_usage_bytes(NYA_Arena* arena);
 
@@ -309,6 +335,7 @@ NYA_API void nya_arena_callsites_report(u32 limit);
 NYA_API NYA_Arena* _nya_arena_debug_create_with_options(NYA_ArenaOptions options, const char* function, const char* file, u32 line) __attr_no_discard;
 NYA_API NYA_Arena  _nya_arena_debug_create_with_options_on_stack(NYA_ArenaOptions options, const char* function, const char* file, u32 line) __attr_no_discard;
 NYA_API void*      _nya_arena_debug_alloc(NYA_Arena* arena, u64 size, const char* function, const char* file, u32 line) __attr_malloc __attr_no_discard;
+NYA_API void*      _nya_arena_debug_try_alloc(NYA_Arena* arena, u64 size, const char* function, const char* file, u32 line) __attr_malloc __attr_no_discard;
 NYA_API void*      _nya_arena_debug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size, const char* function, const char* file, u32 line) __attr_no_discard;
 NYA_API void       _nya_arena_debug_free(NYA_Arena* arena, void* ptr, u64 size, const char* function, const char* file, u32 line);
 NYA_API void       _nya_arena_debug_free_all(NYA_Arena* arena, const char* function, const char* file, u32 line);
@@ -321,6 +348,7 @@ NYA_API void*      _nya_arena_debug_move(NYA_Arena* src, NYA_Arena* dst, void* p
 NYA_API NYA_Arena* _nya_arena_nodebug_create_with_options(NYA_ArenaOptions options) __attr_no_discard;
 NYA_API NYA_Arena  _nya_arena_nodebug_create_with_options_on_stack(NYA_ArenaOptions options) __attr_no_discard;
 NYA_API void*      _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc __attr_no_discard;
+NYA_API void*      _nya_arena_nodebug_try_alloc(NYA_Arena* arena, u64 size) __attr_malloc __attr_no_discard;
 NYA_API void*      _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size) __attr_no_discard;
 NYA_API void       _nya_arena_nodebug_free(NYA_Arena* arena, void* ptr, u64 size);
 NYA_API void       _nya_arena_nodebug_free_all(NYA_Arena* arena);

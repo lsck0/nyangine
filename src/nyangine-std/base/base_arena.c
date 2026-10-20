@@ -106,7 +106,16 @@ NYA_Arena _nya_arena_nodebug_create_with_options_on_stack(NYA_ArenaOptions optio
     return arena;
 }
 
-void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
+/** The sum of every region's capacity: what the budget is measured against. Walked, since a new region is the rare path. */
+NYA_INTERNAL u64 _nya_arena_reserved_bytes(const NYA_Arena* arena) {
+    u64 reserved = 0;
+    for (const NYA_ArenaRegion* region = arena->head; region != nullptr; region = region->next) reserved += region->capacity;
+
+    return reserved;
+}
+
+/** Both allocation paths. `fallible` refuses past the budget and on a failed nya_malloc instead of asserting. */
+NYA_INTERNAL void* _nya_arena_alloc_in(NYA_Arena* arena, u64 size, b8 fallible) {
     nya_assert(arena != nullptr);
 
     if (size == 0) return nullptr;
@@ -148,9 +157,20 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
 
 skip_search:
     /* No region had space. The new region holds the allocation plus alignment padding, since nya_malloc only guarantees max_align_t. */
-    u64              new_region_size   = nya_max(region_size, size + align_mask);
+    u64 new_region_size = nya_max(region_size, size + align_mask);
+
+    // the budget bounds what the arena takes from the system, so it is checked where it takes more and nowhere else.
+    if (fallible && arena->options.budget_bytes > 0 && _nya_arena_reserved_bytes(arena) + new_region_size > arena->options.budget_bytes) return nullptr;
+
     NYA_ArenaRegion* new_region        = nya_malloc(sizeof(NYA_ArenaRegion));
     u8*              new_region_memory = nya_malloc(new_region_size);
+
+    if (fallible && (new_region == nullptr || new_region_memory == nullptr)) {
+        nya_free(new_region);
+        nya_free(new_region_memory);
+        return nullptr;
+    }
+
     nya_assert(new_region != nullptr);
     nya_assert(new_region_memory != nullptr);
 
@@ -176,6 +196,36 @@ skip_search:
     asan_poison_memory_region(ptr + size - ASAN_PADDING, new_region->capacity - initial_padding - size + ASAN_PADDING);
 
     return ptr;
+}
+
+void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
+    return _nya_arena_alloc_in(arena, size, false);
+}
+
+void* _nya_arena_nodebug_try_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
+    nya_assert(arena != nullptr);
+    nya_assert(size > 0, "a fallible allocation of nothing would answer null for a reason that is not a failure");
+
+#if NYA_OS_FAULT_ENABLED
+    // asked on every call rather than only when a region is needed, so a run starves allocations at the rate it asked for.
+    if (nya_os_fault_decide(NYA_OS_FAULT_ALLOCATION) == NYA_OS_FAULT_FAIL) return nullptr;
+#endif
+
+    return _nya_arena_alloc_in(arena, size, true);
+}
+
+NYA_Error nya_arena_try_reserve(NYA_Arena* arena, u64 size) {
+    nya_assert(arena != nullptr);
+
+    void* ptr = _nya_arena_nodebug_try_alloc(arena, size);
+    if (ptr == nullptr) {
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "arena '%s' cannot take " FMTu64 " more bytes within its budget of " FMTu64,
+                         arena->options.name != nullptr ? arena->options.name : "unnamed", size, arena->options.budget_bytes);
+    }
+
+    // the most recent allocation rewinds the bump cursor, so the bytes stay in the region for the next caller.
+    _nya_arena_nodebug_free(arena, ptr, size);
+    return NYA_OK;
 }
 
 void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size) {
@@ -386,6 +436,27 @@ NYA_Arena _nya_arena_debug_create_with_options_on_stack(NYA_ArenaOptions options
 
 void* _nya_arena_debug_alloc(NYA_Arena* arena, u64 size, NYA_ConstCString function, NYA_ConstCString file, u32 line) {
     void* ptr = _nya_arena_nodebug_alloc(arena, size);
+    if (ptr == nullptr) return nullptr;
+
+    NYA_ArenaAction action = {
+      .type          = NYA_ARENA_ACTION_ALLOC,
+      .arena_name    = arena->options.name,
+      .file_name     = file,
+      .line_number   = line,
+      .function_name = function,
+      .as_alloc      = {
+          .ptr  = ptr,
+          .size = size,
+      },
+    };
+    if (_nya_arena_action_callback) _nya_arena_action_callback(action);
+    _nya_arena_callsite_record_alloc(arena->options.name, file, line, function, size);
+
+    return ptr;
+}
+
+void* _nya_arena_debug_try_alloc(NYA_Arena* arena, u64 size, NYA_ConstCString function, NYA_ConstCString file, u32 line) {
+    void* ptr = _nya_arena_nodebug_try_alloc(arena, size);
     if (ptr == nullptr) return nullptr;
 
     NYA_ArenaAction action = {
