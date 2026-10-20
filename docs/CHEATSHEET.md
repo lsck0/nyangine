@@ -7528,6 +7528,26 @@ NYA_Error nya_pgp_encrypt(NYA_Arena* arena, NYA_ConstCString recipient_key, cons
 NYA_Error nya_pgp_fingerprint(NYA_Arena* arena, NYA_ConstCString recipient_key, OUT NYA_String** out_fingerprint)  // The fingerprint of the primary key in `recipient_key`, as uppercase hex.
 ```
 
+### smtp.h
+
+── the smtp module ──
+
+```c
+// types
+typedef enum { NYA_SMTP_SECURITY_STARTTLS = 0, NYA_SMTP_SECURITY_IMPLICIT, } NYA_SmtpSecurity  // How the connection is protected.
+typedef enum { NYA_SMTP_AUTH_NONE = 0, NYA_SMTP_AUTH_LOGIN, NYA_SMTP_AUTH_PLAIN, } NYA_SmtpAuth  // How the client proves who it is, once the link is encrypted.
+typedef struct { NYA_ConstCString host; u16 port; NYA_SmtpSecurity security; NYA_SmtpAuth auth; NYA_ConstCString username; NYA_ConstCString password; NYA_ConstCString ca_path; u32 timeout_ms; } NYA_SmtpConfig  // Where to send, how to protect it, and how to log in.
+typedef struct { NYA_ConstCString from; NYA_ConstCString from_name; NYA_ConstCString to; NYA_ConstCString subject; NYA_ConstCString text; NYA_ConstCString html; } NYA_SmtpMessage  // One message: who it is from, who it is to, and what it says.
+
+// macros
+NYA_SMTP_MAX_MESSAGE (1024ULL * 1024ULL)  // The largest assembled message this will send, headers, MIME framing and base64 body included.
+NYA_SMTP_DEFAULT_TIMEOUT_MS 30000  // How long the whole exchange may take when a config does not say, in milliseconds.
+
+// functions
+NYA_Error nya_smtp_message_build(NYA_Arena* arena, const NYA_SmtpMessage* message, OUT NYA_String** out_message)  // Builds the RFC 5322 message `nya_smtp_send` would put in the DATA phase, into `out_message`.
+NYA_Error nya_smtp_send(NYA_Arena* arena, const NYA_SmtpConfig* config, const NYA_SmtpMessage* message)  // Sends `message` through the server `config` names, and returns once the server has taken it.
+```
+
 ### steam.h
 
 The Steamworks client: the connection, lobbies, peer-to-peer messaging, achievements, stats and Cloud.

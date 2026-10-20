@@ -18,6 +18,8 @@
 #include "nyangine-plugins/twitch_bot/twitch_helix.h"
 // A relying party for "log in with X": the authorization code flow with PKCE, curl's dependent too. See oidc.h.
 #include "nyangine-plugins/oidc/oidc.h"
+// Mail over curl's smtp and its TLS backend, the one outbound link that still needs TLS. See smtp.h.
+#include "nyangine-plugins/smtp/smtp.h"
 #endif
 
 // Always, like steam below: needs nothing vendored or linked; spawns `gpg` when present and answers "not available" otherwise. See pgp.h.
