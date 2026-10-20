@@ -14,14 +14,11 @@
  * count     u8         at most NYA_NET_CONTENT_ENTRY_MAX
  * per entry
  *   kind    u8
- *   flags   u8         bit 0: client-only
  *   id      u8 length, then that many bytes, at least one
  *   version u8 length, then that many bytes, at least one
  *   digest  32 bytes
  * ```
  */
-
-#define _NYA_NET_CONTENT_FLAG_CLIENT_ONLY (1U << 0)
 
 /** Fed into the hash first, so a manifest hash never equals a SHA-256 taken of the same bytes for another reason. */
 #define _NYA_NET_CONTENT_HASH_DOMAIN "nyangine.net.content.v1"
@@ -41,8 +38,8 @@ NYA_INTERNAL void _nya_net_content_copy_printable(OUT char* out, u64 capacity, N
 /** Manifest order: kind, then id in byte order. */
 NYA_INTERNAL s32 _nya_net_content_order(const NYA_NetContentEntry* a, const NYA_NetContentEntry* b) __attr_no_discard;
 
-/** The next entry at or after `*at` that counts under `policy`, advancing `*at` past it, or null at the end. */
-NYA_INTERNAL const NYA_NetContentEntry* _nya_net_content_next(const NYA_NetContentManifest* manifest, u32* at, NYA_NetContentPolicy policy);
+/** The entry at `*at`, advancing `*at` past it, or null at the end. */
+NYA_INTERNAL const NYA_NetContentEntry* _nya_net_content_next(const NYA_NetContentManifest* manifest, u32* at);
 
 NYA_INTERNAL NYA_ConstCString _nya_net_content_kind_name(NYA_NetContentKind kind) __attr_no_discard;
 
@@ -120,7 +117,7 @@ NYA_Error nya_net_content_collect(OUT NYA_NetContentManifest* out_manifest) {
     for (u32 i = 0; i < nya_plugin_count(); i++) {
         const NYA_Plugin* plugin = nya_plugin_at(i);
 
-        NYA_NetContentEntry entry = { .kind = NYA_NET_CONTENT_PLUGIN, .digest = plugin->content_digest, .client_only = plugin->manifest.client_only };
+        NYA_NetContentEntry entry = { .kind = NYA_NET_CONTENT_PLUGIN, .digest = plugin->content_digest };
         _nya_net_content_copy_printable(entry.id, sizeof(entry.id), plugin->manifest.name);
         _nya_net_content_copy_printable(entry.version, sizeof(entry.version), plugin->manifest.version);
 
@@ -140,7 +137,6 @@ void nya_net_content_hash(const NYA_NetContentManifest* manifest, OUT NYA_Crypto
 
     for (u32 i = 0; i < manifest->entry_count; i++) {
         const NYA_NetContentEntry* entry = &manifest->entries[i];
-        if (entry->client_only) continue;
 
         u8 id_length      = (u8)strnlen(entry->id, sizeof(entry->id));
         u8 version_length = (u8)strnlen(entry->version, sizeof(entry->version));
@@ -158,14 +154,14 @@ void nya_net_content_hash(const NYA_NetContentManifest* manifest, OUT NYA_Crypto
     nya_crypto_sha256_end(&sha256, out_hash);
 }
 
-NYA_NetContentMismatch nya_net_content_compare(const NYA_NetContentManifest* server, const NYA_NetContentManifest* client, NYA_NetContentPolicy policy) {
+NYA_NetContentMismatch nya_net_content_compare(const NYA_NetContentManifest* server, const NYA_NetContentManifest* client) {
     nya_assert(server != nullptr && client != nullptr);
 
     u32 server_at = 0;
     u32 client_at = 0;
 
-    const NYA_NetContentEntry* ours   = _nya_net_content_next(server, &server_at, policy);
-    const NYA_NetContentEntry* theirs = _nya_net_content_next(client, &client_at, policy);
+    const NYA_NetContentEntry* ours   = _nya_net_content_next(server, &server_at);
+    const NYA_NetContentEntry* theirs = _nya_net_content_next(client, &client_at);
 
     // a merge of two sorted lists: at most every entry of both, each step consuming at least one.
     while (ours != nullptr || theirs != nullptr) {
@@ -193,8 +189,8 @@ NYA_NetContentMismatch nya_net_content_compare(const NYA_NetContentManifest* ser
             return mismatch;
         }
 
-        ours   = _nya_net_content_next(server, &server_at, policy);
-        theirs = _nya_net_content_next(client, &client_at, policy);
+        ours   = _nya_net_content_next(server, &server_at);
+        theirs = _nya_net_content_next(client, &client_at);
     }
 
     return (NYA_NetContentMismatch){ .difference = NYA_NET_CONTENT_SAME };
@@ -220,7 +216,6 @@ void nya_net_content_encode(NYA_String* out, const NYA_NetContentManifest* manif
         u8 version_length = (u8)strnlen(entry->version, sizeof(entry->version));
 
         nya_string_push_back(out, (u8)entry->kind);
-        nya_string_push_back(out, (u8)(entry->client_only ? _NYA_NET_CONTENT_FLAG_CLIENT_ONLY : 0U));
         nya_string_push_back(out, id_length);
         for (u32 c = 0; c < id_length; c++) nya_string_push_back(out, (u8)entry->id[c]);
         nya_string_push_back(out, version_length);
@@ -251,15 +246,11 @@ NYA_Error nya_net_content_decode(const u8* data, u64 size, OUT NYA_NetContentMan
     for (u32 i = 0; i < count; i++) {
         NYA_NetContentEntry entry = { 0 };
 
-        u8 kind  = _nya_net_read_u8(&reader);
-        u8 flags = _nya_net_read_u8(&reader);
+        u8 kind = _nya_net_read_u8(&reader);
 
-        if (reader.failed || kind >= NYA_NET_CONTENT_KIND_COUNT || (flags & ~_NYA_NET_CONTENT_FLAG_CLIENT_ONLY) != 0) {
-            return nya_error(NYA_ERROR_INVALID_ARGUMENT, "content entry %u has kind %u and flags %u", i, kind, flags);
-        }
+        if (reader.failed || kind >= NYA_NET_CONTENT_KIND_COUNT) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "content entry %u has kind %u", i, kind);
 
-        entry.kind        = (NYA_NetContentKind)kind;
-        entry.client_only = (flags & _NYA_NET_CONTENT_FLAG_CLIENT_ONLY) != 0;
+        entry.kind = (NYA_NetContentKind)kind;
 
         // both strings the same way: a length that leaves room for the terminator, then exactly that many bytes.
         char* fields[2]    = { entry.id, entry.version };
@@ -387,19 +378,15 @@ s32 _nya_net_content_order(const NYA_NetContentEntry* a, const NYA_NetContentEnt
     return difference < 0 ? -1 : difference > 0 ? 1 : 0;
 }
 
-const NYA_NetContentEntry* _nya_net_content_next(const NYA_NetContentManifest* manifest, u32* at, NYA_NetContentPolicy policy) {
+const NYA_NetContentEntry* _nya_net_content_next(const NYA_NetContentManifest* manifest, u32* at) {
     nya_assert(manifest != nullptr && at != nullptr);
 
-    while (*at < manifest->entry_count) {
-        const NYA_NetContentEntry* entry = &manifest->entries[*at];
-        (*at)++;
+    if (*at >= manifest->entry_count) return nullptr;
 
-        if (policy.allow_client_only && entry->client_only) continue;
+    const NYA_NetContentEntry* entry = &manifest->entries[*at];
+    (*at)++;
 
-        return entry;
-    }
-
-    return nullptr;
+    return entry;
 }
 
 NYA_ConstCString _nya_net_content_kind_name(NYA_NetContentKind kind) {

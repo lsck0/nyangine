@@ -115,9 +115,12 @@ static void plugins_write_all(void) {
     plugin_manifest_write("twin_a", "twin_a", "0.1.0", "");
     plugin_file_write("twin_a", NYA_PLUGIN_ENTRY_FILE, "function spawn() return 'a' end\n");
 
-    /* Also claims to be cosmetic, which only a multiplayer handshake reads. */
-    plugin_manifest_write("twin_b", "twin_b", "0.1.0", "    client_only: b8 true;\n");
+    plugin_manifest_write("twin_b", "twin_b", "0.1.0", "");
     plugin_file_write("twin_b", NYA_PLUGIN_ENTRY_FILE, "function spawn() return 'b' end\n");
+
+    /* Claims to be client only, a key the manifest no longer has: a server compares every mod. */
+    plugin_manifest_write("client_claim", "client_claim", "0.1.0", "    client_only: b8 true;\n");
+    plugin_file_write("client_claim", NYA_PLUGIN_ENTRY_FILE, "function on_load() end\n");
 }
 
 /* TESTS */
@@ -147,11 +150,6 @@ s32 main(void) {
         nya_assert(nya_string_equals(manifest.author, "the test"));
         nya_assert(nya_string_equals(manifest.license, "MIT"));
         nya_assert(manifest.permissions == NYA_PLUGIN_PERMISSION_NONE, "a manifest that asks for nothing gets nothing");
-        nya_assert(!manifest.client_only, "a plugin is part of the simulation unless it says otherwise");
-
-        NYA_PluginManifest cosmetic = { 0 };
-        NYA_EXPECT(nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/twin_b", &cosmetic));
-        nya_assert(cosmetic.client_only, "client_only was not read off the manifest");
     }
 
     // TEST: a misspelled permission refuses the manifest. Skipping it in silence would read as a permission the plugin never asked for, which is the one mistake this boundary exists to catch.
@@ -160,6 +158,15 @@ s32 main(void) {
         NYA_Error          read     = nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/typo", &manifest);
 
         nya_assert(!read.ok, "a permission that is not a permission must refuse the file");
+        nya_assert(read.kind == NYA_ERROR_PARSE);
+    }
+
+    // TEST: a manifest still claiming client_only is refused like any unknown key, so the claim cannot pass unnoticed.
+    {
+        NYA_PluginManifest manifest = { 0 };
+        NYA_Error          read     = nya_plugin_manifest_load(TEST_PLUGIN_ROOT "/client_claim", &manifest);
+
+        nya_assert(!read.ok, "a manifest with a client_only key loaded");
         nya_assert(read.kind == NYA_ERROR_PARSE);
     }
 
@@ -323,6 +330,7 @@ s32 main(void) {
         nya_assert(nya_plugin_find("good") != nullptr, "the good one loaded");
         nya_assert(nya_plugin_find("greedy") == nullptr, "the greedy one did not");
         nya_assert(nya_plugin_find("needy") == nullptr, "nor did the one waiting on a plugin nobody has");
+        nya_assert(nya_plugin_find("client_claim") == nullptr, "nor the one claiming to be client only");
 
         for (u32 i = 0; i < nya_plugin_count(); i++) {
             const NYA_Plugin* plugin = nya_plugin_at(i);

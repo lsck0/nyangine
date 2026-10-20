@@ -180,9 +180,6 @@ struct NYA_NetServerConfig {
      * */
     const NYA_NetContentManifest* content;
 
-    /** Leave client-only plugins out of the comparison. Off by default, since client_only is the plugin's own claim. */
-    b8 allow_client_only_plugins;
-
     /*
      * ── lag compensation ──
      */

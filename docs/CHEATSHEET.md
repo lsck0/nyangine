@@ -2589,7 +2589,7 @@ Lua plugins: a directory on disk becomes a manifest, a permission set and a VM o
 enum NYA_PluginPermission : u64
 enum NYA_PluginPermission : u64 { NYA_PLUGIN_PERMISSION_NONE = 0, NYA_PLUGIN_PERMISSION_UI = 1ULL << 0, NYA_PLUGIN_PERMISSION_INPUT = 1ULL << 1, NYA_PLUGIN_PERMISSION_KEYBINDING = 1ULL << 2, NYA_PLUGIN_PERMISSION_ENTITIES = 1ULL << 3, NYA_PLUGIN_PERMISSION_AUDIO = 1ULL << 4, NYA_PLUGIN_PERMISSION_ASSETS = 1ULL << 5, NYA_PLUGIN_PERMISSION_FILESYSTEM = 1ULL << 6, NYA_PLUGIN_PERMISSION_NETWORK = 1ULL << 7, }  // What a plugin may touch.
 struct NYA_PluginDependency { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; }  // One entry of a manifest's `dependencies` or `conflicts` list.
-struct NYA_PluginManifest { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; char engine_version[NYA_PLUGIN_VERSION_MAX]; char author[NYA_PLUGIN_AUTHOR_MAX]; char license[NYA_PLUGIN_LICENSE_MAX]; char description[NYA_PLUGIN_DESCRIPTION_MAX]; char repository[NYA_PLUGIN_URL_MAX]; NYA_PluginPermission permissions; NYA_PluginDependency dependencies[NYA_PLUGIN_DEPENDENCY_MAX]; NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX]; b8 client_only; }
+struct NYA_PluginManifest { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; char engine_version[NYA_PLUGIN_VERSION_MAX]; char author[NYA_PLUGIN_AUTHOR_MAX]; char license[NYA_PLUGIN_LICENSE_MAX]; char description[NYA_PLUGIN_DESCRIPTION_MAX]; char repository[NYA_PLUGIN_URL_MAX]; NYA_PluginPermission permissions; NYA_PluginDependency dependencies[NYA_PLUGIN_DEPENDENCY_MAX]; NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX]; }
 struct NYA_Plugin { NYA_PluginManifest manifest; char directory[NYA_PLUGIN_PATH_MAX]; NYA_PluginPermission permissions; NYA_CryptoSha256Digest content_digest; b8 enabled; u32 error_count; b8 has_frame; b8 has_tick; b8 has_render; void* _state; }  // One loaded plugin.
 
 // macros
@@ -5463,16 +5463,15 @@ What a player has to share with a server to play on it: the build, the baked ass
 // types
 enum NYA_NetContentKind { NYA_NET_CONTENT_BUILD = 0, NYA_NET_CONTENT_ASSETS, NYA_NET_CONTENT_PLUGIN, NYA_NET_CONTENT_KIND_COUNT, }  // In the order a manifest sorts by, so the build is always the first difference named.
 enum NYA_NetContentDifference { NYA_NET_CONTENT_SAME = 0, NYA_NET_CONTENT_MISSING, NYA_NET_CONTENT_EXTRA, NYA_NET_CONTENT_VERSION, NYA_NET_CONTENT_DIGEST, NYA_NET_CONTENT_DIFFERENCE_COUNT, }  // Which way the first differing entry differs, seen from the server.
-struct NYA_NetContentEntry { NYA_NetContentKind kind; char id[NYA_NET_CONTENT_ID_MAX]; char version[NYA_NET_CONTENT_VERSION_MAX]; NYA_CryptoSha256Digest digest; b8 client_only; }
+struct NYA_NetContentEntry { NYA_NetContentKind kind; char id[NYA_NET_CONTENT_ID_MAX]; char version[NYA_NET_CONTENT_VERSION_MAX]; NYA_CryptoSha256Digest digest; }
 struct NYA_NetContentManifest { NYA_NetContentEntry entries[NYA_NET_CONTENT_ENTRY_MAX]; u32 entry_count; }
-struct NYA_NetContentPolicy { b8 allow_client_only; }
 struct NYA_NetContentMismatch { NYA_NetContentDifference difference; NYA_NetContentKind kind; char id[NYA_NET_CONTENT_ID_MAX]; char server_version[NYA_NET_CONTENT_VERSION_MAX]; char client_version[NYA_NET_CONTENT_VERSION_MAX]; }  // The first entry two manifests disagree on, or `difference` NYA_NET_CONTENT_SAME.
 
 // macros
 NYA_NET_CONTENT_ID_MAX NYA_PLUGIN_NAME_MAX  // An entry's id, terminator included: a plugin's name, or the fixed ids below.
 NYA_NET_CONTENT_VERSION_MAX 48  // An entry's version, terminator included.
 NYA_NET_CONTENT_ENTRY_MAX (NYA_PLUGIN_MAX + 2)  // Every plugin that can be loaded, plus the build and the asset bundle.
-NYA_NET_CONTENT_ENCODED_MAX  // The largest encoding: the hash, the count, then per entry kind, flags, two lengths, both strings and a digest.
+NYA_NET_CONTENT_ENCODED_MAX  // The largest encoding: the hash, the count, then per entry its kind, two lengths, both strings and a digest.
 NYA_NET_CONTENT_DESCRIBE_MAX 192  // What nya_net_content_mismatch_describe writes at most, terminator included.
 NYA_NET_CONTENT_ID_BUILD "build"  // The ids of the two entries that are not plugins.
 NYA_NET_CONTENT_ID_ASSETS "assets"
@@ -5483,8 +5482,8 @@ NYA_NET_CONTENT_ASSETS_DISK "disk"
 NYA_Error nya_net_content_add(NYA_NetContentManifest* manifest, NYA_NetContentEntry entry)  // Inserts `entry` in order.
 b8 nya_net_content_remove(NYA_NetContentManifest* manifest, NYA_NetContentKind kind, NYA_ConstCString id)  // Takes the entry of `kind` called `id` out, keeping the rest in order.
 NYA_Error nya_net_content_collect(OUT NYA_NetContentManifest* out_manifest)
-void nya_net_content_hash(const NYA_NetContentManifest* manifest, OUT NYA_CryptoSha256Digest* out_hash)  // SHA-256 over every entry that is not client-only, in order, each field length-prefixed.
-NYA_NetContentMismatch nya_net_content_compare( const NYA_NetContentManifest* server, const NYA_NetContentManifest* client, NYA_NetContentPolicy policy )  // The first entry, in manifest order, on which `server` and `client` disagree under `policy`.
+void nya_net_content_hash(const NYA_NetContentManifest* manifest, OUT NYA_CryptoSha256Digest* out_hash)  // SHA-256 over every entry, in order, each field length-prefixed.
+NYA_NetContentMismatch nya_net_content_compare(const NYA_NetContentManifest* server, const NYA_NetContentManifest* client)  // The first entry, in manifest order, on which `server` and `client` disagree.
 void nya_net_content_encode(NYA_String* out, const NYA_NetContentManifest* manifest)  // Appends the hash, then the entries.
 NYA_Error nya_net_content_decode(const u8* data, u64 size, OUT NYA_NetContentManifest* out_manifest)  // Reads exactly `size` bytes back.
 u64 nya_net_content_mismatch_describe(const NYA_NetContentMismatch* mismatch, OUT char* out, u64 capacity)  // "plugin 'hello' is 0.2.0 on the server and 0.1.0 here", and the like.
@@ -5498,7 +5497,7 @@ typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCS
 typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle entity)  // Called when a player leaves, before their entity is despawned.
 typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant)  // Whether `entity` is worth sending to `peer` this tick.
 typedef void (*NYA_NetServerEventFn)(NYA_NetPeerId peer, const NYA_Object* event)  // Called when a client sends a game-defined event.
-struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u64 action_mask; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; const NYA_NetContentManifest* content; b8 allow_client_only_plugins; u32 lag_history_ticks; }
+struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u64 action_mask; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; const NYA_NetContentManifest* content; u32 lag_history_ticks; }
 struct NYA_NetServerPeer { NYA_NetPeerId peer; char name[NYA_NET_MAX_NAME]; NYA_EntityHandle entity; b8 accepted; b8 is_local; u8 public_key[NYA_NET_KEY_SIZE]; }  // One connected player, as the game sees them.
 
 // macros

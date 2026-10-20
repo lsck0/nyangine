@@ -412,8 +412,6 @@ NYA_INTERNAL void pong_net_start(void) {
         .action_mask      = COMMAND_ACTION_MASK,
         .conditions       = launch->conditions,
         .allowlist        = launch->allowlist,
-        // a player's HUD skin is their own business; anything that touches the court is compared.
-        .allow_client_only_plugins = true,
     }), "while starting the server");
 
     // Listening is the only difference between a lone player and a host. The world does not change.

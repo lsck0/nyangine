@@ -8,7 +8,7 @@
  * Everything in the module:
  *   nya_net_content_collect            this process's manifest: build, asset bundle, every loaded plugin
  *   nya_net_content_add / _remove      one entry, kept in order; what collect, a game and a test build from
- *   nya_net_content_hash               SHA-256 over every entry that is not client-only
+ *   nya_net_content_hash               SHA-256 over every entry
  *   nya_net_content_compare            the first entry a server's and a client's manifest disagree on
  *   nya_net_content_encode / _decode   the wire form that follows HELLO's document
  *   nya_net_content_mismatch_describe  one line for a log or a refusal screen
@@ -17,7 +17,7 @@
  * NYA_NetContentManifest ours = { 0 };
  * NYA_EXPECT(nya_net_content_collect(&ours));
  *
- * NYA_NetContentMismatch why = nya_net_content_compare(&ours, &theirs, (NYA_NetContentPolicy){ .allow_client_only = true });
+ * NYA_NetContentMismatch why = nya_net_content_compare(&ours, &theirs);
  *
  * if (why.difference != NYA_NET_CONTENT_SAME) {
  *     char line[NYA_NET_CONTENT_DESCRIBE_MAX];
@@ -30,10 +30,8 @@
  * say which mod to update sends a player hunting. Ten entries encode to at most NYA_NET_CONTENT_ENCODED_MAX
  * bytes, which UDP fragments like any reliable message.
  *
- * A plugin whose manifest says `client_only` is left out of the hash, and a server started with
- * `allow_client_only_plugins` leaves it out of the comparison on both sides, so a player's HUD skin does not
- * lock them out. A server that does not set it compares every entry, which is the default because the flag is
- * the plugin's own claim.
+ * Every mod is compared, a HUD skin as much as a physics change. Whether a mod only changes what one player sees
+ * could only be the mod's own claim, and a cheat would make it.
  * */
 #pragma once
 
@@ -59,9 +57,9 @@
 /** Every plugin that can be loaded, plus the build and the asset bundle. */
 #define NYA_NET_CONTENT_ENTRY_MAX (NYA_PLUGIN_MAX + 2)
 
-/** The largest encoding: the hash, the count, then per entry kind, flags, two lengths, both strings and a digest. */
+/** The largest encoding: the hash, the count, then per entry its kind, two lengths, both strings and a digest. */
 #define NYA_NET_CONTENT_ENCODED_MAX \
-    (NYA_CRYPTO_SHA256_BYTES + 1 + (NYA_NET_CONTENT_ENTRY_MAX * (4 + (NYA_NET_CONTENT_ID_MAX - 1) + (NYA_NET_CONTENT_VERSION_MAX - 1) + NYA_CRYPTO_SHA256_BYTES)))
+    (NYA_CRYPTO_SHA256_BYTES + 1 + (NYA_NET_CONTENT_ENTRY_MAX * (3 + (NYA_NET_CONTENT_ID_MAX - 1) + (NYA_NET_CONTENT_VERSION_MAX - 1) + NYA_CRYPTO_SHA256_BYTES)))
 
 /** What nya_net_content_mismatch_describe writes at most, terminator included. */
 #define NYA_NET_CONTENT_DESCRIBE_MAX 192
@@ -84,7 +82,6 @@ typedef enum NYA_NetContentKind       NYA_NetContentKind;
 typedef enum NYA_NetContentDifference NYA_NetContentDifference;
 typedef struct NYA_NetContentEntry    NYA_NetContentEntry;
 typedef struct NYA_NetContentManifest NYA_NetContentManifest;
-typedef struct NYA_NetContentPolicy   NYA_NetContentPolicy;
 typedef struct NYA_NetContentMismatch NYA_NetContentMismatch;
 
 /** In the order a manifest sorts by, so the build is always the first difference named. */
@@ -124,19 +121,12 @@ struct NYA_NetContentEntry {
 
     /** Zero for the build, whose version is its identity. */
     NYA_CryptoSha256Digest digest;
-
-    b8 client_only;
 };
 
 /** Sorted by kind, then id, by nya_net_content_add; decode refuses any other order, so two equal sets encode alike. */
 struct NYA_NetContentManifest {
     NYA_NetContentEntry entries[NYA_NET_CONTENT_ENTRY_MAX];
     u32                 entry_count;
-};
-
-struct NYA_NetContentPolicy {
-    /** Leave client-only entries out of the comparison on both sides. */
-    b8 allow_client_only;
 };
 
 /** The first entry two manifests disagree on, or `difference` NYA_NET_CONTENT_SAME. */
@@ -172,19 +162,17 @@ NYA_API b8 nya_net_content_remove(NYA_NetContentManifest* manifest, NYA_NetConte
  * */
 NYA_API NYA_Error nya_net_content_collect(OUT NYA_NetContentManifest* out_manifest) __attr_no_discard;
 
-/** SHA-256 over every entry that is not client-only, in order, each field length-prefixed. */
+/** SHA-256 over every entry, in order, each field length-prefixed. */
 NYA_API void nya_net_content_hash(const NYA_NetContentManifest* manifest, OUT NYA_CryptoSha256Digest* out_hash);
 
-/** The first entry, in manifest order, on which `server` and `client` disagree under `policy`. */
-NYA_API NYA_NetContentMismatch nya_net_content_compare(
-    const NYA_NetContentManifest* server, const NYA_NetContentManifest* client, NYA_NetContentPolicy policy
-) __attr_no_discard;
+/** The first entry, in manifest order, on which `server` and `client` disagree. */
+NYA_API NYA_NetContentMismatch nya_net_content_compare(const NYA_NetContentManifest* server, const NYA_NetContentManifest* client) __attr_no_discard;
 
 /** Appends the hash, then the entries. At most NYA_NET_CONTENT_ENCODED_MAX bytes. */
 NYA_API void nya_net_content_encode(NYA_String* out, const NYA_NetContentManifest* manifest);
 
 /**
- * Reads exactly `size` bytes back. Refuses an unknown kind or flag, an empty or unprintable string, entries out of
+ * Reads exactly `size` bytes back. Refuses an unknown kind, an empty or unprintable string, entries out of
  * order or repeated, trailing bytes, and a hash that is not the hash of the entries it came with.
  * */
 NYA_API NYA_Error nya_net_content_decode(const u8* data, u64 size, OUT NYA_NetContentManifest* out_manifest) __attr_no_discard;

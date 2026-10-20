@@ -1,7 +1,7 @@
 /**
  * Content manifests: replicate_content.h on its own, then over a real UDP handshake. A matching manifest is
  * admitted; a different plugin digest, an extra plugin and a missing one are refused with NYA_NET_DISCONNECT_CONTENT
- * and the entry named; a client-only plugin is ignored when the server allows it. Then the command action mask and
+ * and the entry named, a plugin present only on the client included. Then the command action mask and
  * the game event bound, which a session over the same handshake reaches.
  **/
 
@@ -48,8 +48,8 @@ static NYA_EntityHandle spawn_player(NYA_NetPeerId peer, NYA_ConstCString name) 
 /* FIXTURES */
 
 /** One entry, built the way a caller would. */
-static NYA_NetContentEntry entry_make(NYA_NetContentKind kind, NYA_ConstCString id, NYA_ConstCString version, u8 digest_byte, b8 client_only) {
-    NYA_NetContentEntry entry = { .kind = kind, .client_only = client_only };
+static NYA_NetContentEntry entry_make(NYA_NetContentKind kind, NYA_ConstCString id, NYA_ConstCString version, u8 digest_byte) {
+    NYA_NetContentEntry entry = { .kind = kind };
     (void)snprintf(entry.id, sizeof(entry.id), "%s", id);
     (void)snprintf(entry.version, sizeof(entry.version), "%s", version);
     nya_memset(entry.digest.bytes, digest_byte, sizeof(entry.digest.bytes));
@@ -59,9 +59,9 @@ static NYA_NetContentEntry entry_make(NYA_NetContentKind kind, NYA_ConstCString 
 /** The build, a baked bundle and the `hello` plugin, whose digest is `hello_digest`. */
 static NYA_NetContentManifest manifest_base(u8 hello_digest) {
     NYA_NetContentManifest manifest = { 0 };
-    NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "hello", "0.1.0", hello_digest, false)));
-    NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_ASSETS, NYA_NET_CONTENT_ID_ASSETS, NYA_NET_CONTENT_ASSETS_BAKED, 0xA5, false)));
-    NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_BUILD, NYA_NET_CONTENT_ID_BUILD, "1.0.0+abc", 0x00, false)));
+    NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "hello", "0.1.0", hello_digest)));
+    NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_ASSETS, NYA_NET_CONTENT_ID_ASSETS, NYA_NET_CONTENT_ASSETS_BAKED, 0xA5)));
+    NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_BUILD, NYA_NET_CONTENT_ID_BUILD, "1.0.0+abc", 0x00)));
     return manifest;
 }
 
@@ -95,14 +95,13 @@ static NYA_NetClientState handshake_pump(u64* tick) {
 }
 
 /** A server with `server_content`, a UDP client with `client_content`, and the handshake between them. */
-static NYA_NetClientState session_begin(u64* tick, const NYA_NetContentManifest* server_content, const NYA_NetContentManifest* client_content, b8 allow_client_only) {
+static NYA_NetClientState session_begin(u64* tick, const NYA_NetContentManifest* server_content, const NYA_NetContentManifest* client_content) {
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
-        .replicated_flag           = FLAG_REPLICATED,
-        .on_apply_command          = nya_callback(apply_movement),
-        .on_spawn_player           = nya_callback(spawn_player),
-        .action_mask               = ACTION_MASK,
-        .content                   = server_content,
-        .allow_client_only_plugins = allow_client_only,
+        .replicated_flag  = FLAG_REPLICATED,
+        .on_apply_command = nya_callback(apply_movement),
+        .on_spawn_player  = nya_callback(spawn_player),
+        .action_mask      = ACTION_MASK,
+        .content          = server_content,
     }));
 
     NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
@@ -156,17 +155,17 @@ s32 main(void) {
         nya_assert(manifest.entries[1].kind == NYA_NET_CONTENT_ASSETS);
         nya_assert(manifest.entries[2].kind == NYA_NET_CONTENT_PLUGIN);
 
-        NYA_Error repeated = nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "hello", "9.9.9", 0x22, false));
+        NYA_Error repeated = nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "hello", "9.9.9", 0x22));
         nya_assert(repeated.kind == NYA_ERROR_ALREADY_EXISTS, "a second 'hello' was added");
 
-        NYA_Error unprintable = nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "bad\x1b[2J", "1.0.0", 0x22, false));
+        NYA_Error unprintable = nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "bad\x1b[2J", "1.0.0", 0x22));
         nya_assert(unprintable.kind == NYA_ERROR_INVALID_ARGUMENT, "an id with an escape sequence was added");
 
         nya_assert_eq(manifest.entry_count, 3U);
 
         // add and remove are inverses: what is left equals what was there before.
         NYA_NetContentManifest before = manifest;
-        NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "aimbot", "6.6.6", 0x66, false)));
+        NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "aimbot", "6.6.6", 0x66)));
         nya_assert(nya_net_content_remove(&manifest, NYA_NET_CONTENT_PLUGIN, "aimbot"));
         nya_assert(!nya_net_content_remove(&manifest, NYA_NET_CONTENT_PLUGIN, "aimbot"), "an entry was removed twice");
         nya_assert(nya_memcmp(&manifest, &before, sizeof(before)) == 0, "add then remove changed the manifest");
@@ -179,29 +178,29 @@ s32 main(void) {
         printf("  sorted by kind then id, repeats and escapes refused, and this process collects %u entries\n", collected.entry_count);
     }
 
-    printf("TEST: the hash leaves client-only entries out\n");
+    printf("TEST: the hash covers every entry\n");
     {
-        NYA_NetContentManifest plain    = manifest_base(0x11);
-        NYA_NetContentManifest cosmetic = manifest_base(0x11);
-        NYA_EXPECT(nya_net_content_add(&cosmetic, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33, true)));
+        NYA_NetContentManifest plain = manifest_base(0x11);
+        NYA_NetContentManifest extra = manifest_base(0x11);
+        NYA_EXPECT(nya_net_content_add(&extra, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33)));
 
         NYA_CryptoSha256Digest a = { 0 };
         NYA_CryptoSha256Digest b = { 0 };
         nya_net_content_hash(&plain, &a);
-        nya_net_content_hash(&cosmetic, &b);
-        nya_assert(nya_memcmp(a.bytes, b.bytes, sizeof(a.bytes)) == 0, "a client-only plugin moved the hash");
+        nya_net_content_hash(&extra, &b);
+        nya_assert(nya_memcmp(a.bytes, b.bytes, sizeof(a.bytes)) != 0, "an added plugin left the hash alone");
 
         NYA_NetContentManifest changed = manifest_base(0x12);
         nya_net_content_hash(&changed, &b);
         nya_assert(nya_memcmp(a.bytes, b.bytes, sizeof(a.bytes)) != 0, "a different plugin digest hashed the same");
 
-        printf("  a cosmetic plugin leaves the hash alone, a changed digest does not\n");
+        printf("  an added plugin and a changed digest each move the hash\n");
     }
 
     printf("TEST: encode and decode round trip, and decode refuses what encode never writes\n");
     {
         NYA_NetContentManifest manifest = manifest_base(0x11);
-        NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33, true)));
+        NYA_EXPECT(nya_net_content_add(&manifest, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33)));
 
         NYA_String* encoded = nya_string_create(arena);
         nya_net_content_encode(encoded, &manifest);
@@ -228,45 +227,38 @@ s32 main(void) {
     printf("TEST: the fuzz corpus seeds are manifests, so the fuzzer starts past the hash check\n");
     {
         NYA_String* seed = nya_string_create(arena);
-        NYA_EXPECT(nya_file_read("./tests/fuzz/corpus/net_content/with_cosmetic.bin", seed));
+        NYA_EXPECT(nya_file_read("./tests/fuzz/corpus/net_content/with_two_plugins.bin", seed));
 
         NYA_NetContentManifest decoded = { 0 };
         NYA_EXPECT(nya_net_content_decode(seed->items, seed->length, &decoded));
         nya_assert_eq(decoded.entry_count, 4U);
-        nya_assert(decoded.entries[3].client_only && nya_string_equals(decoded.entries[3].id, "hud_skin"));
+        nya_assert(decoded.entries[3].kind == NYA_NET_CONTENT_PLUGIN && nya_string_equals(decoded.entries[3].id, "hud_skin"));
     }
 
     printf("TEST: compare names the first differing entry\n");
     {
         NYA_NetContentManifest server = manifest_base(0x11);
 
-        NYA_NetContentMismatch same = nya_net_content_compare(&server, &server, (NYA_NetContentPolicy){ 0 });
+        NYA_NetContentMismatch same = nya_net_content_compare(&server, &server);
         nya_assert(same.difference == NYA_NET_CONTENT_SAME);
 
         NYA_NetContentManifest digest = manifest_base(0x12);
-        NYA_NetContentMismatch why    = nya_net_content_compare(&server, &digest, (NYA_NetContentPolicy){ 0 });
+        NYA_NetContentMismatch why    = nya_net_content_compare(&server, &digest);
         nya_assert(why.difference == NYA_NET_CONTENT_DIGEST && nya_string_equals(why.id, "hello"), "a digest change was not named");
 
         NYA_NetContentManifest extra = manifest_base(0x11);
-        NYA_EXPECT(nya_net_content_add(&extra, entry_make(NYA_NET_CONTENT_PLUGIN, "aimbot", "6.6.6", 0x66, false)));
-        why = nya_net_content_compare(&server, &extra, (NYA_NetContentPolicy){ 0 });
+        NYA_EXPECT(nya_net_content_add(&extra, entry_make(NYA_NET_CONTENT_PLUGIN, "aimbot", "6.6.6", 0x66)));
+        why = nya_net_content_compare(&server, &extra);
         nya_assert(why.difference == NYA_NET_CONTENT_EXTRA && nya_string_equals(why.id, "aimbot"), "an extra plugin was not named");
         nya_assert(nya_string_equals(why.client_version, "6.6.6") && why.server_version[0] == '\0');
 
-        why = nya_net_content_compare(&extra, &server, (NYA_NetContentPolicy){ 0 });
+        why = nya_net_content_compare(&extra, &server);
         nya_assert(why.difference == NYA_NET_CONTENT_MISSING && nya_string_equals(why.id, "aimbot"), "a missing plugin was not named");
 
         NYA_NetContentManifest older = { 0 };
-        NYA_EXPECT(nya_net_content_add(&older, entry_make(NYA_NET_CONTENT_BUILD, NYA_NET_CONTENT_ID_BUILD, "0.9.0+old", 0x00, false)));
-        why = nya_net_content_compare(&server, &older, (NYA_NetContentPolicy){ 0 });
+        NYA_EXPECT(nya_net_content_add(&older, entry_make(NYA_NET_CONTENT_BUILD, NYA_NET_CONTENT_ID_BUILD, "0.9.0+old", 0x00)));
+        why = nya_net_content_compare(&server, &older);
         nya_assert(why.difference == NYA_NET_CONTENT_VERSION && why.kind == NYA_NET_CONTENT_BUILD, "the build is named before any plugin");
-
-        NYA_NetContentManifest cosmetic = manifest_base(0x11);
-        NYA_EXPECT(nya_net_content_add(&cosmetic, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33, true)));
-        nya_assert(nya_net_content_compare(&server, &cosmetic, (NYA_NetContentPolicy){ .allow_client_only = true }).difference == NYA_NET_CONTENT_SAME,
-                   "an allowed client-only plugin was counted");
-        nya_assert(nya_net_content_compare(&server, &cosmetic, (NYA_NetContentPolicy){ 0 }).difference == NYA_NET_CONTENT_EXTRA,
-                   "a client-only plugin passed a server that does not allow them");
 
         char line[NYA_NET_CONTENT_DESCRIBE_MAX];
         (void)nya_net_content_mismatch_describe(&why, line, sizeof(line));
@@ -277,7 +269,7 @@ s32 main(void) {
     {
         NYA_NetContentManifest content = manifest_base(0x11);
 
-        NYA_NetClientState state = session_begin(&tick, &content, &content, false);
+        NYA_NetClientState state = session_begin(&tick, &content, &content);
         nya_assert(state == NYA_NET_CLIENT_PLAYING, "a client with the server's content was not admitted");
         nya_assert(nya_net_client_content_mismatch() == nullptr);
 
@@ -289,7 +281,7 @@ s32 main(void) {
         NYA_NetContentManifest server = manifest_base(0x11);
         NYA_NetContentManifest client = manifest_base(0x12);
 
-        NYA_NetClientState state = session_begin(&tick, &server, &client, false);
+        NYA_NetClientState state = session_begin(&tick, &server, &client);
         nya_assert(state == NYA_NET_CLIENT_DISCONNECTED, "a client with a changed plugin was admitted");
         nya_assert_eq(nya_net_server_peer_count(), 0U);
         nya_assert(nya_net_client_disconnect_reason() == NYA_NET_DISCONNECT_CONTENT, "refused for reason %d", (int)nya_net_client_disconnect_reason());
@@ -306,9 +298,9 @@ s32 main(void) {
     {
         NYA_NetContentManifest server = manifest_base(0x11);
         NYA_NetContentManifest client = manifest_base(0x11);
-        NYA_EXPECT(nya_net_content_add(&client, entry_make(NYA_NET_CONTENT_PLUGIN, "aimbot", "6.6.6", 0x66, false)));
+        NYA_EXPECT(nya_net_content_add(&client, entry_make(NYA_NET_CONTENT_PLUGIN, "aimbot", "6.6.6", 0x66)));
 
-        NYA_NetClientState state = session_begin(&tick, &server, &client, true);
+        NYA_NetClientState state = session_begin(&tick, &server, &client);
         nya_assert(state == NYA_NET_CLIENT_DISCONNECTED, "a client with an extra plugin was admitted");
 
         const NYA_NetContentMismatch* why = nya_net_client_content_mismatch();
@@ -317,20 +309,22 @@ s32 main(void) {
         session_end();
     }
 
-    printf("TEST: a client-only plugin is ignored by a server that allows them\n");
+    printf("TEST: a plugin only the client has is refused, however harmless it looks\n");
     {
         NYA_NetContentManifest server = manifest_base(0x11);
         NYA_NetContentManifest client = manifest_base(0x11);
-        NYA_EXPECT(nya_net_content_add(&client, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33, true)));
+        NYA_EXPECT(nya_net_content_add(&client, entry_make(NYA_NET_CONTENT_PLUGIN, "hud_skin", "2.0.0", 0x33)));
 
-        NYA_NetClientState state = session_begin(&tick, &server, &client, true);
-        nya_assert(state == NYA_NET_CLIENT_PLAYING, "a cosmetic plugin kept a client out");
+        NYA_NetContentMismatch compared = nya_net_content_compare(&server, &client);
+        nya_assert(compared.difference == NYA_NET_CONTENT_EXTRA && nya_string_equals(compared.id, "hud_skin"), "compare passed a plugin the server lacks");
 
-        session_end();
+        NYA_NetClientState state = session_begin(&tick, &server, &client);
+        nya_assert(state == NYA_NET_CLIENT_DISCONNECTED, "a client with a plugin the server lacks was admitted");
+        nya_assert_eq(nya_net_server_peer_count(), 0U);
+        nya_assert(nya_net_client_disconnect_reason() == NYA_NET_DISCONNECT_CONTENT, "refused for reason %d", (int)nya_net_client_disconnect_reason());
 
-        state = session_begin(&tick, &server, &client, false);
-        nya_assert(state == NYA_NET_CLIENT_DISCONNECTED, "a strict server admitted a client-only plugin");
-        nya_assert(nya_net_client_content_mismatch() != nullptr && nya_net_client_content_mismatch()->difference == NYA_NET_CONTENT_EXTRA);
+        const NYA_NetContentMismatch* why = nya_net_client_content_mismatch();
+        nya_assert(why != nullptr && why->difference == NYA_NET_CONTENT_EXTRA && nya_string_equals(why->id, "hud_skin"));
 
         session_end();
     }
@@ -339,7 +333,7 @@ s32 main(void) {
     {
         NYA_NetContentManifest content = manifest_base(0x11);
 
-        nya_assert(session_begin(&tick, &content, &content, false) == NYA_NET_CLIENT_PLAYING);
+        nya_assert(session_begin(&tick, &content, &content) == NYA_NET_CLIENT_PLAYING);
 
         NYA_NetPeerId peer = nya_net_client_peer();
 
@@ -375,7 +369,7 @@ s32 main(void) {
     {
         NYA_NetContentManifest content = manifest_base(0x11);
 
-        nya_assert(session_begin(&tick, &content, &content, false) == NYA_NET_CLIENT_PLAYING);
+        nya_assert(session_begin(&tick, &content, &content) == NYA_NET_CLIENT_PLAYING);
 
         NYA_NetPeerId peer = nya_net_client_peer();
 

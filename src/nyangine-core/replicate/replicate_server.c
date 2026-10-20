@@ -970,8 +970,7 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
             return;
         }
 
-        NYA_NetContentPolicy   policy   = { .allow_client_only = _NYA_NET_SERVER.config.allow_client_only_plugins };
-        NYA_NetContentMismatch mismatch = nya_net_content_compare(&_NYA_NET_SERVER.content, &theirs, policy);
+        NYA_NetContentMismatch mismatch = nya_net_content_compare(&_NYA_NET_SERVER.content, &theirs);
 
         if (mismatch.difference != NYA_NET_CONTENT_SAME) {
             char line[NYA_NET_CONTENT_DESCRIBE_MAX];

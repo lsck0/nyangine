@@ -488,7 +488,6 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_PluginManifest_FIELDS[] = {
     { .name = "permissions", .type = &_NYA_REFLECT_NYA_PluginPermission, .offset = nya_offsetof(NYA_PluginManifest, permissions), .hint = NYA_HINT_NONE },
     { .name = "dependencies", .type = &_NYA_REFLECT_NYA_PluginManifest_dependencies_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, dependencies), .hint = NYA_HINT_NONE },
     { .name = "conflicts", .type = &_NYA_REFLECT_NYA_PluginManifest_conflicts_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, conflicts), .hint = NYA_HINT_NONE },
-    { .name = "client_only", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PluginManifest, client_only), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest = {
@@ -497,7 +496,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest = {
     .size = sizeof(NYA_PluginManifest),
     .alignment = alignof(NYA_PluginManifest),
     .fields = _NYA_REFLECT_NYA_PluginManifest_FIELDS,
-    .field_count = 11,
+    .field_count = 10,
 };
 
 /* NYA_SceneVisual, src/nyangine-core/core/core_scene.h */

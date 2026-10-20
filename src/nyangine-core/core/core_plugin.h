@@ -374,13 +374,6 @@ struct NYA_PluginManifest {
 
     /** Plugins this one refuses to run beside, whichever of the two arrives second. */
     NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX];
-
-    /**
-     * Changes only what this player sees or hears, never the simulation. A server that allows client-only plugins
-     * leaves it out of the content a joining player must match; see replicate_content.h. A claim the plugin makes,
-     * so a server that does not trust it keeps the default and compares it like any other.
-     * */
-    b8 client_only;
 };
 
 /**

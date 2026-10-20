@@ -28,15 +28,11 @@ static void fuzz_once(const u8* data, u64 size) {
     NYA_NetContentManifest ours = { 0 };
     NYA_EXPECT(nya_net_content_collect(&ours));
 
-    NYA_NetContentPolicy policies[2] = { { .allow_client_only = false }, { .allow_client_only = true } };
+    NYA_NetContentMismatch mismatch = nya_net_content_compare(&ours, &theirs);
 
-    for (u32 i = 0; i < 2; i++) {
-        NYA_NetContentMismatch mismatch = nya_net_content_compare(&ours, &theirs, policies[i]);
-
-        char line[NYA_NET_CONTENT_DESCRIBE_MAX];
-        u64  written = nya_net_content_mismatch_describe(&mismatch, line, sizeof(line));
-        nya_assert(written < sizeof(line));
-    }
+    char line[NYA_NET_CONTENT_DESCRIBE_MAX];
+    u64  written = nya_net_content_mismatch_describe(&mismatch, line, sizeof(line));
+    nya_assert(written < sizeof(line));
 }
 
 #include "tests/fuzz/fuzz.h"
