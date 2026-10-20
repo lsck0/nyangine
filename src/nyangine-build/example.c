@@ -89,7 +89,7 @@ void example_runner(NYA_ArgCommand* command) {
     NYA_BuildRule* build_example = _example_build_rule(arena, name);
 
 #if !OS_WINDOWS
-    /* The --server shipping build of the example, the artifact a container image copies: release rather than debug (optimized, LTO'd, no sanitizers, no hot-reload entry point), the asset blob baked in (NYA_ASSET_PREFER_BLOB, which is why the dependency is bundle_assets rather than the index alone), dead-code collected, Linux-hardened, and -s stripped. It still links the full project vendors, not the server subset — the example compiles the whole engine graph until the NYA_NO_SDL wall lands; see the deploy README. */
+    /* The --server shipping build of the example, the artifact a container image copies: release rather than debug (optimized, LTO'd, no sanitizers, no hot-reload entry point), the asset blob baked in (NYA_ASSET_PREFER_BLOB, which is why the dependency is bundle_assets rather than the index alone), dead-code collected, Linux-hardened, and -s stripped. It still links the full project vendors, not the server subset — the example compiles the whole engine graph until the NYA_NO_SDL wall lands; see packaging/docker/README.md. */
     NYA_BuildRule build_server_example = {
         .name        = nya_string_to_cstring(arena, build_name),
         .policy      = NYA_BUILD_ALWAYS,
@@ -159,6 +159,9 @@ void example_runner(NYA_ArgCommand* command) {
 
             return;
         }
+
+        // --server built only the headless subset up front, but this link wants the full Linux set and the shaders want shadercross; a clean tree (a container build) has neither. No mingw-w64: Linux only.
+        NYA_EXPECT(nya_vendor_build_all(NYA_VENDORS_LINUX_X86_64), "while building the Linux vendors example '%s' links", name);
 
         // Built, not run: a server image is made from the binary, and running it here would block the build on a process that only stops on a signal.
         NYA_EXPECT(nya_build(&build_server_example), "while building example '%s' to ship", name);
