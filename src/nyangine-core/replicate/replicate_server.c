@@ -171,10 +171,25 @@ NYA_INTERNAL void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_
 NYA_INTERNAL void _nya_net_server_send_snapshots(u64 tick);
 
 /**
- * The subset of `snapshot` that `peer` is entitled to see, in `arena`.
+ * Remote peers from which the radius rule files the snapshot in a spatial hash rather than scanning it per peer.
+ * Filing costs about 3.4 ns an entity and saves about 0.8 ns an entity per peer, so it pays from the fifth peer:
+ * bench_relevance at 2048 entities, 4 peers 8.2 us either way, 32 peers 19 us filed against 65 us scanned.
+ * */
+#define _NYA_NET_SERVER_RELEVANCE_INDEX_PEERS 5
+
+/**
+ * The snapshot's entities in a spatial hash keyed by snapshot index, so each peer's radius filter looks at the cells
+ * around it instead of at every entity. Built once a tick in `arena`, and only when the built-in radius is the rule
+ * and `peer_count` is enough to pay for it: nullptr otherwise, and the filter scans.
+ * */
+NYA_INTERNAL const NYA_SpatialHash3D* _nya_net_server_relevance_index(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, u32 peer_count) __attr_no_discard;
+
+/**
+ * The subset of `snapshot` that `peer` is entitled to see, in `arena`. `index` is the tick's
+ * _nya_net_server_relevance_index over the same snapshot, or nullptr to scan it.
  * */
 NYA_INTERNAL NYA_NetSnapshot _nya_net_server_relevant(
-    NYA_Arena* arena, const NYA_NetSnapshot* snapshot, _NYA_NetServerPeerState* state
+    NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_SpatialHash3D* index, _NYA_NetServerPeerState* state
 ) __attr_no_discard;
 
 /** Tops a peer's bandwidth bucket up for however long has passed, and whether `bytes` fit in it. */
@@ -974,6 +989,8 @@ void _nya_net_server_send_snapshots(u64 tick) {
         _nya_net_server_store(&_NYA_NET_SERVER.history[tick % _NYA_NET_SERVER.config.lag_history_ticks], &snapshot);
     }
 
+    const NYA_SpatialHash3D* relevance_index = _nya_net_server_relevance_index(arena, &snapshot, _NYA_NET_SERVER.remote_peer_count);
+
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
         _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
         if (state == nullptr || !state->public_state.accepted || state->public_state.is_local) continue;
@@ -988,7 +1005,7 @@ void _nya_net_server_send_snapshots(u64 tick) {
         }
 
         // only what this peer may see. a subset of a sorted list stays sorted. see NYA_NetRelevanceFn.
-        NYA_NetSnapshot relevant = _nya_net_server_relevant(arena, &snapshot, state);
+        NYA_NetSnapshot relevant = _nya_net_server_relevant(arena, &snapshot, relevance_index, state);
         relevant.command_tick    = state->applied_command_tick;
 
         NYA_String* payload = nya_string_create(arena);
@@ -1009,10 +1026,129 @@ void _nya_net_server_send_snapshots(u64 tick) {
     }
 }
 
-NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, _NYA_NetServerPeerState* state) {
-    NYA_NetRelevanceFn on_relevance  = nya_callback_get(_NYA_NET_SERVER.config.on_relevance);
-    b8                 has_callback  = on_relevance != nullptr;
-    b8 has_radius   = _NYA_NET_SERVER.config.relevance_radius > 0.0F;
+/** Enter at the radius, leave past the radius plus the band, so an entity on the boundary does not flicker. */
+NYA_INTERNAL f32 _nya_net_server_relevance_leave(void) {
+    f32 band = _NYA_NET_SERVER.config.relevance_hysteresis > 0.0F ? _NYA_NET_SERVER.config.relevance_hysteresis
+                                                                  : _NYA_NET_SERVER.config.relevance_radius * NYA_NET_RELEVANCE_HYSTERESIS;
+
+    return _NYA_NET_SERVER.config.relevance_radius + band;
+}
+
+const NYA_SpatialHash3D* _nya_net_server_relevance_index(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, u32 peer_count) {
+    nya_assert(arena != nullptr && snapshot != nullptr);
+
+    b8 radius_rule = _NYA_NET_SERVER.config.relevance_radius > 0.0F && nya_callback_get(_NYA_NET_SERVER.config.on_relevance) == nullptr;
+    if (!radius_rule || snapshot->entity_count == 0 || peer_count < _NYA_NET_SERVER_RELEVANCE_INDEX_PEERS) return nullptr;
+
+    // a cell as wide as the leave radius, so a peer's query spans at most three a side. A radius past any world, or
+    // a broken band, makes one cell: the scan this replaced, and still correct.
+    f32 leave = _nya_net_server_relevance_leave();
+    f32 cell  = leave < F32_MAX / 2.0F ? leave : F32_MAX / 2.0F;
+
+    NYA_SpatialHash3D* index = nullptr;
+    NYA_EXPECT(nya_spatial_hash3d_create(arena, (NYA_SpatialHashOptions){ .capacity = snapshot->entity_count, .cell_size = cell }, &index));
+
+    NYA_Box3f* points = nya_arena_alloc(arena, (u64)snapshot->entity_count * sizeof(NYA_Box3f));
+    for (u32 i = 0; i < snapshot->entity_count; i++) points[i] = (NYA_Box3f){ .min = snapshot->entities[i].position, .max = snapshot->entities[i].position };
+
+    nya_spatial_hash3d_build(index, points, snapshot->entity_count);
+
+    return index;
+}
+
+/** The snapshot index of `handle`, or the entity count when it is not in the snapshot. Entities are in ascending handle order. */
+NYA_INTERNAL u32 _nya_net_server_snapshot_find(const NYA_NetSnapshot* snapshot, NYA_EntityHandle handle) {
+    u32 low  = 0;
+    u32 high = snapshot->entity_count;
+
+    while (low < high) {
+        u32 middle = low + ((high - low) / 2);
+
+        if (snapshot->entities[middle].handle.index < handle.index) low = middle + 1;
+        else high = middle;
+    }
+
+    if (low < snapshot->entity_count && snapshot->entities[low].handle.index == handle.index
+        && snapshot->entities[low].handle.generation == handle.generation) {
+        return low;
+    }
+
+    return snapshot->entity_count;
+}
+
+/**
+ * The radius rule. Candidates are the entities within the leave radius when the tick has an index, or every entity
+ * when it does not; either way each is held to the same two thresholds, so the two give the same answer.
+ * */
+NYA_INTERNAL NYA_NetSnapshot _nya_net_server_relevant_by_radius(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_SpatialHash3D* index,
+                                                                _NYA_NetServerPeerState* state, const NYA_Entity* peer_entity) {
+    const u32 entity_count = snapshot->entity_count;
+
+    f32 enter         = _NYA_NET_SERVER.config.relevance_radius;
+    f32 leave         = _nya_net_server_relevance_leave();
+    f32 enter_squared = enter * enter;
+    f32 leave_squared = leave * leave;
+
+    // last tick's set decides which threshold applies; this tick's is rebuilt from nothing, so an entity that left
+    // the snapshot does not stay marked for whatever reuses its slot.
+    u8 previous[NYA_ENTITY_MAX / 8];
+    nya_memcpy(previous, state->relevant, sizeof(previous));
+    nya_memset(state->relevant, 0, sizeof(state->relevant));
+
+    u32* candidates = nya_arena_alloc(arena, (u64)entity_count * sizeof(u32));
+    u32  found      = entity_count;
+
+    if (index != nullptr) {
+        found = nya_spatial_hash3d_query_radius(index, (NYA_Spheref){ .center = peer_entity->position, .radius = leave }, candidates, entity_count);
+        nya_assert(found <= entity_count, "a query over %u entities found %u", entity_count, found);
+    } else {
+        for (u32 i = 0; i < entity_count; i++) candidates[i] = i;
+    }
+
+    // kept as a bitmap over snapshot indices, so the result comes out in the snapshot's handle order without a sort.
+    u64  words = ((u64)entity_count + 63) / 64;
+    u64* keep  = nya_arena_alloc(arena, words * sizeof(u64));
+    nya_memset(keep, 0, words * sizeof(u64));
+
+    for (u32 c = 0; c < found; c++) {
+        u32                       i         = candidates[c];
+        const NYA_NetEntityState* candidate = &snapshot->entities[i];
+        u32                       slot      = candidate->handle.index;
+
+        b8 was_relevant = slot < NYA_ENTITY_MAX && (previous[slot / 8] & (u8)(1U << (slot % 8))) != 0;
+
+        f32x3 offset           = candidate->position - peer_entity->position;
+        f32   distance_squared = (offset.x * offset.x) + (offset.y * offset.y) + (offset.z * offset.z);
+
+        if (distance_squared <= (was_relevant ? leave_squared : enter_squared)) keep[i / 64] |= 1ULL << (i % 64);
+    }
+
+    /* The peer's own entity is always relevant. */
+    u32 own = _nya_net_server_snapshot_find(snapshot, state->public_state.entity);
+    if (own < entity_count) keep[own / 64] |= 1ULL << (own % 64);
+
+    NYA_NetEntityState* kept  = nya_arena_alloc(arena, (u64)entity_count * sizeof(NYA_NetEntityState));
+    u32                 count = 0;
+
+    for (u64 w = 0; w < words; w++) {
+        for (u64 bits = keep[w]; bits != 0; bits &= bits - 1) {
+            u32                       i     = (u32)((w * 64) + (u64)__builtin_ctzll(bits));
+            const NYA_NetEntityState* entry = &snapshot->entities[i];
+            u32                       slot  = entry->handle.index;
+
+            if (slot < NYA_ENTITY_MAX) state->relevant[slot / 8] |= (u8)(1U << (slot % 8));
+
+            kept[count++] = *entry;
+        }
+    }
+
+    return (NYA_NetSnapshot){ .tick = snapshot->tick, .entities = kept, .entity_count = count };
+}
+
+NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_SpatialHash3D* index, _NYA_NetServerPeerState* state) {
+    NYA_NetRelevanceFn on_relevance = nya_callback_get(_NYA_NET_SERVER.config.on_relevance);
+    b8                 has_callback = on_relevance != nullptr;
+    b8                 has_radius   = _NYA_NET_SERVER.config.relevance_radius > 0.0F;
 
     // nothing filters, so nothing is copied. the common configuration.
     if (!has_callback && !has_radius) return *snapshot;
@@ -1022,17 +1158,14 @@ NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot
     /* A spectator is sent everything. */
     if (peer_entity == nullptr && !has_callback) return *snapshot;
 
+    if (!has_callback) {
+        if (snapshot->entity_count == 0) return *snapshot;
+
+        return _nya_net_server_relevant_by_radius(arena, snapshot, index, state, peer_entity);
+    }
+
     NYA_NetEntityState* kept  = nya_arena_alloc(arena, (u64)snapshot->entity_count * sizeof(NYA_NetEntityState));
     u32                 count = 0;
-
-    /* Two thresholds: enter at the radius, leave past the radius plus the band. */
-    f32 band = _NYA_NET_SERVER.config.relevance_hysteresis > 0.0F
-                 ? _NYA_NET_SERVER.config.relevance_hysteresis
-                 : _NYA_NET_SERVER.config.relevance_radius * NYA_NET_RELEVANCE_HYSTERESIS;
-
-    f32 enter_squared = _NYA_NET_SERVER.config.relevance_radius * _NYA_NET_SERVER.config.relevance_radius;
-    f32 leave         = _NYA_NET_SERVER.config.relevance_radius + band;
-    f32 leave_squared = leave * leave;
 
     for (u32 i = 0; i < snapshot->entity_count; i++) {
         const NYA_NetEntityState* candidate = &snapshot->entities[i];
@@ -1049,19 +1182,10 @@ NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot
         b8 relevant = true;
 
         if (!is_own) {
-            if (has_callback) {
-                const NYA_Entity* entity = nya_entity_get(candidate->handle);
+            const NYA_Entity* entity = nya_entity_get(candidate->handle);
 
-                // no longer resolves: treated as gone, and its bit cleared so a reused slot does not inherit it.
-                relevant = entity != nullptr && on_relevance(state->public_state.peer, peer_entity, entity, was_relevant);
-            } else {
-                f32x3 offset = candidate->position - peer_entity->position;
-
-                // squared: this runs per entity per peer per tick.
-                f32 distance_squared = (offset.x * offset.x) + (offset.y * offset.y) + (offset.z * offset.z);
-
-                relevant = distance_squared <= (was_relevant ? leave_squared : enter_squared);
-            }
+            // no longer resolves: treated as gone, and its bit cleared so a reused slot does not inherit it.
+            relevant = entity != nullptr && on_relevance(state->public_state.peer, peer_entity, entity, was_relevant);
         }
 
         if (slot < NYA_ENTITY_MAX) {
