@@ -261,7 +261,7 @@ s32 main(void) {
         nya_check(nya_os_socket_send_to(sender, to, &early, 1) == NYA_OS_SOCKET_OK, "expected %s", "nya_os_socket_send_to(sender, to, &early, 1) == NYA_OS_SOCKET_OK");
         nya_check(plan.held_count == 1, "the delayed datagram is held");
         nya_check(nya_os_socket_send_to(sender, to, &late, 1) == NYA_OS_SOCKET_OK, "expected %s", "nya_os_socket_send_to(sender, to, &late, 1) == NYA_OS_SOCKET_OK");
-        nya_os_fault_datagrams_release(&plan);
+        nya_os_fault_datagrams_flush(&plan);
 
         u8  got[4] = { 0 };
         u32 count  = drain_datagrams(receiver, got, nya_carray_length(got));

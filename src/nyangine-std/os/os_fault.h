@@ -10,7 +10,7 @@
  *   nya_os_fault_plan_current            the plan this thread runs under, or null
  *   nya_os_fault_time_advance            moves the simulated clocks forward
  *   nya_os_fault_time_skew_wall          moves the simulated wall clock alone, either way
- *   nya_os_fault_datagrams_release       puts every held datagram on the wire now
+ *   nya_os_fault_datagrams_flush       puts every held datagram on the wire now
  *   nya_os_fault_heal                    zeroes every rule, keeping the clocks and the counters
  *   nya_os_fault_decide                  draws the fault for one call, for a layer above with its own seam
  *
@@ -246,7 +246,7 @@ NYA_API void nya_os_fault_time_advance(NYA_OsFaultPlan* plan, u64 nanoseconds);
 NYA_API void nya_os_fault_time_skew_wall(NYA_OsFaultPlan* plan, s64 nanoseconds);
 
 /** Sends every held datagram now, oldest first, which is how a run heals the network before it checks convergence. */
-NYA_API void nya_os_fault_datagrams_release(NYA_OsFaultPlan* plan);
+NYA_API void nya_os_fault_datagrams_flush(NYA_OsFaultPlan* plan);
 
 /** Zeroes every rule. Clocks, counters, followed descriptors and held datagrams stay. */
 NYA_API void nya_os_fault_heal(NYA_OsFaultPlan* plan);

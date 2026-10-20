@@ -558,7 +558,7 @@ NYA_INTERNAL void _nya_faults_do_udp_converge(NYA_SimulationRun* run) {
     _nya_faults_udp_enter();
     defer _nya_faults_udp_leave();
 
-    nya_os_fault_datagrams_release(&faults->plan);
+    nya_os_fault_datagrams_flush(&faults->plan);
 
     u32 pumps = 0;
     while (pumps < _NYA_FAULTS_UDP_CONVERGE_PUMPS && !(_nya_faults_udp_connected() && faults->udp_received == faults->udp_sent)) {

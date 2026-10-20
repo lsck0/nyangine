@@ -235,7 +235,7 @@ void nya_os_fault_time_skew_wall(NYA_OsFaultPlan* plan, s64 nanoseconds) {
     plan->wall_skew_ns += nanoseconds;
 }
 
-void nya_os_fault_datagrams_release(NYA_OsFaultPlan* plan) {
+void nya_os_fault_datagrams_flush(NYA_OsFaultPlan* plan) {
     if (plan == nullptr) return;
 
     _nya_os_fault_held_release(plan, true);
