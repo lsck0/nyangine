@@ -61,6 +61,13 @@ s32 main(void) {
 
     nya_assert(rule.pre_build_hooks[0] != nullptr);
     nya_assert(rule.post_build_hooks[0] != nullptr);
+
+    // through the stored pointers, so the flags prove the hooks that run are the ones set.
+    rule.pre_build_hooks[0](&rule);
+    rule.post_build_hooks[0](&rule);
+
+    nya_assert(pre_build_called);
+    nya_assert(post_build_called);
   }
 
   // TEST: NYA_BuildRule with dependencies

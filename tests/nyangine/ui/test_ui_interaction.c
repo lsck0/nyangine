@@ -179,6 +179,7 @@ s32 main(void) {
         pointer_button(true);
         input();
         nya_check(state_volume > 0.95F, "dragging to the right end reaches the maximum, got %.3f", (f64)state_volume);
+        nya_check(out_slider, "the pass that moved the value reports the change");
 
         // still held, drag to the far left: it follows to the bottom.
         pointer_move((f32x2){ track.x - 100.0F, track.y + (track.height * 0.5F) });
