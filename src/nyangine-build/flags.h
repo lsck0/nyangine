@@ -103,7 +103,9 @@
 // -Wframe-larger-than: a Windows thread gets 1 MB of stack against Linux's 8, so a frame that fits here can
 // overflow there, and only CI on Windows would say so. A quarter of that stays one frame's share. Unoptimized
 // builds count compound literal temporaries too, so `*big = (T){ 0 }` of a large T is caught; memset it instead.
-#define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wframe-larger-than=262144", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
+// -Wno-psabi: clang 23 warns that math_matrix.c's f128 vectors pass differently without AVX-512. Every object is
+// built with the same flags, so no call crosses the two conventions.
+#define WARNINGS     "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wframe-larger-than=262144", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-psabi"
 /* A rule that compiles with `-c` takes only compile flags: under -Werror clang rejects a linker flag it cannot use. Link only are LINKER_FLAGS, every *_LINK macro, FLAGS_LINUX_X86_64, FLAGS_WINDOWS_X86_64 and the FLAGS_*_WINDOWS_X86_64 and FLAGS_DEBUG_LINUX_X86_64 linker setups. A link repeats the mode flags, since optimisation, LTO, sanitizers and coverage all need them there too, and clang ignores the preprocessor flags among them. */
 
 // Only the project's own paths. Everything a third party dependency needs lives on its
