@@ -23,6 +23,9 @@
 /** Who the simulated requests come from: TEST-NET-1, RFC 5737, which routes nowhere. */
 #define _NYA_SIMULATION_DB_ADDRESS "192.0.2.1"
 
+/** The transfer route: one unsafe request, behind the durable idempotency store, that moves one unit between two balances. */
+#define _NYA_SIMULATION_DB_TRANSFER_PATH "/simulation/transfer"
+
 enum {
     /** Jobs one run enqueues. A drain completes at most this many, so it is also the drain's loop bound. */
     _NYA_SIMULATION_DB_JOB_MAX = 256,
@@ -45,7 +48,30 @@ enum {
 
     /** Retries a job gets. Far past what the faults can burn, so a dead job is a finding and not bad luck. */
     _NYA_SIMULATION_DB_JOB_ATTEMPTS = 64,
+
+    /**
+     * How long a transfer's key is kept: a week of simulated time, past any run, so every retry the audit counts is
+     * one the key still covers. Past the TTL a key is a new request and may apply again; test_idempotency covers that.
+     * */
+    _NYA_SIMULATION_DB_IDEMPOTENCY_TTL_S = 7 * 24 * 3600,
+
+    /** What the first balance starts at, and so what the two always add up to. */
+    _NYA_SIMULATION_DB_BALANCE = 1'000'000,
+
+    /** Transfers one run sends under distinct keys. Every one is audited, so this bounds the audit's queries too. */
+    _NYA_SIMULATION_DB_TRANSFER_MAX = 256,
+
+    /** Bytes of a transfer's key and of the answer it got, terminator included. */
+    _NYA_SIMULATION_DB_TRANSFER_KEY_MAX    = 32,
+    _NYA_SIMULATION_DB_TRANSFER_ANSWER_MAX = 64,
 };
+
+/** One transfer the run sent, and the answer it was acknowledged with, if it was. */
+typedef struct {
+    char key[_NYA_SIMULATION_DB_TRANSFER_KEY_MAX];
+    b8   acknowledged;
+    char answer[_NYA_SIMULATION_DB_TRANSFER_ANSWER_MAX];
+} _NYA_SimulationDbTransfer;
 
 /** The seal secret the accounts routes demand. The ASCII of what it is, since nothing is ever sealed with it that matters. */
 NYA_INTERNAL const u8 _NYA_SIMULATION_DB_SECRET[] = "simulation seal secret, not real";
@@ -83,6 +109,9 @@ typedef struct {
 
     u8               body[NYA_HTTP_MAX_RESPONSE_BYTES];
     NYA_HttpResponse response;
+
+    _NYA_SimulationDbTransfer transfers[_NYA_SIMULATION_DB_TRANSFER_MAX];
+    u32                       transfer_count;
 } _NYA_SimulationDb;
 
 NYA_INTERNAL _NYA_SimulationDb _NYA_SIMULATION_DB = { 0 };
@@ -129,12 +158,67 @@ NYA_INTERNAL NYA_Error _nya_simulation_db_row_write(NYA_SimulationRun* run) {
     return nya_sql_exec_bound(_NYA_SIMULATION_DB.database, "INSERT INTO simulated_rows (step) VALUES (?)", step, 1);
 }
 
+/** Moves one unit from the first balance to the second and records the key it moved under, all or nothing. */
+NYA_INTERNAL NYA_HttpStatus _nya_simulation_db_transfer(NYA_HttpExchange* exchange) {
+    NYA_Database*    database = _NYA_SIMULATION_DB.database;
+    NYA_ConstCString key      = nya_http_request_header(exchange->request, "idempotency-key");
+    if (key == nullptr) return nya_http_response_problem(exchange, NYA_HTTP_STATUS_BAD_REQUEST, "a transfer needs an Idempotency-Key");
+
+    // a savepoint rather than BEGIN, so it nests inside the idempotency store's and stands alone without it.
+    NYA_SqlValue recorded[] = { nya_sql_text(key) };
+    b8           applied    = nya_sql_exec(database, "SAVEPOINT simulated_transfer").ok;
+    applied = applied && nya_sql_exec(database, "UPDATE simulated_balances SET balance = balance - 1 WHERE id = 1").ok;
+    applied = applied && nya_sql_exec(database, "UPDATE simulated_balances SET balance = balance + 1 WHERE id = 2").ok;
+    applied = applied && nya_sql_exec_bound(database, "INSERT INTO simulated_transfers (idempotency_key) VALUES (?)", recorded, 1).ok;
+    applied = applied && nya_sql_exec(database, "RELEASE simulated_transfer").ok;
+
+    if (!applied) {
+        (void)nya_sql_exec(database, "ROLLBACK TO simulated_transfer");
+        (void)nya_sql_exec(database, "RELEASE simulated_transfer");
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the transfer could not be written");
+    }
+
+    char answer[_NYA_SIMULATION_DB_TRANSFER_ANSWER_MAX] = { 0 };
+    (void)snprintf(answer, sizeof(answer), "transferred %s", key);
+
+    NYA_Error written = nya_http_response_text(exchange->response, answer, NYA_HTTP_MEDIA_TEXT);
+    if (!written.ok) return nya_http_response_error(exchange, written);
+
+    return NYA_HTTP_STATUS_CREATED;
+}
+
+NYA_INTERNAL const NYA_HttpRoute _NYA_SIMULATION_DB_TRANSFER_ROUTES[] = {
+    {
+     .method   = NYA_HTTP_METHOD_POST,
+     .path     = _NYA_SIMULATION_DB_TRANSFER_PATH,
+     .auth     = NYA_HTTP_AUTH_NONE,
+     .handler  = _nya_simulation_db_transfer,
+     .summary  = "Moves one unit between two balances, once per Idempotency-Key",
+     .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_INTERNAL_ERROR,
+                     NYA_HTTP_STATUS_SERVICE_UNAVAILABLE },
+     },
+};
+
+NYA_INTERNAL const NYA_HttpRouter _NYA_SIMULATION_DB_TRANSFER_ROUTER = {
+    .name        = "simulation_transfer",
+    .routes      = _NYA_SIMULATION_DB_TRANSFER_ROUTES,
+    .route_count = nya_carray_length(_NYA_SIMULATION_DB_TRANSFER_ROUTES),
+};
+
 /** Opens the file, the queue and the accounts routes over it. The first open also makes the account and its session. */
 NYA_INTERNAL NYA_Error _nya_simulation_db_open(void) {
     _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
 
     NYA_TRY(nya_sql_open(db->connection, db->path, &db->database, .vfs = NYA_DB_FAULT_VFS));
     NYA_TRY(nya_sql_exec(db->database, "CREATE TABLE IF NOT EXISTS simulated_rows (id INTEGER PRIMARY KEY, step INTEGER NOT NULL)"));
+    NYA_TRY(nya_sql_exec(db->database, "CREATE TABLE IF NOT EXISTS simulated_balances (id INTEGER PRIMARY KEY, balance INTEGER NOT NULL)"));
+    NYA_TRY(nya_sql_exec(db->database, "CREATE TABLE IF NOT EXISTS simulated_transfers (id INTEGER PRIMARY KEY, idempotency_key TEXT NOT NULL)"));
+
+    NYA_SqlValue opening[] = { nya_sql_s64(_NYA_SIMULATION_DB_BALANCE) };
+    NYA_TRY(nya_sql_exec_bound(db->database, "INSERT OR IGNORE INTO simulated_balances (id, balance) VALUES (1, ?), (2, 0)", opening, 1));
+
+    // the store's memory is the process's, so every open is a restart that starts it empty and finds the rows it left.
+    NYA_TRY(nya_http_idempotency_init(db->connection, .ttl_s = _NYA_SIMULATION_DB_IDEMPOTENCY_TTL_S, .database = db->database));
 
     NYA_TRY(nya_jobs_open(
         db->connection,
@@ -173,6 +257,8 @@ NYA_INTERNAL NYA_Error _nya_simulation_db_open(void) {
 NYA_INTERNAL void _nya_simulation_db_close(void) {
     _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
 
+    // what a dying process takes with it: every key the store held in memory.
+    nya_http_idempotency_deinit();
     nya_http_accounts_close();
     nya_accounts_close();
     nya_jobs_close(db->queue);
@@ -215,11 +301,163 @@ NYA_INTERNAL NYA_HttpStatus _nya_simulation_db_get(NYA_ConstCString target) {
     return nya_http_router_dispatch(&exchange, routers, nya_carray_length(routers), nullptr, 0);
 }
 
+/** One POST to the transfer route under `key`, through the idempotency layer, in process. The status; the answer's text in `out_answer`. */
+NYA_INTERNAL NYA_HttpStatus _nya_simulation_db_transfer_post(NYA_ConstCString key, OUT char* out_answer, u64 capacity) {
+    _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
+
+    NYA_HttpRequest request = { .method = NYA_HTTP_METHOD_POST, .keep_alive = true, .media_type = NYA_HTTP_MEDIA_TEXT };
+
+    NYA_UrlFailure failure = { 0 };
+    NYA_EXPECT(nya_url_parse_target(_NYA_SIMULATION_DB_TRANSFER_PATH, strlen(_NYA_SIMULATION_DB_TRANSFER_PATH), &request.target, &failure), "while building a transfer");
+    (void)snprintf(request.path, sizeof(request.path), "%s", _NYA_SIMULATION_DB_TRANSFER_PATH);
+
+    NYA_HttpHeader* header = &request.headers[request.header_count++];
+    (void)snprintf(header->name, sizeof(header->name), "idempotency-key");
+    (void)snprintf(header->value, sizeof(header->value), "%s", key);
+
+    request.body_size = (u64)snprintf((char*)request.body, sizeof(request.body), "one unit");
+
+    const NYA_HttpRouter* routers[] = { &_NYA_SIMULATION_DB_TRANSFER_ROUTER };
+    const NYA_HttpLayerFn layers[]  = { nya_http_layer_idempotency };
+
+    NYA_HttpExchange exchange = {
+        .request  = &request,
+        .response = &db->response,
+        .arena    = db->scratch,
+        .now_s    = (u64)(nya_instant_now().ns / NYA_NS_PER_SECOND),
+        .address  = _NYA_SIMULATION_DB_ADDRESS,
+    };
+
+    nya_http_response_reset(&db->response);
+
+    NYA_HttpStatus status = nya_http_router_dispatch(&exchange, routers, nya_carray_length(routers), layers, nya_carray_length(layers));
+
+    (void)snprintf(out_answer, capacity, "%.*s", (int)db->response.body_size, (const char*)db->response.body);
+    return status;
+}
+
+/** Sends a fresh transfer and records it. The record, or null once the run has sent as many as it audits. */
+NYA_INTERNAL _NYA_SimulationDbTransfer* _nya_simulation_db_transfer_new(NYA_SimulationRun* run, OUT NYA_HttpStatus* out_status) {
+    _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
+    if (db->transfer_count >= _NYA_SIMULATION_DB_TRANSFER_MAX) return nullptr;
+
+    _NYA_SimulationDbTransfer* transfer = &db->transfers[db->transfer_count++];
+    *transfer                           = (_NYA_SimulationDbTransfer){ 0 };
+    (void)snprintf(transfer->key, sizeof(transfer->key), "transfer-%llu", (unsigned long long)run->step);
+
+    char answer[_NYA_SIMULATION_DB_TRANSFER_ANSWER_MAX] = { 0 };
+    *out_status                                         = _nya_simulation_db_transfer_post(transfer->key, answer, sizeof(answer));
+
+    if (*out_status == NYA_HTTP_STATUS_CREATED) {
+        transfer->acknowledged = true;
+        (void)snprintf(transfer->answer, sizeof(transfer->answer), "%s", answer);
+    }
+
+    nya_simulation_trace(run, (u64)*out_status);
+    return transfer;
+}
+
+/** Retries `transfer` under its key. Acknowledged, it must answer what it did the first time; not yet, it may run now. */
+NYA_INTERNAL void _nya_simulation_db_transfer_retry(NYA_SimulationRun* run, _NYA_SimulationDbTransfer* transfer, b8 healthy) {
+    char           answer[_NYA_SIMULATION_DB_TRANSFER_ANSWER_MAX] = { 0 };
+    NYA_HttpStatus status                                          = _nya_simulation_db_transfer_post(transfer->key, answer, sizeof(answer));
+
+    nya_simulation_trace(run, (u64)status);
+
+    if (transfer->acknowledged) {
+        // a lying disk may refuse to read the stored answer, but never answer anything else.
+        if (status == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE && !healthy) return;
+
+        if (status != NYA_HTTP_STATUS_CREATED || strcmp(answer, transfer->answer) != 0) {
+            nya_simulation_fail(run, "a retry of acknowledged %s answered %d '%s' where it was first answered '%s'", transfer->key, (s32)status, answer, transfer->answer);
+        }
+        return;
+    }
+
+    if (status == NYA_HTTP_STATUS_CREATED) {
+        transfer->acknowledged = true;
+        (void)snprintf(transfer->answer, sizeof(transfer->answer), "%s", answer);
+        return;
+    }
+
+    if (healthy) nya_simulation_fail(run, "a retry of unacknowledged %s answered %d on a healthy disk", transfer->key, (s32)status);
+}
+
+/** Every unit is somewhere, every transfer applied once, and every acknowledged one applied. Reads only; a healthy disk only. */
+NYA_INTERNAL void _nya_simulation_db_transfer_audit(NYA_SimulationRun* run) {
+    _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
+    nya_arena_free_all(db->scratch);
+
+    NYA_SqlResult balances = { 0 };
+    NYA_SqlResult applied  = { 0 };
+    NYA_SqlResult twice    = { 0 };
+
+    b8 read = nya_sql_query(db->database, db->scratch, "SELECT SUM(balance) AS total, MAX(CASE WHEN id = 2 THEN balance END) AS moved FROM simulated_balances", nullptr, 0, &balances).ok
+           && nya_sql_query(db->database, db->scratch, "SELECT COUNT(*) AS n FROM simulated_transfers", nullptr, 0, &applied).ok
+           && nya_sql_query(db->database, db->scratch, "SELECT idempotency_key AS k FROM simulated_transfers GROUP BY idempotency_key HAVING COUNT(*) > 1", nullptr, 0, &twice).ok;
+
+    if (!read) {
+        nya_simulation_fail(run, "the transfer audit could not read a healthy disk");
+        return;
+    }
+
+    s64 total = nya_object_get(balances.rows->items[0], "total")->as_s64;
+    s64 moved = nya_object_get(balances.rows->items[0], "moved")->as_s64;
+    s64 count = nya_object_get(applied.rows->items[0], "n")->as_s64;
+
+    nya_simulation_trace(run, (u64)count);
+
+    if (total != _NYA_SIMULATION_DB_BALANCE) nya_simulation_fail(run, "the balances add up to %lld, not %d: a transfer was half applied", (long long)total, _NYA_SIMULATION_DB_BALANCE);
+    if (moved != count) nya_simulation_fail(run, "%lld units moved under %lld recorded transfers", (long long)moved, (long long)count);
+
+    if (twice.rows->length > 0) {
+        NYA_Value* key = nya_object_get(twice.rows->items[0], "k");
+        nya_simulation_fail(run, "transfer %s was applied more than once, under one Idempotency-Key", key != nullptr && key->type == NYA_TYPE_STRING ? key->as_string : "?");
+    }
+
+    for (u32 i = 0; i < db->transfer_count; i++) {
+        if (!db->transfers[i].acknowledged) continue;
+
+        NYA_SqlValue  key[] = { nya_sql_text(db->transfers[i].key) };
+        NYA_SqlResult found = { 0 };
+        if (!nya_sql_query(db->database, db->scratch, "SELECT COUNT(*) AS n FROM simulated_transfers WHERE idempotency_key = ?", key, 1, &found).ok) return;
+
+        s64 rows = nya_object_get(found.rows->items[0], "n")->as_s64;
+        if (rows != 1) nya_simulation_fail(run, "acknowledged transfer %s is on disk %lld times", db->transfers[i].key, (long long)rows);
+    }
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ACTIONS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+NYA_INTERNAL void _nya_simulation_db_do_transfer(NYA_SimulationRun* run) {
+    b8 healthy = _nya_simulation_db_healthy();
+    nya_arena_free_all(_NYA_SIMULATION_DB.scratch);
+
+    NYA_HttpStatus             status   = NYA_HTTP_STATUS_NONE;
+    _NYA_SimulationDbTransfer* transfer = _nya_simulation_db_transfer_new(run, &status);
+
+    if (transfer != nullptr && healthy && status != NYA_HTTP_STATUS_CREATED) nya_simulation_fail(run, "a transfer answered %d on a healthy disk", (s32)status);
+}
+
+NYA_INTERNAL void _nya_simulation_db_do_transfer_retry(NYA_SimulationRun* run) {
+    _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
+    if (db->transfer_count == 0) return;
+
+    b8 healthy = _nya_simulation_db_healthy();
+    nya_arena_free_all(db->scratch);
+
+    _nya_simulation_db_transfer_retry(run, &db->transfers[nya_simulation_below(run, db->transfer_count)], healthy);
+}
+
+NYA_INTERNAL void _nya_simulation_db_do_transfer_audit(NYA_SimulationRun* run) {
+    if (!_nya_simulation_db_healthy()) return;
+
+    _nya_simulation_db_transfer_audit(run);
+}
 
 NYA_INTERNAL void _nya_simulation_db_do_write(NYA_SimulationRun* run) {
     b8 healthy = _nya_simulation_db_healthy();
@@ -436,6 +674,42 @@ NYA_INTERNAL void _nya_simulation_db_fault_power_loss(NYA_SimulationRun* run) {
     if (committed && !cut && after != before + rows) nya_simulation_fail(run, "a commit the power cut never reached is gone");
 }
 
+NYA_INTERNAL void _nya_simulation_db_fault_kill_transfer(NYA_SimulationRun* run) {
+    _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
+    if (db->transfer_count >= _NYA_SIMULATION_DB_TRANSFER_MAX) return;
+
+    _nya_simulation_db_fault_heal(run);
+    nya_arena_free_all(db->scratch);
+
+    // the web stack dies anywhere in one transfer: before its write, between its pages, after its commit and before the answer.
+    nya_db_fault_arm(.kind = NYA_DB_FAULT_POWER_LOSS, .after = (u32)nya_simulation_below(run, _NYA_SIMULATION_DB_CRASH_AFTER_MAX));
+
+    u64                        hits     = nya_db_fault_hits();
+    NYA_HttpStatus             status   = NYA_HTTP_STATUS_NONE;
+    _NYA_SimulationDbTransfer* transfer = _nya_simulation_db_transfer_new(run, &status);
+
+    // an answer sent after the power went is one a dead process never sent, so the client heard nothing.
+    if (transfer != nullptr && nya_db_fault_hits() != hits) transfer->acknowledged = false;
+
+    // the restart: the connection, the queue, the accounts routes and every key the idempotency store held in memory.
+    _nya_simulation_db_close();
+    nya_db_fault_disarm_all();
+
+    NYA_Error reopened = _nya_simulation_db_open();
+    if (!reopened.ok) {
+        nya_simulation_fail(run, "the web stack did not come back after a kill mid transfer: %s", reopened.message);
+        return;
+    }
+
+    _nya_simulation_db_transfer_audit(run);
+
+    // the client heard nothing, or heard the answer just before the kill; either way it retries under the same key.
+    nya_arena_free_all(db->scratch);
+    if (transfer != nullptr) _nya_simulation_db_transfer_retry(run, transfer, true);
+
+    _nya_simulation_db_transfer_audit(run);
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * INVARIANTS
@@ -488,6 +762,10 @@ NYA_INTERNAL void _nya_simulation_db_add(NYA_SimulationRun* run) {
     nya_simulation_fault_add(run, "fault_db_arm", 5, _nya_simulation_db_fault_arm);
     nya_simulation_fault_add(run, "fault_db_heal", 5, _nya_simulation_db_fault_heal);
     nya_simulation_fault_add(run, "fault_db_power_loss", 2, _nya_simulation_db_fault_power_loss);
+    nya_simulation_action_add(run, "db_transfer", 6, _nya_simulation_db_do_transfer);
+    nya_simulation_action_add(run, "db_transfer_retry", 4, _nya_simulation_db_do_transfer_retry);
+    nya_simulation_action_add(run, "db_transfer_audit", 2, _nya_simulation_db_do_transfer_audit);
+    nya_simulation_fault_add(run, "fault_db_kill_transfer", 2, _nya_simulation_db_fault_kill_transfer);
 
     nya_simulation_check_add(run, "db_ready", _nya_simulation_db_check_ready);
 }

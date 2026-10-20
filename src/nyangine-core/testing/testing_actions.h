@@ -24,20 +24,24 @@
  * Frame: one simulated tick through the real update order, the spatial index rebuild, the queries.
  * Storage: write, read back and delete a save file.
  * Database, with the db module and a save root: a real file through db_fault.h's VFS, rows written
- * and read, jobs enqueued, worked and drained, and GET /api/session and /readyz through the router.
+ * and read, jobs enqueued, worked and drained, GET /api/session and /readyz through the router, and
+ * transfers POSTed under an Idempotency-Key through the durable idempotency store, then retried.
  * Reflection: fill a described type with shaped data and round trip it through an object.
  *
  * Faults: a save file with a flipped byte, a save file cut off mid-write, a save file that vanished,
  * a clock that jumped forward, and a world destroyed and rebuilt at an arbitrary point, which is the
  * crash-only restart path taken at a moment nobody chose. On the database: a fault armed on the
- * VFS, the disk healed, and a power cut anywhere in a commit followed by a restart.
+ * VFS, the disk healed, a power cut anywhere in a commit followed by a restart, and the web stack
+ * killed mid transfer and restarted with every key it held in memory gone.
  *
  * Invariants: the entity count agrees with the live slots, every live handle resolves to itself, each
  * solver's body count agrees with the entities carrying a body, nothing is its own ancestor, a radius
  * query returns exactly what a linear scan does, and the simulated clock never goes backwards. On the
  * database: a healthy disk answers every call, a lying one gets 503 and never 500 or 401, /readyz
  * says down while no read reaches the file, every job finishes once the disk heals, and a power cut
- * leaves a file that passes integrity_check with each transaction whole or absent.
+ * leaves a file that passes integrity_check with each transaction whole or absent; across kills the
+ * balances always add up, no key is applied twice, every acknowledged transfer is on disk once, and a
+ * retry of one answers exactly what it was first answered.
  *
  * ## Why a singleton
  *
