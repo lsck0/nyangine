@@ -1,3 +1,4 @@
+#include "nyangine-std/os/os_fault.h"
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -30,7 +31,7 @@ void* nya_os_page_reserve(u64 size) {
     return address == MAP_FAILED ? nullptr : address;
 }
 
-b8 nya_os_page_commit(void* address, u64 size) {
+NYA_OS_SYSCALL_LINKAGE b8 NYA_OS_SYSCALL(nya_os_page_commit)(void* address, u64 size) {
     if (address == nullptr) return false;
 
     u64 page  = nya_os_page_size();

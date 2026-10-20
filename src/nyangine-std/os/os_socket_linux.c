@@ -1,3 +1,4 @@
+#include "nyangine-std/os/os_fault.h"
 #include "nyangine-std/os/os_socket.h"
 
 // After the engine's own header: base_basic.h asks for POSIX 2008, and these declare what it wants only once they have seen that.
@@ -72,6 +73,14 @@ NYA_INTERNAL b8 _nya_os_socket_prepare(s32 descriptor) {
 
     return true;
 }
+
+#if NYA_OS_FAULT_ENABLED
+/** The reset fault's half that is a syscall: both directions shut, so every later call and the peer see the connection gone. */
+NYA_INTERNAL void _nya_os_socket_break(NYA_OsSocket socket) {
+    s32 descriptor = _nya_os_socket_fd(socket);
+    if (descriptor >= 0) (void)shutdown(descriptor, SHUT_RDWR);
+}
+#endif
 
 /** The engine's address as the host's, which is where the two families stop being one type. */
 NYA_INTERNAL u64 _nya_os_address_to_host(NYA_OsAddress address, OUT struct sockaddr_storage* out_storage) {
@@ -264,7 +273,7 @@ NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backl
     return nya_os_socket_open_at(kind, (NYA_OsAddress){ .port = port }, backlog, out_socket);
 }
 
-NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, NYA_OsSocket* out_socket) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_open_at)(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, NYA_OsSocket* out_socket) {
     *out_socket = NYA_OS_SOCKET_NONE;
 
     if (kind >= NYA_OS_SOCKET_KIND_COUNT) return NYA_OS_SOCKET_FAILED;
@@ -289,7 +298,7 @@ NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress ad
     return NYA_OS_SOCKET_OK;
 }
 
-NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, NYA_OsSocket* out_socket, NYA_OsAddress* out_from) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_accept)(NYA_OsSocket listener, NYA_OsSocket* out_socket, NYA_OsAddress* out_from) {
     *out_socket = NYA_OS_SOCKET_NONE;
     memset(out_from, 0, sizeof(NYA_OsAddress));
 
@@ -315,7 +324,7 @@ NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, NYA_OsSocket* out
     return NYA_OS_SOCKET_OK;
 }
 
-NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, NYA_OsSocket* out_socket) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_connect)(NYA_OsAddress address, NYA_OsSocket* out_socket) {
     *out_socket = NYA_OS_SOCKET_NONE;
 
     if (address.kind == NYA_OS_ADDRESS_NONE) return NYA_OS_SOCKET_UNREACHABLE;
@@ -345,7 +354,7 @@ NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, NYA_OsSocket* ou
     return status;
 }
 
-void nya_os_socket_close(NYA_OsSocket socket) {
+NYA_OS_SYSCALL_LINKAGE void NYA_OS_SYSCALL(nya_os_socket_close)(NYA_OsSocket socket) {
     s32 descriptor = _nya_os_socket_fd(socket);
 
     if (descriptor < 0) return;
@@ -363,7 +372,7 @@ void nya_os_socket_close_send(NYA_OsSocket socket) {
 
 // MOVING BYTES
 
-NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_send_to)(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size) {
     s32 descriptor = _nya_os_socket_fd(socket);
     if (descriptor < 0) return NYA_OS_SOCKET_FAILED;
 
@@ -380,7 +389,7 @@ NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, 
     return (u64)sent == size ? NYA_OS_SOCKET_OK : NYA_OS_SOCKET_FAILED;
 }
 
-NYA_OsSocketStatus nya_os_socket_receive_from(NYA_OsSocket socket, u8* out_data, u64 capacity, u64* out_size, NYA_OsAddress* out_from) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_receive_from)(NYA_OsSocket socket, u8* out_data, u64 capacity, u64* out_size, NYA_OsAddress* out_from) {
     *out_size = 0;
     memset(out_from, 0, sizeof(NYA_OsAddress));
 
@@ -401,7 +410,7 @@ NYA_OsSocketStatus nya_os_socket_receive_from(NYA_OsSocket socket, u8* out_data,
     return NYA_OS_SOCKET_OK;
 }
 
-NYA_OsSocketStatus nya_os_socket_send(NYA_OsSocket socket, const u8* data, u64 size, u64* out_sent) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_send)(NYA_OsSocket socket, const u8* data, u64 size, u64* out_sent) {
     *out_sent = 0;
 
     s32 descriptor = _nya_os_socket_fd(socket);
@@ -417,7 +426,7 @@ NYA_OsSocketStatus nya_os_socket_send(NYA_OsSocket socket, const u8* data, u64 s
     return NYA_OS_SOCKET_OK;
 }
 
-NYA_OsSocketStatus nya_os_socket_receive(NYA_OsSocket socket, u8* out_data, u64 capacity, u64* out_read) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsSocketStatus NYA_OS_SYSCALL(nya_os_socket_receive)(NYA_OsSocket socket, u8* out_data, u64 capacity, u64* out_read) {
     *out_read = 0;
 
     s32 descriptor = _nya_os_socket_fd(socket);

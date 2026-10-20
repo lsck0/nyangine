@@ -8001,13 +8001,47 @@ b8 nya_web_storage_delete(NYA_ConstCString key)  // Removes `key` from the store
 
 The syscalls themselves: files, pages, the two clocks, random bytes, processes.
 
+### os_fault.h
+
+The syscall funnel's lie detector, run backwards: a seeded plan that makes the calls in os_file.h,
+
+```c
+// types
+enum NYA_OsFaultOp { NYA_OS_FAULT_FILE_OPEN, NYA_OS_FAULT_FILE_READ, NYA_OS_FAULT_FILE_WRITE, NYA_OS_FAULT_FILE_SYNC, NYA_OS_FAULT_FILE_RENAME, NYA_OS_FAULT_SOCKET_ACCEPT, NYA_OS_FAULT_SOCKET_CONNECT, NYA_OS_FAULT_SOCKET_SEND, NYA_OS_FAULT_SOCKET_RECEIVE, NYA_OS_FAULT_SOCKET_SEND_TO, NYA_OS_FAULT_SOCKET_RECEIVE_FROM, NYA_OS_FAULT_RANDOM, NYA_OS_FAULT_PAGE_COMMIT, NYA_OS_FAULT_ALLOCATION, NYA_OS_FAULT_OP_COUNT, }  // One class of call a rule governs.
+enum NYA_OsFaultKind { NYA_OS_FAULT_NONE, NYA_OS_FAULT_IO, NYA_OS_FAULT_NO_SPACE, NYA_OS_FAULT_SHORT, NYA_OS_FAULT_FLIP, NYA_OS_FAULT_WOULD_BLOCK, NYA_OS_FAULT_RESET, NYA_OS_FAULT_REFUSED, NYA_OS_FAULT_FAIL, NYA_OS_FAULT_DROP, NYA_OS_FAULT_DUPLICATE, NYA_OS_FAULT_DELAY, NYA_OS_FAULT_KIND_COUNT, }  // What a faulted call does instead.
+struct NYA_OsFaultRule { u32 probability_ppm; u32 kinds; u64 fail_call; NYA_OsFaultKind fail_kind; }  // How one operation misbehaves.
+struct NYA_OsFaultPlan { u64 seed; NYA_OsFaultRule rules[NYA_OS_FAULT_OP_COUNT]; const char* path_prefix; u32 sockets; b8 time_simulated; u64 monotonic_ns; u64 read_step_ns; s64 wall_skew_ns; b8 random_seeded; u64 calls[NYA_OS_FAULT_OP_COUNT]; u64 injected[NYA_OS_FAULT_OP_COUNT]; u64 digest; u64 random_draws; u64 files[NYA_OS_FAULT_DESCRIPTOR_MAX / 64]; u64 sockets_followed[NYA_OS_FAULT_DESCRIPTOR_MAX / 64]; u32 held_count; }  // Everything a run tells the interposer, and everything the interposer tells it back.
+
+// macros
+NYA_OS_FAULT_ENABLED 1
+NYA_OS_SYSCALL(name)  // The name a syscall's real body is defined under.
+NYA_OS_SYSCALL_LINKAGE NYA_INTERNAL
+NYA_OS_FAULT_PPM 1'000'000U  // Parts per million, which is what a rule's probability is out of.
+NYA_OS_FAULT_DESCRIPTOR_MAX 4096  // Descriptors a plan follows.
+NYA_OS_FAULT_HELD_MAX 16  // Datagrams the delay fault holds at once.
+NYA_OS_FAULT_DATAGRAM_MAX 2048  // Longest datagram the delay and flip faults copy.
+NYA_OS_FAULT_HOLD_CALLS_MAX 8  // Most later datagram calls a held one waits before it is released.
+NYA_OS_FAULT_WALL_ORIGIN_NS (946'684'800ULL * 1'000'000'000ULL)  // Where the simulated wall clock starts: 2000-01-01T00:00:00Z, the simulation's own origin.
+NYA_OS_FAULT_MONOTONIC_ORIGIN_NS (1'000ULL * 1'000'000'000ULL)  // Where the simulated monotonic clock starts.
+
+// functions
+b8 nya_os_fault_plan_attach(NYA_OsFaultPlan* plan)  // Installs `plan` on this thread, replacing none: attaching over an attached plan is refused with false.
+void nya_os_fault_plan_detach(void)  // Takes this thread's plan off, sending what the delay fault still holds first.
+NYA_OsFaultPlan* nya_os_fault_plan_current(void)
+void nya_os_fault_time_advance(NYA_OsFaultPlan* plan, u64 nanoseconds)  // Moves both simulated clocks forward by `nanoseconds`.
+void nya_os_fault_time_skew_wall(NYA_OsFaultPlan* plan, s64 nanoseconds)  // Moves the wall clock alone, by a signed amount: a negative one is the clock being set back.
+void nya_os_fault_datagrams_release(NYA_OsFaultPlan* plan)
+void nya_os_fault_heal(NYA_OsFaultPlan* plan)  // Zeroes every rule.
+NYA_OsFaultKind nya_os_fault_decide(NYA_OsFaultOp op)
+```
+
 ### os_file.h
 
 The file system as the operating system offers it: one call per function, paths as `const char*`,
 
 ```c
 // types
-enum NYA_OsFileStatus { NYA_OS_FILE_STATUS_OK, NYA_OS_FILE_STATUS_NOT_FOUND, NYA_OS_FILE_STATUS_DENIED, NYA_OS_FILE_STATUS_EXISTS, NYA_OS_FILE_STATUS_BUSY, NYA_OS_FILE_STATUS_INVALID, NYA_OS_FILE_STATUS_NO_MEMORY, NYA_OS_FILE_STATUS_UNSUPPORTED, NYA_OS_FILE_STATUS_IO, NYA_OS_FILE_STATUS_FAILED, NYA_OS_FILE_STATUS_COUNT, }  // Why a call did not work, in the few kinds both platforms can tell apart.
+enum NYA_OsFileStatus { NYA_OS_FILE_STATUS_OK, NYA_OS_FILE_STATUS_NOT_FOUND, NYA_OS_FILE_STATUS_DENIED, NYA_OS_FILE_STATUS_EXISTS, NYA_OS_FILE_STATUS_BUSY, NYA_OS_FILE_STATUS_INVALID, NYA_OS_FILE_STATUS_NO_MEMORY, NYA_OS_FILE_STATUS_UNSUPPORTED, NYA_OS_FILE_STATUS_IO, NYA_OS_FILE_STATUS_NO_SPACE, NYA_OS_FILE_STATUS_FAILED, NYA_OS_FILE_STATUS_COUNT, }  // Why a call did not work, in the few kinds both platforms can tell apart.
 enum NYA_OsFileKind { NYA_OS_FILE_KIND_UNKNOWN, NYA_OS_FILE_KIND_FILE, NYA_OS_FILE_KIND_DIRECTORY, NYA_OS_FILE_KIND_SYMLINK, }  // What is at a path.
 enum NYA_OsFileSeek { NYA_OS_FILE_SEEK_SET, NYA_OS_FILE_SEEK_CURRENT, NYA_OS_FILE_SEEK_END, }
 struct NYA_OsFile { void* handle; s32 descriptor; }  // An open file: a descriptor on POSIX, a HANDLE on Windows.

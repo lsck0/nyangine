@@ -3,6 +3,7 @@
  *
  * ── the os module ──
  *
+ * os_fault.h    the seeded fault plan the simulation runs every call above under, NYA_TESTING only
  * os_file.h     files, directories and the paths the host names by itself
  * os_library.h  whether a shared library the machine provides can be loaded
  * os_page.h     virtual memory: reserve, commit, release, and what is resident
@@ -33,6 +34,7 @@
  * */
 #pragma once
 
+#include "nyangine-std/os/os_fault.h"
 #include "nyangine-std/os/os_file.h"
 #include "nyangine-std/os/os_library.h"
 #include "nyangine-std/os/os_page.h"
