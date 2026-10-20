@@ -59,8 +59,6 @@ typedef struct {
 static NYA_Database* open_connection(NYA_Arena* arena) {
     NYA_Database* db = nullptr;
     NYA_EXPECT(nya_sql_open(arena, DB_PATH, &db), "the bench database opens");
-    // what db_jobs.c sets too; without it a reader meeting the writer's lock fails at once instead of waiting.
-    NYA_EXPECT(nya_sql_exec(db, "PRAGMA busy_timeout = 5000"));
     return db;
 }
 
@@ -198,6 +196,15 @@ s32 main(void) {
 
     // closed before the threads open theirs, so the mixed case is the writer and readers alone.
     nya_sql_close(db);
+
+    // what a job that opens its own connection pays per run, as blob_service's scrub does.
+    nya_bench("open and close an existing file", 1, {
+        nya_arena_free_all(scratch);
+        NYA_Database* reopened = nullptr;
+        NYA_EXPECT(nya_sql_open(scratch, DB_PATH, &reopened));
+        nya_sql_close(reopened);
+    });
+
     bench_mixed(arena);
 
     return nya_bench_end();
