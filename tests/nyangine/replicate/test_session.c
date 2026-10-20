@@ -207,9 +207,10 @@ s32 main(void) {
     SPAWN_CALLS = 0;
 
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
-      .replicated_flag  = FLAG_REPLICATED,
-      .on_apply_command = nya_callback(apply_movement),
-      .on_spawn_player  = nya_callback(spawn_player),
+      .replicated_flag   = FLAG_REPLICATED,
+      .on_apply_command  = nya_callback(apply_movement),
+      .on_spawn_player   = nya_callback(spawn_player),
+      .on_despawn_player = nya_callback(despawn_player),
     }));
 
     NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
@@ -322,6 +323,7 @@ s32 main(void) {
       }
 
       nya_assert(nya_net_server_peer_count() == 0, "the server did not notice the client leaving");
+      nya_assert(DESPAWN_CALLS == 1, "the server did not despawn the departed client's player");
     }
 
     nya_net_server_stop();
