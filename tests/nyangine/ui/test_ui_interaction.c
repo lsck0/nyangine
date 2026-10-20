@@ -179,6 +179,7 @@ s32 main(void) {
         pointer_button(true);
         input();
         nya_check(state_volume > 0.95F, "dragging to the right end reaches the maximum, got %.3f", (f64)state_volume);
+        nya_check(out_slider, "a slider reports the frame its value changed");
 
         // still held, drag to the far left: it follows to the bottom.
         pointer_move((f32x2){ track.x - 100.0F, track.y + (track.height * 0.5F) });
@@ -236,6 +237,7 @@ s32 main(void) {
         pointer_button(false);
         input();
         nya_check(fabsf(state_volume - 0.5F) < 0.001F, "a disabled slider does not move, got %.3f", (f64)state_volume);
+        nya_check(!out_slider, "a disabled slider reports no change");
 
         make_disabled = false;
     }

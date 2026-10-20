@@ -9,3 +9,5 @@ leak:asan_thread_start
 leak:VULKAN_CreateDeviceResources
 # SDL_GPU picking a physical device: the vulkan driver allocates once under pthread_once and never frees
 leak:VULKAN_INTERNAL_DeterminePhysicalDevice
+# libwayland queues an event on the event thread and the compositor connection outlives the test process
+leak:Wayland_EventThreadFunc
