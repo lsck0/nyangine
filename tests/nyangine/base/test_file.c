@@ -269,7 +269,29 @@ s32 main(void) {
     nya_file_close(&file);
   }
 
+  // TEST: an append the disk fills up part way through is cut back, so the next append does not follow a torn record
+  {
+    NYA_ConstCString path = "test_file_append_torn.txt";
+    NYA_EXPECT(nya_file_write(path, "first\n"));
+
+    // the full disk takes what fits of the second record, and then refuses.
+    NYA_OsFaultPlan plan = { .seed = 1, .path_prefix = path };
+    plan.rules[NYA_OS_FAULT_FILE_WRITE] = (NYA_OsFaultRule){ .fail_call = 1, .fail_kind = NYA_OS_FAULT_NO_SPACE };
+
+    nya_assert(nya_os_fault_plan_attach(&plan));
+    NYA_Error refused = nya_file_append(path, "second\n");
+    nya_os_fault_plan_detach();
+
+    nya_assert(!refused.ok, "the full disk is reported");
+    NYA_EXPECT(nya_file_append(path, "third\n"));
+
+    NYA_String* back = nya_string_create(arena);
+    NYA_EXPECT(nya_file_read(path, back));
+    nya_assert(nya_string_equals(back, "first\nthird\n"), "the refused record left nothing behind, got '%s'", nya_string_to_cstring(arena, back));
+  }
+
   // CLEANUP
+  remove("test_file_append_torn.txt");
   remove("test_file_write.txt");
   remove("test_file_write_path.txt");
   remove("test_file_write_cstr.txt");

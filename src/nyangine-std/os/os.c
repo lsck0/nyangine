@@ -18,6 +18,8 @@
 #include "nyangine-std/os/os_socket_linux.c"
 #include "nyangine-std/os/os_thread_linux.c"
 #include "nyangine-std/os/os_time_linux.c"
+// After every real body: the interposer's public halves call them by their NYA_OS_SYSCALL names.
+#include "nyangine-std/os/os_fault.c"
 #else
 #error "Unsupported OS"
 #endif

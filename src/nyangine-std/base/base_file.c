@@ -31,20 +31,36 @@ NYA_Error nya_file_write_string(NYA_File* file, NYA_ConstCString content) __attr
     return nya_file_write_bytes(file, (const u8*)content, strlen(content));
 }
 
+/**
+ * Writes `length` bytes at the end, all or nothing: a write that fails part way (a full disk takes what fits and
+ * refuses the rest) is cut back to where the file ended, so the next append does not land behind a torn record.
+ * */
+NYA_INTERNAL NYA_Error _nya_file_append_bytes(NYA_File* file, const u8* bytes, u64 length) {
+    NYA_TRY(nya_file_seek(file, 0, NYA_FILE_SEEK_END));
+
+    u64 end = 0;
+    NYA_TRY(nya_file_tell(file, &end));
+
+    NYA_Error written = length == 0 ? NYA_OK : nya_file_write_bytes(file, bytes, length);
+
+    // the original failure is what the caller acts on; a truncate that fails too leaves the torn bytes, and nothing better is left to try.
+    if (!written.ok) (void)nya_file_truncate(file, end);
+
+    return written;
+}
+
 NYA_Error nya_file_append_string(NYA_File* file, const NYA_String* content) __attr_overloaded {
     nya_assert(file != nullptr);
     nya_assert(content != nullptr);
 
-    NYA_TRY(nya_file_seek(file, 0, NYA_FILE_SEEK_END));
-    return nya_file_write_string(file, content);
+    return _nya_file_append_bytes(file, content->items, content->length);
 }
 
 NYA_Error nya_file_append_string(NYA_File* file, NYA_ConstCString content) __attr_overloaded {
     nya_assert(file != nullptr);
     nya_assert(content != nullptr);
 
-    NYA_TRY(nya_file_seek(file, 0, NYA_FILE_SEEK_END));
-    return nya_file_write_string(file, content);
+    return _nya_file_append_bytes(file, (const u8*)content, strlen(content));
 }
 
 // FILE FUNCTIONS
@@ -137,7 +153,7 @@ NYA_Error nya_file_append(const char* path, const NYA_String* content) __attr_ov
     NYA_TRY(nya_file_open(path, NYA_FILE_MODE_APPEND, &file));
     defer nya_file_close(&file);
 
-    return nya_file_write_string(&file, content);
+    return _nya_file_append_bytes(&file, content->items, content->length);
 }
 
 NYA_Error nya_file_append(const NYA_String* path, const NYA_String* content) __attr_overloaded {

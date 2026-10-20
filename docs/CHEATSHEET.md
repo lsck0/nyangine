@@ -41,7 +41,7 @@ Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No S
 
 ```c
 // types
-struct NYA_ArenaOptions { const char* name; u8 alignment; u64 region_size; b8 defragmentation_enabled; u8 defragmentation_threshold; b8 garbage_collection_enabled; u8 garbage_collection_threshold; }
+struct NYA_ArenaOptions { const char* name; u8 alignment; u64 region_size; b8 defragmentation_enabled; u8 defragmentation_threshold; b8 garbage_collection_enabled; u8 garbage_collection_threshold; u64 budget_bytes; }
 struct NYA_Arena { NYA_ArenaOptions options; NYA_ArenaRegion *head, *tail; }
 struct NYA_ArenaRegion { u64 used; u64 capacity; u8* memory; u8 gc_counter; NYA_ArenaFreeList* free_list; NYA_ArenaRegion *next, *prev; }
 struct NYA_ArenaFreeList { u32 node_counter; f32 average_free_size; u8 defragmentation_counter; NYA_ArenaFreeListNode *head, *tail; }
@@ -58,6 +58,7 @@ nya_arena_create_on_stack(...)
 nya_arena_create_with_options(options)
 nya_arena_create_with_options_on_stack(options)
 nya_arena_alloc(arena, size)
+nya_arena_try_alloc(arena, size)
 nya_arena_realloc(arena, ptr, old_size, new_size)
 nya_arena_free(arena, ptr, size)
 nya_arena_free_all(arena)
@@ -72,6 +73,7 @@ NYA_ARENA_REGISTRY_MAX 256  // Every arena alive right now.
 NYA_Arena* nya_arena_global  // Both arenas are initialized and deinitialized automatically for the main thread.
 NYA_Arena* nya_arena_temp
 void nya_arena_actions_set_callback(NYA_ArenaActionCallback callback)
+NYA_Error nya_arena_try_reserve(NYA_Arena* arena, u64 size)  // Whether `size` more bytes fit within the budget, as an error: the fallible allocation, given straight back.
 u64 nya_arena_memory_usage_bytes(NYA_Arena* arena)
 NYA_ArenaStats nya_arena_stats(NYA_Arena* arena)
 u64 nya_arena_resident_bytes(NYA_Arena* arena)
@@ -85,6 +87,7 @@ void nya_arena_callsites_report(u32 limit)  // Logs the `limit` callsites holdin
 NYA_Arena* _nya_arena_debug_create_with_options(NYA_ArenaOptions options, const char* function, const char* file, u32 line)
 NYA_Arena _nya_arena_debug_create_with_options_on_stack(NYA_ArenaOptions options, const char* function, const char* file, u32 line)
 void* _nya_arena_debug_alloc(NYA_Arena* arena, u64 size, const char* function, const char* file, u32 line)
+void* _nya_arena_debug_try_alloc(NYA_Arena* arena, u64 size, const char* function, const char* file, u32 line)
 void* _nya_arena_debug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size, const char* function, const char* file, u32 line)
 void _nya_arena_debug_free(NYA_Arena* arena, void* ptr, u64 size, const char* function, const char* file, u32 line)
 void _nya_arena_debug_free_all(NYA_Arena* arena, const char* function, const char* file, u32 line)
@@ -96,6 +99,7 @@ void* _nya_arena_debug_move(NYA_Arena* src, NYA_Arena* dst, void* ptr, u64 size,
 NYA_Arena* _nya_arena_nodebug_create_with_options(NYA_ArenaOptions options)
 NYA_Arena _nya_arena_nodebug_create_with_options_on_stack(NYA_ArenaOptions options)
 void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size)
+void* _nya_arena_nodebug_try_alloc(NYA_Arena* arena, u64 size)
 void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size)
 void _nya_arena_nodebug_free(NYA_Arena* arena, void* ptr, u64 size)
 void _nya_arena_nodebug_free_all(NYA_Arena* arena)
@@ -5814,7 +5818,7 @@ A retried unsafe request runs once. The layer that makes `POST` safe to send twi
 
 ```c
 // types
-struct NYA_HttpIdempotencyOptions { u64 ttl_s; }  // What the store is shaped like.
+struct NYA_HttpIdempotencyOptions { u64 ttl_s; NYA_Database* database; }  // What the store is shaped like.
 
 // macros
 NYA_HTTP_IDEMPOTENCY_MAX_ENTRIES 128  // Keys held at once.
@@ -5822,13 +5826,14 @@ NYA_HTTP_IDEMPOTENCY_MAX_KEY 200  // Bytes of a key, terminator included.
 NYA_HTTP_IDEMPOTENCY_MAX_BODY_BYTES 2048  // Bytes of a stored answer's body.
 NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES 16  // Bytes of the request fingerprint: 128 bits of BLAKE2b over the method, path and body.
 NYA_HTTP_IDEMPOTENCY_TTL_S 300  // How long an entry lives past its last touch, in seconds, when the options leave it unset.
+NYA_HTTP_IDEMPOTENCY_TABLE "nya_http_idempotency"  // The table the durable store keeps its answers in, inside the database it was given.
 nya_http_idempotency_init(arena, ...)  // Takes the options by name.
 
 // functions
 NYA_Error _nya_http_idempotency_init(NYA_Arena* arena, NYA_HttpIdempotencyOptions options)
 void nya_http_idempotency_deinit(void)
 NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // Dedupes an unsafe request by its `Idempotency-Key`.
-void nya_http_idempotency_reset(void)  // Forgets every stored key, keeping the lock and the ceiling registration.
+void nya_http_idempotency_reset(void)  // Forgets every key held in memory, keeping the lock and the ceiling registration.
 u32 nya_http_idempotency_count(void)  // How many keys are held right now, which is the ceiling's live count.
 ```
 
@@ -6175,7 +6180,7 @@ The listener: a TCP port, a handful of connections, and either one drain a frame
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; u64 exchange_budget_bytes; b8 handle_shutdown_signals; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
@@ -6183,6 +6188,8 @@ NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered, or started, in one drai
 NYA_HTTP_MAX_WORKERS 8  // Worker threads one server may run, whatever the config or the core count says.
 NYA_HTTP_SHUTDOWN_GRACE_MS 2000  // How long nya_system_http_deinit waits for a handler that is still running before it stops waiting.
 NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS 5000  // How long a graceful shutdown may take to drain before what is still open is force-closed.
+NYA_HTTP_EXCHANGE_RESERVE_BYTES (8ULL * NYA_HTTP_MAX_BODY_BYTES)  // Bytes an exchange's arena must be able to take before its handler runs, or the request is answered 503.
+NYA_HTTP_EXCHANGE_RETRY_AFTER_S 1  // The Retry-After a 503 for want of memory carries.
 NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
 NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes this server may hold queued for one connection before it is dropped.
 
@@ -6196,6 +6203,7 @@ b8 nya_http_server_is_running(void)
 u16 nya_http_server_port(void)  // The bound port, or zero when the server is not running.
 u32 nya_http_server_connection_count(void)
 u64 nya_http_server_request_count(void)  // Requests answered since init, refusals included.
+u64 nya_http_server_memory_refusal_count(void)  // Requests answered 503 since init because their exchange could not reserve its memory.
 u32 nya_http_server_router_count(void)  // What is mounted.
 const NYA_HttpRouter* nya_http_server_router_at(u32 index)
 void nya_http_server_shutdown(void)
@@ -8181,13 +8189,47 @@ b8 nya_web_storage_delete(NYA_ConstCString key)  // Removes `key` from the store
 
 The syscalls themselves: files, pages, the two clocks, random bytes, processes.
 
+### os_fault.h
+
+The syscall funnel's lie detector, run backwards: a seeded plan that makes the calls in os_file.h,
+
+```c
+// types
+enum NYA_OsFaultOp { NYA_OS_FAULT_FILE_OPEN, NYA_OS_FAULT_FILE_READ, NYA_OS_FAULT_FILE_WRITE, NYA_OS_FAULT_FILE_SYNC, NYA_OS_FAULT_FILE_RENAME, NYA_OS_FAULT_SOCKET_ACCEPT, NYA_OS_FAULT_SOCKET_CONNECT, NYA_OS_FAULT_SOCKET_SEND, NYA_OS_FAULT_SOCKET_RECEIVE, NYA_OS_FAULT_SOCKET_SEND_TO, NYA_OS_FAULT_SOCKET_RECEIVE_FROM, NYA_OS_FAULT_RANDOM, NYA_OS_FAULT_PAGE_COMMIT, NYA_OS_FAULT_ALLOCATION, NYA_OS_FAULT_OP_COUNT, }  // One class of call a rule governs.
+enum NYA_OsFaultKind { NYA_OS_FAULT_NONE, NYA_OS_FAULT_IO, NYA_OS_FAULT_NO_SPACE, NYA_OS_FAULT_SHORT, NYA_OS_FAULT_FLIP, NYA_OS_FAULT_WOULD_BLOCK, NYA_OS_FAULT_RESET, NYA_OS_FAULT_REFUSED, NYA_OS_FAULT_FAIL, NYA_OS_FAULT_DROP, NYA_OS_FAULT_DUPLICATE, NYA_OS_FAULT_DELAY, NYA_OS_FAULT_KIND_COUNT, }  // What a faulted call does instead.
+struct NYA_OsFaultRule { u32 probability_ppm; u32 kinds; u64 fail_call; NYA_OsFaultKind fail_kind; }  // How one operation misbehaves.
+struct NYA_OsFaultPlan { u64 seed; NYA_OsFaultRule rules[NYA_OS_FAULT_OP_COUNT]; const char* path_prefix; u32 sockets; b8 time_simulated; u64 monotonic_ns; u64 read_step_ns; s64 wall_skew_ns; b8 random_seeded; u64 calls[NYA_OS_FAULT_OP_COUNT]; u64 injected[NYA_OS_FAULT_OP_COUNT]; u64 digest; u64 random_draws; u64 files[NYA_OS_FAULT_DESCRIPTOR_MAX / 64]; u64 sockets_followed[NYA_OS_FAULT_DESCRIPTOR_MAX / 64]; u32 held_count; }  // Everything a run tells the interposer, and everything the interposer tells it back.
+
+// macros
+NYA_OS_FAULT_ENABLED 1
+NYA_OS_SYSCALL(name)  // The name a syscall's real body is defined under.
+NYA_OS_SYSCALL_LINKAGE NYA_INTERNAL
+NYA_OS_FAULT_PPM 1'000'000U  // Parts per million, which is what a rule's probability is out of.
+NYA_OS_FAULT_DESCRIPTOR_MAX 4096  // Descriptors a plan follows.
+NYA_OS_FAULT_HELD_MAX 16  // Datagrams the delay fault holds at once.
+NYA_OS_FAULT_DATAGRAM_MAX 2048  // Longest datagram the delay and flip faults copy.
+NYA_OS_FAULT_HOLD_CALLS_MAX 8  // Most later datagram calls a held one waits before it is released.
+NYA_OS_FAULT_WALL_ORIGIN_NS (946'684'800ULL * 1'000'000'000ULL)  // Where the simulated wall clock starts: 2000-01-01T00:00:00Z, the simulation's own origin.
+NYA_OS_FAULT_MONOTONIC_ORIGIN_NS (1'000ULL * 1'000'000'000ULL)  // Where the simulated monotonic clock starts.
+
+// functions
+b8 nya_os_fault_plan_attach(NYA_OsFaultPlan* plan)  // Installs `plan` on this thread, replacing none: attaching over an attached plan is refused with false.
+void nya_os_fault_plan_detach(void)  // Takes this thread's plan off, sending what the delay fault still holds first.
+NYA_OsFaultPlan* nya_os_fault_plan_current(void)
+void nya_os_fault_time_advance(NYA_OsFaultPlan* plan, u64 nanoseconds)  // Moves both simulated clocks forward by `nanoseconds`.
+void nya_os_fault_time_skew_wall(NYA_OsFaultPlan* plan, s64 nanoseconds)  // Moves the wall clock alone, by a signed amount: a negative one is the clock being set back.
+void nya_os_fault_datagrams_flush(NYA_OsFaultPlan* plan)
+void nya_os_fault_heal(NYA_OsFaultPlan* plan)  // Zeroes every rule.
+NYA_OsFaultKind nya_os_fault_decide(NYA_OsFaultOp op)
+```
+
 ### os_file.h
 
 The file system as the operating system offers it: one call per function, paths as `const char*`,
 
 ```c
 // types
-enum NYA_OsFileStatus { NYA_OS_FILE_STATUS_OK, NYA_OS_FILE_STATUS_NOT_FOUND, NYA_OS_FILE_STATUS_DENIED, NYA_OS_FILE_STATUS_EXISTS, NYA_OS_FILE_STATUS_BUSY, NYA_OS_FILE_STATUS_INVALID, NYA_OS_FILE_STATUS_NO_MEMORY, NYA_OS_FILE_STATUS_UNSUPPORTED, NYA_OS_FILE_STATUS_IO, NYA_OS_FILE_STATUS_FAILED, NYA_OS_FILE_STATUS_COUNT, }  // Why a call did not work, in the few kinds both platforms can tell apart.
+enum NYA_OsFileStatus { NYA_OS_FILE_STATUS_OK, NYA_OS_FILE_STATUS_NOT_FOUND, NYA_OS_FILE_STATUS_DENIED, NYA_OS_FILE_STATUS_EXISTS, NYA_OS_FILE_STATUS_BUSY, NYA_OS_FILE_STATUS_INVALID, NYA_OS_FILE_STATUS_NO_MEMORY, NYA_OS_FILE_STATUS_UNSUPPORTED, NYA_OS_FILE_STATUS_IO, NYA_OS_FILE_STATUS_NO_SPACE, NYA_OS_FILE_STATUS_FAILED, NYA_OS_FILE_STATUS_COUNT, }  // Why a call did not work, in the few kinds both platforms can tell apart.
 enum NYA_OsFileKind { NYA_OS_FILE_KIND_UNKNOWN, NYA_OS_FILE_KIND_FILE, NYA_OS_FILE_KIND_DIRECTORY, NYA_OS_FILE_KIND_SYMLINK, }  // What is at a path.
 enum NYA_OsFileSeek { NYA_OS_FILE_SEEK_SET, NYA_OS_FILE_SEEK_CURRENT, NYA_OS_FILE_SEEK_END, }
 struct NYA_OsFile { void* handle; s32 descriptor; }  // An open file: a descriptor on POSIX, a HANDLE on Windows.

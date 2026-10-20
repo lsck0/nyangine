@@ -202,6 +202,32 @@ s32 main(void) {
     nya_assert(out != nullptr, "and still a non-null pointer, so it is told apart from missing");
   }
 
+  // TEST: a get into an arena that cannot take the object is refused as out of memory, not aborted
+  {
+    NYA_Database* db = open_memory(arena);
+    defer         nya_sql_close(db);
+
+    NYA_BlobStore* store = nullptr;
+    NYA_EXPECT(nya_blob_store_open(arena, db, &store));
+    defer nya_blob_store_close(store);
+
+    NYA_BlobId id = { 0 };
+    NYA_EXPECT(nya_blob_put(store, (const u8*)"starved", 7, &id));
+
+    // a budget below the first region, so the caller's arena has nowhere to put even seven bytes.
+    NYA_Arena* tight = nya_arena_create(.name = "test_blob_tight", .budget_bytes = 1);
+    defer      nya_arena_destroy(tight);
+
+    u8*       out      = nullptr;
+    u64       out_size = 0;
+    NYA_Error refused  = nya_blob_get(store, id, tight, &out, &out_size);
+    nya_assert(!refused.ok && refused.kind == NYA_ERROR_OUT_OF_MEMORY, "got %s", NYA_ERRORKIND_NAME_MAP[refused.kind]);
+    nya_assert(out == nullptr && out_size == 0, "and nothing was handed out");
+
+    NYA_EXPECT(nya_blob_get(store, id, arena, &out, &out_size));
+    nya_assert(out_size == 7 && memcmp(out, "starved", 7) == 0, "the same get into an arena with room succeeds");
+  }
+
   // TEST: get refuses an object whose stored bytes were tampered with
   {
     NYA_Database* db = open_memory(arena);

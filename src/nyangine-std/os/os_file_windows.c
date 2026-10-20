@@ -27,6 +27,9 @@ NYA_INTERNAL NYA_OsFileStatus _nya_os_file_status(void) {
         case ERROR_OUTOFMEMORY:
         case ERROR_NOT_ENOUGH_MEMORY: return NYA_OS_FILE_STATUS_NO_MEMORY;
 
+        case ERROR_DISK_FULL:
+        case ERROR_HANDLE_DISK_FULL:  return NYA_OS_FILE_STATUS_NO_SPACE;
+
         default:                      return NYA_OS_FILE_STATUS_IO;
     }
 }

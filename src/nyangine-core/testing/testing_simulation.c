@@ -140,6 +140,9 @@ u32 nya_simulation_run(NYA_SimulationRun* run) {
 
         action->run(run);
 
+        // what the step chose and how much it drew: a step whose branches went another way draws a different number of times.
+        nya_simulation_trace(run, ((u64)index << 32) | run->draw);
+
         // the oracle, after every action rather than at the end: a violated invariant names the action
         // that broke it instead of the last one before the run finished.
         for (u32 i = 0; i < run->check_count; i++) run->checks[i].run(run);
@@ -151,7 +154,8 @@ u32 nya_simulation_run(NYA_SimulationRun* run) {
     /*
      * The mix, so a run that never reached an action is visible rather than reported as a pass.
      */
-    printf("  %llu steps, %llu simulated ms\n", (unsigned long long)run->step_count, (unsigned long long)(run->clock_ns / 1000000ULL));
+    printf("  %llu steps, %llu simulated ms, digest 0x%016llX\n", (unsigned long long)run->step_count, (unsigned long long)(run->clock_ns / 1000000ULL),
+           (unsigned long long)run->digest);
 
     for (u32 i = 0; i < run->action_count; i++) {
         const NYA_SimulationAction* action = &run->actions[i];
@@ -203,6 +207,13 @@ void nya_simulation_fail(NYA_SimulationRun* run, NYA_ConstCString format, ...) {
     }
 
     run->failures++;
+}
+
+void nya_simulation_trace(NYA_SimulationRun* run, u64 value) {
+    nya_assert(run != nullptr);
+
+    u64 fold[2] = { run->digest, value };
+    run->digest = nya_siphash(fold, sizeof(fold), NYA_SIMULATION_HASH_KEY_LOW, NYA_SIMULATION_HASH_KEY_HIGH);
 }
 
 /*

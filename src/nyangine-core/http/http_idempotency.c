@@ -8,6 +8,11 @@
 #include "nyangine-core/http/http_idempotency.h"
 #include "nyangine-core/http/http_message.h"
 
+#ifdef NYA_MODULE_DB
+#include "nyangine-std/base/base_base64.h"
+#include "nyangine-core/db/db_sql.h"
+#endif
+
 // PRIVATE TYPES
 
 /** Where an entry is in its life. Zero is a slot nobody has used, so a zeroed table is an empty one. */
@@ -51,6 +56,14 @@ typedef struct {
     /** Made at init from the caller's arena. Null when init was never called, which nya_mutex_lock allows. */
     NYA_Mutex* mutex;
 
+#ifdef NYA_MODULE_DB
+    /** Where completed answers outlive the process, or null. Borrowed from the options. */
+    NYA_Database* database;
+
+    /** Held across a durable request's whole chain, so two keyed transactions never share the connection. Taken before `mutex`, never after. */
+    NYA_Mutex* chain_mutex;
+#endif
+
     b8 registered;
 } _NYA_HttpIdempotencyStore;
 
@@ -80,6 +93,20 @@ NYA_INTERNAL _NYA_HttpIdempotencyEntry* _nya_http_idempotency_find(NYA_ConstCStr
 /** A slot for `key`, marked in-flight. Null only when every slot is a live in-flight request. */
 NYA_INTERNAL _NYA_HttpIdempotencyEntry* _nya_http_idempotency_reserve(NYA_ConstCString key, const u8* fingerprint, u64 now_s) __attr_no_discard;
 
+/**
+ * Ends `key`'s in-flight reservation: completed with the answer when `keep`, otherwise dropped so a retry runs
+ * the chain again. Takes the lock. A reservation that expired while the chain ran is left alone.
+ * */
+NYA_INTERNAL void _nya_http_idempotency_settle(NYA_ConstCString key, u64 now_s, b8 keep, NYA_HttpStatus status, NYA_HttpMediaType media, const u8* body, u64 body_size);
+
+/** Replays a stored answer into the exchange, marked as a replay. */
+NYA_INTERNAL NYA_HttpStatus _nya_http_idempotency_replay(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_HttpMediaType media, const u8* body, u64 body_size);
+
+#ifdef NYA_MODULE_DB
+/** The chain for a key the memory table did not know, through the durable store. See "surviving a restart" in the header. */
+NYA_INTERNAL NYA_HttpStatus _nya_http_idempotency_durable(NYA_HttpExchange* exchange, NYA_HttpChain* next, NYA_ConstCString key, const u8* fingerprint, u64 now_s);
+#endif
+
 // PUBLIC API IMPLEMENTATION
 
 NYA_Error _nya_http_idempotency_init(NYA_Arena* arena, NYA_HttpIdempotencyOptions options) {
@@ -96,6 +123,18 @@ NYA_Error _nya_http_idempotency_init(NYA_Arena* arena, NYA_HttpIdempotencyOption
         nya_ceiling_register("http_idempotency", NYA_HTTP_IDEMPOTENCY_MAX_ENTRIES, &_NYA_HTTP_IDEMPOTENCY.count);
         _NYA_HTTP_IDEMPOTENCY.registered = true;
     }
+
+#ifdef NYA_MODULE_DB
+    _NYA_HTTP_IDEMPOTENCY.database = options.database;
+
+    if (options.database != nullptr) {
+        if (_NYA_HTTP_IDEMPOTENCY.chain_mutex == nullptr) NYA_TRY(nya_mutex_create(arena, &_NYA_HTTP_IDEMPOTENCY.chain_mutex));
+
+        NYA_TRY(nya_sql_exec(options.database, "CREATE TABLE IF NOT EXISTS " NYA_HTTP_IDEMPOTENCY_TABLE " (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, status INTEGER NOT NULL, "
+                                               "media INTEGER NOT NULL, body BLOB NOT NULL, updated_at INTEGER NOT NULL)"));
+        NYA_TRY(nya_sql_exec(options.database, "CREATE INDEX IF NOT EXISTS " NYA_HTTP_IDEMPOTENCY_TABLE "_updated ON " NYA_HTTP_IDEMPOTENCY_TABLE " (updated_at)"));
+    }
+#endif
 
     return NYA_OK;
 }
@@ -150,17 +189,7 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
 
         nya_mutex_unlock(_NYA_HTTP_IDEMPOTENCY.mutex);
 
-        nya_http_response_reset(exchange->response);
-
-        // A body that no longer fits is a bug in this file, not the caller's; 500 is the honest answer.
-        if (!nya_http_response_bytes(exchange->response, body, body_size, media).ok) {
-            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_INTERNAL_ERROR, "the stored answer could not be replayed");
-        }
-
-        // A losable header: a client ignoring it still gets the right answer, one reading it learns the write didn't happen twice; never the reason a replay fails.
-        (void)nya_http_response_header(exchange->response, "Idempotency-Replayed", "true");
-
-        return status;
+        return _nya_http_idempotency_replay(exchange, status, media, body, body_size);
     }
 
     // First time for this key: reserve it in-flight so a concurrent duplicate sees the 409 above.
@@ -174,30 +203,16 @@ NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpCh
 
     nya_mutex_unlock(_NYA_HTTP_IDEMPOTENCY.mutex);
 
+#ifdef NYA_MODULE_DB
+    if (_NYA_HTTP_IDEMPOTENCY.database != nullptr) return _nya_http_idempotency_durable(exchange, next, key, fingerprint, now_s);
+#endif
+
     // The chain runs with no lock held, so handlers are as concurrent as they were without this layer.
     NYA_HttpStatus status = nya_http_chain_next(exchange, next);
 
-    nya_mutex_lock(_NYA_HTTP_IDEMPOTENCY.mutex);
-
-    // Re-find under the lock: an in-flight entry is never evicted, so it's still ours unless it expired while the handler ran, in which case there's nothing to complete.
-    entry = _nya_http_idempotency_find(key, now_s);
-
-    if (entry != nullptr && entry->state == _NYA_HTTP_IDEMPOTENCY_IN_FLIGHT) {
-        if (exchange->response->body_size <= sizeof(entry->body)) {
-            entry->state     = _NYA_HTTP_IDEMPOTENCY_COMPLETED;
-            entry->status    = status;
-            entry->media     = exchange->response->media_type;
-            entry->body_size = exchange->response->body_size;
-            nya_memcpy(entry->body, exchange->response->body, exchange->response->body_size);
-            entry->updated_at_s = now_s;
-        } else {
-            // Too large to store, so the reservation is dropped and a retry re-runs rather than replaying a body cut where nobody decided to. See the header note.
-            entry->state = _NYA_HTTP_IDEMPOTENCY_EMPTY;
-            if (_NYA_HTTP_IDEMPOTENCY.count > 0) _NYA_HTTP_IDEMPOTENCY.count--;
-        }
-    }
-
-    nya_mutex_unlock(_NYA_HTTP_IDEMPOTENCY.mutex);
+    // a 5xx is the server's trouble, not the request's answer; see "failures are not answers" in the header.
+    _nya_http_idempotency_settle(key, now_s, status < NYA_HTTP_STATUS_INTERNAL_ERROR, status, exchange->response->media_type, exchange->response->body,
+                                 exchange->response->body_size);
 
     return status;
 }
@@ -206,6 +221,12 @@ void nya_http_idempotency_deinit(void) {
     // The lock goes back to its arena, so the store is again the zeroed table it was before init; registered stays true, since nya_ceiling_register holds the count's address, which doesn't move.
     nya_mutex_destroy(_NYA_HTTP_IDEMPOTENCY.mutex);
     _NYA_HTTP_IDEMPOTENCY.mutex = nullptr;
+
+#ifdef NYA_MODULE_DB
+    nya_mutex_destroy(_NYA_HTTP_IDEMPOTENCY.chain_mutex);
+    _NYA_HTTP_IDEMPOTENCY.chain_mutex = nullptr;
+    _NYA_HTTP_IDEMPOTENCY.database    = nullptr;
+#endif
 
     nya_memset(_NYA_HTTP_IDEMPOTENCY.entries, 0, sizeof(_NYA_HTTP_IDEMPOTENCY.entries));
     _NYA_HTTP_IDEMPOTENCY.count = 0;
@@ -339,3 +360,155 @@ _NYA_HttpIdempotencyEntry* _nya_http_idempotency_reserve(NYA_ConstCString key, c
 
     return slot;
 }
+
+void _nya_http_idempotency_settle(NYA_ConstCString key, u64 now_s, b8 keep, NYA_HttpStatus status, NYA_HttpMediaType media, const u8* body, u64 body_size) {
+    nya_mutex_lock(_NYA_HTTP_IDEMPOTENCY.mutex);
+    defer nya_mutex_unlock(_NYA_HTTP_IDEMPOTENCY.mutex);
+
+    // Re-found under the lock: an in-flight entry is never evicted, so it's still ours unless it expired while the handler ran, in which case there's nothing to settle.
+    _NYA_HttpIdempotencyEntry* entry = _nya_http_idempotency_find(key, now_s);
+    if (entry == nullptr || entry->state != _NYA_HTTP_IDEMPOTENCY_IN_FLIGHT) return;
+
+    // Too large to store is dropped like a failure, so a retry re-runs rather than replaying a body cut where nobody decided to. See the header note.
+    if (keep && body_size <= sizeof(entry->body)) {
+        entry->state     = _NYA_HTTP_IDEMPOTENCY_COMPLETED;
+        entry->status    = status;
+        entry->media     = media;
+        entry->body_size = body_size;
+        nya_memcpy(entry->body, body, body_size);
+        entry->updated_at_s = now_s;
+        return;
+    }
+
+    entry->state = _NYA_HTTP_IDEMPOTENCY_EMPTY;
+    if (_NYA_HTTP_IDEMPOTENCY.count > 0) _NYA_HTTP_IDEMPOTENCY.count--;
+}
+
+NYA_HttpStatus _nya_http_idempotency_replay(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_HttpMediaType media, const u8* body, u64 body_size) {
+    nya_http_response_reset(exchange->response);
+
+    // A body that no longer fits is a bug in this file, not the caller's; 500 is the honest answer.
+    if (!nya_http_response_bytes(exchange->response, body, body_size, media).ok) {
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_INTERNAL_ERROR, "the stored answer could not be replayed");
+    }
+
+    // A losable header: a client ignoring it still gets the right answer, one reading it learns the write didn't happen twice; never the reason a replay fails.
+    (void)nya_http_response_header(exchange->response, "Idempotency-Replayed", "true");
+
+    return status;
+}
+
+#ifdef NYA_MODULE_DB
+
+/** The savepoint a durable request's chain runs inside. Named, so a handler's own savepoint nests rather than collides. */
+#define _NYA_HTTP_IDEMPOTENCY_SAVEPOINT "nya_http_idempotency"
+
+/** The fingerprint as the 32 lowercase hex digits the table stores it as, terminated. */
+NYA_INTERNAL void _nya_http_idempotency_fingerprint_hex(const u8* fingerprint, OUT char* out_hex) {
+    static const char DIGITS[] = "0123456789abcdef";
+
+    for (u32 i = 0; i < NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES; i++) {
+        out_hex[i * 2]     = DIGITS[fingerprint[i] >> 4];
+        out_hex[i * 2 + 1] = DIGITS[fingerprint[i] & 0x0F];
+    }
+
+    out_hex[NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES * 2] = '\0';
+}
+
+/** Undoes the savepoint and everything the chain wrote inside it, whatever state a failed commit left the connection in. */
+NYA_INTERNAL void _nya_http_idempotency_unwind(NYA_Database* database) {
+    // a commit the disk refused may already have rolled the transaction back, so each step may find nothing to undo.
+    (void)nya_sql_exec(database, "ROLLBACK TO " _NYA_HTTP_IDEMPOTENCY_SAVEPOINT);
+    if (!nya_sql_exec(database, "RELEASE " _NYA_HTTP_IDEMPOTENCY_SAVEPOINT).ok) (void)nya_sql_exec(database, "ROLLBACK");
+}
+
+NYA_HttpStatus _nya_http_idempotency_durable(NYA_HttpExchange* exchange, NYA_HttpChain* next, NYA_ConstCString key, const u8* fingerprint, u64 now_s) {
+    NYA_Database* database = _NYA_HTTP_IDEMPOTENCY.database;
+    nya_assert(database != nullptr);
+
+    nya_mutex_lock(_NYA_HTTP_IDEMPOTENCY.chain_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP_IDEMPOTENCY.chain_mutex);
+
+    char hex[NYA_HTTP_IDEMPOTENCY_FINGERPRINT_BYTES * 2 + 1] = { 0 };
+    _nya_http_idempotency_fingerprint_hex(fingerprint, hex);
+
+    // A row from before a restart, which the memory table cannot know about.
+    NYA_SqlValue  lookup[] = { nya_sql_text(key) };
+    NYA_SqlResult found    = { 0 };
+    NYA_Error     read     = nya_sql_query(database, exchange->arena, "SELECT fingerprint, status, media, body, updated_at FROM " NYA_HTTP_IDEMPOTENCY_TABLE " WHERE key = ?",
+                                           lookup, 1, &found);
+
+    if (!read.ok) {
+        _nya_http_idempotency_settle(key, now_s, false, NYA_HTTP_STATUS_NONE, NYA_HTTP_MEDIA_NONE, nullptr, 0);
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the Idempotency-Key store could not be read");
+    }
+
+    if (found.rows->length > 0) {
+        NYA_SqlRow row      = found.rows->items[0];
+        u64        stamp_s  = (u64)nya_object_get(row, "updated_at")->as_s64;
+        b8         expired  = now_s > stamp_s && now_s - stamp_s >= _nya_http_idempotency_ttl_s();
+        NYA_Value* stored   = nya_object_get(row, "fingerprint");
+        NYA_Value* body_raw = nya_object_get(row, "body");
+
+        if (!expired) {
+            if (stored == nullptr || stored->type != NYA_TYPE_STRING || strcmp(stored->as_string, hex) != 0) {
+                _nya_http_idempotency_settle(key, now_s, false, NYA_HTTP_STATUS_NONE, NYA_HTTP_MEDIA_NONE, nullptr, 0);
+                return nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNPROCESSABLE, "this Idempotency-Key was already used for a different request");
+            }
+
+            NYA_String* body = nya_string_create(exchange->arena);
+            if (body_raw != nullptr && body_raw->type == NYA_TYPE_STRING) nya_base64_decode(body, (const u8*)body_raw->as_string, strlen(body_raw->as_string));
+
+            NYA_HttpStatus    status = (NYA_HttpStatus)nya_object_get(row, "status")->as_s64;
+            NYA_HttpMediaType media  = (NYA_HttpMediaType)nya_object_get(row, "media")->as_s64;
+
+            _nya_http_idempotency_settle(key, now_s, true, status, media, body->items, body->length);
+            return _nya_http_idempotency_replay(exchange, status, media, body->items, body->length);
+        }
+    }
+
+    if (!nya_sql_exec(database, "SAVEPOINT " _NYA_HTTP_IDEMPOTENCY_SAVEPOINT).ok) {
+        _nya_http_idempotency_settle(key, now_s, false, NYA_HTTP_STATUS_NONE, NYA_HTTP_MEDIA_NONE, nullptr, 0);
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the Idempotency-Key store could not start a transaction");
+    }
+
+    NYA_HttpStatus status   = nya_http_chain_next(exchange, next);
+    b8             storable = status < NYA_HTTP_STATUS_INTERNAL_ERROR && exchange->response->body_size <= NYA_HTTP_IDEMPOTENCY_MAX_BODY_BYTES;
+
+    if (storable) {
+        // expired rows go in the same transaction, so the table is swept as often as it is written and never on its own schedule.
+        NYA_SqlValue sweep[]  = { nya_sql_s64((s64)now_s - (s64)_nya_http_idempotency_ttl_s()) };
+        NYA_SqlValue insert[] = {
+            nya_sql_text(key),
+            nya_sql_text(hex),
+            nya_sql_s64((s64)status),
+            nya_sql_s64((s64)exchange->response->media_type),
+            nya_sql_blob(exchange->response->body, exchange->response->body_size),
+            nya_sql_s64((s64)now_s),
+        };
+
+        b8 committed = nya_sql_exec_bound(database, "DELETE FROM " NYA_HTTP_IDEMPOTENCY_TABLE " WHERE updated_at <= ?", sweep, 1).ok
+                    && nya_sql_exec_bound(database,
+                                          "INSERT OR REPLACE INTO " NYA_HTTP_IDEMPOTENCY_TABLE " (key, fingerprint, status, media, body, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                          insert, nya_carray_length(insert))
+                           .ok
+                    && nya_sql_exec(database, "RELEASE " _NYA_HTTP_IDEMPOTENCY_SAVEPOINT).ok;
+
+        if (committed) {
+            _nya_http_idempotency_settle(key, now_s, true, status, exchange->response->media_type, exchange->response->body, exchange->response->body_size);
+            return status;
+        }
+    }
+
+    _nya_http_idempotency_unwind(database);
+    _nya_http_idempotency_settle(key, now_s, false, NYA_HTTP_STATUS_NONE, NYA_HTTP_MEDIA_NONE, nullptr, 0);
+
+    // the handler's own failure keeps its status, its writes undone with it.
+    if (status >= NYA_HTTP_STATUS_INTERNAL_ERROR) return status;
+
+    if (!storable) return nya_http_response_problem(exchange, NYA_HTTP_STATUS_INTERNAL_ERROR, "the answer is too large to keep for its Idempotency-Key");
+
+    return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the answer could not be made durable; retry with the same Idempotency-Key");
+}
+
+#endif // NYA_MODULE_DB

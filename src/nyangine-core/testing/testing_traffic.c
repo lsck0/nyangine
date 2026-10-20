@@ -628,6 +628,7 @@ NYA_INTERNAL u32 _nya_traffic_http_exchange(NYA_SimulationRun* run, const u8* da
 /** Replays `size` bytes of mutated input, which the server may refuse but must not blame on itself. */
 NYA_INTERNAL void _nya_traffic_http_hostile(NYA_SimulationRun* run, u64 size, u64 split) {
     u32 status = _nya_traffic_http_exchange(run, _NYA_TRAFFIC.bytes, size, split);
+    nya_simulation_trace(run, status);
 
     // the bytes are the client's fault whatever they are, so a 500 says the server blamed itself for them. 501 and 505
     // are the grammar's answers to a method and a version this server does not speak, and are right.
@@ -715,6 +716,7 @@ NYA_INTERNAL void _nya_traffic_do_http(NYA_SimulationRun* run) {
 
     u64 size   = _nya_traffic_http_request(run, _NYA_TRAFFIC.bytes, sizeof(_NYA_TRAFFIC.bytes));
     u32 status = _nya_traffic_http_exchange(run, _NYA_TRAFFIC.bytes, size, size);
+    nya_simulation_trace(run, status);
 
     if (status != NYA_HTTP_STATUS_OK) nya_simulation_fail(run, "the HTTP server answered an honest request with %u", status);
 }

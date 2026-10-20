@@ -93,6 +93,12 @@ struct _NYA_HttpConnection {
     /** Answered with `Connection: close`, so it is dropped as soon as the answer is queued. */
     b8 closing;
 
+    /**
+     * The peer ended its half of the stream. Nothing more will arrive, but what it is owed still goes out: a
+     * client that shuts down its sending side after the request is waiting for the answer, not gone.
+     * */
+    b8 peer_closed;
+
     /** Answered with a 101, so the bytes on it are frames and http_websocket_server.c owns them. */
     b8 upgraded;
 
@@ -215,6 +221,9 @@ struct _NYA_HttpState {
     atomic u32 connection_count;
 
     atomic u64 request_count;
+
+    /** Exchanges answered 503 because their arena could not reserve its working memory. */
+    atomic u64 memory_refusals;
 
     // ── the threaded half, all of it null and zero while `workers` is zero ──
 
@@ -520,7 +529,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     }
 
     for (u32 index = 0; index < state->slot_count; index++) {
-        state->slots[index].arena = nya_arena_create(.name = "http_exchange");
+        state->slots[index].arena = nya_arena_create(.name = "http_exchange", .budget_bytes = config.exchange_budget_bytes);
 
         if (state->slots[index].arena != nullptr) continue;
 
@@ -745,6 +754,10 @@ u64 nya_http_server_request_count(void) {
     return _NYA_HTTP != nullptr ? atomic_load_explicit(&_NYA_HTTP->request_count, memory_order_relaxed) : 0;
 }
 
+u64 nya_http_server_memory_refusal_count(void) {
+    return _NYA_HTTP != nullptr ? atomic_load_explicit(&_NYA_HTTP->memory_refusals, memory_order_relaxed) : 0;
+}
+
 u32 nya_http_server_router_count(void) {
     if (_NYA_HTTP == nullptr) return 0;
 
@@ -873,7 +886,7 @@ void _nya_http_pass(void) {
             }
         }
 
-        if (!_nya_http_receive(connection, slot)) {
+        if (!connection->peer_closed && !_nya_http_receive(connection, slot)) {
             _nya_http_close(connection);
             continue;
         }
@@ -882,6 +895,9 @@ void _nya_http_pass(void) {
             _nya_http_close(connection);
             continue;
         }
+
+        // every whole request the peer sent before its end was answered above, so what is left can never complete; with the budget spent, the next pass answers the rest first.
+        if (connection->peer_closed && budget > 0) connection->closing = true;
 
         // an exchange that was just handed over owns the connection until its answer is written.
         if (threaded && atomic_load_explicit(&slot->state, memory_order_acquire) != _NYA_HTTP_SLOT_IDLE) continue;
@@ -1113,8 +1129,14 @@ b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
     } else {
         NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->received + connection->received_size, room, &read);
 
-        // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both the connection going, which is what false means to the caller.
+        // Nothing waiting is the ordinary answer. The end of the stream is the peer done sending, and an answer still owed is flushed before the close; a broken connection reads the same here and fails that flush instead.
         if (status == NYA_OS_SOCKET_WOULD_BLOCK) return true;
+
+        if (status == NYA_OS_SOCKET_CLOSED) {
+            connection->peer_closed = true;
+            return true;
+        }
+
         if (status != NYA_OS_SOCKET_OK) return false;
     }
 
@@ -1209,6 +1231,16 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
 void _nya_http_dispatch(_NYA_HttpState* state, _NYA_HttpSlot* slot) {
     // everything the exchange allocates dies with it. Cleared at the start rather than the end so a response body that points into it is still valid while it's being written.
     nya_arena_free_all(slot->arena);
+
+    // admitted before any handler runs, because a handler's own allocations are not all fallible: an exchange that cannot get its working memory is refused whole rather than aborting halfway.
+    if (!nya_arena_try_reserve(slot->arena, NYA_HTTP_EXCHANGE_RESERVE_BYTES).ok) {
+        _nya_http_problem(slot, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the server has no memory for this request right now", NYA_HTTP_EXCHANGE_RETRY_AFTER_S);
+
+        slot->status = NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+        slot->answer = _NYA_HTTP_ANSWER_WRITE;
+        (void)atomic_fetch_add_explicit(&state->memory_refusals, 1, memory_order_relaxed);
+        return;
+    }
 
     nya_http_response_create(&slot->response, slot->response_body, sizeof(slot->response_body));
 

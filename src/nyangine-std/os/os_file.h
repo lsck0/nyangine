@@ -78,6 +78,8 @@ enum NYA_OsFileStatus {
     /** The host has no such call at all, which is a fact about the platform rather than a failure. */
     NYA_OS_FILE_STATUS_UNSUPPORTED,
     NYA_OS_FILE_STATUS_IO,
+    /** The disk or the quota is full. Apart from IO because it clears when something is deleted, and an IO error does not. */
+    NYA_OS_FILE_STATUS_NO_SPACE,
     NYA_OS_FILE_STATUS_FAILED,
 
     NYA_OS_FILE_STATUS_COUNT,
@@ -93,6 +95,7 @@ __attr_allow_unused static NYA_ConstCString NYA_OSFILESTATUS_NAME_MAP[NYA_OS_FIL
     [NYA_OS_FILE_STATUS_NO_MEMORY]   = "NO_MEMORY",
     [NYA_OS_FILE_STATUS_UNSUPPORTED] = "UNSUPPORTED",
     [NYA_OS_FILE_STATUS_IO]          = "IO",
+    [NYA_OS_FILE_STATUS_NO_SPACE]    = "NO_SPACE",
     [NYA_OS_FILE_STATUS_FAILED]      = "FAILED",
 };
 

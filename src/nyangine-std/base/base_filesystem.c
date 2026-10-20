@@ -20,6 +20,7 @@ NYA_INTERNAL NYA_ErrorKind _nya_filesystem_error_kind(NYA_OsFileStatus status) {
         case NYA_OS_FILE_STATUS_INVALID:     return NYA_ERROR_INVALID_ARGUMENT;
         case NYA_OS_FILE_STATUS_NO_MEMORY:   return NYA_ERROR_OUT_OF_MEMORY;
         case NYA_OS_FILE_STATUS_UNSUPPORTED: return NYA_ERROR_NOT_SUPPORTED;
+        case NYA_OS_FILE_STATUS_NO_SPACE:
         case NYA_OS_FILE_STATUS_IO:          return NYA_ERROR_IO;
 
         default:                             return NYA_ERROR_NOT_OK;

@@ -6,7 +6,7 @@
  * ```
  * nya_http_idempotency_init   the store: its TTL, its lock, and one ceiling registration
  * nya_http_layer_idempotency  the layer: dedupes an unsafe request by its Idempotency-Key
- * nya_http_idempotency_reset  forgets every key, for a test or a controlled restart
+ * nya_http_idempotency_reset  forgets every key held in memory, for a test or a stand-in restart
  * nya_http_idempotency_count  how many keys are held, for the ceiling and a test
  * ```
  *
@@ -43,6 +43,32 @@
  *
  * ── the store ──
  *
+ * ── surviving a restart ──
+ *
+ * The table is memory, so a process that dies forgets every key and a retry after the restart runs the
+ * handler a second time: the order is placed twice after all. Given a database in the options, the layer
+ * keeps every completed answer in a table of that database as well, and runs a keyed request's whole chain
+ * inside one SAVEPOINT with the insert of its answer, so the handler's writes and the record that they
+ * happened commit together or not at all. A retry after a crash then finds the row and replays it.
+ *
+ * In that mode the handler writes through the same connection and must not BEGIN or COMMIT on its own; a
+ * SAVEPOINT of its own nests and is fine. Keyed requests run one at a time under the store's chain lock, and
+ * a writer that bypasses the layer on the same connection while one runs joins its transaction, so on a
+ * server with workers every writer to that connection goes through the layer, or the server runs without.
+ * An answer that cannot be made durable, because the disk refused the commit, is rolled back and answered
+ * 503: claiming the write happened when its record did not would be the double apply this exists to stop.
+ *
+ * Rejected: persisting from a layer that commits after the handler's own transaction. The crash between
+ * the two commits is exactly the restart this survives, and it would apply the handler and forget the key.
+ *
+ * ── failures are not answers ──
+ *
+ * A 5xx is the server's own trouble and says nothing about the request, so it is not stored: the
+ * reservation is dropped and the retry runs the chain again. Storing it would replay a passing outage, a
+ * full disk or a starved arena, to every retry for the whole TTL after it cleared.
+ *
+ * ── the store ──
+ *
  * A fixed table of NYA_HTTP_IDEMPOTENCY_MAX_ENTRIES, registered with nya_ceiling_register so its
  * fullness shows up beside every other bounded thing in the program. An entry expires
  * NYA_HTTP_IDEMPOTENCY_TTL_S seconds after it was last touched — long enough for a client's retries,
@@ -73,6 +99,10 @@
 #include "nyangine-std/base/base_types.h"
 #include "nyangine-core/http/http_router.h"
 #include "nyangine-core/http/http_types.h"
+
+#ifdef NYA_MODULE_DB
+#include "nyangine-core/db/db_sql.h"
+#endif
 
 // CONSTANTS
 
@@ -107,7 +137,18 @@ typedef struct NYA_HttpIdempotencyOptions NYA_HttpIdempotencyOptions;
 struct NYA_HttpIdempotencyOptions {
     /** How long an entry lives past its last touch. Zero means NYA_HTTP_IDEMPOTENCY_TTL_S. */
     u64 ttl_s;
+
+#ifdef NYA_MODULE_DB
+    /**
+     * Where completed answers outlive the process; null keeps them in memory only. Borrowed, and must stay
+     * open until nya_http_idempotency_deinit. See "surviving a restart" above for what this asks of handlers.
+     * */
+    NYA_Database* database;
+#endif
 };
+
+/** The table the durable store keeps its answers in, inside the database it was given. */
+#define NYA_HTTP_IDEMPOTENCY_TABLE "nya_http_idempotency"
 
 // FUNCTIONS
 
@@ -140,7 +181,10 @@ NYA_API void nya_http_idempotency_deinit(void);
  * */
 NYA_API NYA_HttpStatus nya_http_layer_idempotency(NYA_HttpExchange* exchange, NYA_HttpChain* next);
 
-/** Forgets every stored key, keeping the lock and the ceiling registration. For a test or a restart. */
+/**
+ * Forgets every key held in memory, keeping the lock and the ceiling registration. For a test, or to stand
+ * in for a restart: the durable store's rows are kept, exactly as a dead process leaves them.
+ * */
 NYA_API void nya_http_idempotency_reset(void);
 
 /** How many keys are held right now, which is the ceiling's live count. */

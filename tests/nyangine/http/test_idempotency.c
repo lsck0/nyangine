@@ -30,11 +30,28 @@ static b8             REENTER          = false;
 static NYA_HttpStatus REENTER_STATUS   = NYA_HTTP_STATUS_NONE;
 static b8             REENTERED_ALREADY = false;
 
+/** Set by a test that wants the handler to fail as the server's own trouble, after it has done its write. */
+static NYA_HttpStatus FAIL_WITH = NYA_HTTP_STATUS_NONE;
+
+/** Set by the durable tests: the handler's write also lands as a row here, inside whatever transaction the layer opened. */
+static NYA_Database* NOTES_DATABASE = nullptr;
+
 static NYA_HttpStatus dispatch_note(NYA_Arena* arena, NYA_ConstCString body, NYA_ConstCString key, u64 now_s, OUT NYA_HttpResponse* out_response);
+
+/** Rows the handler has written to NOTES_DATABASE that are still there. */
+static u64 notes_stored(NYA_Arena* arena) {
+    NYA_SqlResult result = { 0 };
+    NYA_EXPECT(nya_sql_query(NOTES_DATABASE, arena, "SELECT COUNT(*) AS n FROM notes", nullptr, 0, &result));
+
+    return (u64)nya_object_get(result.rows->items[0], "n")->as_s64;
+}
 
 /** Writes a note-shaped body and answers 201, counting the write. The create a replay must not repeat. */
 static NYA_HttpStatus create_note(NYA_HttpExchange* exchange) {
     SIDE_EFFECTS++;
+
+    if (NOTES_DATABASE != nullptr) NYA_EXPECT(nya_sql_exec(NOTES_DATABASE, "INSERT INTO notes (text) VALUES ('once')"));
+    if (FAIL_WITH != NYA_HTTP_STATUS_NONE) return nya_http_response_problem(exchange, FAIL_WITH, "the disk is full");
 
     /* While this one is in flight its key is reserved, so a duplicate that arrives now is the 409 case. Re-entering here is how the test reaches that state without a second thread: the nested dispatch carries the same key and must be refused, and its handler must not run. */
     if (REENTER && !REENTERED_ALREADY) {
@@ -70,7 +87,7 @@ static const NYA_HttpRoute ROUTES[] = {
      .handler  = create_note,
      .summary  = "Writes a note, once per Idempotency-Key",
      .statuses = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_CONFLICT,
-                     NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_INTERNAL_ERROR },
+                     NYA_HTTP_STATUS_UNPROCESSABLE, NYA_HTTP_STATUS_INTERNAL_ERROR, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE },
      },
     {
      .method   = NYA_HTTP_METHOD_QUERY,
@@ -331,10 +348,88 @@ s32 main(void) {
         nya_http_response_destroy(&bad);
     }
 
+    // TEST: a 5xx is the server's trouble and is not stored, so the retry after it clears runs the handler.
+    {
+        nya_http_idempotency_reset();
+        SIDE_EFFECTS = 0;
+
+        FAIL_WITH                = NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+        NYA_HttpResponse failing = { 0 };
+        nya_check(dispatch_note(arena, "{\"text\":\"x\"}", "key-outage", NOW_S, &failing) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the outage answers 503");
+        nya_check(nya_http_idempotency_count() == 0, "and holds no key for it");
+        FAIL_WITH = NYA_HTTP_STATUS_NONE;
+
+        NYA_HttpResponse healed = { 0 };
+        nya_check(dispatch_note(arena, "{\"text\":\"x\"}", "key-outage", NOW_S, &healed) == NYA_HTTP_STATUS_CREATED, "the retry once it cleared is answered for real");
+        nya_check(SIDE_EFFECTS == 2 && !marked_replay(&healed), "by running the handler again, not by replaying the 503");
+
+        nya_http_response_destroy(&failing);
+        nya_http_response_destroy(&healed);
+    }
+
+    // the durable store: the same layer over a database, where the answer and the handler's write commit together.
+    nya_http_idempotency_deinit();
+
+    NYA_EXPECT(nya_sql_open(arena, ":memory:", &NOTES_DATABASE));
+    defer nya_sql_close(NOTES_DATABASE);
+    NYA_EXPECT(nya_sql_exec(NOTES_DATABASE, "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL)"));
+    NYA_EXPECT(nya_http_idempotency_init(arena, .ttl_s = TTL_S, .database = NOTES_DATABASE), "while readying the durable store");
+
+    // TEST: a restart forgets the memory table, and the retry after it replays the stored answer without running the handler.
+    {
+        nya_http_idempotency_reset();
+        SIDE_EFFECTS = 0;
+
+        NYA_HttpResponse first = { 0 };
+        nya_check(dispatch_note(arena, "{\"text\":\"once\"}", "key-durable", NOW_S, &first) == NYA_HTTP_STATUS_CREATED, "the first request runs");
+
+        nya_http_idempotency_reset();
+        nya_check(nya_http_idempotency_count() == 0, "the restart left nothing in memory");
+
+        NYA_HttpResponse after = { 0 };
+        nya_check(dispatch_note(arena, "{\"text\":\"once\"}", "key-durable", NOW_S, &after) == NYA_HTTP_STATUS_CREATED, "the retry after the restart answers 201");
+        nya_check(SIDE_EFFECTS == 1 && marked_replay(&after), "as a replay, with the handler run once");
+        nya_check(notes_stored(arena) == 1, "and one note written, got " FMTu64, notes_stored(arena));
+
+        char first_body[64] = { 0 };
+        char after_body[64] = { 0 };
+        body_text(&first, first_body, sizeof(first_body));
+        body_text(&after, after_body, sizeof(after_body));
+        nya_check(strcmp(first_body, after_body) == 0, "the replay is the first answer, byte for byte");
+
+        NYA_HttpResponse other = { 0 };
+        nya_http_idempotency_reset();
+        nya_check(dispatch_note(arena, "{\"text\":\"else\"}", "key-durable", NOW_S, &other) == NYA_HTTP_STATUS_UNPROCESSABLE, "a different body under the stored key is 422 after a restart too");
+
+        nya_http_response_destroy(&first);
+        nya_http_response_destroy(&after);
+        nya_http_response_destroy(&other);
+    }
+
+    // TEST: a handler that fails as the server's own trouble has its write undone with it, and nothing is stored.
+    {
+        SIDE_EFFECTS = 0;
+        u64 before   = notes_stored(arena);
+
+        FAIL_WITH                = NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+        NYA_HttpResponse failing = { 0 };
+        nya_check(dispatch_note(arena, "{\"text\":\"y\"}", "key-undone", NOW_S, &failing) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the failure keeps its status");
+        FAIL_WITH = NYA_HTTP_STATUS_NONE;
+
+        nya_check(notes_stored(arena) == before, "and its half of the write is gone");
+
+        NYA_HttpResponse healed = { 0 };
+        nya_check(dispatch_note(arena, "{\"text\":\"y\"}", "key-undone", NOW_S, &healed) == NYA_HTTP_STATUS_CREATED && SIDE_EFFECTS == 2, "the retry runs for real");
+        nya_check(notes_stored(arena) == before + 1, "and writes exactly once");
+
+        nya_http_response_destroy(&failing);
+        nya_http_response_destroy(&healed);
+    }
+
     // gives the lock back to the arena before it is destroyed, and exercises deinit's own path.
     nya_http_idempotency_deinit();
 
     printf("test_idempotency: all assertions passed.\n");
 
-    return 0;
+    return nya_check_failures() == 0 ? 0 : 1;
 }

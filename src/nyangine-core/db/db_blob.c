@@ -126,7 +126,10 @@ NYA_Error nya_blob_get(NYA_BlobStore* store, NYA_BlobId id, NYA_Arena* out_arena
     if (memcmp(actual.hex, id.hex, NYA_BLOB_ID_LENGTH) != 0) return nya_error(NYA_ERROR_CORRUPT, "object %s hashes to %s", id.hex, actual.hex);
 
     // Copied into the caller's arena before the scratch dies; a zero-length object still gets a non-null pointer, so empty is told from missing by the error.
-    u8* bytes = nya_arena_alloc(out_arena, decoded->length > 0 ? decoded->length : 1);
+    // fallible, because the size is whatever the row holds and the caller's arena may have a budget it would cross.
+    u8* bytes = nya_arena_try_alloc(out_arena, decoded->length > 0 ? decoded->length : 1);
+    if (bytes == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the " FMTu64 " bytes of object %s", decoded->length, id.hex);
+
     memcpy(bytes, decoded->items, decoded->length);
 
     *out_bytes = bytes;

@@ -1,3 +1,4 @@
+#include "nyangine-std/os/os_fault.h"
 #include "nyangine-std/os/os_file.h"
 
 // After the engine's own header: base_basic.h asks for POSIX 2008, and these declare what it wants only once they have seen that.
@@ -36,6 +37,9 @@ NYA_INTERNAL NYA_OsFileStatus _nya_os_file_status(void) {
 
         case EIO:          return NYA_OS_FILE_STATUS_IO;
 
+        case ENOSPC:
+        case EDQUOT:       return NYA_OS_FILE_STATUS_NO_SPACE;
+
         default:           return NYA_OS_FILE_STATUS_FAILED;
     }
 }
@@ -55,7 +59,7 @@ NYA_INTERNAL NYA_OsFileKind _nya_os_file_kind(mode_t mode) {
 
 // HANDLES
 
-NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* out_file) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsFileStatus NYA_OS_SYSCALL(nya_os_file_open)(const char* path, u32 flags, OUT NYA_OsFile* out_file) {
     if (path == nullptr || out_file == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
     // append is a kind of write, so READ with APPEND is read-write like READ with WRITE.
@@ -83,14 +87,14 @@ NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* o
     return NYA_OS_FILE_STATUS_OK;
 }
 
-void nya_os_file_close(NYA_OsFile* file) {
+NYA_OS_SYSCALL_LINKAGE void NYA_OS_SYSCALL(nya_os_file_close)(NYA_OsFile* file) {
     if (file == nullptr || file->descriptor < 0) return;
 
     (void)close(file->descriptor);
     *file = NYA_OS_FILE_NONE;
 }
 
-NYA_OsFileStatus nya_os_file_read(NYA_OsFile* file, OUT u8* buffer, u64 size, OUT u64* out_read) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsFileStatus NYA_OS_SYSCALL(nya_os_file_read)(NYA_OsFile* file, OUT u8* buffer, u64 size, OUT u64* out_read) {
     if (file == nullptr || buffer == nullptr || out_read == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
     ssize_t got = read(file->descriptor, buffer, size);
@@ -100,7 +104,7 @@ NYA_OsFileStatus nya_os_file_read(NYA_OsFile* file, OUT u8* buffer, u64 size, OU
     return NYA_OS_FILE_STATUS_OK;
 }
 
-NYA_OsFileStatus nya_os_file_write(NYA_OsFile* file, const u8* buffer, u64 size, OUT u64* out_written) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsFileStatus NYA_OS_SYSCALL(nya_os_file_write)(NYA_OsFile* file, const u8* buffer, u64 size, OUT u64* out_written) {
     if (file == nullptr || buffer == nullptr || out_written == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
     ssize_t chunk = write(file->descriptor, buffer, size);
@@ -140,7 +144,7 @@ NYA_OsFileStatus nya_os_file_truncate(NYA_OsFile* file, u64 length) {
     return ftruncate(file->descriptor, (off_t)length) == 0 ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
 }
 
-NYA_OsFileStatus nya_os_file_sync(NYA_OsFile* file) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsFileStatus NYA_OS_SYSCALL(nya_os_file_sync)(NYA_OsFile* file) {
     if (file == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
     return fsync(file->descriptor) == 0 ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
@@ -205,14 +209,14 @@ NYA_OsFileStatus nya_os_path_absolute(const char* path, OUT char* out_path, u64 
 
 // MUTATION
 
-NYA_OsFileStatus nya_os_file_rename(const char* source, const char* destination) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsFileStatus NYA_OS_SYSCALL(nya_os_file_rename)(const char* source, const char* destination) {
     if (source == nullptr || destination == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
     return rename(source, destination) == 0 ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
 }
 
 // rename() is the atomic replace and has no transient refusal, so this never answers BUSY and the caller's retry runs once.
-NYA_OsFileStatus nya_os_file_replace(const char* source, const char* destination) {
+NYA_OS_SYSCALL_LINKAGE NYA_OsFileStatus NYA_OS_SYSCALL(nya_os_file_replace)(const char* source, const char* destination) {
     if (source == nullptr || destination == nullptr) return NYA_OS_FILE_STATUS_INVALID;
 
     return rename(source, destination) == 0 ? NYA_OS_FILE_STATUS_OK : _nya_os_file_status();
