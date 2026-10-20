@@ -17,6 +17,7 @@
  * nya_http_server_port            which port, for the line that tells a person where to look
  * nya_http_server_connection_count
  * nya_http_server_request_count   how many requests have been answered since init
+ * nya_http_server_memory_refusal_count  how many were refused 503 for want of memory
  * nya_http_server_router_count / _at   what is mounted, which is what the schema is generated from
  *
  * nya_http_secret_from_environment  a signing secret out of an environment variable, bounded
@@ -174,6 +175,20 @@
 #define NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS 5000
 
 /**
+ * Bytes an exchange's arena must be able to take before its handler runs, or the request is answered 503.
+ *
+ * Eight times the largest body: a parsed document is a few times its text, and the compression scratch
+ * after it fits in what is left. Only refused when the arena has a budget (exchange_budget_bytes) or the
+ * system is out of memory, so a server configured with neither never sees it.
+ * */
+#ifndef NYA_HTTP_EXCHANGE_RESERVE_BYTES
+#define NYA_HTTP_EXCHANGE_RESERVE_BYTES (8ULL * NYA_HTTP_MAX_BODY_BYTES)
+#endif
+
+/** The Retry-After a 503 for want of memory carries. A second: memory frees as soon as the exchanges in flight finish. */
+#define NYA_HTTP_EXCHANGE_RETRY_AFTER_S 1
+
+/**
  * Connections accepted in one tick. Bounded for the same reason: a process that loops on connect gets
  * this much of the frame and no more.
  * */
@@ -262,6 +277,13 @@ struct NYA_HttpConfig {
      * nya_http_server_shutdown.
      * */
     u32 shutdown_deadline_ms;
+
+    /**
+     * Most bytes one exchange's arena may take from the system, checked once per request before its handler
+     * runs; a request that cannot get NYA_HTTP_EXCHANGE_RESERVE_BYTES within it is answered 503. Zero is no
+     * budget. Below the arena's first region of a mebibyte every request is refused, which is a config error.
+     * */
+    u64 exchange_budget_bytes;
 
     /**
      * Install SIGINT and SIGTERM handlers, through the engine's own signal facility, that begin a
@@ -355,6 +377,9 @@ NYA_API u32 nya_http_server_connection_count(void) __attr_no_discard;
 
 /** Requests answered since init, refusals included. Reset by deinit. */
 NYA_API u64 nya_http_server_request_count(void) __attr_no_discard;
+
+/** Requests answered 503 since init because their exchange could not reserve its memory. Reset by deinit. */
+NYA_API u64 nya_http_server_memory_refusal_count(void) __attr_no_discard;
 
 /** What is mounted. The table http_openapi.h walks to generate the document. */
 NYA_API u32                   nya_http_server_router_count(void) __attr_no_discard;

@@ -41,7 +41,7 @@ Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No S
 
 ```c
 // types
-struct NYA_ArenaOptions { const char* name; u8 alignment; u64 region_size; b8 defragmentation_enabled; u8 defragmentation_threshold; b8 garbage_collection_enabled; u8 garbage_collection_threshold; }
+struct NYA_ArenaOptions { const char* name; u8 alignment; u64 region_size; b8 defragmentation_enabled; u8 defragmentation_threshold; b8 garbage_collection_enabled; u8 garbage_collection_threshold; u64 budget_bytes; }
 struct NYA_Arena { NYA_ArenaOptions options; NYA_ArenaRegion *head, *tail; }
 struct NYA_ArenaRegion { u64 used; u64 capacity; u8* memory; u8 gc_counter; NYA_ArenaFreeList* free_list; NYA_ArenaRegion *next, *prev; }
 struct NYA_ArenaFreeList { u32 node_counter; f32 average_free_size; u8 defragmentation_counter; NYA_ArenaFreeListNode *head, *tail; }
@@ -58,6 +58,7 @@ nya_arena_create_on_stack(...)
 nya_arena_create_with_options(options)
 nya_arena_create_with_options_on_stack(options)
 nya_arena_alloc(arena, size)
+nya_arena_try_alloc(arena, size)
 nya_arena_realloc(arena, ptr, old_size, new_size)
 nya_arena_free(arena, ptr, size)
 nya_arena_free_all(arena)
@@ -72,6 +73,7 @@ NYA_ARENA_REGISTRY_MAX 256  // Every arena alive right now.
 NYA_Arena* nya_arena_global  // Both arenas are initialized and deinitialized automatically for the main thread.
 NYA_Arena* nya_arena_temp
 void nya_arena_actions_set_callback(NYA_ArenaActionCallback callback)
+NYA_Error nya_arena_try_reserve(NYA_Arena* arena, u64 size)  // Whether `size` more bytes fit within the budget, as an error: the fallible allocation, given straight back.
 u64 nya_arena_memory_usage_bytes(NYA_Arena* arena)
 NYA_ArenaStats nya_arena_stats(NYA_Arena* arena)
 u64 nya_arena_resident_bytes(NYA_Arena* arena)
@@ -85,6 +87,7 @@ void nya_arena_callsites_report(u32 limit)  // Logs the `limit` callsites holdin
 NYA_Arena* _nya_arena_debug_create_with_options(NYA_ArenaOptions options, const char* function, const char* file, u32 line)
 NYA_Arena _nya_arena_debug_create_with_options_on_stack(NYA_ArenaOptions options, const char* function, const char* file, u32 line)
 void* _nya_arena_debug_alloc(NYA_Arena* arena, u64 size, const char* function, const char* file, u32 line)
+void* _nya_arena_debug_try_alloc(NYA_Arena* arena, u64 size, const char* function, const char* file, u32 line)
 void* _nya_arena_debug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size, const char* function, const char* file, u32 line)
 void _nya_arena_debug_free(NYA_Arena* arena, void* ptr, u64 size, const char* function, const char* file, u32 line)
 void _nya_arena_debug_free_all(NYA_Arena* arena, const char* function, const char* file, u32 line)
@@ -96,6 +99,7 @@ void* _nya_arena_debug_move(NYA_Arena* src, NYA_Arena* dst, void* ptr, u64 size,
 NYA_Arena* _nya_arena_nodebug_create_with_options(NYA_ArenaOptions options)
 NYA_Arena _nya_arena_nodebug_create_with_options_on_stack(NYA_ArenaOptions options)
 void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size)
+void* _nya_arena_nodebug_try_alloc(NYA_Arena* arena, u64 size)
 void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 new_size)
 void _nya_arena_nodebug_free(NYA_Arena* arena, void* ptr, u64 size)
 void _nya_arena_nodebug_free_all(NYA_Arena* arena)
@@ -6004,7 +6008,7 @@ The listener: a TCP port, a handful of connections, and either one drain a frame
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; u64 exchange_budget_bytes; b8 handle_shutdown_signals; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
@@ -6012,6 +6016,8 @@ NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered, or started, in one drai
 NYA_HTTP_MAX_WORKERS 8  // Worker threads one server may run, whatever the config or the core count says.
 NYA_HTTP_SHUTDOWN_GRACE_MS 2000  // How long nya_system_http_deinit waits for a handler that is still running before it stops waiting.
 NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS 5000  // How long a graceful shutdown may take to drain before what is still open is force-closed.
+NYA_HTTP_EXCHANGE_RESERVE_BYTES (8ULL * NYA_HTTP_MAX_BODY_BYTES)  // Bytes an exchange's arena must be able to take before its handler runs, or the request is answered 503.
+NYA_HTTP_EXCHANGE_RETRY_AFTER_S 1  // The Retry-After a 503 for want of memory carries.
 NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
 NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes this server may hold queued for one connection before it is dropped.
 
@@ -6025,6 +6031,7 @@ b8 nya_http_server_is_running(void)
 u16 nya_http_server_port(void)  // The bound port, or zero when the server is not running.
 u32 nya_http_server_connection_count(void)
 u64 nya_http_server_request_count(void)  // Requests answered since init, refusals included.
+u64 nya_http_server_memory_refusal_count(void)  // Requests answered 503 since init because their exchange could not reserve its memory.
 u32 nya_http_server_router_count(void)  // What is mounted.
 const NYA_HttpRouter* nya_http_server_router_at(u32 index)
 void nya_http_server_shutdown(void)

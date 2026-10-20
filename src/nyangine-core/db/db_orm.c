@@ -483,7 +483,9 @@ NYA_Error nya_orm_select(
     if (result.rows->length == 0) return NYA_OK;
 
     u32   count     = (u32)result.rows->length;
-    void* instances = nya_arena_alloc(arena, table->type->size * count);
+    // fallible, because the count is the table's and not the program's: a select over a grown table is refused rather than aborting.
+    void* instances = nya_arena_try_alloc(arena, table->type->size * count);
+    if (instances == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for " FMTu32 " rows of %s", count, table->name);
 
     nya_memset(instances, 0, table->type->size * count);
 

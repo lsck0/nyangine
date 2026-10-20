@@ -216,6 +216,9 @@ struct _NYA_HttpState {
 
     atomic u64 request_count;
 
+    /** Exchanges answered 503 because their arena could not reserve its working memory. */
+    atomic u64 memory_refusals;
+
     // ── the threaded half, all of it null and zero while `workers` is zero ──
 
     /** Worker threads, and therefore handlers that can be running at once. Zero is the unthreaded mode. */
@@ -520,7 +523,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     }
 
     for (u32 index = 0; index < state->slot_count; index++) {
-        state->slots[index].arena = nya_arena_create(.name = "http_exchange");
+        state->slots[index].arena = nya_arena_create(.name = "http_exchange", .budget_bytes = config.exchange_budget_bytes);
 
         if (state->slots[index].arena != nullptr) continue;
 
@@ -743,6 +746,10 @@ u32 nya_http_server_connection_count(void) {
 
 u64 nya_http_server_request_count(void) {
     return _NYA_HTTP != nullptr ? atomic_load_explicit(&_NYA_HTTP->request_count, memory_order_relaxed) : 0;
+}
+
+u64 nya_http_server_memory_refusal_count(void) {
+    return _NYA_HTTP != nullptr ? atomic_load_explicit(&_NYA_HTTP->memory_refusals, memory_order_relaxed) : 0;
 }
 
 u32 nya_http_server_router_count(void) {
@@ -1209,6 +1216,16 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
 void _nya_http_dispatch(_NYA_HttpState* state, _NYA_HttpSlot* slot) {
     // everything the exchange allocates dies with it. Cleared at the start rather than the end so a response body that points into it is still valid while it's being written.
     nya_arena_free_all(slot->arena);
+
+    // admitted before any handler runs, because a handler's own allocations are not all fallible: an exchange that cannot get its working memory is refused whole rather than aborting halfway.
+    if (!nya_arena_try_reserve(slot->arena, NYA_HTTP_EXCHANGE_RESERVE_BYTES).ok) {
+        _nya_http_problem(slot, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "the server has no memory for this request right now", NYA_HTTP_EXCHANGE_RETRY_AFTER_S);
+
+        slot->status = NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+        slot->answer = _NYA_HTTP_ANSWER_WRITE;
+        (void)atomic_fetch_add_explicit(&state->memory_refusals, 1, memory_order_relaxed);
+        return;
+    }
 
     nya_http_response_create(&slot->response, slot->response_body, sizeof(slot->response_body));
 
