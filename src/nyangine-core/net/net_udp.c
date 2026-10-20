@@ -414,6 +414,9 @@ NYA_INTERNAL void _nya_net_udp_remove_peer(NYA_NetTransport* transport, u32 peer
 /** Resolves a peer id to a slot index, or NYA_NET_MAX_PEERS when it names nothing live. */
 NYA_INTERNAL u32 _nya_net_udp_resolve(_NYA_NetUdpState* state, NYA_NetPeerId peer) __attr_no_discard;
 
+/** Whether a DISCONNECTED for exactly `peer` waits in the batch at or after `from`. */
+NYA_INTERNAL b8 _nya_net_udp_disconnect_pending(const _NYA_NetUdpState* state, NYA_NetPeerId peer, u64 from) __attr_no_discard;
+
 /** Queues an event for poll. */
 NYA_INTERNAL void _nya_net_udp_event(_NYA_NetUdpState* state, _NYA_NetUdpEvent event);
 
@@ -1058,8 +1061,12 @@ b8 _nya_net_udp_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out
         _NYA_NetUdpEvent event = state->events->items[state->events_read++];
 
         // received in the same batch as something that got its sender dropped: the id is dead, and a message under it
-        // would let the layer above admit a peer this transport no longer has.
-        if (event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE && _nya_net_udp_resolve(state, event.peer) == NYA_NET_MAX_PEERS) continue;
+        // would let the layer above admit a peer this transport no longer has. Unless the drop is itself still to come:
+        // then the layer above sees both in the order they happened, which is how a client reads the REJECT before it.
+        if (event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE && _nya_net_udp_resolve(state, event.peer) == NYA_NET_MAX_PEERS
+            && !_nya_net_udp_disconnect_pending(state, event.peer, state->events_read)) {
+            continue;
+        }
 
         *out_event = (NYA_NetTransportEvent){
             .kind    = event.kind,
@@ -1844,6 +1851,18 @@ void _nya_net_udp_remove_peer(NYA_NetTransport* transport, u32 peer_index, NYA_N
     connection->generation = generation;
 
     if (notify) _nya_net_udp_event(state, (_NYA_NetUdpEvent){ .kind = NYA_NET_TRANSPORT_EVENT_DISCONNECTED, .peer = id, .reason = reason });
+}
+
+b8 _nya_net_udp_disconnect_pending(const _NYA_NetUdpState* state, NYA_NetPeerId peer, u64 from) {
+    nya_assert(from <= state->events->length);
+
+    for (u64 i = from; i < state->events->length; i++) {
+        const _NYA_NetUdpEvent* later = &state->events->items[i];
+
+        if (later->kind == NYA_NET_TRANSPORT_EVENT_DISCONNECTED && nya_net_peer_equals(later->peer, peer)) return true;
+    }
+
+    return false;
 }
 
 u32 _nya_net_udp_resolve(_NYA_NetUdpState* state, NYA_NetPeerId peer) {
