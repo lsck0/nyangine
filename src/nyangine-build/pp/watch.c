@@ -102,6 +102,7 @@ NYA_INTERNAL s32 _nya_watch_compare(const NYA_String* a, const NYA_String* b);
 NYA_INTERNAL void _nya_watch_problem(_NYA_WatchSet* set, NYA_ConstCString path, u32 line, NYA_ConstCString format, ...) __attr_fmt_printf(4, 5);
 
 NYA_INTERNAL b8   _nya_watch_token_is(const NYA_Lexer* lexer, u32 index, NYA_ConstCString text) __attr_no_discard;
+NYA_INTERNAL b8   _nya_watch_token_is_call(const NYA_Lexer* lexer, u32 index) __attr_no_discard;
 NYA_INTERNAL b8   _nya_watch_token_symbol(const NYA_Lexer* lexer, u32 index, char symbol) __attr_no_discard;
 NYA_INTERNAL void _nya_watch_token_copy(const NYA_Lexer* lexer, u32 index, OUT char* out, u64 capacity);
 
@@ -286,6 +287,10 @@ b8 _nya_watch_token_is(const NYA_Lexer* lexer, u32 index, NYA_ConstCString text)
     if (token.type != NYA_TOKEN_IDENT || token.length != length) return false;
 
     return nya_memcmp(lexer->source + token.source_location, text, length) == 0;
+}
+
+b8 _nya_watch_token_is_call(const NYA_Lexer* lexer, u32 index) {
+    return _nya_watch_token_is(lexer, index, NYA_WATCH_CALL) || _nya_watch_token_is(lexer, index, NYA_WATCH_CALL_SCOPED);
 }
 
 b8 _nya_watch_token_symbol(const NYA_Lexer* lexer, u32 index, char symbol) {
@@ -576,7 +581,7 @@ void _nya_watch_scan_file(_NYA_WatchSet* set, NYA_Arena* arena, NYA_ConstCString
 
     // Read whole and searched once: almost nothing in the tree is annotated, and lexing every file to find that out would be most of this pass's time.
     NYA_CString contents = nya_string_to_cstring(arena, text);
-    if (strstr(contents, NYA_WATCH_MARKER) == nullptr && strstr(contents, NYA_WATCH_CALL "(") == nullptr) return;
+    if (strstr(contents, NYA_WATCH_MARKER) == nullptr && strstr(contents, NYA_WATCH_CALL "(") == nullptr && strstr(contents, NYA_WATCH_CALL_SCOPED "(") == nullptr) return;
 
     // Character literals, because this is C source: without them the quote in `c == '"'` opens a string that runs to the next quote in the file. UTF-8 identifiers, because the derived container types mangle their names with non-ASCII brackets.
     NYA_Lexer lexer = nya_lexer_create(contents, NYA_LEXER_UTF8_IDENTS | NYA_LEXER_CHAR_LITERALS);
@@ -592,7 +597,7 @@ void _nya_watch_scan_file(_NYA_WatchSet* set, NYA_Arena* arena, NYA_ConstCString
     for (u32 index = 0; index < lexer.tokens->length; index++) {
         if (_nya_watch_token_symbol(&lexer, index, '#')) preprocessor_line = lexer.tokens->items[index].line_number;
 
-        if (!_nya_watch_token_is(&lexer, index, NYA_WATCH_CALL)) continue;
+        if (!_nya_watch_token_is_call(&lexer, index)) continue;
         if (lexer.tokens->items[index].line_number == preprocessor_line) continue;
         if (call_count >= nya_carray_length(calls)) continue;
 
@@ -671,7 +676,7 @@ u32 _nya_watch_parse(_NYA_WatchSet* set, NYA_ConstCString path, const NYA_Lexer*
     // the call site, which is where the registration goes and therefore what it can reach
     u32 call = 0;
     for (u32 at = body + 1; at < body_end && call == 0; at++) {
-        if (_nya_watch_token_is(lexer, at, NYA_WATCH_CALL)) call = at;
+        if (_nya_watch_token_is_call(lexer, at)) call = at;
     }
 
     if (call == 0) {
