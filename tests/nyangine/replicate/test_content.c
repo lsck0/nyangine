@@ -1,7 +1,8 @@
 /**
  * Content manifests: replicate_content.h on its own, then over a real UDP handshake. A matching manifest is
  * admitted; a different plugin digest, an extra plugin and a missing one are refused with NYA_NET_DISCONNECT_CONTENT
- * and the entry named; a client-only plugin is ignored when the server allows it.
+ * and the entry named; a client-only plugin is ignored when the server allows it. Then the command action mask and
+ * the game event bound, which a session over the same handshake reaches.
  **/
 
 #include "nyangine-core/nyangine.c"
@@ -17,6 +18,12 @@
 
 /** One fixed tick, matching the engine's default. */
 #define TICK_SECONDS (1.0F / 60.0F)
+
+/** The two action bits the game below numbers; anything else in a command is a lie. */
+#define ACTION_MASK 0x3ULL
+
+/** A bit the game never registered. */
+#define ACTION_UNKNOWN (1ULL << 9)
 
 static void sleep_ms(u32 milliseconds) {
     struct timespec request = { .tv_sec = milliseconds / 1000, .tv_nsec = (long)(milliseconds % 1000) * 1000000L };
@@ -93,6 +100,7 @@ static NYA_NetClientState session_begin(u64* tick, const NYA_NetContentManifest*
         .replicated_flag           = FLAG_REPLICATED,
         .on_apply_command          = nya_callback(apply_movement),
         .on_spawn_player           = nya_callback(spawn_player),
+        .action_mask               = ACTION_MASK,
         .content                   = server_content,
         .allow_client_only_plugins = allow_client_only,
     }));
@@ -323,6 +331,88 @@ s32 main(void) {
         state = session_begin(&tick, &server, &client, false);
         nya_assert(state == NYA_NET_CLIENT_DISCONNECTED, "a strict server admitted a client-only plugin");
         nya_assert(nya_net_client_content_mismatch() != nullptr && nya_net_client_content_mismatch()->difference == NYA_NET_CONTENT_EXTRA);
+
+        session_end();
+    }
+
+    printf("TEST: a command holding an action bit the game never registered is refused\n");
+    {
+        NYA_NetContentManifest content = manifest_base(0x11);
+
+        nya_assert(session_begin(&tick, &content, &content, false) == NYA_NET_CLIENT_PLAYING);
+
+        NYA_NetPeerId peer = nya_net_client_peer();
+
+        HELD_ACTIONS = ACTION_UNKNOWN | 0x1ULL;
+
+        u64 deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+        while (nya_net_server_peer_stats(peer).violations == 0 && nya_clock_get_monotonic_ms() < deadline) {
+            run_tick(&tick, true);
+            sleep_ms(2);
+        }
+
+        nya_assert(nya_net_server_peer_stats(peer).violations > 0, "an unknown action bit was not counted");
+        nya_assert((nya_net_server_last_command(peer).actions & ACTION_UNKNOWN) == 0, "a command with an unknown bit was applied");
+
+        // a registered bit alone is applied as ever.
+        HELD_ACTIONS = 0x1ULL;
+
+        deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+        while (nya_net_server_last_command(peer).actions != 0x1ULL && nya_clock_get_monotonic_ms() < deadline) {
+            run_tick(&tick, true);
+            sleep_ms(2);
+        }
+
+        nya_assert_eq(nya_net_server_last_command(peer).actions, 0x1ULL);
+
+        printf("  %u violations, and the next honest command applied\n", nya_net_server_peer_stats(peer).violations);
+
+        HELD_ACTIONS = 0;
+        session_end();
+    }
+
+    printf("TEST: an oversized or flooding game event is a violation, not a parse\n");
+    {
+        NYA_NetContentManifest content = manifest_base(0x11);
+
+        nya_assert(session_begin(&tick, &content, &content, false) == NYA_NET_CLIENT_PLAYING);
+
+        NYA_NetPeerId peer = nya_net_client_peer();
+
+        // a document of one string past the bound.
+        char* filler = nya_arena_alloc(arena, NYA_NET_EVENT_MAX_BYTES + 1);
+        nya_memset(filler, 'x', NYA_NET_EVENT_MAX_BYTES);
+        filler[NYA_NET_EVENT_MAX_BYTES] = '\0';
+
+        NYA_Object* big = nya_object_create(arena);
+        nya_object_add(big, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "padding" });
+        nya_object_add(big, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = filler });
+        NYA_EXPECT(nya_net_client_send_event(big));
+
+        u64 deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+        while (nya_net_server_peer_stats(peer).violations == 0 && nya_clock_get_monotonic_ms() < deadline) {
+            run_tick(&tick, true);
+            sleep_ms(2);
+        }
+
+        u32 after_big = nya_net_server_peer_stats(peer).violations;
+        nya_assert_eq(after_big, 1U);
+
+        // a burst's worth passes, and every one after it is counted.
+        NYA_Object* small = nya_object_create(arena);
+        nya_object_add(small, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "ping" });
+
+        for (u32 i = 0; i < NYA_NET_EVENT_BURST + 8; i++) NYA_EXPECT(nya_net_client_send_event(small));
+
+        deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+        while (nya_net_server_peer_stats(peer).violations < after_big + 4 && nya_clock_get_monotonic_ms() < deadline) {
+            run_tick(&tick, true);
+            sleep_ms(2);
+        }
+
+        nya_assert(nya_net_server_peer_stats(peer).violations >= after_big + 4, "a flood of events was not counted");
+
+        printf("  one violation for the oversized event, %u in all after the flood\n", nya_net_server_peer_stats(peer).violations);
 
         session_end();
     }

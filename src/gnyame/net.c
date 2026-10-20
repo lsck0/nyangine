@@ -21,6 +21,11 @@
  * */
 #define GNY_COMMAND_BIT(action) ((u32)((action) - NYA_INPUT_ACTION_USER))
 
+/** The four movement bits, all a command may hold; the server drops one holding any other. */
+#define GNY_COMMAND_ACTION_MASK                                                                                        \
+    ((1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_LEFT)) | (1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_RIGHT))                \
+     | (1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_UP)) | (1ULL << GNY_COMMAND_BIT(GNY_ACTION_MOVE_DOWN)))
+
 /**
  * A long term key pair kept at `relative` under the save root.
  *
@@ -84,6 +89,7 @@ void gny_net_start(void) {
         .on_spawn_player  = nya_callback(gny_net_spawn_player),
         .on_apply_command = nya_callback(gny_net_apply_command),
         .max_speed        = speed * GNY_NET_SPEED_HEADROOM,
+        .action_mask      = GNY_COMMAND_ACTION_MASK,
         .position_bits    = GNY_NET_POSITION_BITS,
         .conditions       = GNY_LAUNCH.conditions,
         .allowlist        = GNY_LAUNCH.allowlist,

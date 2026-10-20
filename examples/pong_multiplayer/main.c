@@ -32,7 +32,7 @@
  * HELLO carries the build, the asset bundle and every loaded mod (replicate_content.h), and the server
  * refuses a player whose content differs. `--pretend-mod <name>` adds a plugin this client does not
  * really have, which is what a mismatched mod looks like without installing one; the refusal names it
- * on screen.
+ * on screen. The server also refuses commands holding an action bit other than up and down.
  * */
 #include "genyarated/assets.h"
 #include "nyangine-core/nyangine.h"
@@ -112,6 +112,9 @@ enum {
 
 /** Where an action sits in NYA_NetCommand.actions. */
 #define COMMAND_BIT(action) ((u32)((action) - NYA_INPUT_ACTION_USER))
+
+/** Every bit a pong command may hold; the server drops a command holding any other. */
+#define COMMAND_ACTION_MASK ((1ULL << COMMAND_BIT(PONG_ACTION_UP)) | (1ULL << COMMAND_BIT(PONG_ACTION_DOWN)))
 
 /** The game's state, hung off the engine world so it shares the world's lifetime. */
 typedef struct {
@@ -406,6 +409,7 @@ NYA_INTERNAL void pong_net_start(void) {
         .on_spawn_player  = nya_callback(pong_spawn_player),
         .on_apply_command = nya_callback(pong_apply_command),
         .max_speed        = PADDLE_SPEED_LIMIT,
+        .action_mask      = COMMAND_ACTION_MASK,
         .conditions       = launch->conditions,
         .allowlist        = launch->allowlist,
         // a player's HUD skin is their own business; anything that touches the court is compared.

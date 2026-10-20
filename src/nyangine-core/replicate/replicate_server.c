@@ -74,6 +74,10 @@ typedef struct {
     /** The size of the newest snapshot sent, for the stats. */
     u32 snapshot_bytes;
 
+    /** Game events this peer may still send, and when the bucket was last topped up. See NYA_NET_EVENT_BURST. */
+    f32 event_tokens;
+    u64 event_refilled_ms;
+
     /* bandwidth */
 
     /**
@@ -174,6 +178,9 @@ NYA_INTERNAL void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_
 
 /** Sends REJECT with `reason` and whatever `detail` adds to it, then drops the peer with the same reason. */
 NYA_INTERNAL void _nya_net_server_refuse(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_Arena* scratch, NYA_NetDisconnect reason, NYA_Object* detail);
+
+/** Whether `state` may send one more game event now, spending a token if so. */
+NYA_INTERNAL b8 _nya_net_server_event_allow(_NYA_NetServerPeerState* state) __attr_no_discard;
 NYA_INTERNAL void _nya_net_server_send_snapshots(u64 tick);
 
 /**
@@ -720,6 +727,17 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
         case NYA_NET_MSG_COMMAND: _nya_net_server_handle_command(state, body, body_size, tick); break;
 
         case NYA_NET_MSG_GAME_EVENT: {
+            // both before anything is parsed: parsing is what a flood or an oversized document costs the server.
+            if (body_size > NYA_NET_EVENT_MAX_BYTES) {
+                _nya_net_server_violation(state, "a game event past NYA_NET_EVENT_MAX_BYTES");
+                break;
+            }
+
+            if (!_nya_net_server_event_allow(state)) {
+                _nya_net_server_violation(state, "more game events than NYA_NET_EVENT_BURST allows");
+                break;
+            }
+
             NYA_NetServerEventFn on_client_event = nya_callback_get(_NYA_NET_SERVER.config.on_client_event);
 
             if (on_client_event == nullptr) {
@@ -785,6 +803,18 @@ void _nya_net_server_handle_command(_NYA_NetServerPeerState* state, const u8* bo
 
         if (command->tick - state->last_command_tick > elapsed + _NYA_NET_SERVER_COMMAND_SLACK) {
             _nya_net_server_violation(state, "a command tick from the future");
+            if (!state->public_state.accepted) return;
+            continue;
+        }
+
+        u64 action_mask = _NYA_NET_SERVER.config.action_mask;
+
+        if (action_mask != 0 && (command->actions & ~action_mask) != 0) {
+            // taken as seen, so the copies of it riding in the next packets are not counted against the peer again.
+            state->last_command_tick        = command->tick;
+            state->last_command_server_tick = tick;
+
+            _nya_net_server_violation(state, "an action bit the game never registered");
             if (!state->public_state.accepted) return;
             continue;
         }
@@ -1013,6 +1043,22 @@ void _nya_net_server_refuse(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA
     nya_net_transport_disconnect(transport, peer, reason);
 }
 
+b8 _nya_net_server_event_allow(_NYA_NetServerPeerState* state) {
+    nya_assert(state != nullptr);
+
+    u64 now_ms     = nya_clock_get_monotonic_ms();
+    u64 elapsed_ms = _nya_net_elapsed_ms(now_ms, state->event_refilled_ms);
+
+    state->event_refilled_ms = now_ms;
+    state->event_tokens      = nya_min(state->event_tokens + ((f32)elapsed_ms * (f32)NYA_NET_EVENT_REFILL_PER_SECOND / 1000.0F), (f32)NYA_NET_EVENT_BURST);
+
+    if (state->event_tokens < 1.0F) return false;
+
+    state->event_tokens -= 1.0F;
+
+    return true;
+}
+
 void _nya_net_server_send_snapshots(u64 tick) {
     // a listen server's own player shares the world, so with nobody remote there is nothing to describe.
     if (_NYA_NET_SERVER.remote_peer_count == 0 && _NYA_NET_SERVER.config.lag_history_ticks == 0) return;
@@ -1235,8 +1281,10 @@ _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_
     }
 
     *state = (_NYA_NetServerPeerState){
-        .transport = transport,
-        .public_state = { .peer = peer, .entity = NYA_ENTITY_HANDLE_NONE },
+        .transport         = transport,
+        .public_state      = { .peer = peer, .entity = NYA_ENTITY_HANDLE_NONE },
+        .event_tokens      = (f32)NYA_NET_EVENT_BURST,
+        .event_refilled_ms = nya_clock_get_monotonic_ms(),
     };
 
     _NYA_NET_SERVER.peer_count++;

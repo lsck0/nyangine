@@ -5373,11 +5373,14 @@ typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCS
 typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle entity)  // Called when a player leaves, before their entity is despawned.
 typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant)  // Whether `entity` is worth sending to `peer` this tick.
 typedef void (*NYA_NetServerEventFn)(NYA_NetPeerId peer, const NYA_Object* event)  // Called when a client sends a game-defined event.
-struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; const NYA_NetContentManifest* content; b8 allow_client_only_plugins; u32 lag_history_ticks; }
+struct NYA_NetServerConfig { u64 replicated_flag; u32 max_players; u32 snapshot_interval_ticks; NYA_CallbackHandle on_spawn_player; NYA_CallbackHandle on_despawn_player; NYA_CallbackHandle on_client_event; NYA_CallbackHandle on_apply_command; NYA_CallbackHandle on_relevance; f32 relevance_radius; f32 relevance_hysteresis; u32 bandwidth_bytes_per_second; f32 max_speed; u32 violation_limit; u64 action_mask; u32 position_bits; NYA_NetKeyPair identity; NYA_NetAllowlist allowlist; NYA_NetConditions conditions; const NYA_NetContentManifest* content; b8 allow_client_only_plugins; u32 lag_history_ticks; }
 struct NYA_NetServerPeer { NYA_NetPeerId peer; char name[NYA_NET_MAX_NAME]; NYA_EntityHandle entity; b8 accepted; b8 is_local; u8 public_key[NYA_NET_KEY_SIZE]; }  // One connected player, as the game sees them.
 
 // macros
 NYA_NET_VIOLATION_LIMIT_DEFAULT 32  // Violations a player may run up before being kicked, when the config does not say.
+NYA_NET_EVENT_MAX_BYTES 4096  // The largest game event a client may send, in bytes of document.
+NYA_NET_EVENT_BURST 32  // Game events a client may send back to back, and how many a second it earns back.
+NYA_NET_EVENT_REFILL_PER_SECOND 16
 NYA_NET_RELEVANCE_HYSTERESIS 0.25F  // The default hysteresis band, as a fraction of the relevance radius.
 NYA_NET_STATS_LINE_MAX 128  // How long a line nya_net_stats_line writes may be, terminator included.
 
