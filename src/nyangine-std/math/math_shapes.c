@@ -173,3 +173,163 @@ NYA_Rectf nya_circle_bounds(NYA_Circlef circle) {
         .height = circle.radius * 2.0F,
     };
 }
+
+// BOX
+
+/**
+ * One axis of the slab test, narrowing [*near, *far]. False once the interval is empty. A ray that does not move on
+ * this axis is inside the slab or never in it, which keeps a zero direction out of the division.
+ * */
+NYA_INTERNAL b8 _nya_ray_slab(f32 origin, f32 direction, f32 min, f32 max, f32* near, f32* far) {
+    if (direction == 0.0F) return origin >= min && origin <= max;
+
+    f32 inverse = 1.0F / direction;
+    f32 enter   = (min - origin) * inverse;
+    f32 leave   = (max - origin) * inverse;
+
+    if (enter > leave) {
+        f32 swap = enter;
+        enter    = leave;
+        leave    = swap;
+    }
+
+    *near = nya_max(*near, enter);
+    *far  = nya_min(*far, leave);
+
+    return *near <= *far;
+}
+
+NYA_Box2f nya_box2_from_rect(NYA_Rectf rect) {
+    return (NYA_Box2f){ .min = { rect.x, rect.y }, .max = { rect.x + rect.width, rect.y + rect.height } };
+}
+
+NYA_Box2f nya_box2_from_center(f32x2 center, f32x2 half_size) {
+    return (NYA_Box2f){ .min = center - half_size, .max = center + half_size };
+}
+
+b8 nya_box2_overlaps(NYA_Box2f a, NYA_Box2f b) {
+    return a.min.x <= b.max.x && b.min.x <= a.max.x && a.min.y <= b.max.y && b.min.y <= a.max.y;
+}
+
+b8 nya_box2_contains(NYA_Box2f box, f32x2 point) {
+    return point.x >= box.min.x && point.x <= box.max.x && point.y >= box.min.y && point.y <= box.max.y;
+}
+
+NYA_Box2f nya_box2_union(NYA_Box2f a, NYA_Box2f b) {
+    return (NYA_Box2f){ .min = nya_min(a.min, b.min), .max = nya_max(a.max, b.max) };
+}
+
+f32 nya_box2_distance_squared(NYA_Box2f box, f32x2 point) {
+    f32x2 outside = nya_max(nya_max(box.min - point, point - box.max), f32x2_zero);
+
+    return (outside.x * outside.x) + (outside.y * outside.y);
+}
+
+NYA_Box3f nya_box3_from_center(f32x3 center, f32x3 half_size) {
+    return (NYA_Box3f){ .min = center - half_size, .max = center + half_size };
+}
+
+b8 nya_box3_is_empty(NYA_Box3f box) {
+    return box.min.x > box.max.x || box.min.y > box.max.y || box.min.z > box.max.z;
+}
+
+b8 nya_box3_overlaps(NYA_Box3f a, NYA_Box3f b) {
+    return a.min.x <= b.max.x && b.min.x <= a.max.x && a.min.y <= b.max.y && b.min.y <= a.max.y && a.min.z <= b.max.z && b.min.z <= a.max.z;
+}
+
+b8 nya_box3_contains(NYA_Box3f box, f32x3 point) {
+    return point.x >= box.min.x && point.x <= box.max.x && point.y >= box.min.y && point.y <= box.max.y && point.z >= box.min.z
+        && point.z <= box.max.z;
+}
+
+NYA_Box3f nya_box3_union(NYA_Box3f a, NYA_Box3f b) {
+    return (NYA_Box3f){ .min = nya_min(a.min, b.min), .max = nya_max(a.max, b.max) };
+}
+
+f32x3 nya_box3_center(NYA_Box3f box) {
+    return (box.min + box.max) * 0.5F;
+}
+
+f32 nya_box3_surface_area(NYA_Box3f box) {
+    if (nya_box3_is_empty(box)) return 0.0F;
+
+    f32x3 size = box.max - box.min;
+
+    return 2.0F * ((size.x * size.y) + (size.y * size.z) + (size.z * size.x));
+}
+
+f32 nya_box3_distance_squared(NYA_Box3f box, f32x3 point) {
+    f32x3 outside = nya_max(nya_max(box.min - point, point - box.max), f32x3_zero);
+
+    return (outside.x * outside.x) + (outside.y * outside.y) + (outside.z * outside.z);
+}
+
+// SPHERE
+
+b8 nya_sphere_contains(NYA_Spheref sphere, f32x3 point) {
+    f32x3 offset = point - sphere.center;
+
+    return nya_vector_dot(offset, offset) <= sphere.radius * sphere.radius;
+}
+
+b8 nya_sphere_overlaps_box3(NYA_Spheref sphere, NYA_Box3f box) {
+    return nya_box3_distance_squared(box, sphere.center) <= sphere.radius * sphere.radius;
+}
+
+// RAY
+
+b8 nya_ray2_intersect_box(NYA_Ray2f ray, NYA_Box2f box, f32 max_distance, OUT f32* out_distance) {
+    nya_assert(out_distance != nullptr);
+
+    f32 near = 0.0F;
+    f32 far  = max_distance;
+
+    if (!_nya_ray_slab(ray.origin.x, ray.direction.x, box.min.x, box.max.x, &near, &far)) return false;
+    if (!_nya_ray_slab(ray.origin.y, ray.direction.y, box.min.y, box.max.y, &near, &far)) return false;
+
+    *out_distance = near;
+
+    return true;
+}
+
+b8 nya_ray3_intersect_box(NYA_Ray3f ray, NYA_Box3f box, f32 max_distance, OUT f32* out_distance) {
+    nya_assert(out_distance != nullptr);
+
+    f32 near = 0.0F;
+    f32 far  = max_distance;
+
+    if (!_nya_ray_slab(ray.origin.x, ray.direction.x, box.min.x, box.max.x, &near, &far)) return false;
+    if (!_nya_ray_slab(ray.origin.y, ray.direction.y, box.min.y, box.max.y, &near, &far)) return false;
+    if (!_nya_ray_slab(ray.origin.z, ray.direction.z, box.min.z, box.max.z, &near, &far)) return false;
+
+    *out_distance = near;
+
+    return true;
+}
+
+b8 nya_ray3_intersect_sphere(NYA_Ray3f ray, NYA_Spheref sphere, f32 max_distance, OUT f32* out_distance) {
+    nya_assert(out_distance != nullptr);
+
+    f32x3 offset = ray.origin - sphere.center;
+    f32   a      = nya_vector_dot(ray.direction, ray.direction);
+    f32   b      = nya_vector_dot(offset, ray.direction);
+    f32   c      = nya_vector_dot(offset, offset) - (sphere.radius * sphere.radius);
+
+    if (c <= 0.0F) {
+        *out_distance = 0.0F;
+        return true;
+    }
+
+    // outside and moving away, or not moving at all: no crossing ahead.
+    if (b >= 0.0F || a == 0.0F) return false;
+
+    f32 discriminant = (b * b) - (a * c);
+    if (discriminant < 0.0F) return false;
+
+    f32 distance = (-b - sqrtf(discriminant)) / a;
+    if (distance > max_distance) return false;
+
+    *out_distance = distance;
+
+    return true;
+}
