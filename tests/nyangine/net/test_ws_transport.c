@@ -382,6 +382,7 @@ s32 main(void) {
 
         nya_assert(DISCONNECTS == 1, "the peer's departure was never reported");
         nya_assert(nya_net_peer_equals(LAST_PEER, peer));
+        nya_assert(LAST_REASON != NYA_NET_DISCONNECT_NONE, "the departure carried no reason");
 
         for (u32 iteration = 0; iteration < PUMP_STEPS && nya_http_websocket_count() > 0; iteration++) { nya_system_http_tick(); transport_drain(); sleep_ms(1); }
 
