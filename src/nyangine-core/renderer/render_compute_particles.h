@@ -17,17 +17,14 @@
  * nya_gpu_particle_field_destroy(window, field);
  * ```
  *
- * DESKTOP ONLY. It rests on compute shaders, which WebGL2/GLES3 cannot run, so the whole thing is compiled
- * out on the web build — see render_compute.h and the renderer-web wall. A create call on a device without
- * compute (some offscreen and software backends) returns null and logs; the caller runs without the field.
+ * A create call on a device without compute (some offscreen and software backends) returns null and logs;
+ * the caller runs without the field.
  * */
 #pragma once
 
 #include "nyangine-std/base/base_attributes.h"
 #include "nyangine-std/base/base_basic.h"
 #include "nyangine-std/base/base_types.h"
-
-#if !OS_WASM
 
 typedef struct NYA_Window NYA_Window;
 
@@ -64,4 +61,3 @@ NYA_API void nya_gpu_particle_field_draw(NYA_Window* window, NYA_GPUParticleFiel
 /** Releases the field's pipelines, buffer and texture. A null field is ignored. */
 NYA_API void nya_gpu_particle_field_destroy(NYA_Window* window, NYA_GPUParticleField* field);
 
-#endif // !OS_WASM

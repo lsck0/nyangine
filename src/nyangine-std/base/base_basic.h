@@ -13,10 +13,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fenv.h>
-#if !defined(__wasm__) && !defined(__EMSCRIPTEN__)
-// x86 SIMD intrinsics, x86-only: wasm has no <immintrin.h> and does not build the SIMD paths, so it is guarded off there while the native x86 build keeps this include exactly.
 #include <immintrin.h>
-#endif
 #include <inttypes.h>
 #include <locale.h>
 #include <math.h>
@@ -162,9 +159,7 @@ typedef enum {
 
 // PLATFORM DETECTION
 
-#ifdef __wasm__
-#define OS_WASM 1
-#elif defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__)
 #define OS_WINDOWS 1
 #elifdef __linux__
 #define OS_LINUX 1
@@ -176,14 +171,11 @@ typedef enum {
 
 typedef enum {
     NYA_OS_NULL,
-    NYA_OS_WASM,
     NYA_OS_WINDOWS,
     NYA_OS_LINUX,
     NYA_OS_MAC,
     NYA_OS_COUNT,
-#if OS_WASM
-    NYA_OS_CURRENT = NYA_OS_WASM,
-#elif OS_WINDOWS
+#if OS_WINDOWS
     NYA_OS_CURRENT = NYA_OS_WINDOWS,
 #elif OS_LINUX
     NYA_OS_CURRENT = NYA_OS_LINUX,
@@ -196,11 +188,7 @@ typedef enum {
 
 // ARCHITECTURE DETECTION
 
-#ifdef __wasm32__
-#define ARCH_WASM32 1
-#elifdef __wasm64__
-#define ARCH_WASM64 1
-#elif defined(_M_IX86) || defined(__i386__)
+#if defined(_M_IX86) || defined(__i386__)
 #define ARCH_X86 1
 #elif defined(_M_X64) || defined(__x86_64__) || defined(__amd64__)
 #define ARCH_X86_64 1
@@ -214,18 +202,12 @@ typedef enum {
 
 typedef enum {
     NYA_ARCH_NULL,
-    NYA_ARCH_WASM32,
-    NYA_ARCH_WASM64,
     NYA_ARCH_X86,
     NYA_ARCH_X86_64,
     NYA_ARCH_ARM32,
     NYA_ARCH_ARM64,
     NYA_ARCH_COUNT,
-#if ARCH_WASM32
-    NYA_ARCH_CURRENT = NYA_ARCH_WASM32,
-#elif ARCH_WASM64
-    NYA_ARCH_CURRENT = NYA_ARCH_WASM64,
-#elif ARCH_X86
+#if ARCH_X86
     NYA_ARCH_CURRENT = NYA_ARCH_X86,
 #elif ARCH_X86_64
     NYA_ARCH_CURRENT = NYA_ARCH_X86_64,

@@ -3,9 +3,7 @@
  * */
 #include "nyangine-core/nyangine.h"
 
-// The parameter accessors live beside the other options in render_post.c and compile everywhere; this file is the GPU pass that reads them, desktop only.
-
-#if !OS_WASM
+// The parameter accessors live beside the other options in render_post.c and compile everywhere; this file is the GPU pass that reads them.
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -187,4 +185,3 @@ void nya_gpu_volumetric_destroy(NYA_Window* window, NYA_GPUVolumetric* volume) {
     nya_arena_destroy(volume->arena);
 }
 
-#endif // !OS_WASM

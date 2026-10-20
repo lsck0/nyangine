@@ -28,15 +28,7 @@ typedef int16_t     s16;
 typedef int32_t     s32;
 typedef int64_t     s64;
 typedef __int128_t  s128;
-#if defined(__wasm__) || defined(__EMSCRIPTEN__)
-// clang for wasm rejects _Float16, so the wasm build takes f16 as a plain 4-byte float; invisible to its JSON-text serialisation, and guarded so the native build keeps _Float16 exactly.
-typedef float       f16;
-// f16 equals f32 here, so overloads on both would declare the same signature twice; code guarding its f16 overloads with !NYA_F16_IS_F32 keeps only the f32 twin, which f16 arguments resolve to.
-#define NYA_F16_IS_F32 1
-#else
 typedef _Float16    f16;
-#define NYA_F16_IS_F32 0
-#endif
 typedef float       f32;
 typedef double      f64;
 typedef long double f128;

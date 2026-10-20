@@ -354,12 +354,12 @@ enum NYA_HttpMediaType {
     NYA_HTTP_MEDIA_ICON,
     NYA_HTTP_MEDIA_WOFF2,
 
-    /** `application/wasm`. What a CSR bundle's WebAssembly is served as; a suffix http_static.h names. */
+    /** `application/wasm`, so a served module instantiates by streaming; a suffix http_static.h names. */
     NYA_HTTP_MEDIA_WASM,
 
     /**
      * `application/manifest+json`. A web app manifest, the file a `<link rel="manifest">` points a
-     * browser at to make a CSR bundle an installable PWA. JSON in shape, but the registered type is
+     * browser at to make a site an installable PWA. JSON in shape, but the registered type is
      * what an installability check keys off, so a manifest served as `application/json` is a bundle
      * that will not offer to install. A suffix (`.webmanifest`) http_static.h names.
      * */

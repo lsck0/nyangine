@@ -4,7 +4,6 @@
 #include "nyangine-std/platform/ipc/ipc.h"
 #include "nyangine-std/platform/signals/signals.h"
 #include "nyangine-std/platform/terminal/terminal.h"
-#include "nyangine-std/platform/web/web.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────

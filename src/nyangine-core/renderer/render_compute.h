@@ -27,12 +27,6 @@
  *     .groupcount_x = (w + 7) / 8, .groupcount_y = (h + 7) / 8, .groupcount_z = 1,
  * });
  * ```
- *
- * DESKTOP ONLY. Compute shaders do not cross-compile to WebGL2/GLES3 — that target has no compute stage
- * — so the whole header is compiled out on the web build, and its one caller (render_compute_particles.c)
- * is gated the same way. See the renderer-web wall: the renderer is SDL_GPU throughout, and the web path
- * is a later GLES3 shim that will never carry compute. The build's shader step skips the GLSL variant of
- * a `.comp` shader for the same reason; see src/nyangine-build/pp/asset.c.
  * */
 #pragma once
 
@@ -41,9 +35,6 @@
 #include "nyangine-std/base/base_attributes.h"
 #include "nyangine-std/base/base_basic.h"
 #include "nyangine-std/base/base_types.h"
-
-// The web build has no compute stage to skin over. Everything below is desktop only.
-#if !OS_WASM
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -139,4 +130,3 @@ NYA_API void nya_gpu_compute_pipeline_release(SDL_GPUDevice* device, SDL_GPUComp
  * */
 NYA_API void nya_gpu_compute_dispatch(SDL_GPUCommandBuffer* commands, const NYA_GPUComputeDispatch* dispatch);
 
-#endif // !OS_WASM

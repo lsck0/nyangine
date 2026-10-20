@@ -24,9 +24,8 @@
  *
  * What is wanted, per TODO.md: an HTTP server with routing, middleware, typed request and response
  * structs and JSON through `serde`; OpenAPI generated from the handler definitions rather than
- * written; a wasm and WebGPU target; a UI backend emitting HTML, CSS and JS from the same
- * `nya_ui_*` calls the native backend draws; client side apps sharing their types with the server;
- * and an outgoing WebSocket client. When those exist this example gets a sibling, and that sibling
+ * written; a UI backend emitting HTML, CSS and JS from the same `nya_ui_*` calls the native backend
+ * draws; and an outgoing WebSocket client. When those exist this example gets a sibling, and that sibling
  * is the one to copy for a web app.
  *
  * Nothing below is a sketch of any of it. It is the UDP transport, which is a different thing that

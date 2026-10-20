@@ -46,7 +46,6 @@
 #include "nyangine-core/http/http_websocket.c"
 #include "nyangine-core/http/http_websocket_server.c"
 // after the websocket server, whose framing and connection table it wraps as a net transport, and over net (compiled before http): a browser peer of a native server.
-#include "nyangine-core/http/http_net_websocket.c"
 /**/
 // development-only live reload: a push stream on the websocket server above and the change watch over the static bundle's fingerprint, so it follows both. Compiled out of a shipping build.
 #include "nyangine-core/http/http_livereload.c"

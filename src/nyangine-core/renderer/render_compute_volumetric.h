@@ -26,9 +26,7 @@
  * nya_gpu_volumetric_destroy(window, volume);
  * ```
  *
- * DESKTOP ONLY. The march is a compute shader, which WebGL2/GLES3 cannot run, so the GPU object is compiled out
- * on the web build exactly as the particle field is; see render_compute.h and the renderer-web wall. The
- * parameter block is plain data and stays on both builds, so nya_settings_graphics_apply gates it unconditionally.
+ * The march is a compute shader; a device without compute gets null from create, as with the particle field.
  * */
 #pragma once
 
@@ -106,7 +104,6 @@ NYA_API NYA_VolumetricParams nya_volumetric_params(NYA_Window* window) __attr_no
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#if !OS_WASM
 
 /** The pass's GPU state: its pipeline and the image it marches into. Opaque; created and destroyed below. */
 typedef struct NYA_GPUVolumetric NYA_GPUVolumetric;
@@ -136,4 +133,3 @@ NYA_API void nya_gpu_volumetric_end(NYA_Window* window, NYA_GPUVolumetric* volum
 /** Releases the pass's pipeline and image. A null volume is ignored. */
 NYA_API void nya_gpu_volumetric_destroy(NYA_Window* window, NYA_GPUVolumetric* volume);
 
-#endif // !OS_WASM
