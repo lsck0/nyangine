@@ -13,3 +13,5 @@
 0xFFFFFFFFFFFFFFFF  # the opposite corner of the seed space from 1
 0x0000000000001234  # a disk fault behind a session cookie answered 401, and a failed read or sync 500; a flipped HELLO replayed on a joined connection left the player's slot behind
 0x0000000000000006  # a bad HELLO and a good one in one batch: the server admitted a peer its transport had already dropped
+0x0000000000000003  # os faults, past step 5000 of a 12000 step run: a half-closed HTTP peer lost its queued answer, a failed append tore the journal
+0x0000000000000004  # os faults: a full disk tore a journal line that the next append merged into

@@ -38,6 +38,12 @@ static u32 run_once(u64 seed, u64 steps, b8 verbose, OUT u64* out_digest) {
     // the generated table, which only something above the engine can name; see testing_actions.h.
     nya_simulation_actions_reflect_add(run, NYA_REFLECT_TYPES, NYA_REFLECT_TYPE_COUNT);
 
+#if NYA_OS_FAULT_ENABLED
+    // last, so it finds the HTTP server traffic started and is torn down before it.
+    nya_simulation_faults_add(run);
+    defer nya_simulation_faults_remove();
+#endif
+
     u32 failures = nya_simulation_run(run);
     *out_digest  = run->digest;
 

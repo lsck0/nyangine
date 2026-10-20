@@ -72,11 +72,11 @@
  */
 
 /**
- * Actions one run may register. The engine set is around twenty and a game adds a handful; sixty-four
- * is room for both with the weights table still one cache line per field.
+ * Actions one run may register. The engine, traffic and database sets are fifty-five and the os fault
+ * scenarios add seventeen; ninety-six leaves a game room for its own.
  * */
 #ifndef NYA_SIMULATION_MAX_ACTIONS
-#define NYA_SIMULATION_MAX_ACTIONS 64
+#define NYA_SIMULATION_MAX_ACTIONS 96
 #endif
 
 /** Invariants checked after every action. */
