@@ -87,8 +87,8 @@ what gets built), then the removals and moves (they decide where everything else
     - `[ ]` attestation is ignored (effectively `none`), so a deployment cannot require a hardware key; add an
       optional AAGUID allowlist;
     - `[ ]` no discoverable (usernameless) login, `BE`/`BS` and `crossOrigin` ignored;
-    - `[ ]` no browser client: WebAuthn is `navigator.credentials`, so it needs JS. Decision: one hashed static
-      `passkey.js` on the login page only, the single exception to "no JS".
+    - `[ ]` no browser client: WebAuthn is `navigator.credentials`, so it needs JS. Decided by the user 2026-10-20: one hashed
+      static `passkey.js` on the login and enrol pages only, the single exception to "no JS".
   YubiKey OTP (Yubico modhex) is not planned; TOTP through Yubico Authenticator works today.
 - `[x]` **OAuth: a client, no provider, not wired into accounts.** The `oidc` plugin does discovery, code flow with
   PKCE S256, `state`/`nonce`, JWKS by `kid`, RS256/ES256, `iss`/`aud`/`exp`/`iat`/`nonce`/`azp`. Open:
@@ -101,26 +101,29 @@ what gets built), then the removals and moves (they decide where everything else
   the in-memory wire gets drop, duplicate, reorder, delay, bit flip, truncate, splice and server restart; HTTP gets
   flip, truncate, duplicate, split send and splice over a real socket. SQLite gets a fault VFS (busy, IO errors,
   full, fsync, power loss mid-transaction). Not covered, each a work item:
-    - `[ ]` one fault interposer under `NYA_TESTING` in `src/nyangine-std/os` (file, socket, time, random, pages),
+    - `[x]` (done: `os_fault.{h,c}`, Linux only;) one fault interposer under `NYA_TESTING` in `src/nyangine-std/os` (file, socket, time, random, pages),
       which every layer already funnels through;
-    - `[ ]` allocation failure and arena exhaustion: per-arena budgets and a fallible allocation path;
-    - `[ ]` a simulated monotonic clock and seeded entropy (today replays draw from `getrandom` and the real clock),
+    - `[x]` (done: `budget_bytes`, `nya_arena_try_alloc`, HTTP answers 503;) allocation failure and arena exhaustion: per-arena budgets and a fallible allocation path;
+    - `[x]` (done for UDP actions; every seed runs twice and the digests must match; a run-wide simulated clock is open;) a simulated monotonic clock and seeded entropy (today replays draw from `getrandom` and the real clock),
       and a determinism self-check that runs each seed twice and compares a digest;
     - `[ ]` the real UDP transport and its crypto, the WebSocket server, `http_client`, and server-side socket
       faults (short write, `EAGAIN`, RST, accept failure, slowloris);
     - `[ ]` short writes, `ENOSPC`, `fsync` failure and bit flips for non-SQLite files; backward clock skew;
-    - `[ ]` kill and restart of the whole web stack (http, idempotency, jobs) mid-transaction.
+    - `[x]` kill and restart of the whole web stack (http, idempotency, jobs) mid-transaction. Done 2026-10-20; it
+      found three bugs, all fixed: a queued answer dropped on a peer's half-close, a torn record after `ENOSPC` in
+      `nya_file_append`, and an acknowledged POST re-run after restart (idempotency is now optionally durable).
 - `[x]` **Mod packs in multiplayer: not handled.** Plugins are signature checked locally only; HELLO carries the
   protocol and snapshot versions, a name and a tick, so a client with other mods is admitted. Build on
   `nya_plugin_digest` and the per-entry `nya_integrity_hash`:
-    - `[ ]` a content manifest (plugin ids, versions, digests; asset bundle hash) and the build version and commit in
+    - `[x]` (done 2026-10-20, protocol 3; every mod must match, no client-only exemption, since that would be the
+      plugin's own claim) a content manifest (plugin ids, versions, digests; asset bundle hash) and the build version and commit in
       HELLO; a `NYA_NET_DISCONNECT_CONTENT` reason carrying which entry differs, shown to the user; a caller in
       `pong_multiplayer`.
 - `[x]` **Integrity and protocols: solid transport, thin elsewhere.** UDP: stateless cookie handshake padded against
   amplification, X25519 with forward secrecy, server key pinning, client allowlist, XChaCha20-Poly1305, replay
   window, bounded reassembly. Server authority: command rate limit, NaN refusal, speed clamp, kick on repeat.
   Local: executable MAC, code sweep, blob hashes, watchdog. Open:
-    - `[ ]` validate the action bitmask against existing actions, and audit game events and chat paths;
+    - `[x]` validate the action bitmask against existing actions, and audit game events and chat paths;
     - `[ ]` sign Linux artifacts and `SHA256SUMS` (only Windows is signed today).
 - `[x]` **CI: red since 2026-09-28, five causes.** MSYS2 ships clang 23 and `setup-windows` wants exactly 22; a new
   zizmor `self-repository` audit (unpinned) flags every `./.github/actions/*` use; the Steam sniper sysroot has
@@ -140,7 +143,7 @@ what gets built), then the removals and moves (they decide where everything else
 
 ### Removals and moves
 
-- `[ ]` **No CSR, no game in the browser.** Delete `wasm-game`, `wasm-ui`, the `gpu_gles` shim,
+- `[x]` **No CSR, no game in the browser.** Done 2026-10-20 (wave 1): wasm targets, `platform/web`, `os_wasm.c`, `gpu_gles`, `http_net_websocket`, the GLSL ES shader variant and the web-profile gate are gone (−7.2k lines). Nothing SSR compiles to wasm, so `./build wasm` went too. `web_frontend` stayed: it is SSR, but still posts clicks with an inline script (next item). Delete `wasm-game`, `wasm-ui`, the `gpu_gles` shim,
   `platform/web`, `examples/web_wasm` and `examples/web_frontend`, the emscripten targets in
   `src/nyangine-build/`, and the docs and TODO entries that describe them as live. Keep `./build wasm` only if
   something SSR still compiles to wasm, and say what.
@@ -160,42 +163,43 @@ what gets built), then the removals and moves (they decide where everything else
 - `[ ]` **Split `nyangine-core`.** `core/` holds terrain, audio, animation, foliage and more. Move each into
   its own module directory with the prefix mirroring it (`audio/audio_*.c`, `terrain/terrain_*.c`,
   `animation/animation_*.c`), update the unity includes, `.clangd`, the lint layering rules and the cheatsheet.
-- `[ ]` **No devenv.** Delete `devenv.nix`, `devenv.yaml` and `devenv.lock` and every reference in CI, docs,
+- `[x]` **No devenv.** Done 2026-10-20 (wave 1): `devenv.*` and `.envrc` deleted; README lists the host requirements; the `memset_explicit` fill that only served devenv's older glibc is gone. Delete `devenv.nix`, `devenv.yaml` and `devenv.lock` and every reference in CI, docs,
   `AGENTS.md` and the build. The host toolchain (clang 22) is the toolchain; CI installs it.
-- `[ ]` **`LICENSE` is `LICENSE.md`.** Rename and fix every reference (README, packaging, SBOM, dist).
+- `[x]` **`LICENSE` is `LICENSE.md`.** Done 2026-10-20 (wave 1): renamed, every packager and `dist.c` updated. Rename and fix every reference (README, packaging, SBOM, dist).
 - `[ ]` **Comments.** Struct fields do not each get a comment: a field gets one only when its name and type
   cannot say what it holds (a unit, an invariant, an ownership rule). Doc comments are Doxygen `/** */` on
   public declarations. Sweep the tree by directory and add a lint rule in `lint.c` so it does not come back.
 
 ### Fixes
 
-- `[ ]` **CI is red.** `vendor-windows` and `build-steam-linux` fail on "clang is not LLVM 22", and
+- `[~]` **CI is red.** Done 2026-10-20 (wave 1): locally green, not yet on GitHub: LLVM pinned to 23 everywhere, zizmor 1.31.1 pinned and the actions referenced as `$/`, runners on `ubuntu-24.04`, the water pipeline declares its third sampler, `X11_InitIM` suppressed, steam's OpenSSL 1.1 failure removed with TLS. `.clang-tidy` now disables `bugprone-signed-bitwise` and `readability-trailing-comma` (review). Still open: water3d's `VUID-vkCmdDraw-renderPass-02684` and `-None-09600`. `vendor-windows` and `build-steam-linux` fail on "clang is not LLVM 22", and
   `workflow-audit` (zizmor) exits 12. Fix all three and see a green push run and a green scheduled run.
 - `[ ]` **Android works.** An APK of gnyame (or an example) built by `./build` with the NDK at
   `/opt/android-ndk` and the SDK at `/opt/android-sdk`, installed on an emulator, rendering and taking input.
   This reverses "Android is not scope" in `AGENTS.md`. The NDK (r30) is usable; the SDK is not: `/opt/android-sdk`
   holds only the deprecated `tools` 26.1.1, root owned, with no platform-tools, build-tools, platforms, emulator or
-  system image, and only JDK 27 is installed. Needs the user (dotfiles) to provision a user-writable SDK. In the
+  system image, and only JDK 27 is installed. Provisioned 2026-10-20 by the dotfiles module `programming/android`: SDK at
+  `~/.local/share/android-sdk` (build-tools 35.0.1, platform 35, emulator, AVD `nya35`), JDK 21 on the next sync. In the
   code: `<immintrin.h>` and `-mavx*` are unconditional, there is no `OS_ANDROID`, and `main.c` needs `SDL_main`.
 
 ### Features
 
-- `[ ]` **`nya_scope("name")`.** One scope marker that is the trace span, attributes arena allocations and
+- `[x]` **`nya_scope("name")`.** Done 2026-10-20 (wave 1): `base_scope.{h,c}`. Time, inclusive and self arena bytes, peak live bytes; crash report prints the open scopes; overlay page. `base_perf` deleted (38 sites migrated); `nya_trace_scope` is a tagged scope. Release keeps a name stack at 1.7 ns a scope; measured builds 47 ns. Open: untagged scopes are not in the Chrome capture. One scope marker that is the trace span, attributes arena allocations and
   high-water to the scope, and registers the scope's watched variables for the crash report, so perf, memory
   debugging and error context are one mechanism. Per-thread scope stack, closed by `defer`, near zero cost when
   the trace is off. Existing trace scopes and `nya_watch` call sites migrate to it.
-- `[ ]` **Jump point search.** JPS over a uniform-cost grid beside the existing A* in `core_nav`, with a bench
+- `[x]` **Jump point search.** Done 2026-10-20 (wave 1): `nya_nav_path_jps`, same cost as A* over 7200 random paths, 13.8× faster at 256². Found and fixed: A*'s heap held duplicates and returned suboptimal paths (200 against 192); it does decrease-key now. JPS over a uniform-cost grid beside the existing A* in `core_nav`, with a bench
   against A* and a caller.
-- `[ ]` **Spatial data structures, 2D and 3D.** A spatial hash or uniform grid, a loose quadtree and octree, and
+- `[x]` **Spatial data structures, 2D and 3D.** Done 2026-10-20 (wave 1): `math_spatial.h`: spatial hash, loose quad/octree, binned-SAH BVH with refit, each answering box, radius, ray and k-nearest, property tested against a scan. At 100k, a box query 51 µs scan → 0.24 µs BVH. Net relevance uses the hash: 88 → 19 µs a tick at 2048 entities and 32 peers. Open: the loose trees lose to hash and BVH on small uniform items; render3d's cull stays brute force (immediate mode). A spatial hash or uniform grid, a loose quadtree and octree, and
   a BVH, each with AABB, radius, ray and k-nearest queries, benches, and a caller.
 - `[ ]` **Terrain and foliage sculpting like Unreal.** Raise, lower, smooth, flatten, noise and ramp brushes with
   falloff and strength, paint layers, and foliage paint and erase with density, all undoable, in an editor
   example.
 - `[ ]` **Smart tiling in 2D.** Autotiling by neighbour bitmask (blob 47 and Wang 16), painted in an example.
-- `[ ]` **Basic integrity and secure protocols.** No anticheat. The server stays authoritative and validates
+- `[~]` **Basic integrity and secure protocols.** Done 2026-10-20 (wave 1): (partly) action bits checked against `action_mask`, client game events bounded and rate limited, names sanitised. Open: signing Linux artifacts and `SHA256SUMS`. No anticheat. The server stays authoritative and validates
   every input; `net` is encrypted and authenticated with replay windows; a build hash and the content manifest
   above are checked at connect; releases are signed.
-- `[ ]` **SQLite tuned at open.** WAL, `synchronous=NORMAL`, `busy_timeout`, `cache_size`, `mmap_size`,
+- `[x]` **SQLite tuned at open.** Done 2026-10-20 (wave 1): `NYA_SqlOptions` (WAL, synchronous, busy timeout, 16 MiB cache, checkpoint and journal limits; mmap off: SIGBUS, no gain) and a 64-entry per-connection statement cache. Insert per transaction 20.1 ms → 4.3 µs, point read 3.0 → 1.0 µs, 8 readers + 1 writer 0 → 4.3 M reads in 2.25 s. Open and close slower, 48 → 110 µs. Open: the db fault scenarios still model the rollback journal, not WAL. WAL, `synchronous=NORMAL`, `busy_timeout`, `cache_size`, `mmap_size`,
   `temp_store=MEMORY`, `foreign_keys=ON`, a prepared statement cache, and `PRAGMA optimize` on close, each
   measured.
 - `[ ]` **100k concurrent users on 2 cores and 2 GB.** A small SQLite web server with posts (list, read, create),
@@ -203,7 +207,7 @@ what gets built), then the removals and moves (they decide where everything else
   connections held, with the throughput and p99 latency written down. Reference:
   github.com/arjaythedev/twelve-dollar-server-challenge. Whatever stops it (per-connection memory, the accept
   loop, threads, `epoll` or `io_uring`) is fixed and measured.
-- `[ ]` **Dockerfile for the web server** under `packaging/`, from the existing scratch image (`7b97eeb3`).
+- `[x]` **Dockerfile for the web server** Done 2026-10-20 (wave 1): `packaging/docker/`: pinned Arch builder with clang 23, scratch runtime, non-root, `/data` volume, `--healthcheck`, env config; 26.7 MB. Built with podman (docker socket denied). under `packaging/`, from the existing scratch image (`7b97eeb3`).
 - `[ ]` **Aggressive benchmarking and testing.** Benchmarks over every hot path with baselines kept in the tree
   and a regression gate; fuzzing and property tests over every parser and protocol; the fault injection above.
 
@@ -212,12 +216,12 @@ what gets built), then the removals and moves (they decide where everything else
 TL;DR: a nyangine server ships as a container image and runs as a service (a stack) on the homelab's apps swarm,
 behind its edge, with Grafana collecting everything.
 
-- `[ ]` **Remove TLS from the engine.** TLS terminates on the platform an app is deployed to (the homelab edge:
+- `[x]` **Remove TLS from the engine.** Done 2026-10-20 (wave 1): `tls`, the acme plugin, `NYA_MODULE_TLS`/`NYA_NO_TLS`/`NYA_PLUGIN_ACME` and in-process termination are gone; HSTS is a default header; OpenSSL remains only under curl (outbound HTTPS for the bots, oidc, smtp); the SMTP mailer moved to `src/nyangine-plugins/smtp` over curl. TLS terminates on the platform an app is deployed to (the homelab edge:
   Cloudflare and traefik), never in process. Remove `tls` (OpenSSL server and client sessions), the in-process
   termination in `http`'s accept loop, the ACME v2 client (`fbfef27e`) and its mock CA tests, the `acme` plugin,
   the `NYA_NO_TLS` switch, and every TLS item below ("TLS in process + ACME", mbedTLS, the pebble run). Keep
   outbound HTTPS for clients (curl plugin) only if a client still needs it, and say which one.
-- `[ ]` **Drop the abuse layer the edge already provides.** Behind the homelab edge every request has passed
+- `[x]` **Drop the abuse layer the edge already provides.** Done 2026-10-20 (wave 1): per-address rate buckets and caps, `http_pow` (Tor uses its own PoW defence now) and the address half of `accounts_throttle` removed. Behind the homelab edge every request has passed
   Cloudflare's bot defence and traefik's per-client and per-route rate and in-flight limits (and the stricter login
   limit on a route's `loginPaths`). Remove from the server:
     - the per-address request rate buckets (`_NYA_HttpRateBucket`, `_nya_http_rate_take` in `http_server.c`) and
