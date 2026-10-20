@@ -58,9 +58,8 @@ direnv allow    # or, without direnv: devenv shell
 
 That drops you into a shell with exactly the LLVM 22 clang CI builds with, plus mold, cmake, ninja,
 make, the coverage and spell-check tools the gates need, and the system libraries the vendored SDL
-stack compiles against — all pinned. `devenv.nix` documents the two things it does not cover
-(Windows cross-compilation, which the toolchain header hardwires to a distro sysroot, and
-emscripten's writable cache). This is purely an alternative to installing the packages in
+stack compiles against — all pinned. `devenv.nix` documents the one thing it does not cover:
+Windows cross-compilation, which the toolchain header hardwires to a distro sysroot. This is purely an alternative to installing the packages in
 [.github/ci-packages.txt](.github/ci-packages.txt) by hand; the from-source bootstrap above still
 works without nix, and nothing in the build depends on it.
 

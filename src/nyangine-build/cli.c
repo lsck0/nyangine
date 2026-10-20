@@ -11,167 +11,6 @@ NYA_INTERNAL void vendor_runner(NYA_ArgCommand* command) {
     NYA_EXPECT(nya_vendor_build_all(NYA_VENDORS_ALL), "while building all vendor dependencies");
 }
 
-/**
- * Compiles the headless demo to WebAssembly with emcc, then proves the artifacts are real: both files
- * exist and the loader names the exported symbol.
- *
- * A handler rather than an NYA_BuildRule because it does three things a rule cannot: it makes the
- * output directory emcc will not, and it opens the generated loader afterward to confirm the export
- * survived, which is the one thing that silently goes wrong (a typo'd -sEXPORTED_FUNCTIONS builds
- * clean and exports nothing). Off the critical path and its own command, like `./build vendor`.
- * */
-NYA_INTERNAL void wasm_runner(NYA_ArgCommand* command) {
-    nya_unused(command);
-
-    NYA_Arena* arena = nya_arena_create(.name = "wasm_runner");
-    defer nya_arena_destroy(arena);
-
-    // emcc writes examples/web_wasm/nyangine.js and .wasm but does not create the directory itself. Idempotent: an existing directory is not an error.
-    NYA_EXPECT(nya_filesystem_create_directory(WASM_OUTPUT_DIRECTORY), "while creating %s", WASM_OUTPUT_DIRECTORY);
-
-    NYA_BuildRule build_wasm = {
-        .name        = "build_wasm",
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = WASM_JS_OUTPUT,
-
-        .command = {
-            .program   = EMCC,
-            .arguments = {
-                WASM_DEMO_SOURCE,
-                "-o", WASM_JS_OUTPUT,
-                FLAGS_WASM,
-                // The engine's own include roots, so the NYA_WASM_WITH_ENGINE path in wasm_demo.c resolves its headers once the wasm engine port makes that block compile.
-                INCLUDE_PATHS,
-            },
-        },
-    };
-
-    NYA_EXPECT(nya_build(&build_wasm), "while compiling the wasm demo");
-
-    // The artifacts, by hand: nya_build only knows emcc exited zero, not that it wrote what we named.
-    if (!nya_filesystem_exists(WASM_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_JS_OUTPUT);
-    if (!nya_filesystem_exists(WASM_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_WASM_OUTPUT);
-
-    // The export, by reading it back: the loader references the symbol by name, so its absence there means the wasm exports nothing the page can call, whatever emcc's exit code said.
-    NYA_String* loader = nya_string_create(arena);
-    NYA_EXPECT(nya_file_read(WASM_JS_OUTPUT, loader), "while reading %s back", WASM_JS_OUTPUT);
-    if (!nya_string_contains(nya_string_to_cstring(arena, loader), WASM_EXPORTED_SYMBOL)) {
-        nya_log_panic("%s does not name %s: the export was dropped.", WASM_JS_OUTPUT, WASM_EXPORTED_SYMBOL);
-    }
-
-    nya_log_info("Built %s and %s; %s is exported. Serve %s over HTTP to run it.", WASM_JS_OUTPUT, WASM_WASM_OUTPUT, WASM_EXPORTED_SYMBOL,
-                 WASM_OUTPUT_DIRECTORY);
-}
-
-/**
- * Compiles the client-side UI to WebAssembly with emcc, then proves the artifacts are real: both files
- * exist and the loader names both exported symbols. The CSR bridge — the immediate-mode UI component
- * rendered to the DOM and driven from it, no server. A sibling of wasm_runner, off the critical path and
- * its own command for the same reason: emcc is not part of the default toolchain.
- * */
-NYA_INTERNAL void wasm_ui_runner(NYA_ArgCommand* command) {
-    nya_unused(command);
-
-    NYA_Arena* arena = nya_arena_create(.name = "wasm_ui_runner");
-    defer nya_arena_destroy(arena);
-
-    // emcc writes into web/ but does not create it; idempotent, an existing directory is not an error.
-    NYA_EXPECT(nya_filesystem_create_directory(WASM_OUTPUT_DIRECTORY), "while creating %s", WASM_OUTPUT_DIRECTORY);
-
-    NYA_BuildRule build_wasm_ui = {
-        .name        = "build_wasm_ui",
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = WASM_UI_JS_OUTPUT,
-
-        .command = {
-            .program   = EMCC,
-            .arguments = {
-                WASM_UI_SOURCE,
-                "-o", WASM_UI_JS_OUTPUT,
-                FLAGS_WASM_UI,
-                // The engine's own include roots, beside the vendored ones FLAGS_WASM_UI adds, so the full header graph NYA_App needs resolves.
-                INCLUDE_PATHS,
-            },
-        },
-    };
-
-    NYA_EXPECT(nya_build(&build_wasm_ui), "while compiling the wasm UI");
-
-    // The artifacts, by hand: nya_build only knows emcc exited zero, not that it wrote what we named.
-    if (!nya_filesystem_exists(WASM_UI_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_JS_OUTPUT);
-    if (!nya_filesystem_exists(WASM_UI_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_UI_WASM_OUTPUT);
-
-    // Every export, by reading the loader back: the page calls each, so one dropped means a page that cannot render, style or forward a click, whatever emcc's exit code said.
-    NYA_String* loader = nya_string_create(arena);
-    NYA_EXPECT(nya_file_read(WASM_UI_JS_OUTPUT, loader), "while reading %s back", WASM_UI_JS_OUTPUT);
-
-    NYA_ConstCString       loader_text = nya_string_to_cstring(arena, loader);
-    const NYA_ConstCString symbols[]   = { WASM_UI_RENDER_SYMBOL, WASM_UI_EVENT_SYMBOL, WASM_UI_STYLE_SYMBOL };
-    for (u32 i = 0; i < nya_carray_length(symbols); i++) {
-        if (!nya_string_contains(loader_text, symbols[i])) nya_log_panic("%s does not name %s: the export was dropped.", WASM_UI_JS_OUTPUT, symbols[i]);
-    }
-
-    nya_log_info("Built %s and %s; %s, %s and %s are exported. Serve %s over HTTP and open ui.html.", WASM_UI_JS_OUTPUT, WASM_UI_WASM_OUTPUT,
-                 WASM_UI_RENDER_SYMBOL, WASM_UI_EVENT_SYMBOL, WASM_UI_STYLE_SYMBOL, WASM_OUTPUT_DIRECTORY);
-}
-
-/**
- * Compiles the 2D game slice to WebAssembly with emcc, then proves the artifacts are real: both files
- * exist and the loader names the self-check export. The engine's 2D renderer — a cleared background and
- * a textured sprite — drawn to a WebGL2 canvas through the SDL_GPU → GLES3 shim. A sibling of
- * wasm_ui_runner, off the critical path and its own command for the same reason: emcc is not part of the
- * default toolchain.
- * */
-NYA_INTERNAL void wasm_game_runner(NYA_ArgCommand* command) {
-    nya_unused(command);
-
-    NYA_Arena* arena = nya_arena_create(.name = "wasm_game_runner");
-    defer nya_arena_destroy(arena);
-
-    // emcc writes into web/ but does not create it; idempotent, an existing directory is not an error.
-    NYA_EXPECT(nya_filesystem_create_directory(WASM_OUTPUT_DIRECTORY), "while creating %s", WASM_OUTPUT_DIRECTORY);
-
-    NYA_BuildRule build_wasm_game = {
-        .name        = "build_wasm_game",
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = WASM_GAME_JS_OUTPUT,
-
-        .command = {
-            .program   = EMCC,
-            .arguments = {
-                WASM_GAME_SOURCE,
-                "-o", WASM_GAME_JS_OUTPUT,
-                FLAGS_WASM_GAME,
-                // The engine's own include roots, beside the vendored ones FLAGS_WASM_GAME adds, so the full header graph NYA_Vertex2D and the SDL_GPU types come from resolves.
-                INCLUDE_PATHS,
-            },
-        },
-    };
-
-    NYA_EXPECT(nya_build(&build_wasm_game), "while compiling the wasm game slice");
-
-    // The artifacts, by hand: nya_build only knows emcc exited zero, not that it wrote what we named.
-    if (!nya_filesystem_exists(WASM_GAME_JS_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_GAME_JS_OUTPUT);
-    if (!nya_filesystem_exists(WASM_GAME_WASM_OUTPUT)) nya_log_panic("emcc reported success but %s is missing.", WASM_GAME_WASM_OUTPUT);
-
-    // The export, by reading the loader back: the self-check the page and a headless node run both call.
-    NYA_String* loader = nya_string_create(arena);
-    NYA_EXPECT(nya_file_read(WASM_GAME_JS_OUTPUT, loader), "while reading %s back", WASM_GAME_JS_OUTPUT);
-    NYA_ConstCString loader_text = nya_string_to_cstring(arena, loader);
-    if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL)) {
-        nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL);
-    }
-    if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL_3D)) {
-        nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL_3D);
-    }
-    if (!nya_string_contains(loader_text, WASM_GAME_SYMBOL_SCENE)) {
-        nya_log_panic("%s does not name %s: the export was dropped.", WASM_GAME_JS_OUTPUT, WASM_GAME_SYMBOL_SCENE);
-    }
-
-    nya_log_info("Built %s and %s; %s, %s and %s are exported. Serve %s over HTTP and open game.html.", WASM_GAME_JS_OUTPUT,
-                 WASM_GAME_WASM_OUTPUT, WASM_GAME_SYMBOL, WASM_GAME_SYMBOL_3D, WASM_GAME_SYMBOL_SCENE, WASM_OUTPUT_DIRECTORY);
-}
-
 /** Writes the completion script for whatever the parser currently describes. See main, which short circuits to this. */
 NYA_INTERNAL void completions_runner(NYA_ArgCommand* command) {
     NYA_ArgParameter* shell = command->parameters[0];
@@ -807,24 +646,6 @@ NYA_INTERNAL NYA_ArgCommand update = {
     .build_rule  = &update_submodules,
 };
 
-NYA_INTERNAL NYA_ArgCommand wasm = {
-    .name        = "wasm",
-    .description = "Compile the headless demo to examples/web_wasm/nyangine.wasm + .js for the browser. Needs emcc; the seed of the CSR path.",
-    .handler     = &wasm_runner,
-};
-
-NYA_INTERNAL NYA_ArgCommand wasm_ui = {
-    .name        = "wasm-ui",
-    .description = "Compile the client-side UI to examples/web_wasm/nyangine_ui.wasm + .js. Needs emcc; the CSR bridge, driven by examples/web_wasm/ui.html.",
-    .handler     = &wasm_ui_runner,
-};
-
-NYA_INTERNAL NYA_ArgCommand wasm_game = {
-    .name        = "wasm-game",
-    .description = "Compile the 2D game slice to examples/web_wasm/nyangine_game.wasm + .js: a textured sprite on a WebGL2 canvas via the SDL_GPU→GLES3 shim. Needs emcc; driven by examples/web_wasm/game.html.",
-    .handler     = &wasm_game_runner,
-};
-
 NYA_INTERNAL NYA_ArgCommand plugin = {
     .name        = "plugin",
     .description = "Sign plugins so a build that requires it will load them.",
@@ -886,9 +707,6 @@ NYA_INTERNAL NYA_ArgParser parser = {
             &docs,
             &stats,
             &update,
-            &wasm,
-            &wasm_ui,
-            &wasm_game,
             &plugin,
             &completions,
         },

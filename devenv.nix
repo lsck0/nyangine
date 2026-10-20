@@ -107,13 +107,6 @@
     pkgs.libxrandr
     pkgs.libxscrnsaver
     pkgs.libxtst
-
-    # ── wasm (emscripten). ───────────────────────────────────────────────────────────────────────
-    # emcc is off the engine's default toolchain — only `./build wasm` reaches for it, and flags.h says
-    # as much (EMCC, FLAGS_WASM). It packages fine, with one wrinkle nix cannot hide: emscripten's port
-    # cache lives inside the read-only store, so the first `emcc` has nowhere to build its sysroot. The
-    # env block below points EM_CACHE at a writable per-project directory to fix that.
-    pkgs.emscripten
   ];
 
   env = {
@@ -126,18 +119,13 @@
     # plain distro clang the from-source bootstrap and CI use, which inject no hardening either.
     NIX_HARDENING_ENABLE = "";
 
-    # A writable emscripten cache, out of the read-only store. It lives under .devenv/, which devenv
-    # manages and which is never committed here (only the four config files are tracked). Only `./build
-    # wasm` ever populates it; a first run builds the wasm sysroot here and later ones reuse it.
-    EM_CACHE = "${config.devenv.root}/.devenv/emscripten-cache";
-
     # The engine builds every binary with a $ORIGIN-only rpath (flags.h), so the loader finds no system
     # .so on its own. Outside this shell the host loader's default path (/usr/lib …) resolves libz,
     # libbrotli* and libssl/libcrypto; inside it, nix keeps them in the store and off any default path,
     # so name their lib outputs here or a self-rebuilt `./build` — and a running gnyame — cannot load
     # them. openssl is already a package above (its .dev); this reaches its runtime lib output too.
-    # stdenv.cc.cc.lib carries libstdc++.so.6, which the build tool needs through the SPIRV-Cross shared
-    # library it links (`-lspirv-cross-c-shared`, a C++ library) for the shader-compile rules.
+    # stdenv.cc.cc.lib carries libstdc++.so.6, which shadercross (a C++ program) needs for the
+    # shader-compile rules.
     #
     # The rest is what a windowed gnyame dlopens at runtime — SDL3 loads its video, input and audio
     # backends by soname (libwayland-client, libxkbcommon, libdecor, the Xlib set, libGL, and the ALSA/
