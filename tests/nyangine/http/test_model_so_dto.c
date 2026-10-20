@@ -1,6 +1,5 @@
 /**
- * The "Model, SO, DTO" split, both halves proven: the conversions are total and round-trip where they
- * are lossless, and the web-profile gate actually refuses a server-only header.
+ * The "Model, SO, DTO" split: the conversions are total and round-trip where they are lossless.
  *
  * The resource is examples/accounts_api/notes/, the worked example. Its three headers are included here
  * exactly as the example includes them, and the four conversions are exercised against each other:
@@ -9,11 +8,6 @@
  *     carry no `owner`, where the Model's reflection, which drives the ORM, does;
  *   - dto -> so is fallible and fills the owner and the timestamp from the server, never from the DTO,
  *     which is what keeps a client from claiming a note it did not write.
- *
- * The gate is proven by compiling the headers with the real compiler. A `*_model.h` and a `*_so.h`
- * refuse to compile under -DNYA_WEB_PROFILE (that is the web profile), while the `*_dto.h` compiles under
- * it: the one shape that reaches the client. This is the compile-time half of what src/nyangine-build/lint.c's
- * web-profile rule also enforces statically over the whole tree.
  **/
 
 #include "nyangine-core/nyangine.h"
@@ -21,25 +15,6 @@
 #include "nyangine-core/nyangine.c"
 
 #include "examples/accounts_api/notes/note_so.h"
-
-/** Compiles one header with clang and returns its exit code; the stderr is captured into `out_stderr`. */
-static s32 syntax_check(NYA_Arena* arena, NYA_ConstCString header, b8 web_profile, NYA_String** out_stderr) {
-    NYA_Command cmd = {
-        .arena     = arena,
-        .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-        .program   = "clang",
-        .arguments = {
-            "-x", "c", "-fsyntax-only", "-std=c2y", "-DNYA_NO_SDL", "-I./", "-I./src",
-            web_profile ? "-DNYA_WEB_PROFILE" : "-DNYA_NOT_THE_WEB_PROFILE",
-            header,
-            nullptr,
-        },
-    };
-
-    NYA_EXPECT(nya_command_run(&cmd), "clang has to run for the web-profile gate to be provable");
-    if (out_stderr != nullptr) *out_stderr = cmd.stderr_content;
-    return cmd.exit_code;
-}
 
 s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "test_model_so_dto");
@@ -98,27 +73,6 @@ s32 main(void) {
 
         NYA_Object* stored = nya_reflect_to_object(arena, &NOTE_MODEL, &row);
         nya_assert(nya_object_get(stored, "owner") != nullptr, "the model keeps the owner: that is what the db stores");
-    }
-
-    // TEST: the web-profile gate refuses a server-only header, and only a server-only header.
-    {
-        NYA_ConstCString model = "examples/accounts_api/notes/note_model.h";
-        NYA_ConstCString so    = "examples/accounts_api/notes/note_so.h";
-        NYA_ConstCString dto   = "examples/accounts_api/notes/note_dto.h";
-
-        // Off the profile, every one of the three compiles: they are honest headers, not broken ones.
-        nya_assert(syntax_check(arena, model, false, nullptr) == 0, "the model header compiles outside the web profile");
-        nya_assert(syntax_check(arena, so, false, nullptr) == 0, "the so header compiles outside the web profile");
-        nya_assert(syntax_check(arena, dto, false, nullptr) == 0, "the dto header compiles outside the web profile");
-
-        // Under -DNYA_WEB_PROFILE the model and the so refuse to compile: this is the gate.
-        NYA_String* model_stderr = nullptr;
-        nya_assert(syntax_check(arena, model, true, &model_stderr) != 0, "a web TU including a *_model.h is refused");
-        nya_assert(model_stderr != nullptr && nya_string_contains(model_stderr, "web profile"), "and says why");
-        nya_assert(syntax_check(arena, so, true, nullptr) != 0, "a web TU including a *_so.h is refused");
-
-        // The dto still compiles under the profile: it is the one shape the web client is sent.
-        nya_assert(syntax_check(arena, dto, true, nullptr) == 0, "the dto header compiles in the web profile");
     }
 
     nya_arena_destroy(arena);

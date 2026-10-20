@@ -70,9 +70,12 @@ and `serde` live in `src/nyangine-std/`, `ui` in `src/nyangine-ui/`, the plugins
 
 Not in the engine yet, and planned in `TODO.md`'s roadmap: the component system (every module above
 `base`, `platform` and `math` added or removed by one line in `assets/config/plugins.nya`; today only
-`./build project` reads a manifest), a WebGPU renderer (the wasm builds draw 2D through WebGL2 only),
-and SQLCipher, which `db` has the seam for and not the cipher. Do not describe any of it as if it exists; the layout above and the flags below are how the
-tree works today.
+`./build project` reads a manifest) and SQLCipher, which `db` has the seam for and not the cipher.
+Do not describe any of it as if it exists; the layout above and the flags below are how the tree works
+today.
+
+The web is server rendered only: `ui` renders HTML and CSS on the server and `http` serves it. There is
+no wasm build, no browser client and no game in the browser, and none is planned.
 
 ### The three 2D backends
 

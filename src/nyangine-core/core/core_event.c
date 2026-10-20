@@ -3,21 +3,6 @@
 
 #include "nyangine-core/nyangine.h"
 
-#if OS_WASM
-/*
- * A wasm build is single-threaded and links no os_thread implementation: the event queue is only ever
- * touched from the one thread the module runs on, so its mutex has nothing to lock against and is a
- * no-op, exactly as os_wasm's sleep is. Shadowing the four os-mutex calls here keeps the queue
- * machinery below byte-identical to the native code without a threading dependency a wasm module cannot
- * satisfy; the DOM event source that feeds this queue on the web synthesises NYA_Events directly (see
- * wasm_ui.c), so the SDL-event translation further down is compiled out entirely rather than shimmed.
- */
-#define nya_os_mutex_init(m)   (NYA_OS_THREAD_OK) // never an error, since nya_system_events_init checks it
-#define nya_os_mutex_deinit(m) ((void)(m))
-#define nya_os_mutex_lock(m)   ((void)(m))
-#define nya_os_mutex_unlock(m) ((void)(m))
-#endif
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -86,7 +71,6 @@ void nya_system_events_deinit(void) {
     nya_log_info("Event system deinitialized.");
 }
 
-#if !OS_WASM
 void nya_system_event_drain_sdl_events(void) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -101,7 +85,6 @@ void nya_system_event_drain_sdl_events(void) {
         nya_event_dispatch(nya_event);
     }
 }
-#endif // !OS_WASM
 
 b8 nya_system_event_poll(OUT NYA_Event* out_event) {
     nya_assert(out_event);
@@ -234,10 +217,8 @@ NYA_INTERNAL NYA_ConstCString _nya_event_copy_transient_string(NYA_ConstCString 
     return copy;
 }
 
-// The SDL-event translation: how a raw SDL_Event becomes an NYA_Event. A wasm build has no SDL event
-// pump — the browser is the event source and wasm_ui.c synthesises NYA_Events directly — so this whole
-// block is compiled out there. It is the only code in this file that reads SDL_Event fields.
-#if !OS_WASM
+// The SDL-event translation: how a raw SDL_Event becomes an NYA_Event. It is the only code in this file
+// that reads SDL_Event fields.
 NYA_InputSource _nya_event_source_from_sdl(NYA_InputDeviceKind kind, u32 which) {
     /*
      * Carried through untouched, zero included.
@@ -547,7 +528,6 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
 
     return event;
 }
-#endif // !OS_WASM
 
 /**
  * Runs every hook registered for the event, dropping the one shots that fired.

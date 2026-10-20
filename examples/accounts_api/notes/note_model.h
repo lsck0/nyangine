@@ -5,18 +5,11 @@
  * Model of "Model, SO, DTO" — server only, crossing the `db` boundary and nothing else. A column added
  * here never reaches a client by accident, because a field reaches the wire only when a *DTO* names it.
  *
- * The guard below is the compile-time half of that promise: the `web` profile builds with
- * -DNYA_WEB_PROFILE, and base_web_profile.h then refuses to compile, so this header — and the storage
- * layout in it — cannot be pulled into a wasm translation unit. It is the first include on purpose, so
- * the refusal fires before anything else is parsed.
- *
  * The reflection table is written by hand (the reflection pass scans only src/nyangine and src/gnyame);
  * inside the engine it would be one `// @reflect` struct with `id` marked `// @key`. That Model
  * reflection is what drives the ORM and the migrations, the way the DTO's reflection drives the wire.
  * */
 #pragma once
-
-#include "nyangine-std/base/base_web_profile.h"
 
 #include "nyangine-std/base/base_memory.h"
 #include "genyarated/reflection_engine.h"

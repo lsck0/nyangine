@@ -56,27 +56,6 @@ s32 main(s32 argc, NYA_CString argv[]) {
         for (u32 i = 0; i < extra_len; i++) build_rebuild_command.arguments[count + i] = extra[i];
     }
 
-    // Same chicken and egg as libbacktrace above: SPIRV-Cross is a shadercross build output, so the .so
-    // does not exist on a fresh checkout and linking it would fail the rebuild before the tool can build
-    // the vendors. asset.c keys its GLSL-ES step off __has_include("spirv_cross_c.h"), which only
-    // resolves once the include below is on the command line, so the tool links the library and emits the
-    // GLSL variants from the first rebuild after the vendors exist, and degrades to producing none before.
-    // Linux only: SPIRV-Cross is a shadercross build output and the two flag macros are defined empty
-    // off Linux (see vendor_sdl_shadercross.h), so `{ ... }` would be an empty initializer that does not
-    // compile. A Windows host builds no shadercross and needs none.
-#if OS_LINUX
-    if (nya_filesystem_exists(SHADERCROSS_SPIRV_CROSS_SO)) {
-        u32 count = 0;
-        while (count < NYA_COMMAND_MAX_ARGUMENTS && build_rebuild_command.arguments[count] != nullptr) count++;
-
-        NYA_ConstCString extra[]   = { SHADERCROSS_SPIRV_CROSS_INCLUDE, SHADERCROSS_SPIRV_CROSS_LINK };
-        u32              extra_len = (u32)(sizeof(extra) / sizeof(extra[0]));
-
-        nya_assert(count + extra_len < NYA_COMMAND_MAX_ARGUMENTS, "No room to add SPIRV-Cross to the rebuild command.");
-        for (u32 i = 0; i < extra_len; i++) build_rebuild_command.arguments[count + i] = extra[i];
-    }
-#endif
-
     if (!skip_self_rebuild_flag.value.as_b8) nya_rebuild_yourself(&argc, argv, build_rebuild_command);
 
     if (help_flag.value.as_b8) {

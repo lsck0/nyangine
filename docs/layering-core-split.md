@@ -97,8 +97,7 @@ declarations belong on the free side and only the translation units stay bound. 
    render_system;`, `NYA_AssetSystem asset_system;` and `NYA_WindowSystem window_system;` as *value*
    members, so the struct cannot be defined without the SDL/box2d headers — even though its
    `callback_system`, `job_system` and `save_system` members are SDL-free on their own. Every accessor
-   that hands back `NYA_App*` therefore drags the renderer's headers in. This is why `wasm_ui.c` has to
-   include `nyangine.h` whole even though it compiles almost none of it. Cutting this means either the
+   that hands back `NYA_App*` therefore drags the renderer's headers in. Cutting this means either the
    heavy systems become pointers to storage the program places, or the runtime-core systems move off
    `NYA_App` into a smaller aggregate that a headless program owns without the renderer ones.
 
@@ -129,8 +128,8 @@ lines change; nothing a program does changes.
 4. **[done] Lift http/net out of the wall, behind `NYA_SERVER`.** crypto was already
    above the block. With steps 2–3 done, net and http followed: `nyangine.h` now pulls them under
    `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)` rather than the SDL block. The guard is additive on
-   purpose — `NYA_NO_SDL` still means "no networking" for the host build tool and the wasm demos (they
-   set it and not `NYA_SERVER`, so they are byte-for-byte unchanged), and a full build gets net/http as
+   purpose — `NYA_NO_SDL` still means "no networking" for the host build tool (it sets it and not
+   `NYA_SERVER`, so it is byte-for-byte unchanged), and a full build gets net/http as
    before. What is new is `-DNYA_NO_SDL -DNYA_SERVER`: it compiles `base`/`os`/`math`/`crypto`/
    `net`/`http`/`db`/`accounts`/`serde`/`template` with **no** `core` and **no** renderer, and it
    compiles clean — the very thing the ground-truth note called impossible while http sat inside the SDL
@@ -183,8 +182,8 @@ lines change; nothing a program does changes.
 ## Honest blockers and scope
 
 - Steps 1 and 2 are pure wins and carry no risk; they are what this change ships.
-- Step 3 is mechanical but touches a hot file (`core_event`) and the wasm build, which already gates that
-  file's SDL under `OS_WASM`; it needs care that the native event pump stays byte-identical.
+- Step 3 is mechanical but touches a hot file (`core_event`); it needs care that the native event pump
+  stays byte-identical.
 - Step 5 is the real architecture and cannot be done mechanically. `NYA_App` embedding the renderer by
   value is the wall's keystone: until the free systems live somewhere a program can own without the
   renderer's type being complete, any header that reaches `nya_app_get()` drags SDL in, and that is most

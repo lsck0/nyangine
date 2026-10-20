@@ -52,9 +52,8 @@ void check_runner(NYA_ArgCommand* command) {
          .uses_vendors = true,
          },
         {
-         // SHADERCROSS_SPIRV_CROSS_INCLUDE so the GLSL-ES cross compiler in pp/asset.c is actually analysed: it is guarded by __has_include("spirv_cross_c.h"), which only resolves with this on the line, exactly as the rebuild command in build.c adds it (empty on Windows, where it is off).
          .source       = "./build.c",
-         .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_BUILD_TOOL, SHADERCROSS_SPIRV_CROSS_INCLUDE },
+         .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_BUILD_TOOL },
          .uses_vendors = false,
          },
         {

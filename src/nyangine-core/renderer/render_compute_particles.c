@@ -3,8 +3,6 @@
  * */
 #include "nyangine-core/nyangine.h"
 
-#if !OS_WASM
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONSTANTS
@@ -259,4 +257,3 @@ void _nya_gpu_particle_field_render(NYA_GPUParticleField* field, SDL_GPUCommandB
                                        });
 }
 
-#endif // !OS_WASM

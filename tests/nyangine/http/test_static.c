@@ -252,7 +252,7 @@ s32 main(void) {
         }
     }
 
-    // TEST: a .wasm file mounts and is served as application/wasm, the CSR bundle's module. Its suffix is in the table (unlike page.exe above), so the browser gets the type WebAssembly.instantiateStreaming requires rather than a refusal.
+    // TEST: a .wasm file mounts and is served as application/wasm. Its suffix is in the table (unlike page.exe above), so the browser gets the type WebAssembly.instantiateStreaming requires rather than a refusal.
     {
         NYA_ConstCString   asset = scratch_path(arena, "app.wasm");
         NYA_HttpStaticFile file  = {
@@ -272,7 +272,7 @@ s32 main(void) {
         nya_http_static_unmount();
     }
 
-    // TEST: a .webmanifest mounts and is served as application/manifest+json, so a CSR bundle whose index.html carries <link rel="manifest"> is an installable PWA. A manifest served as application/json passes no installability check, which is why the suffix has its own media type.
+    // TEST: a .webmanifest mounts and is served as application/manifest+json, so a site whose page carries <link rel="manifest"> is an installable PWA. A manifest served as application/json passes no installability check, which is why the suffix has its own media type.
     {
         NYA_ConstCString   asset = scratch_path(arena, "app.webmanifest");
         NYA_HttpStaticFile file  = {

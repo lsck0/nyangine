@@ -19,8 +19,8 @@
  *     which is the whole point of the primitive: behaviour built by adding small fields, not by writing a
  *     new one.
  *   - **GPU-compute particles** (render_compute_particles.h): when the device has a compute stage, a
- *     field whose positions and velocities never leave the GPU is overlaid in the corner. It is desktop
- *     only (WebGL2 has no compute), and a device without compute simply returns null from create — the
+ *     field whose positions and velocities never leave the GPU is overlaid in the corner. A device
+ *     without compute simply returns null from create — the
  *     scene then draws without the overlay, so this piece degrades gracefully rather than branching the
  *     rest of the frame.
  *
@@ -97,7 +97,6 @@ struct GpuScene {
      * */
     NYA_ForceSet forces;
 
-#if !OS_WASM
     /**
      * The GPU-compute particle field, or null on a device with no compute stage (some offscreen and software
      * backends). Null is the graceful case: step and draw ignore it and the rest of the frame is unchanged.
@@ -109,7 +108,6 @@ struct GpuScene {
      * begin marches the field on its own command buffer in on_update; its end composites it in on_render.
      * */
     NYA_GPUVolumetric* volume;
-#endif
 
     /** Total seconds, driving the slow camera orbit. */
     f32 elapsed_s;
@@ -204,7 +202,6 @@ void gpu_scene_layer_on_create(NYA_Window* window) {
 
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = COLUMN_TEXTURE });
 
-#if !OS_WASM
     // the GPU-compute field, built once (and again after a code reload, which destroyed it). Create checks the device for a compute stage itself and returns null when there is none, logging why; the scene carries on.
     state->compute_field = nya_gpu_particle_field_create(window, COMPUTE_PARTICLES, COMPUTE_RESOLUTION);
 
@@ -222,7 +219,6 @@ void gpu_scene_layer_on_create(NYA_Window* window) {
                                       });
 
     state->volume = nya_gpu_volumetric_create(window, VOLUMETRIC_RESOLUTION);
-#endif
 
     // a small shadow atlas, so the pillars cast onto the floor and the contact reads even before SSAO deepens it.
     nya_render3d_shadow_options_set(window, (NYA_Render3DShadowOptions){
@@ -241,7 +237,6 @@ void gpu_scene_layer_on_destroy(NYA_Window* window) {
 
     nya_post_chain_destroy(&state->post);
 
-#if !OS_WASM
     // the compute field's buffer, texture and pipelines. Null when the device had no compute, which destroy ignores.
     nya_gpu_particle_field_destroy(window, state->compute_field);
     state->compute_field = nullptr;
@@ -250,7 +245,6 @@ void gpu_scene_layer_on_destroy(NYA_Window* window) {
     nya_gpu_volumetric_destroy(window, state->volume);
     state->volume = nullptr;
     nya_volumetric_params_set(window, (NYA_VolumetricParams){ 0 });
-#endif
 
     // leave the frame count in the log so a headless run reports it verified something. The column lives on the world arena and goes with it.
     nya_log_info("gpu_scene: shutting down after %u frames, last %.1f fps.", state->frame_count, (f64)state->last_fps);
@@ -277,13 +271,11 @@ void gpu_scene_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_forces_advance(&state->forces, delta_time_s);
     nya_particles_update(state->column, delta_time_s);
 
-#if !OS_WASM
     // the GPU-compute field, once a tick, on its own command buffer (it opens no render pass). Ignored when null. The frame draws the texture it leaves behind; see gpu_scene_layer_on_render.
     nya_gpu_particle_field_step(window, state->compute_field, delta_time_s);
 
     // the volumetric's march, likewise on its own command buffer; on_render composites the volume it leaves behind. Ignored when null or switched off.
     nya_gpu_volumetric_begin(window, state->volume, delta_time_s);
-#endif
 
     // release motes near the base of the monolith on a timer, so the column's rate does not ride the frame rate. They are given a small outward-and-up kick; the force set does the rest, curling them into the spiral.
     state->emit_timer_s += delta_time_s;
@@ -422,24 +414,18 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
     if (!state->logged_paths) {
         state->logged_paths = true;
 
-#if !OS_WASM
         NYA_ConstCString compute = state->compute_field != nullptr ? "on" : "absent";
-#else
-        NYA_ConstCString compute = "absent";
-#endif
 
         nya_log_info("gpu_scene: paths — SSR on, SSAO on, force-driven column %u motes, GPU compute %s.",
                      nya_particles_count(state->column), compute);
     }
 
-#if !OS_WASM
     // the volumetric fog, composited full-frame over the flushed scene before the HUD, so the text stays readable above it. The march that filled this image ran in on_update; here it is only sampled. Ignored when null or off.
     {
         u32 fog_width = 0, fog_height = 0;
         nya_render2d_target_size(window, &fog_width, &fog_height);
         nya_gpu_volumetric_end(window, state->volume, 0.0F, 0.0F, (f32)fog_width, (f32)fog_height);
     }
-#endif
 
     // the HUD, in screen pixels over the flushed scene.
     f32 y    = 12.0F;
@@ -451,7 +437,6 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
     nya_render2d_textf_with_font(window, HUD_FONT, HUD_FONT_SIZE, 12.0F, y, NYA_COLOR_LIGHT_GRAY,
                                  "CPU column %u motes (vortex + drag + lift)", nya_particles_count(state->column));
 
-#if !OS_WASM
     // the GPU-compute field, drawn in the bottom-right corner over the flushed scene. The compute passes that filled this texture ran in on_update on a command buffer of their own; here it is only sampled. Ignored when the device had no compute.
     if (state->compute_field != nullptr) {
         u32 target_width = 0, target_height = 0;
@@ -464,7 +449,6 @@ void gpu_scene_layer_on_render(NYA_Window* window) {
                                      (f32)target_height - COMPUTE_OVERLAY - COMPUTE_MARGIN - step, NYA_COLOR_LIGHT_GRAY,
                                      "GPU compute field");
     }
-#endif
 }
 
 /* MAIN */

@@ -25,7 +25,6 @@ typedef enum NYA_BuildProfile {
     NYA_BUILD_PROFILE_SERVER,  // a headless server: http/net, no renderer or core (NYA_SERVER).
     NYA_BUILD_PROFILE_DESKTOP, // a windowed program: the full engine.
     NYA_BUILD_PROFILE_GAME,    // a game: the full engine, same as desktop today.
-    NYA_BUILD_PROFILE_WEB,     // a wasm client: emscripten, NYA_WEB_PROFILE.
     NYA_BUILD_PROFILE_COUNT,
 } NYA_BuildProfile;
 
@@ -35,7 +34,6 @@ NYA_INTERNAL const NYA_ConstCString _NYA_BUILD_PROFILE_NAME[NYA_BUILD_PROFILE_CO
     [NYA_BUILD_PROFILE_SERVER]  = "server",
     [NYA_BUILD_PROFILE_DESKTOP] = "desktop",
     [NYA_BUILD_PROFILE_GAME]    = "game",
-    [NYA_BUILD_PROFILE_WEB]     = "web",
 };
 
 /** The headline compile flags a profile selects, for the plan print. The full flag list lives in flags.h. */
@@ -45,7 +43,6 @@ NYA_INTERNAL const NYA_ConstCString _NYA_BUILD_PROFILE_FLAGS[NYA_BUILD_PROFILE_C
     [NYA_BUILD_PROFILE_SERVER]  = "-DNYA_NO_SDL -DNYA_SERVER",
     [NYA_BUILD_PROFILE_DESKTOP] = "(full engine)",
     [NYA_BUILD_PROFILE_GAME]    = "(full engine)",
-    [NYA_BUILD_PROFILE_WEB]     = "emcc -DNYA_WEB_PROFILE -DNYA_NO_SDL",
 };
 
 /** Which vendor subset a profile builds and links. The macros are in src/nyangine-build/vendor/vendor.h. */
@@ -55,7 +52,6 @@ NYA_INTERNAL const NYA_ConstCString _NYA_BUILD_PROFILE_VENDORS[NYA_BUILD_PROFILE
     [NYA_BUILD_PROFILE_SERVER]  = "NYA_SERVER_VENDORS",
     [NYA_BUILD_PROFILE_DESKTOP] = "NYA_PROJECT_VENDORS",
     [NYA_BUILD_PROFILE_GAME]    = "NYA_PROJECT_VENDORS",
-    [NYA_BUILD_PROFILE_WEB]     = "the wasm subset",
 };
 
 /** Caps kept small on purpose: a manifest lists a handful of each, and a fixed array needs no allocator here. */

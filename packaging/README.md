@@ -13,7 +13,7 @@ over them:
 
 ```
 dist/
-  linux/  windows/  steam-linux/  steam-windows/  web/   the thing you run
+  linux/  windows/  steam-linux/  steam-windows/         the thing you run
   linux-pacman/  linux-nixos/  linux-flatpak/            the recipe a package manager reads
   windows-winget/  windows-scoop/
   lua-api/                                               what a plugin author needs
@@ -148,10 +148,6 @@ downloads once into `vendor/steamrt/`, so the binary needs glibc 2.31 and nothin
 runtime's GnuTLS, so the binary starts inside the runtime and not necessarily on a host whose nettle
 is newer. `verify-linux.sh` checks the symbol versions and starts the build in Valve's sniper image.
 No SteamStub DRM wrapper: it rewrites the executable, which breaks the integrity stamp and the signature.
-
-## Web
-
-`dist/web/` is a slot, and empty until the wasm target exists. See `src/nyangine-build/dist.c`.
 
 ## Container
 

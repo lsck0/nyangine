@@ -3,8 +3,6 @@
  * */
 #include "nyangine-core/nyangine.h"
 
-#if !OS_WASM
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -158,4 +156,3 @@ NYA_CString _nya_gpu_compute_compiled_path(NYA_Arena* arena, SDL_GPUDevice* devi
     return nya_string_to_cstring(arena, path);
 }
 
-#endif // !OS_WASM

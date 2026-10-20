@@ -85,8 +85,6 @@ enum DistKind {
     DIST_KIND_PACKAGE,
     /** Source, and the only distribution that is: what a plugin author needs in order to write one. */
     DIST_KIND_API,
-    /** A target that is planned but not built yet. Stages an empty directory, so the layout is stable. */
-    DIST_KIND_PLACEHOLDER,
     DIST_KIND_COUNT,
 };
 
@@ -202,12 +200,6 @@ NYA_INTERNAL const DistTarget DIST_TARGETS[] = {
         .rule           = &build_project_steam_windows_x86_64,
         .payload        = STEAM_WINDOWS_X86_64_DIRECTORY,
         .archive_suffix = "steam-windows-x86_64.zip",
-    },
-    /* The wasm builds exist (`./build wasm`, `wasm-ui`, `wasm-game`) but nothing stages them here yet; the slot keeps the dist/<target>/ layout fixed until it does, and an empty directory keeps `./build dist` working meanwhile. */
-    {
-        .name        = "web",
-        .description = "The wasm build. Empty until the target exists; see the note in dist.c.",
-        .kind        = DIST_KIND_PLACEHOLDER,
     },
     {
         .name           = "lua-api",
@@ -553,7 +545,7 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
 
     NYA_CString directory = _dist_make_directory(arena, target->name);
 
-    static_assert(DIST_KIND_COUNT == 4, "Unhandled DistKind enum value.");
+    static_assert(DIST_KIND_COUNT == 3, "Unhandled DistKind enum value.");
     switch (target->kind) {
         case DIST_KIND_GAME: {
             NYA_EXPECT(nya_build(target->rule), "while building the %s distribution", target->name);
@@ -606,12 +598,6 @@ void _dist_stage(NYA_Arena* arena, const DistTarget* target) {
 
         case DIST_KIND_PACKAGE: {
             _dist_render_tree(arena, target->templates, directory);
-            break;
-        }
-
-        case DIST_KIND_PLACEHOLDER: {
-            // The directory and nothing else. Reported, so an empty slot in dist/ is a decision a reader can see rather than a target that silently did nothing.
-            nya_log_warn("%s is a reserved slot and is staged empty. %s", target->name, target->description);
             break;
         }
 

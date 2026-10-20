@@ -29,7 +29,7 @@
  * 3. the server re-renders the layout the click was made against, aims a synthetic pointer at the named
  *    widget, and runs the component's input pass — the same pass a real mouse feeds. The component does
  *    not touch the database; it records what the click *meant* (add, toggle, delete, clear) into a small
- *    context, so the component stays a pure description of a UI that could just as well run in a browser.
+ *    context, so the component stays a pure description of a UI.
  * 4. the handler applies that one intent to the database — an ORM insert, update or delete — reloads the
  *    rows, runs the draw pass, and returns the new HTML, which the client swaps in.
  *
@@ -37,34 +37,6 @@
  * own button and toggle logic decide what a click there means, just as in `ui_ssr`. The new part is step
  * 4 — the intent the component recorded is turned into a row change, so the immediate-mode UI is a real
  * front end against `http_server` and its `db` store.
- *
- * ## The same component, client-side (CSR)
- *
- * The `component` function below reads and writes only its `Ctx` argument — it makes no HTTP or database
- * call of its own — which is exactly what lets the *same* function be compiled to WebAssembly and run in
- * the browser with no server round trip, the way `examples/web_wasm/wasm_ui.c` compiles `ui_ssr`'s component today.
- * That file is the working CSR harness: it includes the hand-picked leaf translation units the UI needs
- * (the arena → object chain, the math the layout measures in, the callback/event/input systems and the
- * `ui` module with the HTML presenter), answers the few window/app symbols a windowless surface needs,
- * and exports `nyangine_ui_render()` and `nyangine_ui_event(id, event)` that `web/ui.html` calls. Build it
- * with `./build wasm-ui` and serve `web/`.
- *
- * To ship *this* component as CSR you would do the same three things, and only these:
- *
- *   1. Compile this `component` (and its `Ctx`/`Todo` types) into a wasm translation unit shaped like
- *      `examples/web_wasm/wasm_ui.c` — the include list there is the whole recipe and does not change.
- *   2. Where the SSR path calls `load_todos` to fill `Ctx` from the database, the CSR module has no
- *      database under it: it fills `Ctx` from a JSON list the page `fetch()`ed from this server. This
- *      example serves exactly that list at `GET /api/todos` (see below) so the wasm client has a real
- *      endpoint to read, and the browser posts an add/toggle/delete back to a small JSON API.
- *   3. Mount the returned HTML and forward clicks into the module's exports, byte for byte the JS in
- *      `web/ui.html`.
- *
- * So the server-rendered app here and the client-rendered app share one `component`; SSR renders it on the
- * server against the database directly, CSR renders it in wasm against the same list fetched over HTTP.
- * Wiring a second wasm target into the build is deliberately left out of this pass — `wasm_ui.c` already
- * proves the mechanism, and duplicating it here would be a build-system change, not a UI one — but the
- * `GET /api/todos` route below is the concrete seam a CSR build reads through, and it is live now.
  *
  * ## Security
  *
@@ -183,7 +155,7 @@ typedef struct {
     u32  filter;
 } AppState;
 
-/* THE COMPONENT — one function, every surface. It reads and writes only Ctx, so it also compiles to wasm. */
+/* THE COMPONENT — one function, every surface. It reads and writes only Ctx. */
 
 /** What a click in the UI meant, recorded by the component and applied to the store by the handler. */
 typedef enum {
@@ -198,7 +170,7 @@ typedef enum {
  * Everything the component draws from and writes back to, in one place. The todos are loaded from the
  * database before a pass and are read-only to the component; the component's only output beyond the UI
  * itself is `action` — the one intent a click carried — which the handler turns into a row change. This
- * indirection is what keeps `component` free of any HTTP or database call, and so compilable to wasm.
+ * indirection is what keeps `component` free of any HTTP or database call.
  * */
 typedef struct {
     AppState*   app;
@@ -595,38 +567,6 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     return sent.ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
-/**
- * The list as JSON. The SSR pages above never call this — they read the database directly — but it is the
- * seam a client-rendered build of the same component reads through: a wasm module has no database under
- * it, so it fetches this and fills its Ctx from the array. See the CSR note at the top of the file.
- * */
-NYA_INTERNAL NYA_HttpStatus handle_api_todos(NYA_HttpExchange* exchange) {
-    void* rows  = nullptr;
-    u32   count = 0;
-
-    if (!nya_orm_select(TODOS_TABLE, exchange->arena, "ORDER BY id", nullptr, 0, &rows, &count).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
-
-    NYA_Object*           out   = nya_object_create(exchange->arena);
-    NYA_ArrayᐸNYA_Valueᐳ* todos = nya_array_create(exchange->arena, NYA_Value);
-
-    for (u32 i = 0; i < count; i++) {
-        const Todo* todo = nya_orm_at(TODOS_TABLE, rows, i);
-
-        NYA_Object* item = nya_object_create(exchange->arena);
-        nya_object_add(item, "id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = todo->id });
-        nya_object_add(item, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)todo->text });
-        nya_object_add(item, "done", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = todo->done != 0 });
-
-        NYA_Value value = { .type = NYA_TYPE_OBJECT, .as_object = *item };
-        nya_array_push_back(todos, value);
-    }
-
-    nya_object_add(out, "count", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = todos->length });
-    nya_object_add(out, "todos", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *todos });
-
-    return nya_http_response_json(exchange->response, exchange->arena, out).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
-}
-
 /* ROUTES AND MAIN */
 
 /*
@@ -640,9 +580,6 @@ NYA_INTERNAL const NYA_HttpRoute ROUTES[] = {
     { .method = NYA_HTTP_METHOD_POST, .path = "/event", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_event,
       .summary = "One interaction, applied to the store and answered with the new HTML",
       .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR } },
-    { .method = NYA_HTTP_METHOD_GET, .path = "/api/todos", .affinity = NYA_HTTP_AFFINITY_MAIN, .handler = handle_api_todos,
-      .summary = "The todo list as JSON — the seam a client-rendered build reads through",
-      .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR } },
 };
 
 NYA_INTERNAL const NYA_HttpRouter ROUTER = {
@@ -728,7 +665,7 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_server_merge(&ROUTER), "while mounting the todo routes");
 
     nya_log_info("web_frontend on http://127.0.0.1:%u — open it and add a todo. ctrl-c to stop.", nya_http_server_port());
-    nya_log_info("The list is at /api/todos as JSON, and in web_frontend.db under the save root — a restart keeps it.");
+    nya_log_info("The list is in web_frontend.db under the save root — a restart keeps it.");
 
     while (RUNNING) {
         nya_system_http_tick();

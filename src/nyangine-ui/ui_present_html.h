@@ -286,8 +286,8 @@ NYA_API b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, OUT NYA_UIWidgetKi
 /**
  * Writes the stylesheet the body is drawn with into `out`, null terminated: the surface sized to the window
  * the pass was laid out in, the font sized to the cell, and one rule per widget kind. Returns the bytes
- * written, terminator excluded. nya_ui_html_document embeds it; a page that mounts the body itself, like
- * the wasm one, puts it in a `<style>` element so both look the same.
+ * written, terminator excluded. nya_ui_html_document embeds it; a page that mounts the body itself puts it
+ * in a `<style>` element so both look the same.
  * */
 NYA_API u32 nya_ui_html_style(const NYA_UIHtml* html, OUT char* out, u32 capacity);
 

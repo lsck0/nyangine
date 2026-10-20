@@ -42,7 +42,6 @@ sav    = "sav"    # the ".sav" save-file extension.
 ba     = "ba"     # a bilinear-corner sample in the value-noise lattice (aa/ab/ba/bb).
 mis    = "mis"    # the hyphenated prefix in "mis-read", "mis-parsed", "mis-ordering".
 entit  = "entit"  # the printf stem in "entit%s" -> entity / entities.
-datas  = "datas"  # a websocket-transport counter field: how many data frames arrived.
 alikes = "alikes" # the tail of "look-alikes", split on the hyphen.
 
 # ── Deliberate word choices the general dictionary would "correct".

@@ -1021,10 +1021,7 @@ struct NYA_Vertex3D {
     f16 color[4];
 };
 
-// The GPU vertex layout is exact on native (f16 is two bytes); a wasm build widens f16 to four bytes and has no GPU, so the check is guarded to native.
-#if !OS_WASM
 static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c describes a 36 byte vertex");
-#endif
 
 
 /** Builds one from the wide types a caller has. */

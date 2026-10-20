@@ -3,8 +3,8 @@
  *
  * The note as it crosses to a client: the fields a reader may see, and nothing else. There is no
  * `owner` here — who wrote a note is the server's business, and a field reaches the wire only when a
- * DTO names it. This is the one of the three shapes ("Model, SO, DTO") the web profile compiles, so it
- * includes no server-only header: no `*_model.h`, no `*_so.h`, only the reflection types the wire needs.
+ * DTO names it. It includes no server-only header: no `*_model.h`, no `*_so.h`, only the reflection
+ * types the wire needs.
  *
  * DTOs are versioned. A breaking change is a *new* DTO and a new route — `NoteDtoV2`, `POST /api/v2/...`
  * — never an edit to one a deployed client still sends, because the layout hash in binary `.nya` would
