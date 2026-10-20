@@ -54,26 +54,89 @@ The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 Worked before the rest of the roadmap, in this order of blocks: the questions are answered first (they decide
 what gets built), then the removals and moves (they decide where everything else lands), then the features.
 
-### Questions to answer, with the answer recorded here
+### Questions, answered 2026-10-20 from the code
 
-- `[ ]` **CSRF.** Is every mutating route safe? Check `SameSite` on every cookie, the CSRF token or
-  `Origin`/`Sec-Fetch-Site` check on every POST/PUT/PATCH/DELETE, including the SSR forms. Record the answer and
-  close any gap with a test that forges a cross-site request.
-- `[ ]` **Replay.** Sessions, TOTP, sealed tokens, webhooks, signed requests, WebSocket frames and `net` UDP
-  packets: which carry a nonce, timestamp window or sequence window, and which refuse a second use. Close the gaps.
-- `[ ]` **Passkeys and YubiKey.** WebAuthn exists (`a4749383`, passwordless primary on the accounts router).
-  Answer whether a FIDO2 hardware key (YubiKey) works end to end, with user verification, the signature counter
-  check, and attestation policy. YubiKey OTP is not planned unless asked.
-- `[ ]` **OAuth.** The `oidc` plugin is a client. Answer what it covers (authorization code + PKCE, `state`,
-  `nonce`, ID token verification, refresh) and whether nyangine needs to be a provider too.
-- `[ ]` **DST faults.** Does the simulation drop, duplicate, reorder, delay and corrupt packets? Does it inject
-  hardware and memory faults: allocation failure, arena exhaustion, disk full, short writes, `fsync` failure, bit
-  flips, clock skew, process kill mid-transaction? Whatever is missing gets a fault-injection seam in `os` and
-  the network layers, and invariants the harness checks. This is the same item as "proven, not claimed" in
-  "Requested (2026-10-12)".
-- `[ ]` **Mod packs in multiplayer.** The server must check that a client runs the same plugins and assets: a
-  content manifest hash (plugin ids, versions, signatures, asset bundle hash) exchanged in the `net` handshake, a
-  refusal with a readable reason, and a caller in `pong_multiplayer` or gnyame.
+- `[x]` **CSRF: safe, with three gaps.** Every unsafe method is refused in dispatch when it is cross-site
+  (`Sec-Fetch-Site` not same-origin/none, or `Origin` not `<scheme>://<Host>`), before any layer runs
+  (`http_router.c` `_nya_http_request_is_cross_site`), and `nya_http_router_check` makes every unsafe route declare
+  the 403. Sessions are `__Host-session`, `HttpOnly`, `Secure`, `SameSite=Strict`; `None` is refused at config.
+  A same-origin no-JS form POST passes as is. Open:
+    - `[ ]` the check compares `Origin` with `Host`, so it relies on the edge keeping `Host` (traefik does); add a
+      trusted-proxy setting for `X-Forwarded-Host`/`-Proto`, and compare the scheme too;
+    - `[ ]` nothing stops a GET or QUERY handler from writing; add a lint rule for safe-method handlers that reach
+      `db` writes;
+    - `[ ]` SSR pages set `form-action 'none'`; a no-JS form needs `form-action 'self'`.
+- `[x]` **Replay: covered for TOTP, passkey challenges, sessions and `net` UDP; five gaps.** TOTP refuses a counter
+  at or below the last; passkey challenges are single use and the sign counter must climb; a retired session token
+  kills the session; UDP has a 32-packet AEAD replay window and a 1024-id dedup per channel. Open:
+    - `[ ]` `nya_account_session_rotate` has no caller in `http`, so stolen-token detection never runs;
+    - `[ ]` sealed cookies (pending login, passkey login, SSR state) are bearer until their TTL: a captured one
+      replays, and an old SSR state cookie rolls a session back. Single use server side, or a generation counter;
+    - `[ ]` `http_webhook` keeps no replay cache (±300 s window) and `nya_http_webhook_verify` has no caller;
+    - `[ ]` `http_idempotency` is in memory (lost on restart and scale to zero) and its fingerprint ignores the
+      caller, so two callers with one key and body get each other's answer; and a form cannot send the header, so
+      it must also read a hidden field;
+    - `[ ]` WebSocket has no sequence numbers, resume or dedup (already planned below);
+    - `[ ]` delete the stateless `nya_http_challenge_*`, which has no caller and replays within its window.
+- `[x]` **Passkeys: server side yes, browser no; YubiKey only on EdDSA firmware.** `accounts_passkey.c` checks type,
+  origin, RP id hash, UP, single-use challenge, counter, id uniqueness. Open:
+    - `[ ]` Ed25519 (COSE -8) only: ES256 is refused with a stale comment, though `crypto_ecdsa.h` has a P-256
+      verifier now (needs DER to raw `r||s`). Without ES256, iCloud Keychain, Google Password Manager, Windows Hello
+      and YubiKeys before firmware 5.2 cannot enrol;
+    - `[ ]` the UV flag is never checked although a passkey login is passwordless: a stolen key is a login;
+    - `[ ]` attestation is ignored (effectively `none`), so a deployment cannot require a hardware key; add an
+      optional AAGUID allowlist;
+    - `[ ]` no discoverable (usernameless) login, `BE`/`BS` and `crossOrigin` ignored;
+    - `[ ]` no browser client: WebAuthn is `navigator.credentials`, so it needs JS. Decision: one hashed static
+      `passkey.js` on the login page only, the single exception to "no JS".
+  YubiKey OTP (Yubico modhex) is not planned; TOTP through Yubico Authenticator works today.
+- `[x]` **OAuth: a client, no provider, not wired into accounts.** The `oidc` plugin does discovery, code flow with
+  PKCE S256, `state`/`nonce`, JWKS by `kid`, RS256/ES256, `iss`/`aud`/`exp`/`iat`/`nonce`/`azp`. Open:
+    - `[ ]` `/auth/<provider>/start` and `/callback` routes on `http_accounts` with a sealed pending cookie for
+      state, nonce and verifier, and `nya_account_identity_link` used; today the only caller is a terminal example
+      where `state` is never compared;
+    - `[ ]` refresh tokens and revocation.
+  An OAuth provider is not planned: only worth it if programs in this tree must be an IdP for each other.
+- `[x]` **DST: packets yes (on the loopback only), memory and hardware faults mostly no.** The replicate session over
+  the in-memory wire gets drop, duplicate, reorder, delay, bit flip, truncate, splice and server restart; HTTP gets
+  flip, truncate, duplicate, split send and splice over a real socket. SQLite gets a fault VFS (busy, IO errors,
+  full, fsync, power loss mid-transaction). Not covered, each a work item:
+    - `[ ]` one fault interposer under `NYA_TESTING` in `src/nyangine-std/os` (file, socket, time, random, pages),
+      which every layer already funnels through;
+    - `[ ]` allocation failure and arena exhaustion: per-arena budgets and a fallible allocation path;
+    - `[ ]` a simulated monotonic clock and seeded entropy (today replays draw from `getrandom` and the real clock),
+      and a determinism self-check that runs each seed twice and compares a digest;
+    - `[ ]` the real UDP transport and its crypto, the WebSocket server, `http_client`, and server-side socket
+      faults (short write, `EAGAIN`, RST, accept failure, slowloris);
+    - `[ ]` short writes, `ENOSPC`, `fsync` failure and bit flips for non-SQLite files; backward clock skew;
+    - `[ ]` kill and restart of the whole web stack (http, idempotency, jobs) mid-transaction.
+- `[x]` **Mod packs in multiplayer: not handled.** Plugins are signature checked locally only; HELLO carries the
+  protocol and snapshot versions, a name and a tick, so a client with other mods is admitted. Build on
+  `nya_plugin_digest` and the per-entry `nya_integrity_hash`:
+    - `[ ]` a content manifest (plugin ids, versions, digests; asset bundle hash) and the build version and commit in
+      HELLO; a `NYA_NET_DISCONNECT_CONTENT` reason carrying which entry differs, shown to the user; a caller in
+      `pong_multiplayer`.
+- `[x]` **Integrity and protocols: solid transport, thin elsewhere.** UDP: stateless cookie handshake padded against
+  amplification, X25519 with forward secrecy, server key pinning, client allowlist, XChaCha20-Poly1305, replay
+  window, bounded reassembly. Server authority: command rate limit, NaN refusal, speed clamp, kick on repeat.
+  Local: executable MAC, code sweep, blob hashes, watchdog. Open:
+    - `[ ]` validate the action bitmask against existing actions, and audit game events and chat paths;
+    - `[ ]` sign Linux artifacts and `SHA256SUMS` (only Windows is signed today).
+- `[x]` **CI: red since 2026-09-28, five causes.** MSYS2 ships clang 23 and `setup-windows` wants exactly 22; a new
+  zizmor `self-repository` audit (unpinned) flags every `./.github/actions/*` use; the Steam sniper sysroot has
+  OpenSSL 1.1, which `tls.c` and `acme.c` do not build against (gone with TLS removal); ten examples crash because
+  `water.frag.hlsl` binds three samplers and `renderer.c` declares two; two examples leak in `X11_InitIM` under
+  Xvfb. Locally, clang 23 also failed the build on `-Wpsabi` (fixed `e0ee8f9d`) and four tests on
+  `-Wunused-but-set-global` (each a missing assertion, fixed `6442dc62`).
+- `[x]` **100k connections: impossible today, by memory.** `NYA_HTTP_MAX_CONNECTIONS` is 8, one listener thread
+  rebuilds a `poll()` array and scans every connection each pass under one mutex, and a connection costs about
+  363 KB (a 256 KB send buffer, a 64 KB response body, a 22 KB request), so 100k would need 36 GB against a budget of
+  about 10 KB each in 2 GB. Every DB route in `web_server` runs at frame rate on the main affinity. SQLite opens
+  with only `foreign_keys=ON`.
+- `[x]` **Comments: measured.** 42.5% of struct fields carry a comment (renderer 55%, physics 69%, replicate 63%),
+  31% of enumerators; 13k `/**`, 3k `/* */`, 16k `//`; 3,864 blocks close with a non-standard ` * */`; 1,808
+  multi-line blocks exceed three lines. Annotations (`@reflect`, `@redact`, `@watch`, `@skip`, `@secret`,
+  `@loggable`, `@lua`) are read from the field's own line and must survive the sweep.
 
 ### Removals and moves
 
@@ -110,7 +173,10 @@ what gets built), then the removals and moves (they decide where everything else
   `workflow-audit` (zizmor) exits 12. Fix all three and see a green push run and a green scheduled run.
 - `[ ]` **Android works.** An APK of gnyame (or an example) built by `./build` with the NDK at
   `/opt/android-ndk` and the SDK at `/opt/android-sdk`, installed on an emulator, rendering and taking input.
-  This reverses "Android is not scope" in `AGENTS.md`.
+  This reverses "Android is not scope" in `AGENTS.md`. The NDK (r30) is usable; the SDK is not: `/opt/android-sdk`
+  holds only the deprecated `tools` 26.1.1, root owned, with no platform-tools, build-tools, platforms, emulator or
+  system image, and only JDK 27 is installed. Needs the user (dotfiles) to provision a user-writable SDK. In the
+  code: `<immintrin.h>` and `-mavx*` are unconditional, there is no `OS_ANDROID`, and `main.c` needs `SDL_main`.
 
 ### Features
 
