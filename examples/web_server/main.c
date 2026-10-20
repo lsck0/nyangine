@@ -1156,6 +1156,13 @@ NYA_INTERNAL NYA_Error mount_discovery(void) {
 #define TICK_SLEEP_MS 5
 
 /**
+ * Bytes one exchange's arena may take. Four of its one mebibyte regions: a page of notes rendered and
+ * compressed fits in the first, and a request that cannot get its working memory inside this is answered
+ * 503 rather than growing the process. See NYA_HttpConfig.exchange_budget_bytes.
+ * */
+#define EXCHANGE_BUDGET_BYTES (4ULL * 1024ULL * 1024ULL)
+
+/**
  * Workers behind the listener.
  *
  * Four is past what a handful of connections needs and well inside NYA_HTTP_MAX_WORKERS. What it buys
@@ -1356,6 +1363,8 @@ s32 main(s32 argc, char** argv) {
         .workers     = WORKER_COUNT,
         .layers      = LAYERS,
         .layer_count = nya_carray_length(LAYERS),
+
+        .exchange_budget_bytes = EXCHANGE_BUDGET_BYTES,
 
         // Both or neither, which the server checks: see NYA_HttpConfig. Without them this is plain HTTP on loopback, which is what an example on a laptop wants.
         .certificate_path = certificate_path,
