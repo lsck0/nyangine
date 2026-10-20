@@ -79,7 +79,7 @@ jobs:
           lfs: true
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
           llvm-version: 23
           ccache-key: fuzz
@@ -163,7 +163,7 @@ jobs:
           lfs: true
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
           llvm-version: 23
           ccache-key: simulation
@@ -217,7 +217,7 @@ jobs:
           lfs: true
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
           llvm-version: 23
           ccache-key: bench
@@ -337,3 +337,6 @@ jobs:
           # Scan the workflow directory; do not upload SARIF, which would need security-events: write.
           advanced-security: false
           inputs: .github/workflows/
+          # Pinned, and the same version as a local `zizmor .github/`: an unpinned latest added the
+          # self-repository audit overnight and failed every push with exit 12. Bump it deliberately.
+          version: 1.31.1

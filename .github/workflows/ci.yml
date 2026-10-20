@@ -37,7 +37,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
           llvm-version: 23
 
@@ -72,7 +72,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
           llvm-version: 23
 
@@ -109,7 +109,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
           llvm-version: 23
@@ -153,7 +153,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
           llvm-version: 23
@@ -209,7 +209,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
           llvm-version: 23
@@ -284,13 +284,13 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         id: setup
         with:
           llvm-version: 23
           ccache-key: steam-linux
 
-      - uses: ./.github/actions/setup-steamrt
+      - uses: $/.github/actions/setup-steamrt
         with:
           llvm-version: 23
 
@@ -339,6 +339,9 @@ jobs:
           # Scan the workflow directory; do not upload SARIF, which would need security-events: write.
           advanced-security: false
           inputs: .github/workflows/
+          # Pinned, and the same version as a local `zizmor .github/`: an unpinned latest added the
+          # self-repository audit overnight and failed every push with exit 12. Bump it deliberately.
+          version: 1.31.1
 
   # The Windows host path, which the Linux jobs above cannot cover.
   #
@@ -369,7 +372,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-windows
+      - uses: $/.github/actions/setup-windows
         with:
           llvm-version: 23
 
@@ -401,7 +404,7 @@ jobs:
           name: compiled-shaders
           path: assets/shader/compiled/
 
-      - uses: ./.github/actions/setup-windows
+      - uses: $/.github/actions/setup-windows
         id: setup
         with:
           llvm-version: 23
@@ -450,7 +453,7 @@ jobs:
           name: compiled-shaders
           path: assets/shader/compiled/
 
-      - uses: ./.github/actions/setup-windows
+      - uses: $/.github/actions/setup-windows
         id: setup
         with:
           llvm-version: 23
