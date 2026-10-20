@@ -15,11 +15,6 @@
 // flexibility — 0 at the anchored base, 1 at the free tip — rides in the vertex colour's alpha, which
 // nothing else in this pipeline reads. So a plant is authored once, with dark-to-light alpha up its
 // height, and grass, a leaf and a branch differ only by the sway parameters in the uniform.
-//
-// ## ESSL-300 safe
-//
-// No Gather, no compute, and the uniform block is a float4x4 and four float4s — std140-expressible — so
-// the build cross-compiles this to GLSL ES 300 for the web backend with no change. Keep it that way.
 
 struct VertInput {
   float3 position : POSITION;

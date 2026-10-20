@@ -26,12 +26,8 @@
 //    back to the authored shore weight the mesh carries in its vertex-colour alpha — the honest depth version
 //    with a stand-in for when there is nothing to measure against.
 //
-// ## ESSL-300 safe
-//
-// mesh3d_shade/_fog/_tonemap are reused for the lighting, but mesh3d_shadow is NOT called: it is the only
-// thing in mesh3d_shading.hlsli that uses Gather, which GLSL ES 300 has no equivalent for, so leaving it
-// unreferenced lets the compiler strip it and the shader cross-compiles. Water receives no cast shadow as a
-// result, which reads fine on a bright reflective surface. Keep this free of Gather and compute.
+// mesh3d_shade/_fog/_tonemap are reused for the lighting, but mesh3d_shadow is not called: water receives no
+// cast shadow, which reads fine on a bright reflective surface.
 
 #include "mesh3d_shading.hlsli"
 #include "mesh3d_normals.hlsli"

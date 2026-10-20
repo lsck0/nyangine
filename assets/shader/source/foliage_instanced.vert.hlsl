@@ -12,12 +12,6 @@
 // fields go unread here: the placement is per instance now, and the phase is derived below from each
 // blade's own world position — the same hash the scalar path uses on the CPU when a caller leaves phase
 // unset, so a field of identical blades neither sways in lockstep nor is billed a per-instance attribute.
-//
-// ## ESSL-300 safe
-//
-// Same shape as foliage.vert: no Gather, no compute, an unrolled fixed loop, and the uniform block is a
-// float4x4 and float4s (std140-expressible). Per-instance vertex attributes cross-compile to
-// glVertexAttribDivisor under GLSL ES 300. Keep it that way so the web backend builds it unchanged.
 
 struct VertInput {
   float3 position : POSITION;

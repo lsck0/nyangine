@@ -13,11 +13,6 @@
 // Fresnel term track the real slope rather than a flat plane. A little Gerstner-style horizontal pinch along
 // the flow sharpens the crests. The wind field (render_wind.h) optionally drives the chop: its horizontal
 // push speeds the travel and lifts the amplitude, so water, foliage and particles all lean on one wind.
-//
-// ## ESSL-300 safe
-//
-// No Gather, no compute, and the uniform block is a float4x4 and three float4s — std140-expressible — so the
-// build cross-compiles this to GLSL ES 300 for the web backend unchanged. Keep it that way.
 
 struct VertInput {
   float3 position : POSITION;

@@ -6,8 +6,7 @@
 // World-space marching, not a depth-buffer walk: the normal buffer carries eye distance in its alpha and a world
 // normal in its rgb (NYA_RENDER3D_NORMAL_FORMAT), the same buffer effect_ssao reads, so a step is a world point
 // projected back to the screen and tested against the distance stored there, inverting scene_position for the
-// perspective and orthographic cases exactly as the ssao gather does. Kept to SampleLevel and one bounded loop so
-// SPIRV-Cross lowers it straight to GLSL ES 300 for the web backend, with no textureGather to refuse.
+// perspective and orthographic cases exactly as the ssao gather does.
 
 #include "effect_scene.hlsli"
 

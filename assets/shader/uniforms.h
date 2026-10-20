@@ -565,8 +565,7 @@ static_assert(sizeof(struct NYA_ShaderFoliageUniform) == 224,
  * water.vert.hlsl: the surface's placement, the current, the wave shape and the sampled wind, at b1 so a
  * static mesh does not carry it. The vertex stage lifts model-space vertices into travelling waves about the
  * still plane (y = 0) before view-projecting, reusing the lit fragment path for shading. Each row below is one
- * float4 and the matrix is four rows, so nothing crosses a sixteen-byte boundary — std140-expressible, which
- * is what lets it cross-compile to GLSL ES 300.
+ * float4 and the matrix is four rows, so nothing crosses a sixteen-byte boundary.
  * */
 struct NYA_ShaderWaterVertexUniform {
     /** Row major, the same convention as foliage's model: mul(model, vertex) in the shader. */

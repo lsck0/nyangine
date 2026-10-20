@@ -34,22 +34,6 @@
     "/external/DirectXShaderCompiler/lib:" SHADERCROSS_HOST_SDL,
 #endif
 
-/* SPIRV-Cross, vendored inside sdl-shadercross and linked into the build tool so nya_asset_compile_shaders cross-compiles every .spv to GLSL ES 300 in-process for a later GLES3/WebGL2 backend. Wired like libbacktrace: SHADERCROSS_SPIRV_CROSS_INCLUDE resolves <spirv_cross_c.h>, _LINK is for the linker, _SO is the path main() probes, and the flags are appended only when the artifact exists. Host only — a Windows host cannot build shadercross (DXC will not compile under MinGW) and takes the compiled shaders from a Linux machine. */
-#if OS_WINDOWS
-#define SHADERCROSS_SPIRV_CROSS_INCLUDE
-#define SHADERCROSS_SPIRV_CROSS_LINK
-#define SHADERCROSS_SPIRV_CROSS_SO ""
-#else
-#define SHADERCROSS_SPIRV_CROSS_DIRECTORY SHADERCROSS_BUILD "/external/SPIRV-Cross"
-#define SHADERCROSS_SPIRV_CROSS_SO        SHADERCROSS_SPIRV_CROSS_DIRECTORY "/libspirv-cross-c-shared.so"
-#define SHADERCROSS_SPIRV_CROSS_INCLUDE   "-I" SHADERCROSS_SOURCE "/external/SPIRV-Cross"
-// $ORIGIN, not the build directory: the tool runs from the tree root as ./build, and an $ORIGIN rpath
-// still resolves when the tree is not the main checkout (a worktree symlinks vendor/ back to it).
-#define SHADERCROSS_SPIRV_CROSS_LINK                                                                                                                 \
-    "-L" SHADERCROSS_SPIRV_CROSS_DIRECTORY, "-lspirv-cross-c-shared",                                                                                \
-    "-Wl,-rpath,$ORIGIN/vendor/sdl-shadercross/build-linux-x86_64/external/SPIRV-Cross"
-#endif
-
 /* Windows only: puts every DLL in the tree, subprojects included, next to shadercross.exe, replacing LD_LIBRARY_PATH. Absolute via %CWD%/hook_expand_cwd, since a relative output directory resolves per target. */
 #if OS_WINDOWS
 #define SHADERCROSS_CMAKE_RUNTIME_OUTPUT "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=%CWD%/vendor/sdl-shadercross/build-windows-x86_64",
