@@ -5785,8 +5785,6 @@ NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, c
 NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto, NYA_HttpMediaType media)  // nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts.
 NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
 NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value)  // Adds one header.
-void nya_http_hsts_set(b8 enabled)  // Whether every response carries `Strict-Transport-Security`.
-b8 nya_http_hsts(void)  // Whether it is on, which is what a test asks and what an operator's status page shows.
 b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_ConstCString accept_encoding)
 NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
 ```
@@ -6004,7 +6002,7 @@ The listener: a TCP port, a handful of connections, and either one drain a frame
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
@@ -8118,7 +8116,6 @@ NYA_OS_SOCKET_WAIT_FOREVER ((u32)0xFFFFFFFF)  // A wait that only ends when a so
 // functions
 NYA_OsSocketStatus nya_os_socket_start(void)  // Starts the host's socket library, once per process, and refers to it until the matching stop.
 void nya_os_socket_stop(void)  // The pair.
-s64 nya_os_socket_descriptor(NYA_OsSocket socket)
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, OUT NYA_OsSocket* out_socket)  // Opens a socket of `kind`, bound to `port` or to whatever the host picks when `port` is zero.
 NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, OUT NYA_OsSocket* out_socket)  // The same, bound to one address rather than to every interface.
 NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, OUT NYA_OsSocket* out_socket, OUT NYA_OsAddress* out_from)  // Takes the next waiting connection, non-blocking.

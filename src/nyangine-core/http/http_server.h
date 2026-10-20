@@ -99,8 +99,8 @@
  * `requests_per_second`; an empty bucket answers 429 with Retry-After and closes. The address is the
  * socket's peer, never a forwarded header, so behind a proxy every client shares the proxy's budget.
  *
- * TLS is in process: set `certificate_path` and `key_path` below. What is not here is any request bound
- * above the ones in http_types.h; a proxy in front is optional, for those.
+ * There is no TLS here: it terminates on the platform the server is deployed to (the homelab edge,
+ * Cloudflare and traefik), and this speaks plain HTTP to it.
  *
  * ── thread safety ──
  *
@@ -237,20 +237,6 @@ struct NYA_HttpConfig {
      * */
     const u8* secret;
     u64       secret_size;
-
-    /**
-     * The PEM certificate chain and private key to serve TLS with, or empty for plain HTTP.
-     *
-     * Both or neither: a path for one and not the other is refused at init rather than starting a
-     * server that is not the one asked for. With them, every connection is TLS and there is no plain
-     * HTTP port beside it — a server that answered both on one port would be a server whose security
-     * depends on which one a client happened to speak.
-     *
-     * A build with no TLS library refuses them too, saying so, rather than quietly serving plaintext
-     * on a port whose name says https; see tls.h.
-     * */
-    NYA_ConstCString certificate_path;
-    NYA_ConstCString key_path;
 
     /** Layers around every route, outermost first. Copied; the array need not outlive the call. */
     const NYA_HttpLayerFn* layers;

@@ -20,10 +20,6 @@
 #include "nyangine-build/vendor/vendor_lua.h"
 #include "nyangine-build/vendor/vendor_lz4.h"
 #include "nyangine-build/vendor/vendor_monocypher.h"
-// a rule with no parts: the system's OpenSSL, for the reason its own file gives.
-#if !OS_WINDOWS
-#include "nyangine-build/vendor/vendor_openssl.h"
-#endif
 #include "nyangine-build/vendor/vendor_sdl.h"
 #include "nyangine-build/vendor/vendor_sdl_image.h"
 #include "nyangine-build/vendor/vendor_sdl_mixer.h"
@@ -55,7 +51,7 @@
     &vendor_box2d_linux_x86_64,   &vendor_box3d_linux_x86_64,      &vendor_curl_linux_x86_64,       \
     &vendor_lua_linux_x86_64,     &vendor_lz4_linux_x86_64,        &vendor_sqlean_linux_x86_64,     \
     &vendor_sqlvec_linux_x86_64,  &vendor_sqlite_linux_x86_64,     &vendor_ufbx_linux_x86_64,       \
-    &vendor_monocypher_linux_x86_64, &vendor_openssl_linux_x86_64
+    &vendor_monocypher_linux_x86_64
 
 #define NYA_PROJECT_VENDORS_WINDOWS_X86_64                                                          \
     &vendor_sdl_windows_x86_64,   &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64, \
@@ -75,8 +71,8 @@
  * symbolized crash traces (libbacktrace) and the scripting runtime (lua).
  *
  * Same left-to-right link order as NYA_PROJECT_VENDORS_LINUX_X86_64, which the archives require:
- * sqlean and sqlvec are searched before libsqlite3, which they call into, and curl before the
- * `-lssl`/`-lcrypto` its TLS resolves against.
+ * sqlean and sqlvec are searched before libsqlite3, which they call into. curl carries the system
+ * `-lssl`/`-lcrypto` its TLS resolves against on its own link line, the only OpenSSL left.
  *
  * A caveat the deploy story leans on: this is the vendor set a headless server *links*, and `./build
  * --server` builds exactly it and skips the rest. The web_server example is not yet a headless binary
@@ -87,7 +83,7 @@
 #define NYA_SERVER_VENDORS_LINUX_X86_64                                                            \
     &vendor_libbacktrace_linux_x86_64, &vendor_curl_linux_x86_64,   &vendor_lua_linux_x86_64,      \
     &vendor_lz4_linux_x86_64,          &vendor_sqlean_linux_x86_64, &vendor_sqlvec_linux_x86_64,   \
-    &vendor_sqlite_linux_x86_64,       &vendor_monocypher_linux_x86_64, &vendor_openssl_linux_x86_64
+    &vendor_sqlite_linux_x86_64,       &vendor_monocypher_linux_x86_64
 
 // clang-format on
 
@@ -117,7 +113,7 @@ NYA_VendorRule* NYA_VENDORS_WINDOWS_X86_64[] = {
  * sqlite is named first for the same build-order reason NYA_VENDORS gives: sqlean and sqlvec compile
  * against sqlite3.h, which sqlite's configure generates, so it has to have run once before them.
  * Listing it twice is free — its parts are ONCE and nya_build memoizes within an invocation. Linux
- * only, and so guarded like the openssl rule it names.
+ * only, like the deploy target.
  * */
 #if !OS_WINDOWS
 NYA_VendorRule* NYA_VENDORS_SERVER_LINUX_X86_64[] = {

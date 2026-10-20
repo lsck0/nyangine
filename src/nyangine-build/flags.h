@@ -114,24 +114,22 @@
 #define LINKER_FLAGS  "-lm", "-pthread"
 
 /*
- * Which engine modules are optional today, resolved per target rather than per host: `tls` and HTTP
- * compression are on for a Linux target and off for a Windows one, and the build tool that assembles
- * these lists is itself a Linux binary when it cross compiles the Windows target — so a plain
- * `#if OS_WINDOWS` would hand a cross compiled Windows build the Linux module set and look for OpenSSL
- * headers a mingw sysroot does not have. The two target sets are spelled out, and FLAGS_MODULES below
+ * Which engine modules are optional today, resolved per target rather than per host: HTTP compression
+ * is on for a Linux target and off for a Windows one, and the build tool that assembles these lists is
+ * itself a Linux binary when it cross compiles the Windows target — so a plain `#if OS_WINDOWS` would
+ * hand a cross compiled Windows build the Linux module set and look for zlib and brotli headers a
+ * mingw sysroot does not have. The two target sets are spelled out, and FLAGS_MODULES below
  * picks the host's own for the rules built to run here (the tests, the build tool, the checks).
  *
  * `db` wants sqlite on the include line, which a host tool build does not have, so it is switched on
  * here rather than compiled unconditionally by nyangine.h. The component system in TODO.md's roadmap
  * replaces this with a component list.
  *
- * `tls` links the system's OpenSSL, which a Windows build has no copy of: curl reaches TLS through
- * Schannel there, so that link line carries no libssl. See tls.h for why the library is the system's
- * rather than vendored, and why nya_tls_available answering false is the honest Windows story for now.
+ * There is no `tls` module: TLS terminates on the platform an app is deployed to, and the one outbound
+ * TLS link (curl, and mail through it) uses curl's own backend per target.
  *
  * HTTP response compression reaches the system's zlib and brotli, which a Windows build here has no
- * copy of on the link line — so the feature is Linux only for now and compiles to a no-op elsewhere,
- * the same shape as `tls`. The libraries themselves are added to the Linux link in FLAGS_LINUX_X86_64,
+ * copy of on the link line — so the feature is Linux only for now and compiles to a no-op elsewhere. The libraries themselves are added to the Linux link in FLAGS_LINUX_X86_64,
  * next to the rpath, since they are a system dependency and not a vendored archive. NYA_HTTP_COMPRESSION
  * turns on gzip and deflate; NYA_HTTP_COMPRESSION_BROTLI adds `br`.
  *
@@ -139,13 +137,11 @@
  * module lists: that is how a macro that may expand to nothing joins a list without leaving a double
  * comma behind on the target where it is empty, the same trick FLAGS_TARGET_WINDOWS_X86_64 uses.
  */
-#define FLAGS_MODULE_TLS_LINUX_X86_64           "-DNYA_MODULE_TLS"
-#define FLAGS_MODULE_TLS_WINDOWS_X86_64         "-DNYA_NO_TLS"
 #define FLAGS_MODULE_COMPRESSION_LINUX_X86_64   , "-DNYA_HTTP_COMPRESSION", "-DNYA_HTTP_COMPRESSION_BROTLI"
 #define FLAGS_MODULE_COMPRESSION_WINDOWS_X86_64
 
-#define FLAGS_MODULES_LINUX_X86_64   "-DNYA_MODULE_DB", FLAGS_MODULE_TLS_LINUX_X86_64 FLAGS_MODULE_COMPRESSION_LINUX_X86_64
-#define FLAGS_MODULES_WINDOWS_X86_64 "-DNYA_MODULE_DB", FLAGS_MODULE_TLS_WINDOWS_X86_64 FLAGS_MODULE_COMPRESSION_WINDOWS_X86_64
+#define FLAGS_MODULES_LINUX_X86_64   "-DNYA_MODULE_DB" FLAGS_MODULE_COMPRESSION_LINUX_X86_64
+#define FLAGS_MODULES_WINDOWS_X86_64 "-DNYA_MODULE_DB" FLAGS_MODULE_COMPRESSION_WINDOWS_X86_64
 
 // The module set for a rule built to run on this host: the tests, the build tool and `./build check`. A Windows host never cross compiles a Linux target, so a host gate is right for the native side.
 #if OS_WINDOWS
@@ -214,13 +210,13 @@
 #define FLAGS_BUILD_TOOL "-DNYA_NO_SDL"
 
 // A headless server: no SDL and no core, the http/net half of the engine only. NYA_SERVER opens the
-// seam nyangine.h and nyangine.c both cut around crypto/tls/net/http, so those compile while core
-// and the renderer do not. The module set is the server's — db, tls and HTTP compression, exactly what
+// seam nyangine.h and nyangine.c both cut around crypto/net/http, so those compile while core
+// and the renderer do not. The module set is the server's — db and HTTP compression, exactly what
 // NYA_SERVER_VENDORS_LINUX_X86_64 has libraries for — but deliberately not FLAGS_PLUGIN_LIST: the Lua
 // plugin reaches nya_app_get, which is core, so a plugin build would drag the wall back in. An example
 // opts into this with a `.headless` marker beside its main.c; see build_headless_server_example in
 // example.c and docs/layering-core-split.md, steps 6–7.
-#define FLAGS_SERVER_HEADLESS "-DNYA_NO_SDL", "-DNYA_SERVER", "-DNYA_MODULE_TLS" FLAGS_MODULE_COMPRESSION_LINUX_X86_64
+#define FLAGS_SERVER_HEADLESS "-DNYA_NO_SDL", "-DNYA_SERVER" FLAGS_MODULE_COMPRESSION_LINUX_X86_64
 
 /*
  * The WebAssembly target, the seed of the CSR path. Off the critical path and its own command like

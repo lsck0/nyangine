@@ -11,13 +11,10 @@
  * ./web_server.example --address 0.0.0.0 --port 8000   # bind every interface, as the container does
  * WEB_SERVER_OTLP_FILE=spans.jsonl ./web_server.example # a span per request, as OTLP/JSON lines
  * # ctrl-c or SIGTERM drains the requests in flight, then backs notes.db up beside itself
- *
- *
- * # and over TLS, with a certificate this machine made for itself:
- * openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
- *     -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout key.pem -out cert.pem
- * ./web_server.example --certificate cert.pem --key key.pem
  * ```
+ *
+ * Plain HTTP only: deployed, TLS terminates at the edge in front (Cloudflare and traefik on the homelab),
+ * which also owns per-client rate and connection limits. See deploy/README.md.
  *
  * Open `http://127.0.0.1:47800/` for the page. Then, from another terminal:
  *
@@ -1188,9 +1185,6 @@ NYA_INTERNAL void trace_flush(NYA_ConstCString path) {
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;
 
-    NYA_ConstCString certificate_path = "";
-    NYA_ConstCString key_path         = "";
-
     /* What to bind. Empty is the NYA_HttpConfig default, which is loopback only: the safe thing for an example on a laptop, where nothing outside the machine should reach it. A deployment behind nothing — a container whose only job is this server — has to be told to bind the wildcard, which is what `--address 0.0.0.0` is for; the Dockerfile passes exactly that. See NYA_HttpConfig. */
     NYA_ConstCString address = "";
 
@@ -1216,8 +1210,6 @@ s32 main(s32 argc, char** argv) {
         // The rest come in pairs, so a value has to follow.
         if (i + 1 >= argc) continue;
 
-        if (strcmp(argv[i], "--certificate") == 0) certificate_path = argv[i + 1];
-        if (strcmp(argv[i], "--key") == 0) key_path = argv[i + 1];
         if (strcmp(argv[i], "--address") == 0) address = argv[i + 1];
         if (strcmp(argv[i], "--verify-mirror") == 0) verify_mirror_url = argv[i + 1];
         if (strcmp(argv[i], "--origin-key") == 0) origin_key_pin = argv[i + 1];
@@ -1253,8 +1245,6 @@ s32 main(s32 argc, char** argv) {
         nya_log_level_set(NYA_LOG_LEVEL_INFO);
         return verify_mirror(verify_mirror_url, origin_key_pin);
     }
-
-    b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
 
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
 
@@ -1357,10 +1347,6 @@ s32 main(s32 argc, char** argv) {
         .layers      = LAYERS,
         .layer_count = nya_carray_length(LAYERS),
 
-        // Both or neither, which the server checks: see NYA_HttpConfig. Without them this is plain HTTP on loopback, which is what an example on a laptop wants.
-        .certificate_path = certificate_path,
-        .key_path         = key_path,
-
         // No frame loop owns ctrl-c here, so the server takes SIGINT and SIGTERM itself and drains rather than cutting connections off.
         .handle_shutdown_signals = true,
     };
@@ -1455,11 +1441,9 @@ s32 main(s32 argc, char** argv) {
     // What the log tells a person to open: the address that was bound, or loopback when none was given.
     NYA_ConstCString host = address[0] != '\0' ? address : "127.0.0.1";
 
-    nya_log_info("Serving on %s://%s:%u — / for the page, /docs for the generated one, ctrl-c to stop.", secure ? "https" : "http", host,
-                 nya_http_server_port());
+    nya_log_info("Serving on http://%s:%u — / for the page, /docs for the generated one, ctrl-c to stop.", host, nya_http_server_port());
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
-    nya_log_info("Streaming on %s://%s:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", secure ? "wss" : "ws", host,
-                 nya_http_server_port());
+    nya_log_info("Streaming on ws://%s:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", host, nya_http_server_port());
     nya_log_info("Liveness at " NYA_HTTP_HEALTHZ_PATH " and readiness at " NYA_HTTP_READYZ_PATH " — %u readiness checks registered.",
                  nya_http_health_check_count());
     nya_log_info("Discoverable at " NYA_HTTP_SITEMAP_PATH ", " NYA_HTTP_FEED_PATH ", " NYA_HTTP_FEED_ATOM_PATH ", " NYA_HTTP_ROBOTS_PATH " and " NYA_HTTP_LLMS_PATH ".");

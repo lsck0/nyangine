@@ -28,10 +28,6 @@
 // base, so it sits low and is available to a headless server and a windowed game alike.
 #include "nyangine-core/console/console.h"
 
-// Above os and base and below http, which is the only thing here that wants a socket with a library
-// on it. Its own header answers when the build has no TLS library at all.
-#include "nyangine-core/tls/tls.h"
-
 
 // net and http carry no include of core, the renderer or SDL (grep proves it), so a headless server
 // takes them without the SDL half of the engine: NYA_SERVER is that build. Every existing build is

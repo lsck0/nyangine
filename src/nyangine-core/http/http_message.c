@@ -22,11 +22,14 @@
 /** The fixed part of a rendered head: the status line, Content-Length, Content-Type, Connection, Date and X-Request-Id. */
 #define _NYA_HTTP_FIXED_HEAD_BYTES 256
 
-// Written on every response so no route, layer or error path can forget one; a response setting a header of the same name replaces the default (how /docs names its one inline style). The CSP is the strictest there is (nothing loads, frames it, or points a form/<base> anywhere), JSON and .nya need no more, COEP/COOP are what a wasm client's threads need, and HSTS is left for TLS since a browser ignores it over plain HTTP.
+// Written on every response so no route, layer or error path can forget one; a response setting a header of the same name replaces the default (how /docs names its one inline style). The CSP is the strictest there is (nothing loads, frames it, or points a form/<base> anywhere), JSON and .nya need no more, COEP/COOP are what a wasm client's threads need.
 #define _NYA_HTTP_DEFAULT_CSP "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
 // The three a page is most often asked for by something it embedded rather than by the reader; a route that wants one says so itself, like its own CSP.
 #define _NYA_HTTP_DEFAULT_PERMISSIONS "geolocation=(), camera=(), microphone=()"
+
+// A year for this host only: includeSubDomains and preload promise names this server does not serve, for two years; a program that means them sets its own header.
+#define _NYA_HTTP_HSTS "max-age=31536000"
 
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
     { "Content-Security-Policy",      _NYA_HTTP_DEFAULT_CSP },
@@ -38,25 +41,9 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
     { "Permissions-Policy",           _NYA_HTTP_DEFAULT_PERMISSIONS },
     // Belt and suspenders for the CSP's frame-ancestors above: a pre-CSP browser honours only this one, so twenty-four bytes buys framing protection for the browsers the CSP can't reach.
     { "X-Frame-Options",              "DENY" },
+    // Always: TLS terminates at the edge in front, so a browser that reached this over https keeps to https, and one on plain http ignores it.
+    { "Strict-Transport-Security",    _NYA_HTTP_HSTS },
 };
-
-/**
- * What HSTS says when it is on: a year, and this host only.
- *
- * Not `includeSubDomains`, and not `preload`. Both are promises about names this server does not
- * serve and cannot withdraw for two years, and a program that means them says so itself with its own
- * header — which replaces this one, like every other default here.
- * */
-#define _NYA_HTTP_HSTS "max-age=31536000"
-
-/**
- * Whether the server this is rendering for is serving TLS.
- *
- * A header that only means anything over TLS, and which a browser ignores over plaintext — so it is
- * sent only when it is true rather than always. One flag rather than a field on every response,
- * because a server is TLS or it is not for the whole of its life; nya_http_hsts_set is what moves it.
- * */
-NYA_INTERNAL b8 _NYA_HTTP_HSTS_ENABLED = false;
 
 /** Room for the defaults above, rendered: each name and value plus ": " and CRLF, with slack. Checked below. */
 #define _NYA_HTTP_SECURITY_HEAD_BYTES 512
@@ -65,7 +52,7 @@ static_assert(
     sizeof("Content-Security-Policy" _NYA_HTTP_DEFAULT_CSP "X-Content-Type-Options" "nosniff" "Referrer-Policy" "no-referrer"
            "Cross-Origin-Opener-Policy" "same-origin" "Cross-Origin-Embedder-Policy" "require-corp" "Cross-Origin-Resource-Policy" "same-origin"
            "Permissions-Policy" _NYA_HTTP_DEFAULT_PERMISSIONS "X-Frame-Options" "DENY" "Strict-Transport-Security" _NYA_HTTP_HSTS) +
-            (sizeof(": \r\n") - 1) * (nya_carray_length(_NYA_HTTP_SECURITY_HEADERS) + 1) <= _NYA_HTTP_SECURITY_HEAD_BYTES,
+            (sizeof(": \r\n") - 1) * nya_carray_length(_NYA_HTTP_SECURITY_HEADERS) <= _NYA_HTTP_SECURITY_HEAD_BYTES,
     "the default security headers outgrew the room kept for them"
 );
 
@@ -406,14 +393,6 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
     if (request->body_size == 0) request->media_type = NYA_HTTP_MEDIA_NONE;
 
     return NYA_HTTP_PARSE_DONE;
-}
-
-void nya_http_hsts_set(b8 enabled) {
-    _NYA_HTTP_HSTS_ENABLED = enabled;
-}
-
-b8 nya_http_hsts(void) {
-    return _NYA_HTTP_HSTS_ENABLED;
 }
 
 NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request, NYA_ConstCString name) {
@@ -820,22 +799,6 @@ NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatu
     if (response->request_id[0] != '\0') {
         (void)snprintf(line, sizeof(line), "X-Request-Id: %s\r\n", response->request_id);
         if (!_nya_http_head_append(buffer, capacity, &size, line)) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
-    }
-
-    // Over TLS only: a browser ignores this header on a plaintext connection (deliberately, since honouring it there would let anybody who can answer one request lock a host out of HTTP), so sending it anyway would say nothing.
-    if (_NYA_HTTP_HSTS_ENABLED) {
-        b8 replaced = false;
-        for (u32 custom = 0; custom < response->header_count && custom < NYA_HTTP_MAX_RESPONSE_HEADERS; custom++) {
-            replaced |= _nya_http_equals_ignore_case(
-                response->headers[custom].name, strlen(response->headers[custom].name), "Strict-Transport-Security"
-            );
-        }
-
-        if (!replaced && (!_nya_http_head_append(buffer, capacity, &size, "Strict-Transport-Security: ") ||
-                          !_nya_http_head_append(buffer, capacity, &size, _NYA_HTTP_HSTS) ||
-                          !_nya_http_head_append(buffer, capacity, &size, "\r\n"))) {
-            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
-        }
     }
 
     for (u32 index = 0; index < nya_carray_length(_NYA_HTTP_SECURITY_HEADERS); index++) {

@@ -580,6 +580,7 @@ s32 main(void) {
         nya_assert(nya_string_contains(rendered, "Cross-Origin-Opener-Policy: same-origin\r\n"));
         nya_assert(nya_string_contains(rendered, "Cross-Origin-Embedder-Policy: require-corp\r\n"));
         nya_assert(nya_string_contains(rendered, "Cross-Origin-Resource-Policy: same-origin\r\n"));
+        nya_assert(nya_string_contains(rendered, "Strict-Transport-Security: max-age=31536000\r\n"), "HSTS always: the edge in front is TLS");
 
         // a body larger than the buffer is the handler's mistake and is refused rather than truncated.
         u8 oversized[128] = { 0 };
