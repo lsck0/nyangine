@@ -1,15 +1,3 @@
-some more thoughts:
-
-- how do we handle mod(packs) in multiplayer? server has to check clients.
-- get rid of devenv.
-- i want terrain/foliage sculpting just like in unreal, and smart tiling in 2d
-- i want to use it in a project as simple as .nyangine/... src/main.c project.nya
-- use grafana k6 to loadtest a simple sqlite webserver with posts. aim high. 100k concurrent users
-  high on 2 cpu cores and 2gb ram, check this: https://youtu.be/QGWKCaglSBI, https://github.com/arjaythedev/twelve-dollar-server-challenge/tree/main
-- do AGRESSIVE BENCHMARKING
-- maybe start sqlite up with some perf settings?
-- can we try to not use JS in SSR?
-
 # nyangine: what is left
 
 `[ ]` todo · `[~]` in progress · `[⏭]` deferred
@@ -35,7 +23,7 @@ eleven new widgets; and one system registry driving the frame for engine and gam
 
 In progress now: fluids, the plugin system, and fast-forward with DQN driving the game. The HTTP server has
 its own example and speaks `application/nya` as well as JSON. The terminal backend landed, sorts its cells
-and can be tested; nothing wraps `gh` with it yet. The web client is the one large thing not started. See
+and can be tested; nothing wraps `gh` with it yet. The browser client was dropped on 2026-10-20: the web is SSR only. See
 "The stack" and "Requested".
 
 A standing caution, learned the hard way over one long session: several things recorded here as done had
@@ -49,7 +37,7 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 
-- **Web client / game→web (CSR).** `[~]` **A rendered 2D game now runs on WebGL2** (2026-09-24, verified in headless Chromium — real pixels, not just traces): the in-tree `gpu_gles` shim provides the SDL*GPU symbols over `emscripten_webgl_create_context`, render2d compiles verbatim, and `wasm-game` shows a moving multi-sprite scene steered by keyboard/mouse. The real blocker turned out to be a SPIRV-Cross varying-name mismatch (`in_var*`/`out*var*`with no`layout(location=)`), fixed in-shim. `platform/web`primitives landed too:`web_clock`/`web_random`/`web_storage`/`web_fetch`/`web_socket`/`web_input`(canvas→NYA_Event), each`#if OS_WASM`with a native fallback. Still open: **3D on web** (render3d drags box3d + ufbx, which no wasm slice links) and the cleaner`layout(location=)` shader fix at SPIRV-Cross time.
+- **Web client / game→web (CSR).** `[⏭]` dropped 2026-10-20: no CSR, no game in the browser. The web is SSR only, see "Requested (2026-10-20)". Was: a 2D game on WebGL2 through the `gpu_gles` shim, `wasm-game`, and `platform/web` (clock, random, storage, fetch, socket, input).
 - **Layering: a server links the whole engine.** `[x]` for http/net — **done 2026-09-24.** `net`/`http` carry no `core`/renderer/SDL include, `core_event` is SDL-free, so `nyangine.h`/`nyangine.c` pull the server half under `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)`, and the reflection table is split into an SDL-free `reflection_engine_server.c` (by source dir — step 7's per-component table, early). **`examples/headless_server` builds+links+runs under `-DNYA_NO_SDL -DNYA_SERVER` on the `NYA_SERVER_VENDORS` subset: 175 KiB, `ldd` names no libSDL3, serves `/status`→200, exits 0** (~53× smaller than the `--gc-sections` `--server` build). Build: `./build run example headless_server --server` (an opt-in `.headless` marker; full-graph `--server` path for other examples unchanged). Still open on the SDL side: `NYA_App` embeds renderer/asset/window by value, so anything using `nya_app_get` (e.g. `core_asset` for a bundle) can't go headless — that's the components/profiles refactor (`NYA_App`-by-value, core-split step 5).
 - **Components + profiles.** `[ ]` The whole "everything is a plugin" refactor: one descriptor per component the build reads, and named profiles (`cli`/`tui`/`server`/`desktop`/`game`/`web`). This is what makes the vendor subset and a true headless build real rather than link-time GC.
 - **Accounts.** `[x]` for the route lift — **done 2026-09-24.** The login flow is a mountable router: `nya_http_accounts_open(config) → NYA_HttpRouter*` (register/login/login-totp/logout/session + totp enrol/confirm, `__Host-session` cookie, sealed `__Host-login` half-step, no enumeration, throttle+replay guard preserved) in `src/nyangine-core/http/http_accounts.{h,c}` (http layer, since accounts is rank 5 and may not include http). `examples/accounts_api` mounts it: 1053→472 lines. Prior: passkeys/WebAuthn factor (`a4749383`). Passwordless-primary landed too (passkey register/login routes in `http_accounts.c`).
@@ -60,6 +48,98 @@ The big open fronts, most-blocking first. Each expands in "Roadmap" below.
 - **Multi-binary apps.** `[~]` One project builds many hot-reloadable app binaries (`68b383b0` — generic host, `nya_app_entry_*` contract, argv[0] selection, gnyame default + gnyame-cli). A step toward components/profiles. Open: fold into the components refactor.
 - **Smaller open items:** an end-to-end ACME run against a live/pebble CA. (Landed 2026-09-24: in-process TLS termination + an OpenSSL-3 close fix, `./build coverage`/`typos`/`verify`(CBMC)/`format`(advisory)/`commit-check`, a conventional-commit hook, a devenv/nix toolchain plus a `devenv.nix` fix carrying libz/brotli/libstdc++/openssl on `LD_LIBRARY_PATH` so a self-rebuilt `./build` runs in-shell, the code-editor widget, the `./build new <name>` scaffolder, four more CBMC proofs (verify now covers 6 parsers: base64, CBOR, HTTP line, RFC 3339, integer, URL percent-decode), a `.webmanifest` media type so a CSR bundle is an installable PWA, and **core-split steps 1–4**: `core_runtime.h` names the SDL-free core floor, http lost its last SDL call, `core_event` went SDL-free (`SDL_Mutex*` → `NYA_OsMutex`), and a `NYA_SERVER` include seam now compiles http/net/crypto/tls/db/accounts with no core or renderer — plan in `docs/layering-core-split.md`.)
 - **One-off (pending user):** git-history rewrite to strip the historical `Co-Authored-By: Claude` trailers and normalize every commit to a one-line conventional message — prepared (`filter-repo` message-callback in scratch, backup branch `backup-pre-rewrite`), blocked on the destructive-action guard; needs the user to run the force-push.
+
+## Requested (2026-10-20): SSR only, project layout, and proof
+
+Worked before the rest of the roadmap, in this order of blocks: the questions are answered first (they decide
+what gets built), then the removals and moves (they decide where everything else lands), then the features.
+
+### Questions to answer, with the answer recorded here
+
+- `[ ]` **CSRF.** Is every mutating route safe? Check `SameSite` on every cookie, the CSRF token or
+  `Origin`/`Sec-Fetch-Site` check on every POST/PUT/PATCH/DELETE, including the SSR forms. Record the answer and
+  close any gap with a test that forges a cross-site request.
+- `[ ]` **Replay.** Sessions, TOTP, sealed tokens, webhooks, signed requests, WebSocket frames and `net` UDP
+  packets: which carry a nonce, timestamp window or sequence window, and which refuse a second use. Close the gaps.
+- `[ ]` **Passkeys and YubiKey.** WebAuthn exists (`a4749383`, passwordless primary on the accounts router).
+  Answer whether a FIDO2 hardware key (YubiKey) works end to end, with user verification, the signature counter
+  check, and attestation policy. YubiKey OTP is not planned unless asked.
+- `[ ]` **OAuth.** The `oidc` plugin is a client. Answer what it covers (authorization code + PKCE, `state`,
+  `nonce`, ID token verification, refresh) and whether nyangine needs to be a provider too.
+- `[ ]` **DST faults.** Does the simulation drop, duplicate, reorder, delay and corrupt packets? Does it inject
+  hardware and memory faults: allocation failure, arena exhaustion, disk full, short writes, `fsync` failure, bit
+  flips, clock skew, process kill mid-transaction? Whatever is missing gets a fault-injection seam in `os` and
+  the network layers, and invariants the harness checks. This is the same item as "proven, not claimed" in
+  "Requested (2026-10-12)".
+- `[ ]` **Mod packs in multiplayer.** The server must check that a client runs the same plugins and assets: a
+  content manifest hash (plugin ids, versions, signatures, asset bundle hash) exchanged in the `net` handshake, a
+  refusal with a readable reason, and a caller in `pong_multiplayer` or gnyame.
+
+### Removals and moves
+
+- `[ ]` **No CSR, no game in the browser.** Delete `wasm-game`, `wasm-ui`, the `gpu_gles` shim,
+  `platform/web`, `examples/web_wasm` and `examples/web_frontend`, the emscripten targets in
+  `src/nyangine-build/`, and the docs and TODO entries that describe them as live. Keep `./build wasm` only if
+  something SSR still compiles to wasm, and say what.
+- `[ ]` **SSR is the web.** `nya_ui` renders to HTML and CSS on the server and the `http` server serves it.
+  Session state lives in a sealed cookie, not in a client. No JavaScript: forms with POST, redirect, GET,
+  CSS-only disclosure and tabs, and a page that works with scripts off. Where something truly needs a script
+  (live reload in `dev`, a WebSocket view), it is opt-in per page and the page still works without it. This
+  replaces the "small client script" in "WebSockets reconnect and resume everywhere".
+- `[ ]` **Project layout.** A project is `.git/`, `.nyangine/`, `src/main.c`, `project.nya` and `build.c`.
+  `.nyangine/` holds the engine's headers, precompiled engine and vendor archives, tooling and docs, hidden from
+  the project. `build.c` is the `nya` CLI, and a project adds its own commands to it in a few lines. The smallest
+  project is `.nyangine/`, `src/main.c` and `project.nya`, with no `build.c` of its own. `./build new` produces
+  this shape; `./build project` already reads `project.nya`.
+- `[ ]` **gnyame becomes an example.** `src/gnyame/` and `src/gnyame_cli/` move under `examples/gnyame/`, and
+  every example is ported to the project layout above (`project.nya`, `src/main.c`), so each one is also the
+  proof that the layout works.
+- `[ ]` **Split `nyangine-core`.** `core/` holds terrain, audio, animation, foliage and more. Move each into
+  its own module directory with the prefix mirroring it (`audio/audio_*.c`, `terrain/terrain_*.c`,
+  `animation/animation_*.c`), update the unity includes, `.clangd`, the lint layering rules and the cheatsheet.
+- `[ ]` **No devenv.** Delete `devenv.nix`, `devenv.yaml` and `devenv.lock` and every reference in CI, docs,
+  `AGENTS.md` and the build. The host toolchain (clang 22) is the toolchain; CI installs it.
+- `[ ]` **`LICENSE` is `LICENSE.md`.** Rename and fix every reference (README, packaging, SBOM, dist).
+- `[ ]` **Comments.** Struct fields do not each get a comment: a field gets one only when its name and type
+  cannot say what it holds (a unit, an invariant, an ownership rule). Doc comments are Doxygen `/** */` on
+  public declarations. Sweep the tree by directory and add a lint rule in `lint.c` so it does not come back.
+
+### Fixes
+
+- `[ ]` **CI is red.** `vendor-windows` and `build-steam-linux` fail on "clang is not LLVM 22", and
+  `workflow-audit` (zizmor) exits 12. Fix all three and see a green push run and a green scheduled run.
+- `[ ]` **Android works.** An APK of gnyame (or an example) built by `./build` with the NDK at
+  `/opt/android-ndk` and the SDK at `/opt/android-sdk`, installed on an emulator, rendering and taking input.
+  This reverses "Android is not scope" in `AGENTS.md`.
+
+### Features
+
+- `[ ]` **`nya_scope("name")`.** One scope marker that is the trace span, attributes arena allocations and
+  high-water to the scope, and registers the scope's watched variables for the crash report, so perf, memory
+  debugging and error context are one mechanism. Per-thread scope stack, closed by `defer`, near zero cost when
+  the trace is off. Existing trace scopes and `nya_watch` call sites migrate to it.
+- `[ ]` **Jump point search.** JPS over a uniform-cost grid beside the existing A* in `core_nav`, with a bench
+  against A* and a caller.
+- `[ ]` **Spatial data structures, 2D and 3D.** A spatial hash or uniform grid, a loose quadtree and octree, and
+  a BVH, each with AABB, radius, ray and k-nearest queries, benches, and a caller.
+- `[ ]` **Terrain and foliage sculpting like Unreal.** Raise, lower, smooth, flatten, noise and ramp brushes with
+  falloff and strength, paint layers, and foliage paint and erase with density, all undoable, in an editor
+  example.
+- `[ ]` **Smart tiling in 2D.** Autotiling by neighbour bitmask (blob 47 and Wang 16), painted in an example.
+- `[ ]` **Basic integrity and secure protocols.** No anticheat. The server stays authoritative and validates
+  every input; `net` is encrypted and authenticated with replay windows; a build hash and the content manifest
+  above are checked at connect; releases are signed.
+- `[ ]` **SQLite tuned at open.** WAL, `synchronous=NORMAL`, `busy_timeout`, `cache_size`, `mmap_size`,
+  `temp_store=MEMORY`, `foreign_keys=ON`, a prepared statement cache, and `PRAGMA optimize` on close, each
+  measured.
+- `[ ]` **100k concurrent users on 2 cores and 2 GB.** A small SQLite web server with posts (list, read, create),
+  load tested with Grafana k6, constrained to 2 CPUs and 2 GB by Docker. The target is 100k concurrent
+  connections held, with the throughput and p99 latency written down. Reference:
+  github.com/arjaythedev/twelve-dollar-server-challenge. Whatever stops it (per-connection memory, the accept
+  loop, threads, `epoll` or `io_uring`) is fixed and measured.
+- `[ ]` **Dockerfile for the web server** under `packaging/`, from the existing scratch image (`7b97eeb3`).
+- `[ ]` **Aggressive benchmarking and testing.** Benchmarks over every hot path with baselines kept in the tree
+  and a regression gate; fuzzing and property tests over every parser and protocol; the fault injection above.
 
 ## Requested (2026-10-12): deploy target is the homelab
 
@@ -101,8 +181,8 @@ behind its edge, with Grafana collecting everything.
   a deliberate close is final) is used only by the curl plugin's client; Discord, Twitch and Steam roll their own.
     - `http_net_websocket` (native client) and `platform/web/web_socket.h` (browser/wasm) take a `NYA_ReconnectPolicy`
       and reconnect through `base_reconnect`, the same path as the first connect;
-    - the SSR pages get a small client script that reconnects with jittered backoff and shows a "reconnecting" state:
-      behind the homelab every scale to zero and every swarm reschedule drops every open socket;
+    - SSR pages carry no script (2026-10-20); a page that opts into a WebSocket view reconnects with jittered backoff
+      and shows a "reconnecting" state. Behind the homelab every scale to zero and every swarm reschedule drops every open socket;
     - resume, not just reconnect: per-connection sequence numbers, acks and a bounded replay window server side, so a
       client resumes from its last acked message and the gap is replayed or the client is told to resync; dedup by
       sequence so a replayed message is applied once; a resume token bound to the session, refused after expiry;
@@ -199,7 +279,7 @@ Earlier: shipping hardening (`2c758ee8`, RELRO+BIND_NOW+NX+fortify ELF-verified)
 | Priorities   | Security, privacy, stability, performance, then lines of code. Secure by default, never on request.                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Components   | Everything above `base`, `platform` and `math` is a component, listed in `assets/config/plugins.nya`.                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Data shapes  | Model (stored), optional SO (inside the program), DTO (on the wire). Only DTOs reach a client.                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Servers      | One machine, one instance. TLS and simple limits in process; a proxy is optional.                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Servers      | One machine, one instance, behind the platform's edge (TLS, bot defence, rate limits). Set 2026-10-12.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Programs     | Live in this tree beside gnyame for now.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Composition  | **Every system works with every other one unless that genuinely makes no sense** (set 2026-09-22). A feature belongs to the engine, not to the program that asked for it: permissions are for a guild as much as for a route, the UI runs on all four backends, an asset is an asset whether it is a texture or a stylesheet, and a 3D game can host an HTTP server or be one path of a CLI. When a feature would only work inside one caller, that is a design fault to fix rather than a scope to accept. |
 
@@ -1198,6 +1278,9 @@ logged-in user.
       the suite for a reason outside the server (`e4c3efd8`).
 
 ## Phase 4 — the web client
+
+`[⏭]` Dropped 2026-10-20 in favour of SSR only; see "Requested (2026-10-20)". Kept below as the record of what
+existed and why it went.
 
 C compiled to wasm, the same headers as the server, no HTML, CSS or JS written by hand.
 
