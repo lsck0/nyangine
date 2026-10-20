@@ -231,7 +231,7 @@ void gny_robots_destroy(void) {
 }
 
 void gny_robots_update(f32 delta_time_s) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     GNY_World* world = gny_world();
     if (world == nullptr) return;

@@ -11,6 +11,18 @@ NYA_INTERNAL void  _nya_arena_free_list_destroy(NYA_ArenaFreeList* free_list);
 
 NYA_INTERNAL NYA_ArenaActionCallback _nya_arena_action_callback = nullptr;
 
+/* What the scope a call runs in is charged, in bytes the region really gave or took back. See base_scope.h. */
+#if NYA_SCOPE_MEASURED
+#define _NYA_ARENA_SCOPE_ALLOC(size_bytes) _nya_scope_arena_alloc(size_bytes)
+#define _NYA_ARENA_SCOPE_FREE(size_bytes)  _nya_scope_arena_free(size_bytes)
+#else
+#define _NYA_ARENA_SCOPE_ALLOC(size_bytes) ((void)0)
+#define _NYA_ARENA_SCOPE_FREE(size_bytes)  ((void)0)
+#endif
+
+/** A region's bytes still handed out: its used bytes less what sits on its free list. */
+__attr_allow_unused NYA_INTERNAL u64 _nya_arena_region_live_bytes(const NYA_ArenaRegion* region) __attr_no_discard;
+
 // REGISTRY
 
 /* A fixed table of atomic slots claimed by compare-exchange: base has no mutex, and scanning 256 pointers is nothing next to creating an arena. */
@@ -126,6 +138,7 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
                 asan_unpoison_memory_region(ptr, size - ASAN_PADDING);
                 asan_poison_memory_region((u8*)ptr + size - ASAN_PADDING, ASAN_PADDING);
 
+                _NYA_ARENA_SCOPE_ALLOC(size);
                 return ptr;
             }
         }
@@ -142,6 +155,7 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
             asan_unpoison_memory_region(ptr, size - ASAN_PADDING);
             asan_poison_memory_region(ptr + size - ASAN_PADDING, ASAN_PADDING);
 
+            _NYA_ARENA_SCOPE_ALLOC(size + padding);
             return ptr;
         }
     }
@@ -175,6 +189,7 @@ skip_search:
     // the tail after `ptr` is `capacity - initial_padding` bytes, since capacity counts from `memory`.
     asan_poison_memory_region(ptr + size - ASAN_PADDING, new_region->capacity - initial_padding - size + ASAN_PADDING);
 
+    _NYA_ARENA_SCOPE_ALLOC(size + initial_padding);
     return ptr;
 }
 
@@ -215,6 +230,7 @@ void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 
             region->used += new_size - old_size;
 
             asan_unpoison_memory_region(old_ptr, new_size - ASAN_PADDING);
+            _NYA_ARENA_SCOPE_ALLOC(new_size - old_size);
 
             return old_ptr;
         }
@@ -244,6 +260,8 @@ void _nya_arena_nodebug_free(NYA_Arena* arena, void* ptr, u64 size) {
         if (!(region->memory <= casted_ptr && casted_ptr < region->memory + region->capacity)) continue;
 
         // last allocation: move the used pointer back
+        _NYA_ARENA_SCOPE_FREE(size);
+
         if (casted_ptr + size == region->memory + region->used) {
             region->used -= size;
             return;
@@ -268,6 +286,8 @@ void _nya_arena_nodebug_free_all(NYA_Arena* arena) {
 
     for (NYA_ArenaRegion* region = arena->head; region != nullptr;) {
         NYA_ArenaRegion* next = region->next;
+
+        _NYA_ARENA_SCOPE_FREE(_nya_arena_region_live_bytes(region));
 
         // deallocate a region that has been unused long enough
         if (arena->options.defragmentation_enabled && region->used == 0 && region->gc_counter++ >= arena->options.garbage_collection_threshold) {
@@ -323,6 +343,7 @@ void _nya_arena_nodebug_destroy_on_stack(NYA_Arena* arena) {
 
     for (NYA_ArenaRegion* region = arena->head; region != nullptr;) {
         NYA_ArenaRegion* next = region->next;
+        _NYA_ARENA_SCOPE_FREE(_nya_arena_region_live_bytes(region));
         _nya_arena_region_destroy(arena, region);
         region = next;
     }
@@ -887,6 +908,17 @@ NYA_INTERNAL void _nya_arena_align_and_pad_size(NYA_Arena* arena, u64* size) {
     if (*size == 0) return;
 
     *size = ((*size + (arena->options.alignment - 1)) & ~(arena->options.alignment - 1)) + ASAN_PADDING;
+}
+
+NYA_INTERNAL u64 _nya_arena_region_live_bytes(const NYA_ArenaRegion* region) {
+    u64 free_bytes = 0;
+    if (region->free_list != nullptr) {
+        nya_dll_foreach (region->free_list, node) free_bytes += node->size;
+    }
+
+    nya_assert(free_bytes <= region->used);
+
+    return region->used - free_bytes;
 }
 
 NYA_INTERNAL void _nya_arena_region_destroy(NYA_Arena* arena, NYA_ArenaRegion* region) {

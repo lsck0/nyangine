@@ -11,8 +11,8 @@
  * And once more in a child process that really crashes with the reporter registered, which must write
  * the report and exit: nobody is at a test to dismiss a window, and test_agent hung in one for hours.
  * That child crashes two watched frames deep, on a comparison, so the report it leaves behind is what
- * holds the values a report is supposed to carry to account: the operands of the assertion and every
- * local of both frames.
+ * holds the values a report is supposed to carry to account: the operands of the assertion, the scopes
+ * it was in and every local of both frames.
  * */
 
 // after the engine, which is what decides how SDL is configured; see the fuzz targets for the same rule.
@@ -118,7 +118,7 @@ static NYA_CrashInfo crash_of(NYA_CrashSource source, NYA_ConstCString message) 
 // @watch
 static u32 child_stone_face(u32 at, u32 wanted) {
     u32 emitted = at + 3;
-    nya_watch(child_stone_face);
+    nya_scope_watch(child_stone_face);
 
     nya_assert_eq(emitted, wanted);
 
@@ -130,7 +130,7 @@ static u32 child_stone_face(u32 at, u32 wanted) {
 static u32 child_stone_row(u32 sides, u32 segments) {
     NYA_ConstCString shape = sides == 4 ? "rectangle" : "octagon";
     u32              at    = sides * segments;
-    nya_watch(child_stone_row);
+    nya_scope_watch(child_stone_row);
 
     return child_stone_face(at, at + 4);
 }
@@ -192,6 +192,23 @@ s32 main(s32 argc, NYA_CString argv[]) {
     nya_check(contains("  ram used "), "the platform block should carry the process's resident memory");
 
     nya_check(contains("\nStack trace\n"), "the report should have a stack trace block");
+    nya_check(contains("\nScopes, innermost first\n  none open\n"), "the scope block should say when nothing is open");
+
+    // TEST: the scopes a crash happened in are named, innermost first, with what each has taken
+    {
+        nya_scope("crash_test_outer");
+        {
+            nya_scope("crash_test_inner");
+            (void)nya_crash_report_compose(&assertion, report, sizeof(report));
+        }
+
+        const char* inner = strstr((const char*)report, "  crash_test_inner  ");
+        const char* outer = strstr((const char*)report, "  crash_test_outer  ");
+
+        nya_check(inner != nullptr && outer != nullptr && inner < outer, "both scopes should be listed, the innermost first");
+        nya_check(contains("test_crash_report.c:"), "each with its site");
+        if (NYA_SCOPE_MEASURED) nya_check(contains(", allocated ") && contains(", peak "), "and, measured, its bytes so far");
+    }
     nya_check(contains("ZZTOP"), "the report should carry the log lines from before the crash");
 
     // TEST: a fault and a thrown error each say the extra thing they know
@@ -455,6 +472,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
                       "the report should carry the failed comparison with both of its operands");
 
             nya_check(nya_string_contains(body, "\nWatched values\n"), "the report should have a watched values block");
+            nya_check(nya_string_contains(body, "\nScopes, innermost first\n  child_stone_face  "), "and the scopes the crash happened in");
             nya_check(nya_string_contains(body, "u32 emitted = 11"), "and the innermost frame's own local");
             nya_check(nya_string_contains(body, "u32 sides = 4"), "and the frame above it, which the crash came through");
             nya_check(nya_string_contains(body, "NYA_ConstCString shape = \"rectangle\""), "including a string, printed as its text");

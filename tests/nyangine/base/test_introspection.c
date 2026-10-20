@@ -1,12 +1,10 @@
 /**
- * Arena and perf introspection: the four things a debugging session actually asks for.
+ * Arena introspection: the things a debugging session actually asks for. Scopes have test_scope.c.
  **/
 
-// Both subsystems are debug gated and the suite builds in mode 4, so they are switched on here
-// explicitly. Without this the test would compile to a series of no-ops and report a pass, which is
-// the exact failure mode test_perf has had all along.
+// The arena's introspection is debug gated and the suite builds in mode 4, so it is switched on here
+// explicitly. Without this the test would compile to a series of no-ops and report a pass.
 #define NYA_ARENA_FORCE_DEBUG
-#define NYA_PERF_FORCE_DEBUG
 
 #include "nyangine-core/nyangine.c"
 #include "nyangine-core/nyangine.h"
@@ -192,162 +190,15 @@ s32 main(void) {
     nya_assert(nya_arena_callsite_at(nya_arena_callsite_count() + 50).file_name == nullptr, "past the end is zeroed, not a fault");
   }
 
-  // TEST: perf stats aggregate the ring
-  {
-    nya_perf_timer_reset("agg");
-
-    for (u32 i = 0; i < 5; i++) {
-      nya_perf_timer_start("agg");
-      // Something the optimizer cannot delete, so the samples differ from each other.
-      volatile u64 spin = 0;
-      for (u64 j = 0; j < (u64)2000 * (i + 1); j++) spin += j;
-      nya_perf_timer_stop("agg");
-    }
-
-    NYA_PerfMeasurement* measurement = nya_perf_timer_get("agg");
-    nya_assert(measurement != nullptr);
-    nya_assert(measurement->sample_count == 5, "five completed runs, five samples");
-    nya_assert(measurement->total_runs == 5);
-
-    NYA_PerfStats stats = nya_perf_stats(measurement);
-    nya_assert(stats.sample_count == 5);
-    nya_assert(stats.min_ns <= stats.average_ns, "min bounds the average");
-    nya_assert(stats.average_ns <= (f64)stats.max_ns, "and the average bounds max");
-    nya_assert(stats.total_ns >= stats.max_ns, "the total covers every sample");
-    nya_assert(stats.max_ns >= stats.min_ns);
-
-    // A null measurement is a zeroed result rather than a fault, so a caller does not have to null check before every stats call.
-    NYA_PerfStats none = nya_perf_stats(nullptr);
-    nya_assert(none.sample_count == 0);
-    nya_assert(none.total_ns == 0);
-  }
-
-  // TEST: the ring keeps the newest samples, not the first
-  {
-    nya_perf_timer_reset("wrap");
-
-    // Twice the ring, so every original sample has been overwritten.
-    for (u32 i = 0; i < NYA_PERF_MEASUREMENT_SAMPLES * 2; i++) {
-      nya_perf_timer_start("wrap");
-      nya_perf_timer_stop("wrap");
-    }
-
-    NYA_PerfMeasurement* measurement = nya_perf_timer_get("wrap");
-    nya_assert(measurement->sample_count == NYA_PERF_MEASUREMENT_SAMPLES, "the ring saturates rather than overflowing");
-    nya_assert(measurement->total_runs == (u64)NYA_PERF_MEASUREMENT_SAMPLES * 2, "but the run count is not windowed");
-
-    // Reading the ring forwards from index 0 would average whatever the wrap left behind; the stats walk backwards from `current` for exactly this reason.
-    NYA_PerfStats stats = nya_perf_stats(measurement);
-    nya_assert(stats.sample_count == NYA_PERF_MEASUREMENT_SAMPLES, "every slot in a wrapped ring is valid");
-  }
-
-  // TEST: a frame breaks down into nested, time ordered spans
-  {
-    nya_perf_frame_begin();
-    u64 frame = nya_perf_frame_current();
-
-    // The shape being asserted: test_frame            depth 0 test_update         depth 1 test_entities     depth 2 test_render         depth 1
-    {
-      nya_perf_time_this_scope("test_frame");
-      {
-        nya_perf_time_this_scope("test_update");
-        {
-          nya_perf_time_this_scope("test_entities");
-          volatile u64 spin = 0;
-          for (u64 j = 0; j < 1000; j++) spin += j;
-        }
-      }
-      {
-        nya_perf_time_this_scope("test_render");
-        volatile u64 spin = 0;
-        for (u64 j = 0; j < 1000; j++) spin += j;
-      }
-    }
-
-    NYA_Arena                arena = nya_arena_create_on_stack(.name = "spans");
-    defer                    nya_arena_destroy_on_stack(&arena);
-    NYA_ArrayᐸNYA_PerfSpanᐳ* spans = nya_array_create(&arena, NYA_PerfSpan);
-
-    u32 count = nya_perf_frame_spans(frame, spans);
-    nya_assert(count == 4, "four scopes were entered in this frame, got " FMTu32, count);
-    nya_assert(spans->length == 4);
-
-    // Ordered by start, which is what makes this a timeline rather than a bag of names.
-    for (u64 i = 1; i < spans->length; i++) {
-      nya_assert(spans->items[i - 1].started_ns <= spans->items[i].started_ns, "spans come back in the order they began");
-    }
-
-    nya_assert(nya_string_equals((NYA_CString)spans->items[0].name, "test_frame"), "the outermost scope started first");
-    nya_assert(spans->items[0].depth == 0, "and sits at the top");
-
-    // Depth is what turns the flat list into the shape of the frame.
-    u32 depth_of_entities = 0;
-    u32 depth_of_update   = 0;
-    u32 depth_of_render   = 0;
-    nya_array_foreach (spans, span) {
-      if (nya_string_equals((NYA_CString)span->name, "test_entities")) depth_of_entities = span->depth;
-      if (nya_string_equals((NYA_CString)span->name, "test_update")) depth_of_update = span->depth;
-      if (nya_string_equals((NYA_CString)span->name, "test_render")) depth_of_render = span->depth;
-      nya_assert(span->frame == frame, "every span belongs to the frame that was asked for");
-      nya_assert(span->ended_ns >= span->started_ns, "a span cannot end before it starts");
-    }
-
-    nya_assert(depth_of_update == 1, "update nests inside frame, got " FMTu32, depth_of_update);
-    nya_assert(depth_of_entities == 2, "entities nests inside update, got " FMTu32, depth_of_entities);
-    nya_assert(depth_of_render == 1, "render is a sibling of update, not a child, got " FMTu32, depth_of_render);
-
-    // The outermost span contains the others in wall clock too, which is the cross check that depth and time agree rather than depth being bookkeeping that drifted.
-    NYA_PerfSpan outer = spans->items[0];
-    nya_array_foreach (spans, span) {
-      nya_assert(span->started_ns >= outer.started_ns, "nothing in the frame started before the frame did");
-      nya_assert(span->ended_ns <= outer.ended_ns, "and nothing outlived it");
-    }
-  }
-
-  // TEST: a frame nobody measured is empty rather than an error
-  {
-    NYA_Arena                arena = nya_arena_create_on_stack(.name = "empty_spans");
-    defer                    nya_arena_destroy_on_stack(&arena);
-    NYA_ArrayᐸNYA_PerfSpanᐳ* spans = nya_array_create(&arena, NYA_PerfSpan);
-
-    u32 count = nya_perf_frame_spans(nya_perf_frame_current() + 9999, spans);
-    nya_assert(count == 0, "a frame that never happened has no spans");
-    nya_assert(spans->length == 0);
-  }
-
-  // TEST: frames are distinct, so one frame's spans are not another's
-  {
-    nya_perf_frame_begin();
-    u64 first = nya_perf_frame_current();
-    { nya_perf_time_this_scope("only_in_first"); }
-
-    nya_perf_frame_begin();
-    u64 second = nya_perf_frame_current();
-    { nya_perf_time_this_scope("only_in_second"); }
-
-    nya_assert(second == first + 1, "each begin advances by one");
-
-    NYA_Arena                arena = nya_arena_create_on_stack(.name = "two_frames");
-    defer                    nya_arena_destroy_on_stack(&arena);
-    NYA_ArrayᐸNYA_PerfSpanᐳ* spans = nya_array_create(&arena, NYA_PerfSpan);
-
-    (void)nya_perf_frame_spans(first, spans);
-    nya_array_foreach (spans, span) {
-      nya_assert(!nya_string_equals((NYA_CString)span->name, "only_in_second"), "a later frame's work does not leak into an earlier one");
-    }
-  }
-
   // The reports, run for their side effects: they must not fault on real data.
   {
     nya_arena_stats_report();
     nya_arena_callsites_report(5);
-    nya_perf_report();
-    nya_perf_frame_report(nya_perf_frame_current());
+    nya_scope_report();
 
     // Limits that do not make sense are clamped rather than read off the end.
     nya_arena_callsites_report(0);
     nya_arena_callsites_report(100000);
-    nya_perf_frame_report(nya_perf_frame_current() + 9999);
   }
 
   printf("PASSED: test_introspection\n");

@@ -62,6 +62,11 @@ typedef enum NYA_DebugOverlayPage    NYA_DebugOverlayPage;
 #define NYA_DEBUG_OVERLAY_TRACE_ROWS 16
 #endif
 
+/** Sites listed on the scopes page, in the chosen order. */
+#ifndef NYA_DEBUG_OVERLAY_SCOPE_ROWS
+#define NYA_DEBUG_OVERLAY_SCOPE_ROWS 20
+#endif
+
 /**
  * Systems listed on the systems page at once. The registry holds up to NYA_SYSTEM_REGISTRY_MAX, which
  * is more rows than a screen, so the list scrolls to keep the selected one in view.
@@ -89,6 +94,9 @@ enum NYA_DebugOverlayPage {
      * */
     NYA_DEBUG_OVERLAY_PAGE_SYSTEMS,
 
+    /** One row per scope site: calls, self and total time, bytes allocated, and the peak and high water. See base_scope.h. */
+    NYA_DEBUG_OVERLAY_PAGE_SCOPES,
+
     NYA_DEBUG_OVERLAY_PAGE_COUNT,
 };
 
@@ -100,6 +108,9 @@ struct NYA_DebugOverlayStyle {
 
     /** The trace page's order. */
     NYA_TraceSort sort;
+
+    /** The scopes page's order. */
+    NYA_ScopeSort scope_sort;
 
     /**
      * Which row the systems page marks, as an index into the registry's run order. The caller owns the

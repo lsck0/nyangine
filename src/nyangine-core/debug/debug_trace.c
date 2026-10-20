@@ -103,8 +103,8 @@ NYA_INTERNAL _NYA_Trace _nya_trace = {
     .feature_count = NYA_TRACE_ENGINE_FEATURES,
 };
 
-NYA_INTERNAL thread_local NYA_TraceFeature _nya_trace_current     = NYA_TRACE_OTHER;
-NYA_INTERNAL thread_local u64              _nya_trace_children_ns = 0;
+// an untagged scope charges nothing, so "other" has to be the tag every scope starts from.
+static_assert(NYA_TRACE_OTHER == NYA_SCOPE_TAG_NONE);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -120,6 +120,9 @@ NYA_INTERNAL void _nya_trace_capture_frame_end(void);
 
 /** Formats and writes a capture, then frees it. Runs on a detached thread. */
 NYA_INTERNAL s32 SDLCALL _nya_trace_capture_write(void* events);
+
+/** Where base_scope.h reports a tagged scope closing: its self time, and for a scope tagged at its site, a call. */
+NYA_INTERNAL void _nya_trace_scope_closed(NYA_ScopeTag tag, u64 started_ns, u64 ended_ns, u64 self_ns, b8 tagged);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -158,7 +161,7 @@ NYA_ConstCString nya_trace_feature_name(NYA_TraceFeature feature) {
 }
 
 NYA_TraceFeature nya_trace_feature_current(void) {
-    return _nya_trace_current;
+    return nya_scope_tag_current();
 }
 
 void nya_trace_request(void) {
@@ -173,6 +176,7 @@ void nya_trace_frame_end(void) {
     if (!_nya_trace.registered) {
         nya_ceiling_register("trace_features", NYA_TRACE_FEATURE_MAX, &_nya_trace.feature_count);
         nya_ceiling_register("trace_events", NYA_TRACE_CAPTURE_EVENTS_MAX, &_nya_trace.capture_live);
+        nya_scope_tag_sink_set(_nya_trace_scope_closed);
         _nya_trace.registered = true;
     }
 
@@ -221,7 +225,7 @@ void nya_trace_frame_end(void) {
 void nya_trace_draws(u32 count) {
     if (!nya_trace_active()) return;
 
-    atomic_fetch_add_explicit(&_nya_trace.draws[_nya_trace_current], count, memory_order_relaxed);
+    atomic_fetch_add_explicit(&_nya_trace.draws[nya_scope_tag_current()], count, memory_order_relaxed);
 }
 
 void nya_trace_gpu(NYA_TraceFeature feature, u64 started_ns, u64 ended_ns) {
@@ -332,7 +336,8 @@ b8 nya_trace_capture_begin(u32 frames, NYA_ConstCString path) {
     _nya_trace.capture_epoch_ns    = nya_clock_get_monotonic_ns();
     atomic_store(&_nya_trace.capture_count, 0);
 
-    // on from this frame, not the next: the first captured frame is this one.
+    // on from this frame, not the next: the first captured frame is this one, which may come before any frame end.
+    nya_scope_tag_sink_set(_nya_trace_scope_closed);
     atomic_store(&_nya_trace.capture_events, events);
     atomic_store_explicit(&_nya_trace.active, true, memory_order_relaxed);
 
@@ -345,37 +350,20 @@ b8 nya_trace_capturing(void) {
     return atomic_load(&_nya_trace.capture_events) != nullptr || _nya_trace.capture_pending != nullptr || atomic_load(&_nya_trace.capture_writing);
 }
 
-NYA_TraceScope _nya_trace_scope_begin(NYA_TraceFeature feature) {
-    nya_assert(feature < NYA_TRACE_FEATURE_MAX);
+void _nya_trace_scope_closed(NYA_ScopeTag tag, u64 started_ns, u64 ended_ns, u64 self_ns, b8 tagged) {
+    nya_assert(tag < NYA_TRACE_FEATURE_MAX);
+    nya_assert(ended_ns >= started_ns);
 
-    NYA_TraceScope scope = { .feature = feature, .previous = _nya_trace_current };
-    _nya_trace_current   = feature;
+    if (!nya_trace_active()) return;
 
-    if (!nya_trace_active()) return scope;
+    atomic_fetch_add_explicit(&_nya_trace.cpu_ns[tag], self_ns, memory_order_relaxed);
 
-    // children count from zero inside this scope; the outer scope's tally comes back when it closes.
-    scope.outer_children_ns = _nya_trace_children_ns;
-    _nya_trace_children_ns  = 0;
-    scope.started_ns        = nya_clock_get_monotonic_ns();
+    // an inherited tag is the feature's time, not one of its scopes.
+    if (!tagged) return;
 
-    return scope;
-}
+    atomic_fetch_add_explicit(&_nya_trace.calls[tag], 1, memory_order_relaxed);
 
-void _nya_trace_scope_end(NYA_TraceScope* scope) {
-    _nya_trace_current = scope->previous;
-
-    if (scope->started_ns == 0) return;
-
-    u64 ended_ns   = nya_clock_get_monotonic_ns();
-    u64 elapsed_ns = ended_ns - scope->started_ns;
-    u64 own_ns     = elapsed_ns > _nya_trace_children_ns ? elapsed_ns - _nya_trace_children_ns : 0;
-
-    _nya_trace_children_ns = scope->outer_children_ns + elapsed_ns;
-
-    atomic_fetch_add_explicit(&_nya_trace.cpu_ns[scope->feature], own_ns, memory_order_relaxed);
-    atomic_fetch_add_explicit(&_nya_trace.calls[scope->feature], 1, memory_order_relaxed);
-
-    _nya_trace_capture_append(scope->feature, scope->started_ns, ended_ns, false);
+    _nya_trace_capture_append(tag, started_ns, ended_ns, false);
 }
 
 #endif // NYA_TRACE_ENABLED

@@ -508,7 +508,7 @@ f32 nya_terrain3d_lod_boundary(const NYA_Terrain3D* terrain, u32 level) {
 void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 viewer) {
     if (terrain == nullptr || !terrain->options.chunked || terrain->chunks == nullptr) return;
 
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     terrain->chunks_rebuilt = 0;
 
@@ -554,7 +554,7 @@ void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 view
 }
 
 void nya_terrain3d_draw(const NYA_Terrain3D* terrain, NYA_Window* window) {
-    nya_perf_time_this_scope("nya_terrain3d_draw");
+    nya_scope("nya_terrain3d_draw");
 
     if (terrain == nullptr) return;
 

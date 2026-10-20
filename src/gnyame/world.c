@@ -314,7 +314,9 @@ b8 gny_overlay_key(const NYA_KeyEvent* key) {
     }
 
     if (nya_input_action_matches(GNY_ACTION_CYCLE_TRACE_SORT, key->key, key->modifier_flags)) {
-        world->trace_sort = (NYA_TraceSort)(((u32)world->trace_sort + 1) % NYA_TRACE_SORT_COUNT);
+        // one key for both tables: it orders whichever one is up.
+        if (world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_SCOPES) world->scope_sort = (NYA_ScopeSort)(((u32)world->scope_sort + 1) % NYA_SCOPE_SORT_COUNT);
+        else world->trace_sort = (NYA_TraceSort)(((u32)world->trace_sort + 1) % NYA_TRACE_SORT_COUNT);
         return true;
     }
 
@@ -350,6 +352,7 @@ b8 gny_overlay_key(const NYA_KeyEvent* key) {
 
     if (nya_input_action_matches(GNY_ACTION_TRACE_REPORT, key->key, key->modifier_flags)) {
         nya_trace_report();
+        nya_scope_report();
         return true;
     }
 
@@ -388,6 +391,7 @@ void gny_overlay_draw(NYA_Window* window) {
     f32 width = GNY_UI_OVERLAY_WIDTH;
     if (world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_TRACE) width = GNY_UI_TRACE_WIDTH;
     if (world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS) width = GNY_UI_SYSTEMS_WIDTH;
+    if (world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_SCOPES) width = GNY_UI_SCOPES_WIDTH;
 
     nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){
         .x               = (f32)window->screen_width - GNY_UI_MARGIN - width,
@@ -395,6 +399,7 @@ void gny_overlay_draw(NYA_Window* window) {
         .width           = width,
         .page            = world->overlay_page,
         .sort            = world->trace_sort,
+        .scope_sort      = world->scope_sort,
         .selected_system = world->overlay_system,
     });
 }

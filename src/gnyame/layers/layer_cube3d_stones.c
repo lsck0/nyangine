@@ -350,7 +350,7 @@ u32 _gny_cube3d_stone_build(NYA_Vertex3D* out, u32 sides, u32 segments) {
     const f32x2* section = sides == 4 ? _GNY_CUBE3D_STONE_SECTION_4 : _GNY_CUBE3D_STONE_SECTION_8;
 
     u32 at = 0;
-    nya_watch(_gny_cube3d_stone_build);
+    nya_scope_watch(_gny_cube3d_stone_build);
 
     /*
      * The walls, band by band up the height. The section shrinks linearly toward the top, so however many bands

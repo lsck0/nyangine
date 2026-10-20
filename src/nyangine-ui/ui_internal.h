@@ -8,7 +8,7 @@
  * */
 #pragma once
 
-#include "nyangine-std/base/base_perf.h"
+#include "nyangine-std/base/base_scope.h"
 #include "nyangine-core/core/core_input.h"
 #include "nyangine-core/core/core_keys.h"
 #include "nyangine-core/core/core_window.h"

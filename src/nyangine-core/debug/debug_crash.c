@@ -51,6 +51,9 @@ NYA_INTERNAL void _nya_crash_append(OUT u8* buffer, u32 capacity, OUT u32* lengt
 /** Splits `report` on newlines into _nya_crash_report_lines. Lines past the index are dropped. */
 NYA_INTERNAL void _nya_crash_report_index(NYA_ConstCString report);
 
+/** The crashing thread's open scopes, innermost first, with what each has taken so far. See base_scope.h. */
+NYA_INTERNAL void _nya_crash_append_scopes(OUT u8* buffer, u32 capacity, OUT u32* length);
+
 /** The watched locals, innermost frame first. See base_watch.h. */
 NYA_INTERNAL void _nya_crash_append_watch(OUT u8* buffer, u32 capacity, OUT u32* length);
 
@@ -230,6 +233,35 @@ NYA_INTERNAL void _nya_crash_append_platform(OUT u8* buffer, u32 capacity, OUT u
     _nya_crash_append(buffer, capacity, length, "  gpu used  %s allocated by the engine\n", (NYA_ConstCString)amount);
 }
 
+void _nya_crash_append_scopes(OUT u8* buffer, u32 capacity, OUT u32* length) {
+    const u32 depth = nya_scope_depth();
+
+    _nya_crash_append(buffer, capacity, length, "\nScopes, innermost first\n");
+
+    if (depth == 0) {
+        _nya_crash_append(buffer, capacity, length, "  none open\n");
+        return;
+    }
+
+    // the stack belongs to this thread, the one that crashed, and reading it allocates nothing.
+    for (u32 index = depth; index > 0; index--) {
+        const NYA_ScopeView scope = nya_scope_at(index - 1);
+
+        if (!NYA_SCOPE_MEASURED) {
+            _nya_crash_append(buffer, capacity, length, "  %s  %s:%u\n", scope.name, scope.file, scope.line);
+            continue;
+        }
+
+        u8 allocated[32] = { 0 };
+        u8 peak[32]      = { 0 };
+        _nya_crash_format_bytes(scope.allocated_bytes, allocated, (u32)sizeof(allocated));
+        _nya_crash_format_bytes(scope.peak_bytes, peak, (u32)sizeof(peak));
+
+        _nya_crash_append(buffer, capacity, length, "  %s  %s:%u  open %.3f ms, allocated %s, peak %s\n", scope.name, scope.file, scope.line,
+                          nya_time_ns_to_ms(scope.elapsed_ns), (NYA_ConstCString)allocated, (NYA_ConstCString)peak);
+    }
+}
+
 void _nya_crash_append_watch(OUT u8* buffer, u32 capacity, OUT u32* length) {
     const u32 count = nya_watch_count();
 
@@ -394,8 +426,9 @@ u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capa
         length += nya_backtrace_format(&info->backtrace, &buffer[length], capacity - length);
     }
 
-    // Between the trace and the log: the trace says where the program was, this says what it held there,
-    // and the log says how it got there.
+    // Between the trace and the log: the trace says where the program was, these say which work it was in
+    // and what it held there, and the log says how it got there.
+    _nya_crash_append_scopes(buffer, capacity, &length);
     _nya_crash_append_watch(buffer, capacity, &length);
 
     const u32 logged = nya_log_ring_count();

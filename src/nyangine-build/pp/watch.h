@@ -53,6 +53,9 @@
 /** The call site inside the body, which is the macro this pass writes the body of. */
 #define NYA_WATCH_CALL "nya_watch"
 
+/** The same call with a scope named after the function in front of it; see base_scope.h. */
+#define NYA_WATCH_CALL_SCOPED "nya_scope_watch"
+
 /** What a function name becomes. Must agree with base_watch.h, which pastes the same prefix. */
 #define NYA_WATCH_PREFIX "_nya_watch_"
 

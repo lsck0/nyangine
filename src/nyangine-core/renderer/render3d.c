@@ -2038,7 +2038,6 @@ void _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SD
 }
 
 void _nya_render3d_playback(NYA_Window* window) {
-    nya_perf_time_this_function();
     nya_trace_scope(NYA_TRACE_SCENE);
 
     NYA_RenderSystemWindow* render = &window->render_system;

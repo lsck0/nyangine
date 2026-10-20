@@ -2098,9 +2098,6 @@ void nya_asset_load_queued(void) {
 void _nya_asset_loading_process(NYA_Event* event) {
     nya_trace_scope(NYA_TRACE_ASSETS);
 
-    // runs on NYA_EVENT_FRAME_ENDED, outside every frame_* timer. decoding is the classic invisible spike.
-    nya_perf_time_this_function();
-
     nya_unused(event);
 
     NYA_AssetSystem*  system        = &nya_app_get()->asset_system;

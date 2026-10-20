@@ -47,7 +47,7 @@
 // After base_reflection.h and base_newtype.h: it reads the attribute table and reuses the email rule.
 #include "nyangine-std/base/base_validate.h"
 #include "nyangine-std/base/base_path.h"
-#include "nyangine-std/base/base_perf.h"
+#include "nyangine-std/base/base_scope.h"
 #include "nyangine-std/base/base_preflight.h"
 #include "nyangine-std/base/base_ring.h"
 #include "nyangine-std/base/base_socket.h"

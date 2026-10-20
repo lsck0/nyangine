@@ -1435,7 +1435,7 @@ b8 nya_render_begin(NYA_Window* window) {
 
 void nya_render_end(NYA_Window* window) {
     // submission and present, where a frame waits on the GPU, timed apart from the draw work.
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     nya_assert(window != nullptr);
 
