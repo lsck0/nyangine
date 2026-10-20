@@ -55,8 +55,8 @@
  * db_sql.h opens every connection in SQLite's NOMUTEX mode: one connection belongs to one thread, and the
  * store the file routes hold and the queue below are the main thread's. `nya_jobworker_start` opens each
  * worker its own connection for the queue, and for the same reason the scrub opens its own for the store.
- * So the file is opened WAL, where the scrub's reads never block an upload's write, and every connection
- * carries a busy timeout so two writers (an upload, a worker claiming a job) wait rather than fail.
+ * nya_sql_open puts every one of them in WAL, where the scrub's reads never block an upload's write, and
+ * gives each a busy timeout, so two writers (an upload, a worker claiming a job) wait rather than fail.
  *
  * ─────────────────────────────────────────────────────────
  * THE HEADLESS CYCLE
@@ -155,11 +155,8 @@ NYA_INTERNAL NYA_JobOutcome scrub_job(const NYA_QueuedJob* job, void* context) {
     defer     nya_arena_destroy_on_stack(&scratch);
 
     NYA_Database* connection = nullptr;
-    if (!nya_sql_open(&scratch, (NYA_ConstCString)context, &connection).ok) return NYA_JOB_OUTCOME_RETRY;
+    if (!nya_sql_open(&scratch, (NYA_ConstCString)context, &connection, .busy_timeout_ms = BUSY_TIMEOUT_MS).ok) return NYA_JOB_OUTCOME_RETRY;
     defer nya_sql_close(connection);
-
-    NYA_SqlResult ignored = { 0 };
-    (void)nya_sql_query(connection, &scratch, "PRAGMA busy_timeout = 2000", nullptr, 0, &ignored);
 
     Scrub scrub = { .arena = &scratch };
     if (!nya_blob_store_open(&scratch, connection, &scrub.store).ok) return NYA_JOB_OUTCOME_RETRY;
@@ -385,13 +382,8 @@ s32 main(s32 argc, char** argv) {
     }
     defer nya_sql_close(DB);
 
-    /* WAL and a busy timeout on the main connection, so the workers and this thread share the file without tripping over each other; see the file note. */
     NYA_Arena boot = nya_arena_create_on_stack(.name = "blob_service_boot");
     defer     nya_arena_destroy_on_stack(&boot);
-
-    NYA_SqlResult pragma = { 0 };
-    NYA_EXPECT(nya_sql_query(DB, &boot, "PRAGMA journal_mode = WAL", nullptr, 0, &pragma), "while putting the database in WAL mode");
-    NYA_EXPECT(nya_sql_query(DB, &boot, "PRAGMA busy_timeout = 2000", nullptr, 0, &pragma), "while setting the busy timeout");
 
     NYA_EXPECT(nya_accounts_open(DB_ARENA, DB), "while opening the accounts tables");
     defer nya_accounts_close();
