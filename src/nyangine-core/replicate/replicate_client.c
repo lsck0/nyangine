@@ -44,6 +44,9 @@ typedef struct {
     /** True when this client created the transport and must therefore destroy it. */
     b8 owns_transport;
 
+    /** The arena an owned transport lives in, which goes with it. */
+    NYA_Arena* transport_allocator;
+
     /** What HELLO tells the server this client runs. */
     NYA_NetContentManifest content;
 
@@ -207,7 +210,8 @@ NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString 
     }
 
     // the transport was allocated from this setup allocator, and attach made its own.
-    _NYA_NET_CLIENT.owns_transport = true;
+    _NYA_NET_CLIENT.owns_transport      = true;
+    _NYA_NET_CLIENT.transport_allocator = allocator;
 
     return NYA_OK;
 }
@@ -279,9 +283,6 @@ void nya_net_client_disconnect(void) {
     if (_NYA_NET_CLIENT.transport != nullptr && nya_net_peer_is_set(_NYA_NET_CLIENT.server_peer)) {
         nya_net_transport_disconnect(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer, NYA_NET_DISCONNECT_REQUESTED);
     }
-
-    // only if this client created it. A listen server's loopback end belongs to the server.
-    if (_NYA_NET_CLIENT.owns_transport) nya_net_transport_destroy(_NYA_NET_CLIENT.transport);
 
     _nya_net_client_reset();
 }
@@ -430,7 +431,8 @@ void _nya_net_client_drain(f32 delta_time_s) {
 
                 nya_log_info("Disconnected (%d).", (int)event.reason);
 
-                // the transport belongs to whoever created it, and a caller may reconnect after reading the reason.
+                // reset closes a transport this client opened and leaves one it was handed to its owner. Returning
+                // straight after, since the loop's transport may be gone; a caller may reconnect after reading the reason.
                 NYA_NetDisconnect      reason   = event.reason;
                 NYA_NetContentMismatch mismatch = _NYA_NET_CLIENT.content_mismatch;
                 _nya_net_client_reset();
@@ -539,11 +541,15 @@ void _nya_net_client_handle_message(const u8* data, u64 size, f32 delta_time_s) 
 
             b8 joined = kind == NYA_NET_MSG_PEER_JOINED;
 
-            nya_log_info("Player '%s' %s.", name->as_string, joined ? "joined" : "left");
+            // bounded and cleaned here: a server is a peer too, and the game shows this name to its player.
+            char clean[NYA_NET_MAX_NAME] = { 0 };
+            if (nya_net_chat_sanitize(name->as_string, clean, sizeof(clean)) == 0) (void)snprintf(clean, sizeof(clean), "player");
+
+            nya_log_info("Player '%s' %s.", clean, joined ? "joined" : "left");
 
             NYA_NetPeerChangeFn on_peer_change = nya_callback_get(_NYA_NET_CLIENT.config.on_peer_change);
 
-            if (on_peer_change != nullptr) on_peer_change(who, name->as_string, joined);
+            if (on_peer_change != nullptr) on_peer_change(who, clean, joined);
         } break;
 
         case NYA_NET_MSG_GAME_EVENT: {
@@ -828,6 +834,11 @@ void _nya_net_client_reset(void) {
      * The replicated world goes with the connection.
      */
     if (_NYA_NET_CLIENT.replicas != nullptr) nya_net_replica_map_despawn_all(_NYA_NET_CLIENT.replicas);
+
+    // only if this client created it; a listen server's loopback end belongs to the server. Here rather than in
+    // disconnect, so a refusal or a dropped connection does not leave a socket open behind every retry.
+    if (_NYA_NET_CLIENT.owns_transport) nya_net_transport_destroy(_NYA_NET_CLIENT.transport);
+    if (_NYA_NET_CLIENT.transport_allocator != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.transport_allocator);
 
     if (_NYA_NET_CLIENT.tick_arena != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.tick_arena);
     if (_NYA_NET_CLIENT.allocator != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.allocator);
