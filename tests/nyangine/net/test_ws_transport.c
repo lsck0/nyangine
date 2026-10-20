@@ -38,7 +38,6 @@ static u32 MESSAGES    = 0;
 static u32 DISCONNECTS = 0;
 
 static NYA_NetPeerId      LAST_PEER      = { 0 };
-static NYA_NetDisconnect  LAST_REASON    = NYA_NET_DISCONNECT_NONE;
 static u8                 LAST_MESSAGE[4096];
 static u64                LAST_MESSAGE_SIZE = 0;
 
@@ -64,8 +63,7 @@ static void transport_drain(void) {
 
             case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: {
                 DISCONNECTS++;
-                LAST_PEER   = event.peer;
-                LAST_REASON = event.reason;
+                LAST_PEER = event.peer;
             } break;
 
             default: break;

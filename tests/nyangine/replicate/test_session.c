@@ -194,6 +194,11 @@ s32 main(void) {
     HELD_ACTIONS = 0;
 
     nya_net_client_disconnect();
+
+    // the host leaving is a player leaving: the server drains the loopback's disconnect and despawns them.
+    run_ticks(&tick, 2, false);
+    nya_assert_eq(DESPAWN_CALLS, 1U);
+
     nya_net_server_stop();
 
     // Whatever the two left behind, so the next case starts from an empty world.
@@ -307,8 +312,6 @@ s32 main(void) {
 
     // the client leaves cleanly
     {
-      DESPAWN_CALLS = 0;
-
       nya_net_client_disconnect();
 
       nya_assert(nya_net_client_state() == NYA_NET_CLIENT_DISCONNECTED);
