@@ -7,7 +7,8 @@
  * - A spatial hash (NYA_SpatialHash2D, NYA_SpatialHash3D): uniform cells over an unbounded world. The fastest add,
  *   remove and move, for many small items of similar size that move every frame.
  * - A loose quadtree and octree (NYA_Quadtree, NYA_Octree): nodes twice their cell, so an item sits at the depth its
- *   size picks and never straddles. For mixed sizes inside a known world, still updated per item.
+ *   size picks and never straddles. For mixed sizes inside a known world, updated per item; on small uniform items
+ *   the hash and the BVH answer every query several times faster (bench_spatial).
  * - A BVH (NYA_Bvh2D, NYA_Bvh3D): built in one pass from an array with a binned surface area heuristic and refitted
  *   when the items move. The fastest queries, for a set rebuilt or refitted as a whole.
  *
@@ -21,13 +22,14 @@
  * u32 total = nya_spatial_hash3d_query_radius(hash, (NYA_Spheref){ .center = player, .radius = 20.0F }, found, 64);
  * ```
  *
- * Every index lives in the arena it was created in; destroy hands its storage back to that arena. Item ids are the caller's own dense
- * indices below `capacity` (an entity slot, an array index), so no handle table sits between them and the slot.
+ * Every index lives in the arena it was created in; destroy hands its storage back to that arena. Item ids are the
+ * caller's own dense indices below `capacity` (an entity slot, an array index), so no handle table sits between them
+ * and the slot.
  * A query writes at most `capacity` ids and returns how many matched, so a result above the capacity says the
  * buffer was short. Ray and nearest queries measure against the item boxes; an exact shape test is the caller's.
  *
  * The 2D indices are the 3D ones with z pinned to zero: one implementation, and the 2D query costs a lane of
- * arithmetic it does not need. A separate 2D build halves the box size and was not worth a second copy of each.
+ * arithmetic it does not need. A separate 2D copy would halve the box size at the price of a second implementation.
  * */
 #pragma once
 
