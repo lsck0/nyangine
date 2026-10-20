@@ -174,9 +174,10 @@ void pong_sample_command(OUT NYA_NetCommand* command) {
  * would stack on the left again, which is fine for an example and would not be for a game.
  * */
 NYA_EntityHandle pong_spawn_player(NYA_NetPeerId peer, NYA_ConstCString name) {
-    nya_unused(name);
+    nya_unused(peer, name);
 
-    f32 x = (peer.index % 2 == 0) ? -(COURT_HALF_WIDTH - PADDLE_INSET) : (COURT_HALF_WIDTH - PADDLE_INSET);
+    // by arrival rather than by id: the host's loopback id is the last index, and it should still be on the left.
+    f32 x = (nya_net_server_peer_count() % 2 == 1) ? -(COURT_HALF_WIDTH - PADDLE_INSET) : (COURT_HALF_WIDTH - PADDLE_INSET);
 
     return nya_entity_spawn(
         .name     = "paddle",

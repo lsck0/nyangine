@@ -45,9 +45,6 @@ NYA_INTERNAL NYA_Capture _NYA_NET_LOOPBACK_CAPTURE  = { 0 };
 NYA_INTERNAL u32         _NYA_NET_LOOPBACK_SESSIONS = 0;
 #endif
 
-/** The one peer a loopback endpoint ever has. */
-#define _NYA_NET_LOOPBACK_PEER ((NYA_NetPeerId){ .index = 0, .generation = 1 })
-
 NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_LOOPBACK_VTABLE = {
     .name = "loopback",
     .kind = NYA_NET_TRANSPORT_LOOPBACK,
@@ -120,7 +117,7 @@ NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTranspo
 NYA_Error _nya_net_loopback_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size) {
     _NYA_NetLoopbackEndpoint* endpoint = transport->state;
 
-    if (!nya_net_peer_equals(peer, _NYA_NET_LOOPBACK_PEER)) {
+    if (!nya_net_peer_equals(peer, NYA_NET_LOOPBACK_PEER)) {
         return nya_error(NYA_ERROR_NOT_FOUND, "a loopback transport has exactly one peer");
     }
 
@@ -154,7 +151,7 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
         endpoint->connect_pending = false;
         endpoint->connected       = true;
 
-        *out_event = (NYA_NetTransportEvent){ .kind = NYA_NET_TRANSPORT_EVENT_CONNECTED, .peer = _NYA_NET_LOOPBACK_PEER };
+        *out_event = (NYA_NetTransportEvent){ .kind = NYA_NET_TRANSPORT_EVENT_CONNECTED, .peer = NYA_NET_LOOPBACK_PEER };
 
         return true;
     }
@@ -172,7 +169,7 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
         if (!endpoint->disconnect_pending) return false;
 
         endpoint->disconnect_pending = false;
-        *out_event = (NYA_NetTransportEvent){ .kind = NYA_NET_TRANSPORT_EVENT_DISCONNECTED, .peer = _NYA_NET_LOOPBACK_PEER, .reason = endpoint->disconnect_reason };
+        *out_event = (NYA_NetTransportEvent){ .kind = NYA_NET_TRANSPORT_EVENT_DISCONNECTED, .peer = NYA_NET_LOOPBACK_PEER, .reason = endpoint->disconnect_reason };
 
         return true;
     }
@@ -195,7 +192,7 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
 
     *out_event = (NYA_NetTransportEvent){
         .kind    = NYA_NET_TRANSPORT_EVENT_MESSAGE,
-        .peer    = _NYA_NET_LOOPBACK_PEER,
+        .peer    = NYA_NET_LOOPBACK_PEER,
         .data    = message.data,
         .size    = message.size,
         .channel = message.channel,

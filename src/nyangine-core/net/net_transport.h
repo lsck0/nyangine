@@ -238,6 +238,12 @@ struct NYA_NetTransport {
 // CONSTRUCTION
 
 /**
+ * The one peer a loopback end has. The last index rather than the first, because a listen server keeps its host and
+ * its remote players in one table keyed by peer id, and UDP numbers remote players from index zero, generation one.
+ * */
+#define NYA_NET_LOOPBACK_PEER ((NYA_NetPeerId){ .index = NYA_NET_MAX_PEERS - 1, .generation = 1 })
+
+/**
  * A transport that carries messages between two endpoints in the same process.
  * */
 NYA_API NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b) __attr_no_discard;

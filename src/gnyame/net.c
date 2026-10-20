@@ -205,12 +205,15 @@ NYA_EntityHandle gny_net_spawn_player(NYA_NetPeerId peer, NYA_ConstCString name)
 
     f32 spacing = NYA_CONFIG.game.player_spawn_spacing > 0.0F ? NYA_CONFIG.game.player_spawn_spacing : GNY_PLAYER_SPAWN_SPACING;
 
+    // the host first: its loopback id is the last index there is, and remote players count from zero behind it.
+    u32 seat = peer.index == NYA_NET_LOOPBACK_PEER.index ? 0 : peer.index + 1;
+
     // no physics body: movement is written by the command function, identically on both sides.
     return nya_entity_spawn(
         .name      = "player",
         .type      = GNY_ENTITY_PLAYER,
         .flags     = GNY_FLAG_REPLICATED | GNY_ENTITY_FLAG_AUDIBLE,
-        .position  = { (f32)peer.index * spacing, 0.0F, 0.0F },
+        .position  = { (f32)seat * spacing, 0.0F, 0.0F },
         .state     = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE,
         .on_render = nya_callback(gny_net_player_on_render)
     );

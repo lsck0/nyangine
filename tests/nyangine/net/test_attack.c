@@ -875,7 +875,7 @@ s32 main(void) {
   (void)nya_world_set(world);
 
   /** Sends one handcrafted application payload as the joined client. */
-  #define SEND_AS_CLIENT(payload)                                                                                                                        (void)nya_net_transport_send(hostile, (NYA_NetPeerId){ .index = 0, .generation = 1 }, NYA_NET_CHANNEL_RELIABLE, (payload)->items, (payload)->length)
+  #define SEND_AS_CLIENT(payload)                                                                                                                        (void)nya_net_transport_send(hostile, NYA_NET_LOOPBACK_PEER, NYA_NET_CHANNEL_RELIABLE, (payload)->items, (payload)->length)
 
   printf("TEST: an oversized HELLO is refused before it is parsed\n");
   {
@@ -948,7 +948,7 @@ s32 main(void) {
     while (nya_net_transport_poll(hostile, &event)) nya_assert(event.kind != NYA_NET_TRANSPORT_EVENT_DISCONNECTED, "a second HELLO dropped a joined peer");
 
     nya_assert(nya_net_server_peer_count() == 1, "a second HELLO changed the roster (%u peers)", nya_net_server_peer_count());
-    nya_assert(nya_net_server_peer_at(0) != nullptr && nya_net_server_peer_at(0)->accepted);
+    nya_assert(nya_net_server_peer(NYA_NET_LOOPBACK_PEER) != nullptr && nya_net_server_peer(NYA_NET_LOOPBACK_PEER)->accepted);
 
     nya_net_server_stop();
   }

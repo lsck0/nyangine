@@ -411,7 +411,7 @@ s32 main(void) {
         nya_object_add(body, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = tick });
         NYA_EXPECT(nya_net_message_write_object(arena, hello, body));
 
-        (void)nya_net_transport_send(hostile, (NYA_NetPeerId){ .index = 0, .generation = 1 }, NYA_NET_CHANNEL_RELIABLE, hello->items, hello->length);
+        (void)nya_net_transport_send(hostile, NYA_NET_LOOPBACK_PEER, NYA_NET_CHANNEL_RELIABLE, hello->items, hello->length);
         nya_net_server_tick(tick++, 1.0F / 60.0F);
       }
 

@@ -195,10 +195,13 @@ NYA_INTERNAL void _nya_net_server_release(_NYA_NetServerBaseline* slot);
 /** The peer slot for an id, or null when it names nothing live. */
 NYA_INTERNAL _NYA_NetServerPeerState* _nya_net_server_find(NYA_NetPeerId peer) __attr_no_discard;
 
+/** The same, for an id a transport reported: the slot must also belong to that transport, so two cannot be confused. */
+NYA_INTERNAL _NYA_NetServerPeerState* _nya_net_server_find_on(const NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
+
 /** Takes a slot for a newly connected peer, or null when the server is full. */
 NYA_INTERNAL _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
 
-NYA_INTERNAL void _nya_net_server_remove(NYA_NetPeerId peer, NYA_NetDisconnect reason);
+NYA_INTERNAL void _nya_net_server_remove(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason);
 
 /** Tells everyone but `about` that a peer joined or left. */
 NYA_INTERNAL void _nya_net_server_broadcast_roster(NYA_NetPeerId about, NYA_ConstCString name, b8 joined);
@@ -467,7 +470,7 @@ void nya_net_server_kick(NYA_NetPeerId peer, NYA_NetDisconnect reason) {
     nya_net_transport_disconnect(state->transport, peer, reason);
 
     // removed now: the transport raises no event for a disconnect the caller requested.
-    _nya_net_server_remove(peer, reason);
+    _nya_net_server_remove(state->transport, peer, reason);
 }
 
 NYA_Error nya_net_server_send_event(NYA_NetPeerId peer, const NYA_Object* event) {
@@ -682,7 +685,7 @@ void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick) {
                 nya_log_debug("Transport connection from %s.", nya_net_transport_peer_address(transport, event.peer));
             } break;
 
-            case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: _nya_net_server_remove(event.peer, event.reason); break;
+            case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: _nya_net_server_remove(transport, event.peer, event.reason); break;
 
             case NYA_NET_TRANSPORT_EVENT_MESSAGE: {
                 _nya_net_server_handle_message(transport, event.peer, event.data, event.size, tick);
@@ -708,7 +711,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
         return;
     }
 
-    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+    _NYA_NetServerPeerState* state = _nya_net_server_find_on(transport, peer);
 
     // everything but HELLO requires an accepted peer.
     if (state == nullptr || !state->public_state.accepted) return;
@@ -862,7 +865,7 @@ void _nya_net_server_violation(_NYA_NetServerPeerState* state, NYA_ConstCString 
 void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* body, u64 size) {
     // a second HELLO is ignored before anything is read: refusing one would drop the transport peer and leave the
     // player's slot with nothing to free it, and a valid one would give one player two entities.
-    _NYA_NetServerPeerState* existing = _nya_net_server_find(peer);
+    _NYA_NetServerPeerState* existing = _nya_net_server_find_on(transport, peer);
     if (existing != nullptr && existing->public_state.accepted) return;
 
     /* Refused on size before parsing, since parsing is what is being protected. */
@@ -1209,6 +1212,14 @@ _NYA_NetServerPeerState* _nya_net_server_find(NYA_NetPeerId peer) {
     return state;
 }
 
+_NYA_NetServerPeerState* _nya_net_server_find_on(const NYA_NetTransport* transport, NYA_NetPeerId peer) {
+    nya_assert(transport != nullptr);
+
+    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+
+    return state != nullptr && state->transport == transport ? state : nullptr;
+}
+
 _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_NetPeerId peer) {
     if (peer.index >= NYA_NET_MAX_PEERS) return nullptr;
     if (_NYA_NET_SERVER.peer_count >= _NYA_NET_SERVER.config.max_players) return nullptr;
@@ -1233,8 +1244,8 @@ _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_
     return state;
 }
 
-void _nya_net_server_remove(NYA_NetPeerId peer, NYA_NetDisconnect reason) {
-    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+void _nya_net_server_remove(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason) {
+    _NYA_NetServerPeerState* state = _nya_net_server_find_on(transport, peer);
     if (state == nullptr) return;
 
     b8 was_accepted = state->public_state.accepted;

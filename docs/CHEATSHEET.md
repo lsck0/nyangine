@@ -5193,6 +5193,9 @@ typedef struct { u8* data; u64 size; NYA_NetChannel channel; } NYA_NetLoopbackMe
 struct NYA_NetTransportVTable { NYA_ConstCString name; NYA_NetTransportKind kind; NYA_Error (*listen)(NYA_NetTransport* transport, u16 port); u16 (*port)(NYA_NetTransport* transport); NYA_Error (*connect)(NYA_NetTransport* transport, NYA_ConstCString address, u16 port); NYA_Error (*send)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size); void (*flush)(NYA_NetTransport* transport); b8 (*poll)(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event); void (*disconnect)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason); NYA_NetPeerStats (*stats)(NYA_NetTransport* transport, NYA_NetPeerId peer); NYA_ConstCString (*peer_address)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*condition)(NYA_NetTransport* transport, NYA_NetConditions conditions); const u8* (*public_key)(NYA_NetTransport* transport); const u8* (*peer_key)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*destroy)(NYA_NetTransport* transport); }  // What every transport implements.
 struct NYA_NetTransport { const NYA_NetTransportVTable* vtable; NYA_Arena* allocator; void* state; NYA_NetAllowlist allowlist; }  // One transport instance.
 
+// macros
+NYA_NET_LOOPBACK_PEER  // The one peer a loopback end has.
+
 // functions
 NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b)  // A transport that carries messages between two endpoints in the same process.
 NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions options, OUT NYA_NetTransport** out_transport)  // A transport over UDP datagrams, encrypted, with reliability and fragmentation on top.

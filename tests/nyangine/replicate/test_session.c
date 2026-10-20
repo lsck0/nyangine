@@ -333,6 +333,74 @@ s32 main(void) {
     nya_system_sim_apply_commands();
   }
 
+  // TEST: a listen server's host and its first remote player are two players
+  printf("TEST: a remote player joins a listen server beside its host\n");
+  {
+    NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
+      .replicated_flag  = FLAG_REPLICATED,
+      .on_apply_command = nya_callback(apply_movement),
+      .on_spawn_player  = nya_callback(spawn_player),
+    }));
+
+    NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
+
+    // the host, over the loopback, the way a game opened to the LAN has it.
+    NYA_NetTransport* host = nullptr;
+    NYA_EXPECT(nya_net_server_attach_local(&host));
+
+    NYA_Arena* arena = nya_arena_create(.name = "test_session_listen");
+    defer      nya_arena_destroy(arena);
+
+    NYA_String* hello = nya_string_create(arena);
+    nya_net_message_begin(hello, NYA_NET_MSG_HELLO);
+
+    NYA_Object* body = nya_object_create(arena);
+    nya_object_add(body, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(body, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "host" });
+    NYA_EXPECT(nya_net_message_write_object(arena, hello, body));
+
+    NYA_NetTransportEvent event = { 0 };
+    while (nya_net_transport_poll(host, &event)) { }
+    NYA_EXPECT(nya_net_transport_send(host, NYA_NET_LOOPBACK_PEER, NYA_NET_CHANNEL_RELIABLE, hello->items, hello->length));
+
+    run_ticks(&tick, 2, false);
+    nya_assert_eq(nya_net_server_peer_count(), 1U);
+
+    // the first UDP peer is index zero, generation one: once the loopback's id too, which made it the host.
+    NYA_EXPECT(nya_net_client_connect("127.0.0.1", nya_net_server_port(), "guest", (NYA_NetClientConfig){
+      .replicated_flag   = FLAG_REPLICATED,
+      .on_apply_command  = nya_callback(apply_movement),
+      .on_sample_command = nya_callback(sample_command),
+    }));
+
+    u64 deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+    while (nya_net_client_state() != NYA_NET_CLIENT_PLAYING && nya_clock_get_monotonic_ms() < deadline) {
+      run_ticks(&tick, 1, true);
+      sleep_ms(2);
+    }
+
+    nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING, "a remote player could not join beside the host");
+    nya_assert_eq(nya_net_server_peer_count(), 2U);
+    nya_assert(!nya_net_peer_equals(nya_net_client_peer(), nya_net_server_local_peer()), "the guest was given the host's id");
+
+    nya_net_client_disconnect();
+
+    deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
+    while (nya_net_server_peer_count() > 1 && nya_clock_get_monotonic_ms() < deadline) {
+      run_ticks(&tick, 1, false);
+      sleep_ms(2);
+    }
+
+    nya_assert_eq(nya_net_server_peer_count(), 1U);
+    nya_assert(nya_net_server_peer(NYA_NET_LOOPBACK_PEER) != nullptr, "the guest leaving took the host with it");
+
+    nya_net_server_stop();
+
+    nya_entity_foreach (leftover) nya_entity_despawn_deferred(leftover->handle);
+    nya_system_sim_apply_commands();
+  }
+
   // TEST: prediction moves the player before the server answers
   printf("TEST: a remote client predicts its own movement\n");
   {
@@ -432,7 +500,7 @@ s32 main(void) {
       NYA_NetTransportEvent event = { 0 };
       while (nya_net_transport_poll(client_end, &event)) { }
 
-      NYA_EXPECT(nya_net_transport_send(client_end, (NYA_NetPeerId){ .index = 0, .generation = 1 }, NYA_NET_CHANNEL_RELIABLE, payload->items,
+      NYA_EXPECT(nya_net_transport_send(client_end, NYA_NET_LOOPBACK_PEER, NYA_NET_CHANNEL_RELIABLE, payload->items,
                                         payload->length));
     }
 
@@ -456,7 +524,7 @@ s32 main(void) {
       while (nya_net_transport_poll(real_client, &event)) { }
 
       NYA_EXPECT(
-        nya_net_transport_send(real_client, (NYA_NetPeerId){ .index = 0, .generation = 1 }, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length)
+        nya_net_transport_send(real_client, NYA_NET_LOOPBACK_PEER, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length)
       );
     }
 
