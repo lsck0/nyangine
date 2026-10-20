@@ -11,7 +11,7 @@
  *     gnyame.desktop          packager specific files: desktop entry, icon, installer, steam library
  *     gnyame.png
  *     install.sh
- *     LICENSE
+ *     LICENSE.md
  *     CHANGELOG.md
  *     data/                   settings.nya and theme.nya, the player's to edit; saves/, which is not
  *     plugins/                one directory per Lua plugin, `example/` to copy
@@ -55,7 +55,7 @@
 /** The skeleton every distribution carries: data/ and plugins/, copied verbatim. */
 #define DIST_RUNTIME_DIRECTORY "./packaging/runtime"
 
-#define DIST_LICENSE_FILE   "./LICENSE"
+#define DIST_LICENSE_FILE   "./LICENSE.md"
 #define DIST_CHANGELOG_FILE "./CHANGELOG.md"
 
 /**

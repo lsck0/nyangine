@@ -23,7 +23,7 @@ dist/
 ```
 
 Every runnable distribution has the same shape: the executable, whatever that channel needs beside it,
-`LICENSE`, `CHANGELOG.md`, and the `data/` and `plugins/` trees from `runtime/`. There is no `assets/`
+`LICENSE.md`, `CHANGELOG.md`, and the `data/` and `plugins/` trees from `runtime/`. There is no `assets/`
 directory, because a release binary carries its assets inside it.
 
 ## One source of truth
