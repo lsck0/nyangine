@@ -226,7 +226,9 @@ NYA_INTERNAL const NYA_HttpRouter _NYA_SIMULATION_DB_TRANSFER_ROUTER = {
 NYA_INTERNAL NYA_Error _nya_simulation_db_open(void) {
     _NYA_SimulationDb* db = &_NYA_SIMULATION_DB;
 
-    NYA_TRY(nya_sql_open(db->connection, db->path, &db->database, .vfs = NYA_DB_FAULT_VFS));
+    // the rollback journal the fault model is written against: under WAL a reader keeps its shared lock, so a BUSY never
+    // reaches a read, and the power cut would land in a -wal the scenario neither removes nor models.
+    NYA_TRY(nya_sql_open(db->connection, db->path, &db->database, .vfs = NYA_DB_FAULT_VFS, .journal = NYA_SQL_JOURNAL_DELETE));
     NYA_TRY(nya_sql_exec(db->database, "CREATE TABLE IF NOT EXISTS simulated_rows (id INTEGER PRIMARY KEY, step INTEGER NOT NULL)"));
     NYA_TRY(nya_sql_exec(db->database, "CREATE TABLE IF NOT EXISTS simulated_balances (id INTEGER PRIMARY KEY, balance INTEGER NOT NULL)"));
     NYA_TRY(nya_sql_exec(db->database, "CREATE TABLE IF NOT EXISTS simulated_transfers (id INTEGER PRIMARY KEY, idempotency_key TEXT NOT NULL)"));
