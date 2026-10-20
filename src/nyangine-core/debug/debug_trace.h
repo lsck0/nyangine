@@ -18,10 +18,11 @@
  * nya_trace_capture_begin(120, "./logs/trace.json");
  * ```
  *
- * Time and memory by feature. A scope charges the time it runs, minus the scopes nested in it, to its feature, and
- * everything created inside it (GPU textures and buffers) is counted against that feature until released. Time is
- * only measured while something asked for it; a scope otherwise swaps one thread local byte on the way in and out.
- * Compiled out of shipping builds.
+ * Time and memory by feature. A trace scope is a nya_scope tagged with its feature (see base_scope.h): it charges the
+ * time it runs, minus the scopes nested in it, to its feature, every untagged scope inside it charges its own time
+ * there too, and everything created inside it (GPU textures and buffers) is counted against that feature until
+ * released. Features only collect while something asked for them; the scope underneath measures regardless, and a
+ * shipping build keeps it as a name on the crash stack.
  *
  * GPU time is measured per group of command buffers. While tracing, the renderer submits what it encoded whenever
  * the innermost feature changes at a point with no render pass open, with a fence, and a thread stamps each fence as
@@ -33,6 +34,7 @@
 
 #include "nyangine-std/base/base_attributes.h"
 #include "nyangine-std/base/base_basic.h"
+#include "nyangine-std/base/base_scope.h"
 #include "nyangine-std/base/base_types.h"
 
 /*
@@ -45,6 +47,10 @@
 #define NYA_TRACE_ENABLED 1
 #else
 #define NYA_TRACE_ENABLED 0
+#endif
+
+#if NYA_TRACE_ENABLED && !NYA_SCOPE_MEASURED
+#error "tracing reads its time from base_scope.h, which NYA_SCOPE_FORCE_NAMES or NYA_SCOPE_FORCE_DISABLED left unmeasured"
 #endif
 
 /** Features the table holds, engine and game together. Registered as the `trace_features` ceiling. */
@@ -75,9 +81,9 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-typedef u8                    NYA_TraceFeature;
+typedef NYA_ScopeTag          NYA_TraceFeature;
 typedef enum NYA_TraceSort    NYA_TraceSort;
-typedef struct NYA_TraceScope NYA_TraceScope;
+typedef NYA_ScopeMark         NYA_TraceScope;
 typedef struct NYA_TraceStats NYA_TraceStats;
 typedef struct NYA_TraceEvent NYA_TraceEvent;
 
@@ -148,18 +154,6 @@ enum NYA_TraceSort {
     NYA_TRACE_SORT_COUNT,
 };
 
-/** Held by nya_trace_scope for the scope's lifetime. */
-struct NYA_TraceScope {
-    /** Zero while tracing was off when the scope opened, so it measures nothing on the way out. */
-    u64 started_ns;
-
-    /** The enclosing scope's children so far, set aside while this scope counts its own. */
-    u64 outer_children_ns;
-
-    NYA_TraceFeature feature;
-    NYA_TraceFeature previous;
-};
-
 /** One feature over the last NYA_TRACE_HISTORY frames. */
 struct NYA_TraceStats {
     NYA_ConstCString name;
@@ -203,20 +197,17 @@ struct NYA_TraceEvent {
  * With tracing compiled out, a scope is nothing and the readers return nothing.
  */
 // clang-format off
-#if NYA_TRACE_ENABLED
-#define nya_trace_scope(feature) __attr_cleanup(_nya_trace_scope_end) NYA_TraceScope CONCAT(_nya_trace_scope_, __LINE__) = _nya_trace_scope_begin(feature)
+/** A scope named after the enclosing function and charged to `feature`, in every build that has scopes. */
+#define nya_trace_scope(feature) nya_scope_tagged(__func__, feature)
 
 /** A scope for `feature` only outside any other, so a shared helper such as a batch flush is charged to its caller. */
 #define nya_trace_scope_fallback(feature) nya_trace_scope(nya_trace_feature_current() == NYA_TRACE_OTHER ? (feature) : nya_trace_feature_current())
 
 /** A scope that spans a begin and end pair of calls. Ended in the reverse order of opening, like any other. */
-#define nya_trace_begin(feature) _nya_trace_scope_begin(feature)
-#define nya_trace_end(scope)     _nya_trace_scope_end(scope)
-#else
-#define nya_trace_scope(feature)          nya_unused(feature)
-#define nya_trace_scope_fallback(feature) nya_unused(feature)
-#define nya_trace_begin(feature)          ({ nya_unused(feature); (NYA_TraceScope){ 0 }; })
-#define nya_trace_end(scope)              nya_unused(scope)
+#define nya_trace_begin(feature) nya_scope_begin(__func__, feature)
+#define nya_trace_end(scope)     nya_scope_end(scope)
+
+#if !NYA_TRACE_ENABLED
 #define nya_trace_feature_register(name, arena_prefix) ({ nya_unused(name, arena_prefix); (NYA_TraceFeature)NYA_TRACE_OTHER; })
 #define nya_trace_feature_count()          ((u32)0)
 #define nya_trace_feature_name(feature)    ({ nya_unused(feature); (NYA_ConstCString)""; })
@@ -278,9 +269,6 @@ NYA_API b8 nya_trace_capture_begin(u32 frames, NYA_ConstCString path);
 
 /** Whether a capture is recording or still being written. */
 NYA_API b8 nya_trace_capturing(void) __attr_no_discard;
-
-NYA_API NYA_TraceScope _nya_trace_scope_begin(NYA_TraceFeature feature);
-NYA_API void           _nya_trace_scope_end(NYA_TraceScope* scope);
 #endif // NYA_TRACE_ENABLED
 
 /*
