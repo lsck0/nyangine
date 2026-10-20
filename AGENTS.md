@@ -28,7 +28,7 @@ src/nyangine-build/    the build system: rules, CLI, hooks, preprocessor passes 
 src/nyangine-std/      what is useful outside the engine too: os, platform, base, math, serde
 src/nyangine-core/     the engine: the app loop and every module above std (see the table)
 src/nyangine-ui/       the immediate mode UI toolkit and its presenters (shape, cells, HTML, DOM)
-src/nyangine-plugins/  optional dependencies behind a flag: curl, lua, discord, steam, acme, oidc, bots
+src/nyangine-plugins/  optional dependencies behind a flag: curl, lua, discord, steam, oidc, bots
 src/nyangine-editor/   reserved for the editor; empty
 src/gnyame/            the game that exercises it; src/gnyame_cli/ is its command line app
 src/genyarated/        written by the preprocessor passes; never edit by hand
@@ -63,16 +63,15 @@ and `serde` live in `src/nyangine-std/`, `ui` in `src/nyangine-ui/`, the plugins
 | `ui`       | immediate mode widgets                                                       |
 | `physics`  | Box2D and Box3D behind one interface                                         |
 | `net`      | encrypted UDP client and server, snapshots, prediction                        |
-| `http`     | an HTTP/1.1 server, routing and layers, TLS, accounts, uploads, OpenAPI generated from the routes |
+| `http`     | an HTTP/1.1 server, routing and layers, accounts, uploads, OpenAPI generated from the routes |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay, the trace, the crash window, and drawing physics and networks   |
-| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam, acme, oidc    |
+| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam, oidc          |
 
 Not in the engine yet, and planned in `TODO.md`'s roadmap: the component system (every module above
 `base`, `platform` and `math` added or removed by one line in `assets/config/plugins.nya`; today only
 `./build project` reads a manifest), a WebGPU renderer (the wasm builds draw 2D through WebGL2 only),
-TLS through mbedTLS (it goes through OpenSSL today), and SQLCipher, which `db` has the seam for and not
-the cipher. Do not describe any of it as if it exists; the layout above and the flags below are how the
+and SQLCipher, which `db` has the seam for and not the cipher. Do not describe any of it as if it exists; the layout above and the flags below are how the
 tree works today.
 
 ### The three 2D backends
@@ -225,7 +224,7 @@ From `TODO.md`, which is the planning document and lives in the repository with 
 | Ceilings     | Fixed capacity arrays register with `nya_ceiling_register`.                                 |
 | Verification | Every feature gets a caller in `gnyame` or one of the examples, not only a test, and that caller runs in CI. |
 | Data shapes  | Model (stored), optional SO (inside the program), DTO (on the wire). Only DTOs reach a client. |
-| Servers      | One machine, one instance. TLS and simple rate limits in process; a proxy is optional.     |
+| Servers      | One machine, one instance. TLS and abuse limits at the edge (Cloudflare, traefik); plain HTTP in process. |
 | Programs     | Live in this tree beside gnyame for now.                                                   |
 | Plugins      | `core_plugin.h` loads `plugins/<name>/`. Permissions are fixed at compile time by `-DNYA_PLUGIN_PERMISSION_PROFILE`. |
 | Lua bindings | Generated from `@lua` annotations by `src/nyangine-build/pp/luabind.c`. Never hand written unless they cannot be generated. |

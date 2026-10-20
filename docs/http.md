@@ -55,7 +55,7 @@ driven a step at a time — which is what `tests/nyangine/http/test_server.c` do
 needs, since threads would take its determinism away.
 
 **`workers = n`** starts a listener thread and `n` workers. The listener owns the sockets: it accepts,
-reads, parses, spends the address's rate limit token, and writes what comes back. A worker takes a
+reads, parses, and writes what comes back. A worker takes a
 parsed request and runs the layers, the extractor and the handler on its own arena. A request is then
 answered when it arrives rather than when the frame next comes round, and an Argon2id hash or a slow
 query costs the frame nothing.
@@ -381,8 +381,8 @@ stop a page loading its own stylesheet. An HTML file from the bundle replaces it
 anything, and `frame-ancestors`, `base-uri` and `form-action` shut as the default has them. Every other
 media type keeps the default, so an SVG opened on its own is a document that may load nothing.
 
-Everything else applies unchanged. The security headers, the origin-agnostic rate limits and the
-per-address connection cap are the server's, not a route's, and these routes are routes like any other.
+Everything else applies unchanged. The security headers and the connection bound are the server's,
+not a route's, and these routes are routes like any other.
 
 ## Authentication
 
@@ -456,7 +456,7 @@ request, and a request that does not fit is answered with the status that says s
   flight and its next request is not parsed until the last one is written, so the connection table is
   what bounds the work however fast a peer sends.
 - A thread raises no bound. Every limit here is global to the server rather than per worker, because
-  the connection table, the rate limit buckets and the counters live on the listener thread and are
+  the connection table and the counters live on the listener thread and are
   only ever touched there. What a slow handler can hold up is its own connection, and — for a `MAIN`
   route — the frame; not the other connections, the accept loop, the idle timeouts or shutdown.
 
@@ -481,10 +481,6 @@ driven by `./build run fuzz http_request`.
 | `NYA_HTTP_MAX_REQUESTS_PER_TICK`       |      16 | requests answered, or started, per drain pass             |
 | `NYA_HTTP_MAX_WORKERS`                 |       8 | worker threads, and so handlers running at once           |
 | `NYA_HTTP_SHUTDOWN_GRACE_MS`           |    2000 | how long deinit waits for a handler to finish             |
-| `NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS` |       4 | connections one address may hold                          |
-| `NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND` |      20 | refill rate of one address's request bucket               |
-| `NYA_HTTP_DEFAULT_REQUEST_BURST`       |      40 | requests one address may send at once                     |
-| `NYA_HTTP_MAX_RATE_BUCKETS`            |      64 | addresses tracked; the one touched longest ago makes room |
 | `NYA_HTTP_MAX_STATIC_FILES`            |      32 | files one mount of the web bundle serves                  |
 | `NYA_HTTP_MAX_STATIC_FILE_BYTES`       |   65536 | one served file; it leaves in one write                   |
 | `NYA_HTTP_MAX_STATIC_BYTES`            | 1048576 | every mounted file together, which is the mount's cost    |
@@ -572,12 +568,15 @@ generated tables rather than a list, so a DTO added tomorrow is covered tomorrow
 
 ## Limits in process
 
-One address holds at most `max_connections_per_address` connections; the next is closed at accept
-rather than queued. Each request, once parsed, spends a token from its address's bucket; an empty
-bucket answers `429 Too Many Requests` with `Retry-After` and closes. The three values sit in
-`NYA_HttpConfig`, zero meaning the default above. The address is the socket's peer and never
-`X-Forwarded-For`, so behind a proxy every client shares one budget; trusting a proxy's header waits
-for a configured proxy address.
+There are no per address limits. The bounds above are memory bounds: the connection past
+`NYA_HTTP_MAX_CONNECTIONS` is closed at accept rather than queued, and a request past its byte bounds
+is refused. Rate, connection and in-flight limits per client are the edge's (see below); behind it the
+socket's peer is the proxy, so a limit keyed on it would be one budget shared by every visitor. The
+address is still the socket's peer and never `X-Forwarded-For`.
+
+What stays in process is what the edge cannot see: the per username login throttle in
+`accounts_throttle.h` (credential stuffing spread over many addresses), the TOTP and request replay
+guards, CSRF through the origin check, and idempotency keys.
 
 ## WebSockets
 
@@ -706,13 +705,13 @@ the table is allocated when the first stream is mounted and not before.
 - **The OpenAPI document** does not describe a stream. The specification describes requests and
   answers, and this is neither, so a mounted route is documented by its `summary` and in prose.
 
-## What belongs to a proxy
+## What belongs to the edge
 
-Nothing has to. TLS is in process (`certificate_path` and `key_path` on `NYA_HttpConfig`, through
-OpenSSL today; see `tls.h`), and connections, requests and sockets are limited per address. A proxy
-is optional: put one in front for request bounds above the ones here, or to share one address
-between programs. Behind one, every client shares the proxy's per address budget, since the address
-is the socket's peer and never a forwarded header.
+TLS and abuse control. The deploy target is the homelab: Cloudflare in front of traefik, which
+terminates TLS, filters bots, and limits each client's rate and in-flight requests (and the login paths
+more strictly). The server speaks plain HTTP to it and has no TLS of its own. `Strict-Transport-Security`
+is on every response regardless: a browser that reached the server through the https edge keeps to
+https, and one on plain http ignores the header.
 
 ## The first resource
 

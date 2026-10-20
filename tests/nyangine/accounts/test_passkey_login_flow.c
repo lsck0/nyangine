@@ -399,7 +399,7 @@ s32 main(void) {
         // A password login for that account is refused: it never had one, which is the whole point.
         nya_account_throttle_reset();
         NYA_AccountUser user = { 0 };
-        nya_check(!nya_account_authenticate(arena, USERNAME, "any password at all here", nullptr, &user).ok, "the account has no password to log in with");
+        nya_check(!nya_account_authenticate(arena, USERNAME, "any password at all here", &user).ok, "the account has no password to log in with");
     }
 
     // TEST: a passwordless login opens a fresh session with the passkey and no password

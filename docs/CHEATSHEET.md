@@ -29,7 +29,7 @@ See also the [prose](README.md) for why things are shaped the way they are, and 
 - [`permission`](#permission) — Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit.
 - [`db`](#db) — One database file: bound statements, a reflected struct as a row, derived migrations.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
-- [`plugins`](#plugins) — Optional dependencies behind a flag: curl, lua, discord, steam, oidc, pgp, and the ACME client.
+- [`plugins`](#plugins) — Optional dependencies behind a flag: curl, lua, discord, steam, oidc and pgp.
 - [`platform`](#platform) — What the host is, and how to talk to it: signals, the terminal and ipc.
 - [`os`](#os) — The syscalls themselves: files, pages, the two clocks, random bytes, processes.
 
@@ -5961,8 +5961,6 @@ NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, c
 NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto, NYA_HttpMediaType media)  // nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts.
 NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
 NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value)  // Adds one header.
-void nya_http_hsts_set(b8 enabled)  // Whether every response carries `Strict-Transport-Security`.
-b8 nya_http_hsts(void)  // Whether it is on, which is what a test asks and what an operator's status page shows.
 b8 nya_http_response_compress(NYA_HttpResponse* response, NYA_Arena* arena, NYA_ConstCString accept_encoding)
 NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
 ```
@@ -6067,40 +6065,6 @@ NYA_Error nya_http_openapi_page(NYA_Arena* arena, OUT NYA_String** out_html)  //
 NYA_Object* nya_http_openapi_schema(NYA_Arena* arena, const NYA_TypeReflection* type)  // One type's JSON Schema, as the serializer would write it.
 ```
 
-### http_pow.h
-
-A proof-of-work wall in front of a route. The abuse layer for a server with no IP to rate-limit.
-
-```c
-// types
-struct NYA_HttpPowOptions { u8 difficulty; u64 ttl_s; }  // What the wall is shaped like.
-
-// macros
-NYA_HTTP_POW_NONCE_BYTES 16  // Bytes of the random nonce the server puts in a challenge.
-NYA_HTTP_POW_SEALED (2 + NYA_HTTP_POW_NONCE_BYTES)  // Bytes of the sealed plaintext: a version byte, a difficulty byte, and the nonce.
-NYA_HTTP_POW_VERSION 1  // The version byte in the sealed plaintext, so a later layout can be told from this one rather than misread.
-NYA_HTTP_POW_MAX_DIFFICULTY 32  // The most leading-zero bits a difficulty may demand.
-NYA_HTTP_POW_DEFAULT_DIFFICULTY 20  // The difficulty a store takes when its options leave it zero.
-NYA_HTTP_POW_DEFAULT_TTL_S 300  // How long a challenge is good for when the options leave the TTL zero.
-NYA_HTTP_POW_MAX_SOLUTION 64  // The longest solution suffix the layer will hash, in bytes.
-NYA_HTTP_POW_MAX_SPENT 256  // Spent nonces held at once.
-NYA_HTTP_POW_LABEL "pow-challenge"  // The seal label a PoW token is bound to, so a token of any other kind sent in its place does not open.
-NYA_HTTP_POW_CHALLENGE_HEADER "X-Pow-Challenge"  // The nonce, base64url, on the response that issues a challenge.
-NYA_HTTP_POW_DIFFICULTY_HEADER "X-Pow-Difficulty"  // The difficulty, on the response that issues a challenge.
-NYA_HTTP_POW_TOKEN_HEADER "X-Pow-Token"
-NYA_HTTP_POW_SOLUTION_HEADER "X-Pow-Solution"  // The found suffix, base64url, on the request that answers a challenge.
-nya_http_pow_init(arena, ...)  // Takes the options by name.
-
-// functions
-NYA_Error _nya_http_pow_init(NYA_Arena* arena, NYA_HttpPowOptions options)
-void nya_http_pow_deinit(void)  // Forgets every spent nonce and gives the lock back to its arena.
-NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // The wall.
-b8 nya_http_pow_solve(const u8* nonce, u64 nonce_size, u8 difficulty, OUT u8* out_solution, u64 capacity, OUT u64* out_size)  // Finds a solution: a suffix whose `SHA-256(nonce || suffix)` has at least `difficulty` leading zero bits.
-u32 nya_http_pow_leading_zero_bits(const u8* digest, u64 size)  // Leading zero bits of a 32-byte SHA-256 digest, counted from the most significant bit of the first byte.
-void nya_http_pow_reset(void)  // Forgets every spent nonce, keeping the lock and the ceiling registration.
-u32 nya_http_pow_count(void)  // How many spent nonces are held right now, which is the ceiling's live count.
-```
-
 ### http_robots.h
 
 A `robots.txt`: the rules a crawler reads before it fetches anything, built from groups a program
@@ -6180,7 +6144,7 @@ The listener: a TCP port, a handful of connections, and either one drain a frame
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; NYA_ConstCString certificate_path; NYA_ConstCString key_path; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; u64 exchange_budget_bytes; b8 handle_shutdown_signals; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; u64 exchange_budget_bytes; b8 handle_shutdown_signals; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
@@ -6306,10 +6270,6 @@ struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; N
 
 // macros
 NYA_HTTP_MAX_CONNECTIONS 8  // Connections held at once.
-NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS 4  // Connections one address may hold at once, unless the config lowers it.
-NYA_HTTP_MAX_RATE_BUCKETS 64  // Addresses whose request budget is remembered at once.
-NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND 20
-NYA_HTTP_DEFAULT_REQUEST_BURST 40
 NYA_HTTP_MAX_ADDRESS 48  // Longest address, terminator included.
 NYA_HTTP_REQUEST_ID_SIZE 17  // A request id: 64 random bits as 16 hex digits, and the terminator.
 NYA_HTTP_MAX_HEAD_BYTES 4096  // Bytes of request line and headers together.
@@ -6426,7 +6386,6 @@ struct NYA_HttpWebSocketRoute { NYA_ConstCString path; NYA_ConstCString summary;
 
 // macros
 NYA_HTTP_MAX_WEBSOCKETS 4  // WebSocket connections held at once, out of the NYA_HTTP_MAX_CONNECTIONS the listener accepts.
-NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS 2  // WebSocket connections one address may hold.
 NYA_HTTP_MAX_WEBSOCKET_ROUTES 4  // Paths a program may mount.
 NYA_HTTP_WEBSOCKET_MAX_FRAME_BYTES 4096  // Bytes of payload one frame may announce.
 NYA_HTTP_WEBSOCKET_MAX_MESSAGE_BYTES NYA_HTTP_MAX_BODY_BYTES  // Bytes of one assembled message, every fragment counted.
@@ -7459,47 +7418,7 @@ u64 nya_trace_capture_format(const NYA_TraceEvent* events, u32 count, const NYA_
 
 ## plugins
 
-Optional dependencies behind a flag: curl, lua, discord, steam, oidc, pgp, and the ACME client.
-
-### acme.h
-
-── the acme module ──
-
-```c
-// types
-typedef enum { NYA_ACME_ALGORITHM_ES256 = 0, NYA_ACME_ALGORITHM_EDDSA, } NYA_AcmeAlgorithm  // Which signature the account key carries, and which `alg` its JWS protected header names.
-typedef enum { NYA_ACME_METHOD_GET = 0, NYA_ACME_METHOD_HEAD, NYA_ACME_METHOD_POST, } NYA_AcmeMethod  // How a request reaches the CA.
-typedef struct { NYA_AcmeMethod method; NYA_ConstCString url; const u8* body; u64 body_size; } NYA_AcmeHttpRequest  // One request for the transport to make: a method, a URL, and for a POST the JWS bytes.
-typedef struct { u16 status; NYA_String* body; NYA_ConstCString replay_nonce; NYA_ConstCString location; NYA_ConstCString content_type; u32 retry_after_seconds; } NYA_AcmeHttpResponse  // What the transport fills in from the CA's reply.
-typedef NYA_Error (*NYA_AcmeTransportFn)(void* userdata, NYA_Arena* arena, const NYA_AcmeHttpRequest* request, OUT NYA_AcmeHttpResponse* out_response)  // Performs one request and fills `out_response`.
-typedef struct { NYA_AcmeTransportFn perform; void* userdata; } NYA_AcmeTransport  // The transport the program supplies; see NYA_AcmeTransportFn.
-typedef struct { NYA_String* chain_pem; NYA_String* private_key_pem; } NYA_AcmeCertificate  // What an obtain produces: the chain to serve and the private key it was issued against.
-typedef struct { NYA_ConstCString directory_url; const NYA_ConstCString* domains; u64 domain_count; const NYA_AcmeAccountKey* account_key; NYA_ConstCString contact_email; NYA_AcmeChallengeStore* challenges; NYA_AcmeTransport transport; } NYA_AcmeConfig  // Everything one obtain needs: where the CA is, what to certify, who to sign as, and how to reach it.
-
-// macros
-NYA_ACME_HTTP01_PREFIX "/.well-known/acme-challenge/"  // The path prefix an HTTP-01 challenge is served under, RFC 8555 section 8.3.
-NYA_ACME_MAX_DOMAINS 64  // The most domains one order may carry, which bounds the CSR and the authorization loop.
-NYA_ACME_MAX_POLLS 30  // How many times an authorization or an order is polled before the obtain gives up.
-NYA_ACME_POLL_INTERVAL_MS 2000  // How long a poll waits when the CA sends no Retry-After, in milliseconds.
-NYA_ACME_RENEW_BEFORE_DAYS 30  // Renew this many days before a certificate expires, when a caller names no other window.
-
-// functions
-NYA_Error nya_acme_account_key_create(NYA_Arena* arena, NYA_AcmeAlgorithm algorithm, OUT NYA_AcmeAccountKey** out_key)  // A fresh account key of `algorithm`, allocated from `arena`.
-NYA_Error nya_acme_account_key_from_eddsa_seed(NYA_Arena* arena, const u8 seed[32], OUT NYA_AcmeAccountKey** out_key)  // The EdDSA account key a stored 32 byte seed belongs to, so a program keeps one seed rather than a key file.
-void nya_acme_account_key_destroy(NYA_AcmeAccountKey* key)  // Wipes the private half and releases the key.
-NYA_AcmeAlgorithm nya_acme_account_key_algorithm(const NYA_AcmeAccountKey* key)  // Which algorithm the key carries.
-NYA_Error nya_acme_jwk(NYA_Arena* arena, const NYA_AcmeAccountKey* key, OUT NYA_Object** out_jwk)  // The public JWK of the account key, as the object a newAccount request embeds.
-NYA_Error nya_acme_jwk_thumbprint(const NYA_AcmeAccountKey* key, OUT NYA_CryptoSha256Digest* out_thumbprint)
-NYA_Error nya_acme_jws_sign(NYA_Arena* arena, const NYA_AcmeAccountKey* key, NYA_ConstCString url, NYA_ConstCString nonce, NYA_ConstCString kid, const NYA_Object* payload, OUT NYA_Object** out_jws)  // Builds the signed JWS object a POST carries, RFC 7515 flattened JSON.
-NYA_Error nya_acme_key_authorization(NYA_Arena* arena, NYA_ConstCString token, const NYA_AcmeAccountKey* key, OUT NYA_ConstCString* out_key_authorization)
-NYA_AcmeChallengeStore* nya_acme_challenge_store_create(NYA_Arena* arena)  // A challenge store, empty.
-void nya_acme_challenge_store_destroy(NYA_AcmeChallengeStore* store)  // Forgets every challenge, leaving the store empty and reusable.
-NYA_Error nya_acme_challenge_store_add(NYA_AcmeChallengeStore* store, NYA_ConstCString token, NYA_ConstCString key_authorization)  // Registers `key_authorization` under `token`, so a request for the token's challenge path is answered.
-void nya_acme_challenge_store_remove(NYA_AcmeChallengeStore* store, NYA_ConstCString token)  // Forgets the token, once its order is done.
-b8 nya_acme_challenge_response(const NYA_AcmeChallengeStore* store, NYA_ConstCString request_path, OUT NYA_ConstCString* out_body)  // The body to serve for `request_path`, or false when the path is not a live challenge.
-NYA_Error nya_acme_obtain(NYA_Arena* arena, const NYA_AcmeConfig* config, OUT NYA_AcmeCertificate* out_certificate)  // Runs the whole RFC 8555 flow and fills `out_certificate`.
-NYA_Error nya_acme_needs_renewal(NYA_ConstCString chain_pem, u32 renew_before_days, OUT b8* out_needs_renewal)
-```
+Optional dependencies behind a flag: curl, lua, discord, steam, oidc and pgp.
 
 ### request.h
 
@@ -7754,6 +7673,26 @@ void nya_pgp_require(void)  // Crashes now, with a message naming gpg, unless gp
 NYA_ConstCString nya_pgp_version(void)  // The version gpg reported, or an empty string when there is none.
 NYA_Error nya_pgp_encrypt(NYA_Arena* arena, NYA_ConstCString recipient_key, const u8* message, u64 message_size, OUT NYA_String** out_armored)  // Encrypts `message` to `recipient_key`, an armored OpenPGP public key, and answers the armored result.
 NYA_Error nya_pgp_fingerprint(NYA_Arena* arena, NYA_ConstCString recipient_key, OUT NYA_String** out_fingerprint)  // The fingerprint of the primary key in `recipient_key`, as uppercase hex.
+```
+
+### smtp.h
+
+── the smtp module ──
+
+```c
+// types
+typedef enum { NYA_SMTP_SECURITY_STARTTLS = 0, NYA_SMTP_SECURITY_IMPLICIT, } NYA_SmtpSecurity  // How the connection is protected.
+typedef enum { NYA_SMTP_AUTH_NONE = 0, NYA_SMTP_AUTH_LOGIN, NYA_SMTP_AUTH_PLAIN, } NYA_SmtpAuth  // How the client proves who it is, once the link is encrypted.
+typedef struct { NYA_ConstCString host; u16 port; NYA_SmtpSecurity security; NYA_SmtpAuth auth; NYA_ConstCString username; NYA_ConstCString password; NYA_ConstCString ca_path; u32 timeout_ms; } NYA_SmtpConfig  // Where to send, how to protect it, and how to log in.
+typedef struct { NYA_ConstCString from; NYA_ConstCString from_name; NYA_ConstCString to; NYA_ConstCString subject; NYA_ConstCString text; NYA_ConstCString html; } NYA_SmtpMessage  // One message: who it is from, who it is to, and what it says.
+
+// macros
+NYA_SMTP_MAX_MESSAGE (1024ULL * 1024ULL)  // The largest assembled message this will send, headers, MIME framing and base64 body included.
+NYA_SMTP_DEFAULT_TIMEOUT_MS 30000  // How long the whole exchange may take when a config does not say, in milliseconds.
+
+// functions
+NYA_Error nya_smtp_message_build(NYA_Arena* arena, const NYA_SmtpMessage* message, OUT NYA_String** out_message)  // Builds the RFC 5322 message `nya_smtp_send` would put in the DATA phase, into `out_message`.
+NYA_Error nya_smtp_send(NYA_Arena* arena, const NYA_SmtpConfig* config, const NYA_SmtpMessage* message)  // Sends `message` through the server `config` names, and returns once the server has taken it.
 ```
 
 ### steam.h
@@ -8360,7 +8299,6 @@ NYA_OS_SOCKET_WAIT_FOREVER ((u32)0xFFFFFFFF)  // A wait that only ends when a so
 // functions
 NYA_OsSocketStatus nya_os_socket_start(void)  // Starts the host's socket library, once per process, and refers to it until the matching stop.
 void nya_os_socket_stop(void)  // The pair.
-s64 nya_os_socket_descriptor(NYA_OsSocket socket)
 NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, OUT NYA_OsSocket* out_socket)  // Opens a socket of `kind`, bound to `port` or to whatever the host picks when `port` is zero.
 NYA_OsSocketStatus nya_os_socket_open_at(NYA_OsSocketKind kind, NYA_OsAddress address, u32 backlog, OUT NYA_OsSocket* out_socket)  // The same, bound to one address rather than to every interface.
 NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, OUT NYA_OsSocket* out_socket, OUT NYA_OsAddress* out_from)  // Takes the next waiting connection, non-blocking.

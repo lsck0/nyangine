@@ -88,20 +88,20 @@
  * other connection, the accept loop, the idle timeouts, or shutdown past the deadline below.
  *
  * A connection that asks to be upgraded stops being an HTTP one and becomes a WebSocket on the same
- * socket, in the same slot, under the same per address cap; see http_websocket_server.h, which is where
+ * socket, in the same slot; see http_websocket_server.h, which is where
  * the handshake and the bounds on what follows it are. **A WebSocket belongs to the tick in both
  * modes**: the handshake is answered on the ticking thread and every frame after it is read, dispatched
  * and written there, so `on_open`, `on_message` and `on_close` run where a program's own state lives and
  * nya_http_websocket_broadcast_text stays a call the frame makes. The listener thread hands the socket
  * over at the 101 and never touches it again.
  *
- * One address may hold NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS connections; the next is closed at
- * accept. Each address spends one token per request from a bucket of `request_burst` refilled at
- * `requests_per_second`; an empty bucket answers 429 with Retry-After and closes. The address is the
- * socket's peer, never a forwarded header, so behind a proxy every client shares the proxy's budget.
+ * There is no per address limit here, on connections or on requests: the edge in front (Cloudflare's
+ * bot defence, traefik's per client rate and in-flight limits, stricter on login paths) owns abuse,
+ * and behind it every peer is the proxy, so a per address limit would be one budget for everybody.
+ * What stays is NYA_HTTP_MAX_CONNECTIONS, a memory bound, and the request and parser bounds.
  *
- * TLS is in process: set `certificate_path` and `key_path` below. What is not here is any request bound
- * above the ones in http_types.h; a proxy in front is optional, for those.
+ * There is no TLS here: it terminates on the platform the server is deployed to (the homelab edge,
+ * Cloudflare and traefik), and this speaks plain HTTP to it.
  *
  * ── thread safety ──
  *
@@ -111,7 +111,7 @@
  * thread's, and merging or unmerging a router, the introspection calls and nya_http_websocket_* are
  * safe to call from it while the server runs. A worker sees the routers as they were when its
  * exchange was queued, so a merge never changes the table under a dispatch. Everything else — the
- * connection table, the buckets, the sockets — is the listener thread's alone.
+ * connection table and the sockets — is the listener thread's alone.
  * */
 #pragma once
 
@@ -233,16 +233,6 @@ struct NYA_HttpConfig {
     /** Connections at once, 1..NYA_HTTP_MAX_CONNECTIONS. Zero means the maximum. */
     u32 max_connections;
 
-    /** Connections one address may hold, 1..max_connections. Zero means NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS. */
-    u32 max_connections_per_address;
-
-    /**
-     * An address's request budget: refilled at this many a second, holding at most `request_burst`. Past it
-     * the answer is 429 with Retry-After and the connection closes. Zero means the NYA_HTTP_DEFAULT_ one.
-     * */
-    u32 requests_per_second;
-    u32 request_burst;
-
     /**
      * The token signing secret, copied at init so the caller's buffer can be wiped straight after.
      *
@@ -252,20 +242,6 @@ struct NYA_HttpConfig {
      * */
     const u8* secret;
     u64       secret_size;
-
-    /**
-     * The PEM certificate chain and private key to serve TLS with, or empty for plain HTTP.
-     *
-     * Both or neither: a path for one and not the other is refused at init rather than starting a
-     * server that is not the one asked for. With them, every connection is TLS and there is no plain
-     * HTTP port beside it — a server that answered both on one port would be a server whose security
-     * depends on which one a client happened to speak.
-     *
-     * A build with no TLS library refuses them too, saying so, rather than quietly serving plaintext
-     * on a port whose name says https; see tls.h.
-     * */
-    NYA_ConstCString certificate_path;
-    NYA_ConstCString key_path;
 
     /** Layers around every route, outermost first. Copied; the array need not outlive the call. */
     const NYA_HttpLayerFn* layers;

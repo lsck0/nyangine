@@ -958,12 +958,11 @@ void nya_simulation_traffic_add(NYA_SimulationRun* run) {
 
     _nya_traffic_session_open(run);
 
-    // a busy host is an operating error, so the HTTP actions switch off rather than failing the run. The limits are
-    // lifted because they read the wall clock, and a request refused by it would make the capture depend on timing.
+    // a busy host is an operating error, so the HTTP actions switch off rather than failing the run.
     u16 port = 0;
 
     if (nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port).ok
-        && nya_system_http_init((NYA_HttpConfig){ .port = port, .requests_per_second = U32_MAX, .request_burst = U32_MAX }).ok) {
+        && nya_system_http_init((NYA_HttpConfig){ .port = port }).ok) {
         NYA_EXPECT(nya_http_server_merge(&_NYA_TRAFFIC_HTTP_ROUTER));
         NYA_EXPECT(nya_http_server_merge(nya_http_health_router()));
 

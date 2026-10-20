@@ -8,15 +8,15 @@
  * // a program whose login requires the PGP second factor, at startup:
  * nya_require_program("gpg", "the PGP second-factor login flow");
  *
- * // a subsystem that dlopens a machine's OpenSSL, before it does:
- * nya_require_library("libssl.so.3", "the TLS server listener");
+ * // a program whose mail and outbound HTTPS go through curl's system OpenSSL, at startup:
+ * nya_require_library("libssl.so.3", "outbound HTTPS through curl");
  * ```
  *
  * ── what this is for ──
  *
  * Most of what a nyangine program needs is linked into it: the vendored libraries under vendor/ are
  * static archives, part of the executable, and cannot go missing. A few things genuinely are not —
- * `gpg`, spawned by the PGP plugin; OpenSSL on Linux, which tls.h takes from the machine on purpose so
+ * `gpg`, spawned by the PGP plugin; OpenSSL on Linux, which curl links from the machine on purpose so
  * the machine's own updates fix it. Those are *runtime* dependencies: the build says nothing about
  * them, and whether they are here is only known when the program runs on a particular box.
  *

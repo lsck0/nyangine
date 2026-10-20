@@ -230,7 +230,7 @@ NYA_Error nya_account_find_by_id(NYA_Arena* arena, u64 id, NYA_AccountUser* out_
 }
 
 NYA_Error nya_account_authenticate(
-    NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, NYA_ConstCString address, NYA_AccountUser* out_user
+    NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, NYA_AccountUser* out_user
 ) {
     nya_assert(arena != nullptr && out_user != nullptr);
 
@@ -240,7 +240,7 @@ NYA_Error nya_account_authenticate(
 
     // Before the hash, not after: Argon2id is ~30 ms an attacker could spend at will (a DoS); see accounts_throttle.h on what refusing cheaply leaks and why it's the right trade.
     u32 wait_s = 0;
-    if (nya_account_throttle_check(username, address, &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT) return _nya_account_refused();
+    if (nya_account_throttle_check(username, &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT) return _nya_account_refused();
 
     NYA_AccountUser user  = { 0 };
     NYA_Error       found = nya_account_find(arena, username, &user);
@@ -252,11 +252,11 @@ NYA_Error nya_account_authenticate(
 
     // A disabled account is refused in the same words: whether an account exists and whether it's allowed in are both things an attacker wants to know.
     if (!found.ok || !matched || user.disabled) {
-        nya_account_throttle_fail(username, address);
+        nya_account_throttle_fail(username);
         return _nya_account_refused();
     }
 
-    nya_account_throttle_succeed(username, address);
+    nya_account_throttle_succeed(username);
 
     *out_user = user;
 

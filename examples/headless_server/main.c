@@ -9,7 +9,7 @@
  *
  * It is built with `-DNYA_NO_SDL -DNYA_SERVER`, the seam docs/layering-core-split.md cut: nyangine.h
  * declares `net` and `http` behind it and nyangine.c compiles their translation units behind it, so the
- * reachable engine is `base`, `os`, `math`, `crypto`, `tls`, `acme`, `net`, `http`, `serde` and
+ * reachable engine is `base`, `os`, `math`, `crypto`, `net`, `http`, `serde` and
  * `template` — and nothing above them. There is no `nya_app_get`, no `nya_asset_read`, no `core_*` and no
  * renderer symbol anywhere below, which is the whole point: reach for one and this example would not
  * link, which is exactly the wall it is here to prove is down.

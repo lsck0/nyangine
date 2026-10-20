@@ -57,7 +57,7 @@ static NYA_HttpStatus handle_login(NYA_HttpExchange* exchange) {
 
     // One refusal for every way the credentials can be wrong, at the same cost whether the account exists or not: it is nya_account_authenticate that guarantees that, and this route says nothing more than it does.
     NYA_AccountUser user    = { 0 };
-    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username->as_string, password->as_string, exchange->address, &user);
+    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username->as_string, password->as_string, &user);
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
     NYA_AccountSession session = { 0 };

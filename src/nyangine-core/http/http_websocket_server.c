@@ -484,26 +484,13 @@ NYA_HttpStatus _nya_http_websocket_upgrade(
     }
 
     NYA_HttpWebSocket* slot = nullptr;
-    u32                held = 0;
 
-    for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) {
-        NYA_HttpWebSocket* candidate = &_NYA_HTTP_WEBSOCKET->connections[index];
-
-        if (candidate->socket.handle == 0) {
-            if (slot == nullptr) slot = candidate;
-            continue;
-        }
-
-        if (strcmp(candidate->address, address) == 0) held++;
+    for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS && slot == nullptr; index++) {
+        if (_NYA_HTTP_WEBSOCKET->connections[index].socket.handle == 0) slot = &_NYA_HTTP_WEBSOCKET->connections[index];
     }
 
     if (slot == nullptr) {
         *out_detail = "this server holds as many sockets as it can";
-        return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
-    }
-
-    if (held >= NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS) {
-        *out_detail = "this address holds as many sockets as it may";
         return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
     }
 

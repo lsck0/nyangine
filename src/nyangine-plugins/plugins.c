@@ -10,6 +10,7 @@
 #include "nyangine-plugins/twitch_bot/twitch_eventsub.c"
 #include "nyangine-plugins/twitch_bot/twitch_helix.c"
 #include "nyangine-plugins/oidc/oidc.c"
+#include "nyangine-plugins/smtp/smtp.c"
 #endif
 
 #include "nyangine-plugins/pgp/pgp.c"

@@ -9,13 +9,7 @@
 
 // PRIVATE TYPES
 
-/** Which counter an entry is, so an address and a username of the same text cannot share a slot. */
-typedef enum {
-    _NYA_ACCOUNT_THROTTLE_ADDRESS = 0,
-    _NYA_ACCOUNT_THROTTLE_USERNAME,
-} _NYA_AccountThrottleKind;
-
-/** One counter, keyed by a hash of the text not the text itself: addresses/usernames aren't kept in memory, and a collision just shares a (harmless) wait. */
+/** One counter, keyed by a hash of the folded username rather than the name itself: no username is kept in memory, and a collision just shares a (harmless) wait. */
 typedef struct {
     u64 key;
 
@@ -38,8 +32,8 @@ NYA_INTERNAL _NYA_AccountThrottleTable _NYA_ACCOUNT_THROTTLE = { 0 };
 
 // PRIVATE API DECLARATION
 
-/** The key a piece of text has as a counter of this kind, or zero when there is nothing to key on. */
-NYA_INTERNAL u64 _nya_account_throttle_key(NYA_ConstCString text, _NYA_AccountThrottleKind kind) __attr_no_discard;
+/** The key a username has as a counter, or zero when there is nothing to key on. */
+NYA_INTERNAL u64 _nya_account_throttle_key(NYA_ConstCString username) __attr_no_discard;
 
 /** The entry for `key`, making one when there is none. Never null: a full table gives up its stalest row. */
 NYA_INTERNAL _NYA_AccountThrottleEntry* _nya_account_throttle_entry(u64 key, u64 now_s) __attr_no_discard;
@@ -52,7 +46,7 @@ NYA_INTERNAL u64 _nya_account_throttle_wait_s(u32 failures) __attr_no_discard;
 
 // PUBLIC API IMPLEMENTATION
 
-NYA_AccountThrottleVerdict nya_account_throttle_check(NYA_ConstCString username, NYA_ConstCString address, u32* out_wait_s) {
+NYA_AccountThrottleVerdict nya_account_throttle_check(NYA_ConstCString username, u32* out_wait_s) {
     nya_assert(out_wait_s != nullptr);
 
     *out_wait_s = 0;
@@ -62,72 +56,46 @@ NYA_AccountThrottleVerdict nya_account_throttle_check(NYA_ConstCString username,
         _NYA_ACCOUNT_THROTTLE.registered = true;
     }
 
+    u64 key = _nya_account_throttle_key(username);
+    if (key == 0) return NYA_ACCOUNT_THROTTLE_ALLOW;
+
     u64 now_s = nya_clock_get_timestamp_s();
 
-    const u64 keys[] = {
-        _nya_account_throttle_key(address, _NYA_ACCOUNT_THROTTLE_ADDRESS),
-        _nya_account_throttle_key(username, _NYA_ACCOUNT_THROTTLE_USERNAME),
-    };
+    const _NYA_AccountThrottleEntry* entry = _nya_account_throttle_find(key);
+    if (entry == nullptr || entry->next_attempt_s <= now_s) return NYA_ACCOUNT_THROTTLE_ALLOW;
 
-    u64 wait_s = 0;
-
-    // The longer of the two waits, so neither counter can be worked around by moving to the other.
-    for (u64 index = 0; index < nya_carray_length(keys); index++) {
-        if (keys[index] == 0) continue;
-
-        const _NYA_AccountThrottleEntry* entry = _nya_account_throttle_find(keys[index]);
-        if (entry == nullptr || entry->next_attempt_s <= now_s) continue;
-
-        u64 left = entry->next_attempt_s - now_s;
-        if (left > wait_s) wait_s = left;
-    }
-
-    if (wait_s == 0) return NYA_ACCOUNT_THROTTLE_ALLOW;
-
-    *out_wait_s = (u32)wait_s;
+    *out_wait_s = (u32)(entry->next_attempt_s - now_s);
 
     return NYA_ACCOUNT_THROTTLE_WAIT;
 }
 
-void nya_account_throttle_fail(NYA_ConstCString username, NYA_ConstCString address) {
+void nya_account_throttle_fail(NYA_ConstCString username) {
+    u64 key = _nya_account_throttle_key(username);
+    if (key == 0) return;
+
     u64 now_s = nya_clock_get_timestamp_s();
 
-    const u64 keys[] = {
-        _nya_account_throttle_key(address, _NYA_ACCOUNT_THROTTLE_ADDRESS),
-        _nya_account_throttle_key(username, _NYA_ACCOUNT_THROTTLE_USERNAME),
-    };
+    _NYA_AccountThrottleEntry* entry = _nya_account_throttle_entry(key, now_s);
 
-    for (u64 index = 0; index < nya_carray_length(keys); index++) {
-        if (keys[index] == 0) continue;
+    // A counter quiet longer than it would ever wait starts fresh: a month-old mistype is not a word list, and a monotonic count would eventually punish honest people.
+    if (entry->failures > 0 && now_s > entry->last_failure_s + NYA_ACCOUNTS_THROTTLE_FORGET_S) entry->failures = 0;
 
-        _NYA_AccountThrottleEntry* entry = _nya_account_throttle_entry(keys[index], now_s);
+    if (entry->failures < NYA_ACCOUNTS_THROTTLE_FREE_ATTEMPTS + 32) entry->failures++;
 
-        // A counter quiet longer than it would ever wait starts fresh: a month-old mistype is not a word list, and a monotonic count would eventually punish honest people.
-        if (entry->failures > 0 && now_s > entry->last_failure_s + NYA_ACCOUNTS_THROTTLE_FORGET_S) entry->failures = 0;
-
-        if (entry->failures < NYA_ACCOUNTS_THROTTLE_FREE_ATTEMPTS + 32) entry->failures++;
-
-        entry->last_failure_s = now_s;
-        entry->next_attempt_s = now_s + _nya_account_throttle_wait_s(entry->failures);
-    }
+    entry->last_failure_s = now_s;
+    entry->next_attempt_s = now_s + _nya_account_throttle_wait_s(entry->failures);
 }
 
-void nya_account_throttle_succeed(NYA_ConstCString username, NYA_ConstCString address) {
-    const u64 keys[] = {
-        _nya_account_throttle_key(address, _NYA_ACCOUNT_THROTTLE_ADDRESS),
-        _nya_account_throttle_key(username, _NYA_ACCOUNT_THROTTLE_USERNAME),
-    };
+void nya_account_throttle_succeed(NYA_ConstCString username) {
+    u64 key = _nya_account_throttle_key(username);
+    if (key == 0) return;
 
-    for (u64 index = 0; index < nya_carray_length(keys); index++) {
-        if (keys[index] == 0) continue;
+    _NYA_AccountThrottleEntry* entry = _nya_account_throttle_find(key);
+    if (entry == nullptr) return;
 
-        _NYA_AccountThrottleEntry* entry = _nya_account_throttle_find(keys[index]);
-        if (entry == nullptr) continue;
-
-        // Cleared rather than freed: the slot is worth keeping for whoever is using it.
-        entry->failures       = 0;
-        entry->next_attempt_s = 0;
-    }
+    // Cleared rather than freed: the slot is worth keeping for whoever is using it.
+    entry->failures       = 0;
+    entry->next_attempt_s = 0;
 }
 
 void nya_account_throttle_reset(void) {
@@ -145,21 +113,15 @@ u32 nya_account_throttle_count(void) {
 
 // PRIVATE API IMPLEMENTATION
 
-u64 _nya_account_throttle_key(NYA_ConstCString text, _NYA_AccountThrottleKind kind) {
-    if (text == nullptr || text[0] == '\0') return 0;
+u64 _nya_account_throttle_key(NYA_ConstCString username) {
+    if (username == nullptr || username[0] == '\0') return 0;
 
-    u64 hash = nya_hash_fnv1a(&kind, sizeof(kind));
+    // Folded, so a counter follows the account rather than the spelling; see accounts_user.h.
+    char folded[NYA_ACCOUNTS_MAX_USERNAME] = { 0 };
 
-    if (kind == _NYA_ACCOUNT_THROTTLE_USERNAME) {
-        // Folded, so a counter follows the account rather than the spelling; see accounts_user.h.
-        char folded[NYA_ACCOUNTS_MAX_USERNAME] = { 0 };
+    if (!nya_account_username_normalize(username, folded, sizeof(folded))) return 0;
 
-        if (!nya_account_username_normalize(text, folded, sizeof(folded))) return 0;
-
-        hash = nya_hash_fnv1a_continue(hash, folded, strlen(folded));
-    } else {
-        hash = nya_hash_fnv1a_continue(hash, text, strlen(text));
-    }
+    u64 hash = nya_hash_fnv1a(folded, strlen(folded));
 
     // Zero is how "nothing to key on" is said, so a hash that lands there is nudged off it.
     return hash == 0 ? 1 : hash;

@@ -32,26 +32,14 @@
 // Each plugin is behind its own NYA_PLUGIN_* flag; see plugins.h.
 #include "nyangine-plugins/plugins.c"
 
-// tls, net, smtp, acme and http: the server half of the engine, and the whole of what a headless
+// net and http: the server half of the engine, and the whole of what a headless
 // server links. The seam is the header's — a full build (no NYA_NO_SDL) and a headless server
 // (NYA_SERVER) both compile these; a host build tool (NYA_NO_SDL, no NYA_SERVER) gets none, the same
 // as before. This is the LINK half of the split the header opened: nyangine.h declares net and http
 // behind this guard, and here is where their translation units are actually compiled for a server.
 // See docs/layering-core-split.md, steps 6–7.
 #if !defined(NYA_NO_SDL) || defined(NYA_SERVER)
-// before http, whose listener wraps an accepted socket in a session. After os, whose descriptor it hands
-// to OpenSSL, and after base, whose arena holds the context.
-#include "nyangine-core/tls/tls.c"
 #include "nyangine-core/net/net.c"
-// after tls, whose client session it borrows for the encrypted link, and after os, whose socket it connects.
-// A mail client, so it sits above the transport and below the HTTP server that has a reason to send mail.
-#include "nyangine-core/smtp/smtp.c"
-// beside smtp: an ACME client that signs with crypto and talks to the CA over a transport the program
-// wires, so one binary renews its own certificate. Below http, whose route serves the challenge. A
-// plugin now, opt-in behind NYA_PLUGIN_ACME (in the default plugin list).
-#ifdef NYA_PLUGIN_ACME
-#include "nyangine-plugins/acme/acme.c"
-#endif
 #include "nyangine-core/http/http.c"
 #ifdef NYA_MODULE_DB
 // after http and accounts both: the login flow wired to HTTP. Not part of http's own umbrella, so plain

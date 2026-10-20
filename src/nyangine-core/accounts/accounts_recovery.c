@@ -85,7 +85,7 @@ NYA_Error nya_account_recovery_generate(
     return NYA_OK;
 }
 
-NYA_Error nya_account_recovery_consume(NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString code, NYA_ConstCString address, NYA_AccountUser* out_user) {
+NYA_Error nya_account_recovery_consume(NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString code, NYA_AccountUser* out_user) {
     nya_assert(arena != nullptr && out_user != nullptr);
 
     nya_memset(out_user, 0, sizeof(NYA_AccountUser));
@@ -97,7 +97,7 @@ NYA_Error nya_account_recovery_consume(NYA_Arena* arena, NYA_ConstCString userna
 
     // Before any work, and it is what makes guessing codes cost the same as guessing passwords.
     u32 wait_s = 0;
-    if (nya_account_throttle_check(username, address, &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT) return refused;
+    if (nya_account_throttle_check(username, &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT) return refused;
 
     NYA_AccountUser user  = { 0 };
     NYA_Error       found = nya_account_find(arena, username, &user);
@@ -133,11 +133,11 @@ NYA_Error nya_account_recovery_consume(NYA_Arena* arena, NYA_ConstCString userna
     }
 
     if (!found.ok || !matched || user.disabled) {
-        nya_account_throttle_fail(username, address);
+        nya_account_throttle_fail(username);
         return refused;
     }
 
-    nya_account_throttle_succeed(username, address);
+    nya_account_throttle_succeed(username);
 
     *out_user = user;
 

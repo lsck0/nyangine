@@ -25,33 +25,29 @@
  * NYA_TRY(nya_smtp_send(arena, &config, &message));
  * ```
  *
- * ── the transport, and why the conversation is its own thing ──
+ * ── the transport ──
  *
- * A send opens a TCP socket to the submission server, wraps it in TLS, and runs the SMTP conversation
- * over it. The socket is os_socket's and the TLS is the tls module's — this module owns neither and
- * reuses both, so there is one place a certificate is verified and one place a cipher list is chosen,
- * and it is not here. See tls.h.
- *
- * The conversation — greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO, DATA — is written against a
- * byte channel rather than against a socket, so the state machine can be driven over an in-memory
- * script with no network at all. That is how the tests check the command sequence deterministically;
- * the real channel is the socket-and-TLS one a send builds for itself.
+ * The SMTP conversation (EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO, DATA) is curl's, over curl's TLS
+ * backend: OpenSSL on Linux, Schannel on Windows, GnuTLS in the Steam runtime. The engine terminates no
+ * TLS of its own (the platform an app is deployed to does that for inbound traffic), and mail is the one
+ * outbound link that still needs it, so this is a dependent of the curl plugin, behind NYA_PLUGIN_CURL.
+ * What stays here is what curl cannot decide: the message bytes and the header-injection defence.
  *
  * ── TLS is not optional ──
  *
  * Both transports encrypt. NYA_SMTP_SECURITY_IMPLICIT is TLS from the first byte, the port-465 form;
  * NYA_SMTP_SECURITY_STARTTLS connects in the clear and upgrades before a single credential is sent, the
- * port-587 form. Either way the certificate is verified against the configured host, and either way a
- * build with no TLS library refuses the send rather than sending a password in the clear. There is no
- * plaintext mode, because a password crossing a plaintext SMTP link is a password published.
+ * port-587 form, and a server that does not offer STARTTLS is refused rather than spoken to in the clear.
+ * Either way the certificate is verified against the configured host. There is no plaintext mode,
+ * because a password crossing a plaintext SMTP link is a password published.
  *
  * ── what it refuses ──
  *
  * A caller-supplied header value — a subject, a recipient, a display name — with a carriage return or a
  * line feed in it is refused, because a newline in a header value is how an attacker writes headers of
  * their own: a second `To`, a `Bcc`, a whole injected body. The credentials never reach a log, an error
- * message or a backtrace. The assembled message is bounded, and a message past the bound is refused
- * rather than sent in pieces.
+ * message or a backtrace; curl holds its own copy for the length of the send. The assembled message is
+ * bounded, and a message past the bound is refused rather than sent in pieces.
  *
  * Thread safety: nothing here holds shared state; a send owns everything it touches for the length of
  * the call, and two threads may each send at once.
@@ -76,9 +72,6 @@
 #ifndef NYA_SMTP_MAX_MESSAGE
 #define NYA_SMTP_MAX_MESSAGE (1024ULL * 1024ULL)
 #endif
-
-/** The most bytes one server reply may run to before the conversation gives up on it. */
-#define NYA_SMTP_MAX_REPLY 8192
 
 /** How long the whole exchange may take when a config does not say, in milliseconds. */
 #define NYA_SMTP_DEFAULT_TIMEOUT_MS 30000
@@ -125,7 +118,7 @@ typedef struct {
     /** The login name. A secret; never logged. */
     NYA_ConstCString username;
 
-    /** The password. A secret; never logged, and wiped from the AUTH scratch once it has been sent. */
+    /** The password. A secret; never logged. */
     NYA_ConstCString password;
 
     /**
@@ -185,10 +178,12 @@ NYA_API NYA_Error nya_smtp_message_build(NYA_Arena* arena, const NYA_SmtpMessage
 /**
  * Sends `message` through the server `config` names, and returns once the server has taken it.
  *
- * Opens the connection, encrypts it, logs in, and runs the MAIL FROM / RCPT TO / DATA exchange. Returns
- * NYA_ERROR_INVALID_ARGUMENT for a message a header rule refuses (see nya_smtp_message_build),
- * NYA_ERROR_NOT_SUPPORTED when the build has no TLS library, NYA_ERROR_TIMEOUT when the exchange outruns
- * the configured budget, and NYA_ERROR_IO or NYA_ERROR_NOT_OK when the connection fails or the server
- * refuses a step — the server's own reply text is carried in the error, the credentials never are.
+ * Opens the connection, encrypts it, logs in, and runs the MAIL FROM / RCPT TO / DATA exchange. Blocks
+ * for at most the configured timeout. Returns NYA_ERROR_INVALID_ARGUMENT for a message a header rule
+ * refuses (see nya_smtp_message_build) or a login asked for without credentials, NYA_ERROR_NOT_SUPPORTED
+ * for a STARTTLS server that does not offer STARTTLS, NYA_ERROR_PERMISSION_DENIED for a certificate that
+ * does not verify or a refused login, NYA_ERROR_TIMEOUT when the exchange outruns the budget, and
+ * NYA_ERROR_IO or NYA_ERROR_NOT_OK when the connection fails or the server refuses a step, with the last
+ * SMTP reply code in the message. The credentials never are.
  * */
 NYA_API NYA_Error nya_smtp_send(NYA_Arena* arena, const NYA_SmtpConfig* config, const NYA_SmtpMessage* message) __attr_no_discard;

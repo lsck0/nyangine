@@ -201,12 +201,12 @@ NYA_API NYA_Error nya_account_find_by_id(NYA_Arena* arena, u64 id, OUT NYA_Accou
  * accounts.h. NYA_ERROR_PERMISSION_DENIED, always, with a message that says nothing useful to
  * somebody guessing.
  *
- * `address` is who is asking, and may be null when there is nobody to name — a CLI, a test. It is
- * what accounts_throttle.h counts against, and counting is not optional: a wrong password recorded
- * here is what buys the next attempt its wait, so no caller can forget to slow an attacker down.
+ * Every attempt is counted against the username in accounts_throttle.h, and counting is not optional:
+ * a wrong password recorded here is what buys the next attempt its wait, so no caller can forget to
+ * slow an attacker down.
  * */
 NYA_API NYA_Error nya_account_authenticate(
-    NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, NYA_ConstCString address, OUT NYA_AccountUser* out_user
+    NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, OUT NYA_AccountUser* out_user
 ) __attr_no_discard;
 
 /**

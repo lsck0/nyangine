@@ -12,13 +12,10 @@
  * WEB_SERVER_ADDRESS=0.0.0.0 WEB_SERVER_PORT=8000 ./web_server.example   # the same, how the container says it
  * WEB_SERVER_OTLP_FILE=spans.jsonl ./web_server.example # a span per request, as OTLP/JSON lines
  * # ctrl-c or SIGTERM drains the requests in flight, then backs notes.db up beside itself
- *
- *
- * # and over TLS, with a certificate this machine made for itself:
- * openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
- *     -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout key.pem -out cert.pem
- * ./web_server.example --certificate cert.pem --key key.pem
  * ```
+ *
+ * Plain HTTP only: deployed, TLS terminates at the edge in front (Cloudflare and traefik on the homelab),
+ * which also owns per-client rate and connection limits. See deploy/README.md.
  *
  * Open `http://127.0.0.1:47800/` for the page. Then, from another terminal:
  *
@@ -703,8 +700,7 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
      // .handler_callback is set in main() to nya_callback(notes_query): a reload-safe stand-in for `.handler = notes_query` that the router re-resolves each dispatch, so a code reload never leaves this route pointing into the old image.
      .summary       = "Every note",
      .description   = "A read, and therefore a QUERY rather than a GET. `?contains=text` keeps the notes containing it.",
-     // UNAUTHORIZED is here for the optional proof-of-work layer below, which walls the whole notes resource when `--proof-of-work` is set and answers 401 with a challenge; a route's statuses cover its whole chain, and declaring one the chain can produce is safe whether or not the layer is on.
-     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method        = NYA_HTTP_METHOD_POST,
@@ -740,16 +736,7 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
  */
 NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS[] = { nya_http_layer_idempotency };
 
-/*
- * The same chain with the proof-of-work wall outermost, wired in when `--proof-of-work` is set. Outermost
- * on purpose: a request that has not paid is turned away before the idempotency store is even consulted,
- * so the wall is the cheapest thing in the chain and everything behind it only ever sees paid traffic.
- * This is the abuse brake an onion service reaches for, having no client IP to rate-limit; see http_pow.h.
- */
-NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS_POW[] = { nya_http_layer_pow, nya_http_layer_idempotency };
-
-// Not const: main() points its layers at NOTE_LAYERS_POW when the flag is set, before the router is merged.
-NYA_INTERNAL NYA_HttpRouter NOTE_ROUTER = {
+NYA_INTERNAL const NYA_HttpRouter NOTE_ROUTER = {
     .name        = "notes",
     .routes      = NOTE_ROUTES,
     .route_count = nya_carray_length(NOTE_ROUTES),
@@ -1215,17 +1202,11 @@ s32 main(s32 argc, char** argv) {
     NYA_ConstCString port_from_environment = getenv(ENV_PORT);
     if (port_from_environment != nullptr && !port_parse(ENV_PORT, port_from_environment, &port)) return EXIT_FAILURE;
 
-    NYA_ConstCString certificate_path = "";
-    NYA_ConstCString key_path         = "";
-
     /* What to bind. Empty is the NYA_HttpConfig default, which is loopback only: the safe thing for an example on a laptop, where nothing outside the machine should reach it. A deployment behind nothing — a container whose only job is this server — has to be told to bind the wildcard, which is what `--address 0.0.0.0` or WEB_SERVER_ADDRESS is for; packaging/docker/Dockerfile sets the latter. See NYA_HttpConfig. */
     NYA_ConstCString address = getenv(ENV_ADDRESS) != nullptr ? getenv(ENV_ADDRESS) : "";
 
     // A lone flag rather than a pair: --healthcheck turns this binary into a client of itself for one request and then exits, which is what a container's HEALTHCHECK runs. See below.
     b8 health_check = false;
-
-    // Proof of work in front of the notes resource. Off by default so the curl recipes in this file's block still work as written; on, every note request is walled behind a challenge. See http_pow.h.
-    b8 proof_of_work = false;
 
     // The mirror-verification client mode, and its inputs: a mirror to check and the origin key to trust.
     NYA_ConstCString verify_mirror_url = "";
@@ -1238,13 +1219,10 @@ s32 main(s32 argc, char** argv) {
     // Deliberately not base_args: a handful of options, and the point of the file is the server.
     for (s32 i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--healthcheck") == 0) health_check = true;
-        if (strcmp(argv[i], "--proof-of-work") == 0) proof_of_work = true;
 
         // The rest come in pairs, so a value has to follow.
         if (i + 1 >= argc) continue;
 
-        if (strcmp(argv[i], "--certificate") == 0) certificate_path = argv[i + 1];
-        if (strcmp(argv[i], "--key") == 0) key_path = argv[i + 1];
         if (strcmp(argv[i], "--address") == 0) address = argv[i + 1];
         if (strcmp(argv[i], "--verify-mirror") == 0) verify_mirror_url = argv[i + 1];
         if (strcmp(argv[i], "--origin-key") == 0) origin_key_pin = argv[i + 1];
@@ -1275,8 +1253,6 @@ s32 main(s32 argc, char** argv) {
         nya_log_level_set(NYA_LOG_LEVEL_INFO);
         return verify_mirror(verify_mirror_url, origin_key_pin);
     }
-
-    b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
 
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
 
@@ -1358,16 +1334,6 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_idempotency_init(NOTES_ARENA, .ttl_s = 120), "while readying the idempotency store");
     defer nya_http_idempotency_deinit();
 
-    /* The proof-of-work wall, when asked for. Its spent-nonce store is readied here, before the layer can run, so its lock exists for the four workers; and the notes router is pointed at the chain that has the wall outermost. A modest difficulty for a demo — a browser clears it unnoticed, a script pays it every request — and the challenge lives a couple of minutes. See http_pow.h. */
-    if (proof_of_work) {
-        NYA_EXPECT(nya_http_pow_init(NOTES_ARENA, .difficulty = 18, .ttl_s = 120), "while readying the proof-of-work store");
-
-        NOTE_ROUTER.layers      = NOTE_LAYERS_POW;
-        NOTE_ROUTER.layer_count = nya_carray_length(NOTE_LAYERS_POW);
-    }
-
-    defer nya_http_pow_deinit();
-
     // one root layer, outermost, so its record covers the whole exchange.
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
@@ -1380,10 +1346,6 @@ s32 main(s32 argc, char** argv) {
         .layer_count = nya_carray_length(LAYERS),
 
         .exchange_budget_bytes = EXCHANGE_BUDGET_BYTES,
-
-        // Both or neither, which the server checks: see NYA_HttpConfig. Without them this is plain HTTP on loopback, which is what an example on a laptop wants.
-        .certificate_path = certificate_path,
-        .key_path         = key_path,
 
         // No frame loop owns ctrl-c here, so the server takes SIGINT and SIGTERM itself and drains rather than cutting connections off.
         .handle_shutdown_signals = true,
@@ -1479,11 +1441,9 @@ s32 main(s32 argc, char** argv) {
     // What the log tells a person to open: the address that was bound, or loopback when none was given.
     NYA_ConstCString host = address[0] != '\0' ? address : "127.0.0.1";
 
-    nya_log_info("Serving on %s://%s:%u — / for the page, /docs for the generated one, ctrl-c to stop.", secure ? "https" : "http", host,
-                 nya_http_server_port());
+    nya_log_info("Serving on http://%s:%u — / for the page, /docs for the generated one, ctrl-c to stop.", host, nya_http_server_port());
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
-    nya_log_info("Streaming on %s://%s:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", secure ? "wss" : "ws", host,
-                 nya_http_server_port());
+    nya_log_info("Streaming on ws://%s:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", host, nya_http_server_port());
     nya_log_info("Liveness at " NYA_HTTP_HEALTHZ_PATH " and readiness at " NYA_HTTP_READYZ_PATH " — %u readiness checks registered.",
                  nya_http_health_check_count());
     nya_log_info("Discoverable at " NYA_HTTP_SITEMAP_PATH ", " NYA_HTTP_FEED_PATH ", " NYA_HTTP_FEED_ATOM_PATH ", " NYA_HTTP_ROBOTS_PATH " and " NYA_HTTP_LLMS_PATH ".");
@@ -1491,9 +1451,6 @@ s32 main(s32 argc, char** argv) {
                  (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
     nya_log_info("Serving a signed mirror attestation at " NYA_HTTP_ATTESTATION_PATH " for origin %s. Verify a mirror with --verify-mirror <url> --origin-key <key>.",
                  ATTESTATION.origin);
-    if (proof_of_work) {
-        nya_log_info("Proof-of-work is on: the notes resource is walled behind a challenge (see the " NYA_HTTP_POW_TOKEN_HEADER " headers).");
-    }
 
     /* The sockets are the listener thread's now, so what this loop owes the server is the other half: nya_system_http_tick answers the exchanges whose routes asked for this thread and drains the WebSockets. It returns rather than blocking, exactly as it did when it was the whole drain, so a program with other work to do still puts this beside it instead of around it. */
     u64 pushed_at_ms    = 0;

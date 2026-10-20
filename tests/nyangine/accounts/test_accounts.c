@@ -18,9 +18,6 @@
 #define PASSWORD     "a correct horse battery staple"
 #define REPLACEMENT  "a different horse entirely, also long"
 
-/** Who is asking, which is what the throttle counts against. */
-#define ADDRESS "203.0.113.9"
-
 /** Opens a fresh in-memory database with the accounts tables on it. */
 static NYA_Database* open_accounts(NYA_Arena* arena) {
   // the throttle outlives a database, being about traffic rather than about rows, so each case starts with a clean one or the failures of the last test would be waited out in this one.
@@ -99,11 +96,11 @@ s32 main(void) {
     NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
 
     NYA_AccountUser found = { 0 };
-    nya_check(nya_account_authenticate(arena, "ADA", PASSWORD, ADDRESS, &found).ok, "the right password lets them in, whatever case they typed");
+    nya_check(nya_account_authenticate(arena, "ADA", PASSWORD, &found).ok, "the right password lets them in, whatever case they typed");
     nya_check(found.id == ada.id, "as the account that was made, got %llu", (unsigned long long)found.id);
 
-    NYA_Error wrong   = nya_account_authenticate(arena, "ada", "the wrong password entirely", ADDRESS, &found);
-    NYA_Error missing = nya_account_authenticate(arena, "nobody", PASSWORD, ADDRESS, &found);
+    NYA_Error wrong   = nya_account_authenticate(arena, "ada", "the wrong password entirely", &found);
+    NYA_Error missing = nya_account_authenticate(arena, "nobody", PASSWORD, &found);
 
     nya_check(!wrong.ok && wrong.kind == NYA_ERROR_PERMISSION_DENIED, "a wrong password is refused");
     nya_check(!missing.ok && missing.kind == NYA_ERROR_PERMISSION_DENIED, "and a name that does not exist");
@@ -135,7 +132,7 @@ s32 main(void) {
     nya_check(nya_account_disabled_set(arena, ada.id, true).ok, "the account is disabled");
 
     NYA_AccountUser refused_user = { 0 };
-    NYA_Error       refused      = nya_account_authenticate(arena, "ada", PASSWORD, ADDRESS, &refused_user);
+    NYA_Error       refused      = nya_account_authenticate(arena, "ada", PASSWORD, &refused_user);
 
     nya_check(!refused.ok && refused.kind == NYA_ERROR_PERMISSION_DENIED, "and the right password no longer lets them in");
 
@@ -146,7 +143,7 @@ s32 main(void) {
     nya_check(!nya_account_session_issue(arena, ada.id, nullptr, nullptr, &attempted).ok, "nor can another be opened");
 
     nya_check(nya_account_disabled_set(arena, ada.id, false).ok, "it is enabled again");
-    nya_check(nya_account_authenticate(arena, "ada", PASSWORD, ADDRESS, &refused_user).ok, "and the password works again");
+    nya_check(nya_account_authenticate(arena, "ada", PASSWORD, &refused_user).ok, "and the password works again");
     nya_check(!nya_account_session_validate(arena, session.token, &live).ok, "while the session that was ended stays ended");
   }
 
@@ -215,8 +212,8 @@ s32 main(void) {
     nya_check(nya_account_password_change(arena, ada.id, PASSWORD, REPLACEMENT).ok, "the password changes");
 
     NYA_AccountUser found = { 0 };
-    nya_check(!nya_account_authenticate(arena, "ada", PASSWORD, ADDRESS, &found).ok, "the old one stops working");
-    nya_check(nya_account_authenticate(arena, "ada", REPLACEMENT, ADDRESS, &found).ok, "the new one works");
+    nya_check(!nya_account_authenticate(arena, "ada", PASSWORD, &found).ok, "the old one stops working");
+    nya_check(nya_account_authenticate(arena, "ada", REPLACEMENT, &found).ok, "the new one works");
     nya_check(found.password_changed_at_s >= found.created_at_s, "and the row says when it happened");
 
     nya_check(!nya_account_session_validate(arena, session.token, &still).ok, "every session is over, which is the whole reason to change one");
@@ -327,7 +324,7 @@ s32 main(void) {
 
     NYA_AccountUser gone = { 0 };
     nya_check(nya_account_find(arena, "ada", &gone).kind == NYA_ERROR_NOT_FOUND, "and is no longer there");
-    nya_check(!nya_account_authenticate(arena, "ada", PASSWORD, ADDRESS, &gone).ok, "its password opens nothing");
+    nya_check(!nya_account_authenticate(arena, "ada", PASSWORD, &gone).ok, "its password opens nothing");
 
     NYA_AccountSession orphan = { 0 };
     nya_check(!nya_account_session_validate(arena, session.token, &orphan).ok, "and the session it held went with it");
@@ -358,55 +355,49 @@ s32 main(void) {
     NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
 
     u32 wait_s = 0;
-    nya_check(nya_account_throttle_check("ada", ADDRESS, &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "nothing is owed to begin with");
+    nya_check(nya_account_throttle_check("ada", &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "nothing is owed to begin with");
 
     // the free attempts, which are what a mistyped password gets.
     for (u32 index = 0; index < NYA_ACCOUNTS_THROTTLE_FREE_ATTEMPTS; index++) {
-      nya_account_throttle_fail("ada", ADDRESS);
+      nya_account_throttle_fail("ada");
     }
 
-    nya_check(nya_account_throttle_check("ada", ADDRESS, &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "and they cost nothing, got %u s", wait_s);
+    nya_check(nya_account_throttle_check("ada", &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "and they cost nothing, got %u s", wait_s);
 
-    nya_account_throttle_fail("ada", ADDRESS);
+    nya_account_throttle_fail("ada");
 
-    nya_check(nya_account_throttle_check("ada", ADDRESS, &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT, "the one after them buys a wait");
+    nya_check(nya_account_throttle_check("ada", &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT, "the one after them buys a wait");
     nya_check(wait_s > 0 && wait_s <= NYA_ACCOUNTS_THROTTLE_MAX_WAIT_S, "of a bounded number of seconds, got %u", wait_s);
 
-    // the same name from somewhere else is still throttled: that is what the username counter is for.
-    nya_check(nya_account_throttle_check("ada", "198.51.100.7", &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT, "wherever the next guess comes from");
-
     // and folded, so a different spelling is not a different budget.
-    nya_check(nya_account_throttle_check("ADA", "198.51.100.7", &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT, "however it is spelt");
+    nya_check(nya_account_throttle_check("ADA", &wait_s) == NYA_ACCOUNT_THROTTLE_WAIT, "however it is spelt");
 
-    // another name from another address is untouched, so one account cannot lock out the service.
-    nya_check(nya_account_throttle_check("bob", "198.51.100.7", &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "while everybody else carries on");
+    // another name is untouched, so one account cannot lock out the service.
+    nya_check(nya_account_throttle_check("bob", &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "while everybody else carries on");
 
     // the wait grows with each wrong answer.
     u32 first = 0;
-    (void)nya_account_throttle_check("ada", ADDRESS, &first);
+    (void)nya_account_throttle_check("ada", &first);
 
-    nya_account_throttle_fail("ada", ADDRESS);
+    nya_account_throttle_fail("ada");
 
     u32 second = 0;
-    (void)nya_account_throttle_check("ada", ADDRESS, &second);
+    (void)nya_account_throttle_check("ada", &second);
 
     nya_check(second > first, "and the wait doubles, got %u s after %u s", second, first);
 
     // a login inside the wait is refused without hashing, in the same words as every other refusal.
     NYA_AccountUser found  = { 0 };
-    NYA_Error       during = nya_account_authenticate(arena, "ada", PASSWORD, ADDRESS, &found);
+    NYA_Error       during = nya_account_authenticate(arena, "ada", PASSWORD, &found);
 
     nya_check(!during.ok && during.kind == NYA_ERROR_PERMISSION_DENIED, "the right password is refused while a wait is owed");
     nya_check(found.id == 0, "and nothing comes back");
 
     // a right password clears it, which is the difference between slowing somebody and locking them out.
-    nya_account_throttle_succeed("ada", ADDRESS);
+    nya_account_throttle_succeed("ada");
 
-    nya_check(nya_account_throttle_check("ada", ADDRESS, &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "and a right answer clears what is owed");
-    nya_check(nya_account_authenticate(arena, "ada", PASSWORD, ADDRESS, &found).ok, "so the account is reachable again");
-
-    // a login with nobody to name is still a login: there is simply no counter to key on.
-    nya_check(nya_account_authenticate(arena, "ada", PASSWORD, nullptr, &found).ok, "an address nobody recorded is allowed");
+    nya_check(nya_account_throttle_check("ada", &wait_s) == NYA_ACCOUNT_THROTTLE_ALLOW, "and a right answer clears what is owed");
+    nya_check(nya_account_authenticate(arena, "ada", PASSWORD, &found).ok, "so the account is reachable again");
 
     nya_check(nya_account_throttle_count() > 0, "the table holds what it has seen, got %u", nya_account_throttle_count());
 
@@ -456,8 +447,8 @@ s32 main(void) {
 
     // which means no password gets in, whatever it is.
     NYA_AccountUser refused = { 0 };
-    nya_check(!nya_account_authenticate(arena, player.username, "", ADDRESS, &refused).ok, "an empty password is not a way in");
-    nya_check(!nya_account_authenticate(arena, player.username, PASSWORD, ADDRESS, &refused).ok, "and nor is any other");
+    nya_check(!nya_account_authenticate(arena, player.username, "", &refused).ok, "an empty password is not a way in");
+    nya_check(!nya_account_authenticate(arena, player.username, PASSWORD, &refused).ok, "and nor is any other");
 
     // second sign-in: the same subject is the same person, not a second account.
     NYA_AccountUser again        = { 0 };
@@ -509,7 +500,7 @@ s32 main(void) {
     nya_check(nya_account_password_reset(arena, player.id, PASSWORD).ok, "a password is set");
     nya_check(nya_account_identity_unlink(arena, player.id, "steam").ok, "and now the last identity may go");
 
-    nya_check(nya_account_authenticate(arena, player.username, PASSWORD, ADDRESS, &found).ok, "leaving the password as the way in");
+    nya_check(nya_account_authenticate(arena, player.username, PASSWORD, &found).ok, "leaving the password as the way in");
 
     // deleting the account takes its identities with it.
     nya_check(nya_account_destroy(arena, other.id).ok, "the other account is deleted");
@@ -542,16 +533,16 @@ s32 main(void) {
     (void)snprintf(messy, sizeof(messy), " %s ", codes[3]);
     for (u64 i = 0; messy[i] != '\0'; i++) if (messy[i] >= 'A' && messy[i] <= 'Z') messy[i] = (char)(messy[i] - 'A' + 'a');
 
-    nya_check(nya_account_recovery_consume(arena, "ada", messy, ADDRESS, &who).ok, "a code lets them in, spacing and case and all");
+    nya_check(nya_account_recovery_consume(arena, "ada", messy, &who).ok, "a code lets them in, spacing and case and all");
     nya_check(who.id == ada.id, "as their account, got %llu", (unsigned long long)who.id);
 
     // single use: the same code does not work twice.
-    nya_check(!nya_account_recovery_consume(arena, "ada", codes[3], ADDRESS, &who).ok, "a spent code does not work again");
+    nya_check(!nya_account_recovery_consume(arena, "ada", codes[3], &who).ok, "a spent code does not work again");
     nya_check(nya_account_recovery_remaining(arena, ada.id, &remaining).ok && remaining == 9, "leaving nine, got %u", remaining);
 
     // a wrong code and a wrong username are refused in the same words.
-    NYA_Error wrong_code = nya_account_recovery_consume(arena, "ada", "AAAA-AAAA", ADDRESS, &who);
-    NYA_Error wrong_user = nya_account_recovery_consume(arena, "nobody", codes[4], ADDRESS, &who);
+    NYA_Error wrong_code = nya_account_recovery_consume(arena, "ada", "AAAA-AAAA", &who);
+    NYA_Error wrong_user = nya_account_recovery_consume(arena, "nobody", codes[4], &who);
     nya_check(!wrong_code.ok && wrong_code.kind == NYA_ERROR_PERMISSION_DENIED, "a wrong code is refused");
     nya_check(!wrong_user.ok && wrong_user.kind == NYA_ERROR_PERMISSION_DENIED, "and a wrong username");
     nya_check(nya_string_equals((NYA_ConstCString)wrong_code.message, (NYA_ConstCString)wrong_user.message), "in the same words");
@@ -562,8 +553,8 @@ s32 main(void) {
     nya_check(nya_account_recovery_generate(arena, ada.id, again, &made).ok, "a new set is generated");
     nya_check(nya_account_recovery_remaining(arena, ada.id, &remaining).ok && remaining == 10, "ten again, got %u", remaining);
 
-    nya_check(!nya_account_recovery_consume(arena, "ada", codes[5], ADDRESS, &who).ok, "an old code no longer works");
-    nya_check(nya_account_recovery_consume(arena, "ada", again[0], ADDRESS, &who).ok, "and a new one does");
+    nya_check(!nya_account_recovery_consume(arena, "ada", codes[5], &who).ok, "an old code no longer works");
+    nya_check(nya_account_recovery_consume(arena, "ada", again[0], &who).ok, "and a new one does");
 
     // recovery is what stands in for a lost password: consume, then reset, which ends every session.
     nya_account_throttle_reset();
@@ -571,18 +562,18 @@ s32 main(void) {
     NYA_EXPECT(nya_account_session_issue(arena, ada.id, nullptr, nullptr, &session));
 
     NYA_AccountUser recovered = { 0 };
-    nya_check(nya_account_recovery_consume(arena, "ada", again[1], ADDRESS, &recovered).ok, "a code recovers the account");
+    nya_check(nya_account_recovery_consume(arena, "ada", again[1], &recovered).ok, "a code recovers the account");
     nya_check(nya_account_password_reset(arena, recovered.id, REPLACEMENT).ok, "a new password is set");
 
     NYA_AccountSession gone = { 0 };
     nya_check(!nya_account_session_validate(arena, session.token, &gone).ok, "and the old session is over");
-    nya_check(nya_account_authenticate(arena, "ada", REPLACEMENT, ADDRESS, &recovered).ok, "and the new password works");
+    nya_check(nya_account_authenticate(arena, "ada", REPLACEMENT, &recovered).ok, "and the new password works");
 
     // deleting the account takes its codes with it.
     nya_account_throttle_reset();
     nya_check(nya_account_destroy(arena, ada.id).ok, "the account is deleted");
     NYA_AccountUser back = { 0 };
-    nya_check(!nya_account_recovery_consume(arena, "ada", again[2], ADDRESS, &back).ok, "and its codes are gone with it");
+    nya_check(!nya_account_recovery_consume(arena, "ada", again[2], &back).ok, "and its codes are gone with it");
   }
 
   // TEST: registration policy — open, invite-only, and closed

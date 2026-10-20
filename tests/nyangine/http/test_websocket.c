@@ -651,47 +651,23 @@ s32 main(void) {
         printf("  eight handshakes refused: another site twice, no route, the version, the key twice, the verb, and early frames\n");
     }
 
-    // TEST: an upgrade spends a token like every other request.
-    {
-        u16   port = start_server((NYA_HttpConfig){ .requests_per_second = 1, .request_burst = 1 });
-        defer nya_system_http_deinit();
-
-        NYA_EXPECT(nya_http_websocket_route_add(&ECHO_ROUTE));
-
-        Client first = { 0 };
-        client_open(&first, arena, port, ECHO_PATH);
-        defer client_destroy(&first);
-
-        NYA_OsSocket second = connect_to(port);
-        defer             nya_os_socket_close(second);
-
-        nya_assert(handshake(second, arena, upgrade_request(arena, ECHO_PATH, key_make(arena), ""), answer, sizeof(answer)) > 0);
-
-        NYA_String* refused = nya_string_from(arena, answer);
-
-        nya_assert(nya_string_starts_with(refused, "HTTP/1.1 429 Too Many Requests\r\n"), "got:\n%s", answer);
-        nya_assert(nya_string_contains(refused, "Retry-After: "));
-        nya_assert(nya_http_websocket_count() == 1, "the address's budget is spent before the socket is taken");
-
-        printf("  an upgrade past the address's budget is a 429 and not a socket\n");
-    }
-
-    // TEST: one address may not take every socket.
+    // TEST: one address may take every socket, and the table is the bound: behind the edge every peer is the proxy.
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         NYA_EXPECT(nya_http_websocket_route_add(&ECHO_ROUTE));
 
-        Client held[NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS] = { 0 };
+        // static: four clients' buffers are past the frame limit on the stack.
+        static Client held[NYA_HTTP_MAX_WEBSOCKETS] = { 0 };
 
-        for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS; index++) client_open(&held[index], arena, port, ECHO_PATH);
+        for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) client_open(&held[index], arena, port, ECHO_PATH);
 
         defer {
-            for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS; index++) client_destroy(&held[index]);
+            for (u32 index = 0; index < NYA_HTTP_MAX_WEBSOCKETS; index++) client_destroy(&held[index]);
         }
 
-        nya_assert(nya_http_websocket_count() == NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS);
+        nya_assert(nya_http_websocket_count() == NYA_HTTP_MAX_WEBSOCKETS, "every socket is the one address's");
 
         NYA_OsSocket extra = connect_to(port);
         defer             nya_os_socket_close(extra);
@@ -699,9 +675,9 @@ s32 main(void) {
         nya_assert(handshake(extra, arena, upgrade_request(arena, ECHO_PATH, key_make(arena), ""), answer, sizeof(answer)) > 0);
 
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 503 Service Unavailable\r\n"), "got:\n%s", answer);
-        nya_assert(nya_http_websocket_count() == NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS, "the bound is the bound");
+        nya_assert(nya_http_websocket_count() == NYA_HTTP_MAX_WEBSOCKETS, "the bound is the bound");
 
-        printf("  the socket past one address's share is refused while the table has room\n");
+        printf("  one address fills the socket table, and the socket past it is refused\n");
     }
 
     // TEST: a publish reaches a topic's subscribers and nobody else, and unsubscribing stops it.

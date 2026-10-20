@@ -7,7 +7,6 @@
  * ```
  * ./build run example accounts_api                 # serves on 127.0.0.1:47810 until interrupted
  * ./accounts_api.example --port 8080
- * ./accounts_api.example --certificate cert.pem --key key.pem   # over https
  * ```
  *
  * From another terminal (a cookie jar is how a browser keeps the session):
@@ -368,12 +367,7 @@ NYA_INTERNAL void stop(int signal_number) {
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;
 
-    NYA_ConstCString certificate_path = "";
-    NYA_ConstCString key_path         = "";
-
     for (s32 i = 1; i + 1 < argc; i++) {
-        if (strcmp(argv[i], "--certificate") == 0) certificate_path = argv[i + 1];
-        if (strcmp(argv[i], "--key") == 0) key_path = argv[i + 1];
         if (strcmp(argv[i], "--port") != 0) continue;
 
         if (!nya_type_parse(NYA_TYPE_U16, (const u8*)argv[i + 1], strlen(argv[i + 1]), &port)) {
@@ -381,8 +375,6 @@ s32 main(s32 argc, char** argv) {
             return EXIT_FAILURE;
         }
     }
-
-    b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
 
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
     (void)signal(SIGINT, stop);
@@ -438,17 +430,15 @@ s32 main(s32 argc, char** argv) {
     nya_http_log_config_set((NYA_HttpLogConfig){ .level = NYA_HTTP_LOG_HEADERS, .address = NYA_HTTP_LOG_ADDRESS_NETWORK });
 
     NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){
-                   .port             = port,
-                   .workers          = 2,
-                   .certificate_path = certificate_path,
-                   .key_path         = key_path,
+                   .port    = port,
+                   .workers = 2,
                }),
                "while starting the server");
     defer nya_system_http_deinit();
 
-    // The origin the passkey routes check against: the scheme, the host, and the port actually chosen. Built here rather than hardcoded so it matches whatever `--port` picked; a real server would name its own https domain instead. localhost is the one host a browser runs WebAuthn on without TLS.
+    // The origin the passkey routes check against, built from the port actually chosen. Deployed, it is the https origin the edge serves this at, since TLS terminates there; localhost is the one host a browser runs WebAuthn on without TLS.
     char passkey_origin[64] = { 0 };
-    (void)snprintf(passkey_origin, sizeof(passkey_origin), "%s://%s:%u", secure ? "https" : "http", PASSKEY_RP_ID, nya_http_server_port());
+    (void)snprintf(passkey_origin, sizeof(passkey_origin), "http://%s:%u", PASSKEY_RP_ID, nya_http_server_port());
 
     // The login flow, mounted from the accounts module: register, login, login/totp, logout, session, the TOTP enrol/confirm pair, and — because a relying party is named — the passwordless passkey routes. Everything this example does not have to write itself.
     const NYA_HttpRouter* accounts = nya_http_accounts_open((NYA_HttpAccountsConfig){
@@ -472,8 +462,7 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_server_merge(&SESSION_ROUTER), "while mounting the sessions routes");
     NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()), "while mounting the OpenAPI document");
 
-    nya_log_info("accounts_api on %s://127.0.0.1:%u — register, log in, and keep notes that are yours. ctrl-c to stop.",
-                 secure ? "https" : "http", nya_http_server_port());
+    nya_log_info("accounts_api on http://127.0.0.1:%u — register, log in, and keep notes that are yours. ctrl-c to stop.", nya_http_server_port());
 
     // The housekeeping a real server runs on a timer, run once at start so a long-lived database does not carry dead rows forever. A production server would call these hourly.
     u32 ended = 0, removed = 0;

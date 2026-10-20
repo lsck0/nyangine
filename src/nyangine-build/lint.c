@@ -89,14 +89,8 @@ NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     // db is above crypto and base and below everything that stores anything, which is why it shares net's rank rather than sitting under it: neither includes the other and neither ever should.
     { "db",       4 },
     { "net",      4 },
-    // tls is beside them: a socket with a library on it, above os and base and below the http server that is the only thing here with a reason to want one.
-    { "tls",      4 },
     // accounts is above db, crypto and permission and below http, because a program with no HTTP server at all still has users: a CLI making the first account, a game with a control socket.
     { "accounts", 5 },
-    // smtp is a mail client above tls, whose client session it borrows, and below http, the one thing here with a reason to send a verification mail. It shares accounts' rank: neither includes the other.
-    { "smtp",     5 },
-    // acme is beside smtp: a certificate client that signs with crypto and reaches the CA over a transport the program wires, so it needs neither the socket nor http. It holds the HTTP-01 challenge as data an http route reads, which is why http depends on nothing of it and it stays here.
-    { "acme",     5 },
     { "http",     6 }, { "core",     7 },
     // replicate is net's other half: a world on the wire rather than bytes on it, so it is written in entities and sits above the app loop where net sits below it. See replicate.h.
     // desktop_shell is beside the renderer: an SDL leaf (native dialogs and a tray) that names only base and SDL and nothing above it, so it shares the renderer's rank without depending on it, and neither includes the other.
@@ -820,7 +814,7 @@ NYA_String* _lint_module_of(NYA_Arena* arena, const NYA_String* path) {
     // The ui toolkit is one module in its own subproject: every file under it is module "ui".
     if (strstr(text, "src/nyangine-ui/") != nullptr) return nya_string_from(arena, "ui");
 
-    // Plugins are their own subproject; every file under it — acme included, now that it is a plugin — is module "plugins".
+    // Plugins are their own subproject; every file under it is module "plugins".
     if (strstr(text, "src/nyangine-plugins/") != nullptr) return nya_string_from(arena, "plugins");
 
     // std and core keep the module as the first path segment under the subproject root.
