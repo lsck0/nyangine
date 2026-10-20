@@ -38,19 +38,10 @@ static void sleep_ms(u32 milliseconds) {
 
 /**
  * Starts on the first port that binds, as test_server.c does: a busy one is not a failure.
- *
- * With the limits wide open, because this test makes a few dozen requests as fast as it can from one
- * address and the defaults are sized for a person with a browser. What the limits do is test_server.c's
- * subject; what they must not do is decide this one.
  * */
 static u16 start_server(void) {
     for (u16 port = FIRST_PORT; port <= LAST_PORT; port++) {
-        NYA_HttpConfig config = {
-            .port                        = port,
-            .max_connections_per_address = NYA_HTTP_MAX_CONNECTIONS,
-            .requests_per_second         = 1000,
-            .request_burst               = 1000,
-        };
+        NYA_HttpConfig config = { .port = port };
 
         if (nya_system_http_init(config).ok) return port;
     }

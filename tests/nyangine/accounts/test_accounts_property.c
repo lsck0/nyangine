@@ -190,10 +190,9 @@ static b8 law_throttle_wait_is_monotone_and_bounded(NYA_Property* property) {
 static b8 law_throttle_never_locks(NYA_Property* property) {
     nya_account_throttle_reset();
 
-    // A distinct address per case, so the fixed table neither fills nor carries state between cases.
-    char address[32] = { 0 };
-    (void)snprintf(address, sizeof(address), "10.%llu.%llu.%llu", (unsigned long long)nya_property_draw_below(property, 256),
-                   (unsigned long long)nya_property_draw_below(property, 256), (unsigned long long)nya_property_draw_below(property, 256));
+    // A distinct username per case, so the fixed table neither fills nor carries state between cases.
+    char username[32] = { 0 };
+    (void)snprintf(username, sizeof(username), "user%llu", (unsigned long long)nya_property_draw_below(property, 1u << 24));
 
     // Past the free attempts, so the wait is guaranteed to have climbed off zero by the end; the point of the run is that it climbs and stays finite, not that a single mistyped password already costs.
     u32 rounds       = NYA_ACCOUNTS_THROTTLE_FREE_ATTEMPTS + 2 + (u32)nya_property_draw_below(property, 40);
@@ -201,10 +200,10 @@ static b8 law_throttle_never_locks(NYA_Property* property) {
     b8  ever_grew    = false;
 
     for (u32 index = 0; index < rounds; index++) {
-        nya_account_throttle_fail(nullptr, address);
+        nya_account_throttle_fail(username);
 
         u32 wait_s = 0;
-        (void)nya_account_throttle_check(nullptr, address, &wait_s);
+        (void)nya_account_throttle_check(username, &wait_s);
 
         if (wait_s > NYA_ACCOUNTS_THROTTLE_MAX_WAIT_S) {
             nya_property_note(property, "round %u waited %us, past the %d cap", index, wait_s, NYA_ACCOUNTS_THROTTLE_MAX_WAIT_S);

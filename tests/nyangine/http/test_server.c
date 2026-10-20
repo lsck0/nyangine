@@ -424,55 +424,31 @@ s32 main(void) {
         nya_assert(nya_http_server_connection_count() == 1, "the table is the bound, and a peer past it is not queued against it");
     }
 
-    // TEST: one address cannot take every slot, however many there are.
+    // TEST: one address may take every slot and send as fast as it likes: behind the edge every peer is the proxy.
     {
-        u16   port = start_server((NYA_HttpConfig){ .max_connections = 8, .max_connections_per_address = 2 });
-        defer nya_system_http_deinit();
-
-        NYA_OsSocket sockets[3] = { 0 };
-        for (u32 index = 0; index < 3; index++) sockets[index] = connect_to(port);
-        defer {
-            for (u32 index = 0; index < 3; index++) nya_os_socket_close(sockets[index]);
-        }
-
-        for (u32 attempt = 0; attempt < 50; attempt++) {
-            nya_system_http_tick();
-            sleep_ms(2);
-        }
-
-        nya_assert(nya_http_server_connection_count() == 2, "the third from the same address is closed while five slots are free");
-    }
-
-    // TEST: an address past its budget is told 429 and when to come back.
-    {
-        // one a second is slow enough that nothing refills while the burst is spent.
-        u16   port = start_server((NYA_HttpConfig){ .requests_per_second = 1, .request_burst = 3 });
+        u16   port = start_server((NYA_HttpConfig){ .max_connections = 4 });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
-        NYA_OsSocket client = connect_to(port);
-        defer             nya_os_socket_close(client);
-
-        for (u32 index = 0; index < 3; index++) {
-            nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
-            nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"), "the burst is served");
+        NYA_OsSocket sockets[4] = { 0 };
+        for (u32 index = 0; index < 4; index++) sockets[index] = connect_to(port);
+        defer {
+            for (u32 index = 0; index < 4; index++) nya_os_socket_close(sockets[index]);
         }
 
-        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+        for (u32 attempt = 0; attempt < 50 && nya_http_server_connection_count() < 4; attempt++) {
+            nya_system_http_tick();
+            sleep_ms(2);
+        }
 
-        NYA_String* refused = nya_string_from(arena, answer);
-        nya_assert(nya_string_starts_with(refused, "HTTP/1.1 429 Too Many Requests\r\n"));
-        nya_assert(nya_string_contains(refused, "Retry-After: 1\r\n"));
-        nya_assert(nya_string_contains(refused, "Connection: close\r\n"));
+        nya_assert(nya_http_server_connection_count() == 4, "every slot is the one address's, got %u", nya_http_server_connection_count());
 
-        // the budget is the address's, not the connection's: a fresh socket does not reset it.
-        NYA_OsSocket again = connect_to(port);
-        defer             nya_os_socket_close(again);
-
-        nya_assert(exchange(again, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
-        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 429 "));
-        nya_assert(strstr(answer, "X-Request-Id: ") != nullptr, "a refusal has an id too, so it can be reported");
+        // the old default burst was forty: twice that on one connection, all served, none of them a 429.
+        for (u32 index = 0; index < 80; index++) {
+            nya_assert(exchange(sockets[0], "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+            nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"), "request %u is served", index);
+        }
     }
 
     // TEST: every answer has its own id, and the request's log line carries it.

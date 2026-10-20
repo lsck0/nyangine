@@ -48,7 +48,7 @@ s32 main(void) {
     nya_bench("password verify (Argon2id, per login)", 1, {
         nya_arena_free_all(scratch);
         NYA_AccountUser found = { 0 };
-        NYA_Error authed = nya_account_authenticate(scratch, USERNAME, PASSWORD, "127.0.0.1", &found);
+        NYA_Error authed = nya_account_authenticate(scratch, USERNAME, PASSWORD, &found);
         nya_bench_keep(authed.ok ? found.id : 0);
     });
 

@@ -29,7 +29,6 @@
 // after the router, whose chain it wraps, and the message layer whose response it captures and replays: a layer a program installs to make a retried unsafe request run once.
 #include "nyangine-core/http/http_idempotency.c"
 // after the router, whose chain it wraps, and seal/crypto, which it mints and opens a sealed challenge through: the abuse layer a public server installs where there's no IP to rate-limit.
-#include "nyangine-core/http/http_pow.c"
 /**/
 // after the router, whose route table it builds, and beside the server not inside it: the bundle is a resource a program merges, not something the listener knows.
 #include "nyangine-core/http/http_static.c"

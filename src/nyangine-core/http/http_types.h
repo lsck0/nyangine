@@ -51,31 +51,6 @@
 #define NYA_HTTP_MAX_CONNECTIONS 8
 #endif
 
-/**
- * Connections one address may hold at once, unless the config lowers it. Half the table, so one client
- * cannot take every slot and a second one, or a `curl` beside a browser, still gets in. A browser opens up to
- * six per host, and past four it queues rather than fails, which is the right place for it to wait.
- * */
-#ifndef NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS
-#define NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS 4
-#endif
-
-/**
- * Addresses whose request budget is remembered at once. Past it the budget touched longest ago is dropped,
- * so an address that stops sending eventually starts fresh, and one spraying addresses to evict the others
- * gains a fresh burst per address it owns, which a proxy in front is the answer to. Sixty four entries of
- * sixty four bytes, linear to search: cheaper than a hash for a table this small.
- * */
-#define NYA_HTTP_MAX_RATE_BUCKETS 64
-
-/**
- * Requests an address may make per second, and how many it may make at once from a full bucket, unless the
- * config says otherwise. A page load of the generated docs is two requests and a polling dashboard one a
- * second, so twenty a second with a burst of forty never refuses a person and does refuse a loop.
- * */
-#define NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND 20
-#define NYA_HTTP_DEFAULT_REQUEST_BURST       40
-
 /** Longest address, terminator included. An IPv6 address in full is 45 characters. */
 #define NYA_HTTP_MAX_ADDRESS 48
 

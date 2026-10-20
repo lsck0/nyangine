@@ -699,8 +699,7 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
      // .handler_callback is set in main() to nya_callback(notes_query): a reload-safe stand-in for `.handler = notes_query` that the router re-resolves each dispatch, so a code reload never leaves this route pointing into the old image.
      .summary       = "Every note",
      .description   = "A read, and therefore a QUERY rather than a GET. `?contains=text` keeps the notes containing it.",
-     // UNAUTHORIZED is here for the optional proof-of-work layer below, which walls the whole notes resource when `--proof-of-work` is set and answers 401 with a challenge; a route's statuses cover its whole chain, and declaring one the chain can produce is safe whether or not the layer is on.
-     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method        = NYA_HTTP_METHOD_POST,
@@ -736,16 +735,7 @@ NYA_INTERNAL NYA_HttpRoute NOTE_ROUTES[] = {
  */
 NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS[] = { nya_http_layer_idempotency };
 
-/*
- * The same chain with the proof-of-work wall outermost, wired in when `--proof-of-work` is set. Outermost
- * on purpose: a request that has not paid is turned away before the idempotency store is even consulted,
- * so the wall is the cheapest thing in the chain and everything behind it only ever sees paid traffic.
- * This is the abuse brake an onion service reaches for, having no client IP to rate-limit; see http_pow.h.
- */
-NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS_POW[] = { nya_http_layer_pow, nya_http_layer_idempotency };
-
-// Not const: main() points its layers at NOTE_LAYERS_POW when the flag is set, before the router is merged.
-NYA_INTERNAL NYA_HttpRouter NOTE_ROUTER = {
+NYA_INTERNAL const NYA_HttpRouter NOTE_ROUTER = {
     .name        = "notes",
     .routes      = NOTE_ROUTES,
     .route_count = nya_carray_length(NOTE_ROUTES),
@@ -1191,9 +1181,6 @@ s32 main(s32 argc, char** argv) {
     // A lone flag rather than a pair: --healthcheck turns this binary into a client of itself for one request and then exits, which is what a container's HEALTHCHECK runs. See below.
     b8 health_check = false;
 
-    // Proof of work in front of the notes resource. Off by default so the curl recipes in this file's block still work as written; on, every note request is walled behind a challenge. See http_pow.h.
-    b8 proof_of_work = false;
-
     // The mirror-verification client mode, and its inputs: a mirror to check and the origin key to trust.
     NYA_ConstCString verify_mirror_url = "";
     NYA_ConstCString origin_key_pin    = "";
@@ -1205,7 +1192,6 @@ s32 main(s32 argc, char** argv) {
     // Deliberately not base_args: a handful of options, and the point of the file is the server.
     for (s32 i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--healthcheck") == 0) health_check = true;
-        if (strcmp(argv[i], "--proof-of-work") == 0) proof_of_work = true;
 
         // The rest come in pairs, so a value has to follow.
         if (i + 1 >= argc) continue;
@@ -1326,16 +1312,6 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_idempotency_init(NOTES_ARENA, .ttl_s = 120), "while readying the idempotency store");
     defer nya_http_idempotency_deinit();
 
-    /* The proof-of-work wall, when asked for. Its spent-nonce store is readied here, before the layer can run, so its lock exists for the four workers; and the notes router is pointed at the chain that has the wall outermost. A modest difficulty for a demo — a browser clears it unnoticed, a script pays it every request — and the challenge lives a couple of minutes. See http_pow.h. */
-    if (proof_of_work) {
-        NYA_EXPECT(nya_http_pow_init(NOTES_ARENA, .difficulty = 18, .ttl_s = 120), "while readying the proof-of-work store");
-
-        NOTE_ROUTER.layers      = NOTE_LAYERS_POW;
-        NOTE_ROUTER.layer_count = nya_carray_length(NOTE_LAYERS_POW);
-    }
-
-    defer nya_http_pow_deinit();
-
     // one root layer, outermost, so its record covers the whole exchange.
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
@@ -1451,9 +1427,6 @@ s32 main(s32 argc, char** argv) {
                  (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
     nya_log_info("Serving a signed mirror attestation at " NYA_HTTP_ATTESTATION_PATH " for origin %s. Verify a mirror with --verify-mirror <url> --origin-key <key>.",
                  ATTESTATION.origin);
-    if (proof_of_work) {
-        nya_log_info("Proof-of-work is on: the notes resource is walled behind a challenge (see the " NYA_HTTP_POW_TOKEN_HEADER " headers).");
-    }
 
     /* The sockets are the listener thread's now, so what this loop owes the server is the other half: nya_system_http_tick answers the exchanges whose routes asked for this thread and drains the WebSockets. It returns rather than blocking, exactly as it did when it was the whole drain, so a program with other work to do still puts this beside it instead of around it. */
     u64 pushed_at_ms = 0;

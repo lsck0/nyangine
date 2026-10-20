@@ -420,7 +420,7 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_accounts_handle_login(NYA_HttpExchange* ex
     if (!_nya_http_accounts_request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user    = { 0 };
-    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, _nya_http_accounts_request_address(exchange), &user);
+    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, &user);
 
     // One answer for every failure (wrong password, no such user, disabled, throttled) so the response tells a guesser nothing; 401, since credentials were refused.
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;

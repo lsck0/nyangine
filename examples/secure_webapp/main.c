@@ -415,7 +415,7 @@ NYA_INTERNAL NYA_HttpStatus webapp_handle_login(NYA_HttpExchange* exchange) {
     if (!webapp_request_credentials(exchange, &username, &password)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_AccountUser user    = { 0 };
-    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, webapp_request_address(exchange), &user);
+    NYA_Error       allowed = nya_account_authenticate(exchange->arena, username, password, &user);
 
     // One answer for every way it fails — wrong password, no such user, disabled, throttled.
     if (!allowed.ok) return NYA_HTTP_STATUS_UNAUTHORIZED;

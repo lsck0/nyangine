@@ -14,7 +14,6 @@
  * http_cors.h      the per-route CORS policy, the preflight, and never a `*` with credentials
  * http_log.h       what one exchange leaves in the log, and the redaction that happens before it does
  * http_idempotency.h  a retried unsafe request runs once: the Idempotency-Key layer and its store
- * http_pow.h       a proof-of-work wall: the abuse layer for a server with no IP to rate-limit
  * http_attestation.h  a signed statement binding an origin to the bytes it serves, so a mirror can be checked
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
  * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
@@ -63,8 +62,10 @@
  * It is the server half of "one stack for everything": a nyangine program that serves a web interface
  * for its own metrics, with the DTOs the schema is generated from being the same types a generated
  * client would be generated from, and a WebSocket where a poll is the wrong shape for what it has to
- * say. Connections, requests and sockets are limited per address and TLS terminates in process (see
- * http_server.h). A proxy in front is optional, for request bounds above these.
+ * say. It speaks plain HTTP to the edge in front of it, which terminates TLS and owns abuse control:
+ * bot defence and per client rate, connection and login limits. What stays here is what the edge
+ * cannot do: the per username login throttle, the TOTP and replay guards, CSRF, idempotency keys, and
+ * the request and parser bounds that keep memory bounded (see http_server.h).
  * */
 #pragma once
 
@@ -87,7 +88,6 @@
 #include "nyangine-core/http/http_observe.h"
 #include "nyangine-core/http/http_attestation.h"
 #include "nyangine-core/http/http_openapi.h"
-#include "nyangine-core/http/http_pow.h"
 #include "nyangine-core/http/http_router.h"
 #include "nyangine-core/http/http_server.h"
 #include "nyangine-core/http/http_static.h"

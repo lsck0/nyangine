@@ -16,3 +16,7 @@ Log notice stderr
 HiddenServiceDir /var/lib/tor/hidden_service
 HiddenServiceVersion 3
 HiddenServicePort 80 web:8000
+
+# The abuse brake: an onion service has no client IP to limit, so a client pays a proof of work to
+# introduce itself once the queue is under pressure. Needs tor 0.4.8 or later built with --enable-gpl.
+HiddenServicePoWDefensesEnabled 1

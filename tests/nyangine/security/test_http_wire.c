@@ -134,13 +134,6 @@ static u16 start_server(NYA_HttpConfig config) {
     return port;
 }
 
-/** Wide open, so the suites that are not about the limits never trip them. */
-static const NYA_HttpConfig UNLIMITED = {
-    .max_connections_per_address = NYA_HTTP_MAX_CONNECTIONS,
-    .requests_per_second         = 100000,
-    .request_burst               = 100000,
-};
-
 static NYA_OsSocket connect_to(u16 port) {
     NYA_OsAddress address = { 0 };
     nya_assert(nya_os_address_resolve("127.0.0.1", port, NYA_OS_ADDRESS_V4, &address) == NYA_OS_SOCKET_OK);
@@ -307,7 +300,7 @@ static void test_path_traversal(NYA_Arena* arena) {
     NYA_EXPECT(nya_http_static_mount((NYA_HttpStaticConfig){ .files = &page, .count = 1, .root = root }));
     defer nya_http_static_unmount();
 
-    u16   port = start_server(UNLIMITED);
+    u16   port = start_server((NYA_HttpConfig){ 0 });
     defer nya_system_http_deinit();
 
     NYA_EXPECT(nya_http_server_merge(nya_http_static_router()));
@@ -400,7 +393,7 @@ static void test_path_traversal(NYA_Arena* arena) {
 /* REQUEST SMUGGLING */
 
 static void test_smuggling(NYA_Arena* arena) {
-    u16   port = start_server(UNLIMITED);
+    u16   port = start_server((NYA_HttpConfig){ 0 });
     defer nya_system_http_deinit();
 
     // TEST: every ambiguous framing is refused outright, answered once, and nothing behind it runs.
@@ -566,42 +559,12 @@ static void test_smuggling(NYA_Arena* arena) {
 
 /* RESOURCE EXHAUSTION */
 
-/** How long a connect from 127.0.0.2 may take before the host counts as one that drops it. */
-#define OTHER_ADDRESS_WAIT_MS 1000
-
-/**
- * A POSIX socket from 127.0.0.2, which the per address limits count as another machine, or -1 when the
- * host drops that source: a VPN kill switch or a container firewall does, and that says nothing about the server.
- * */
-static s32 connect_from_other_address(u16 port) {
-    s32 descriptor = socket(AF_INET, SOCK_STREAM, 0);
-    nya_assert(descriptor >= 0);
-
-    struct sockaddr_in local = { .sin_family = AF_INET, .sin_port = 0 };
-    nya_assert(inet_pton(AF_INET, "127.0.0.2", &local.sin_addr) == 1);
-    nya_assert(bind(descriptor, (const struct sockaddr*)&local, sizeof(local)) == 0);
-
-    struct timeval wait = { .tv_sec = OTHER_ADDRESS_WAIT_MS / 1000, .tv_usec = (OTHER_ADDRESS_WAIT_MS % 1000) * 1000 };
-    nya_assert(setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof(wait)) == 0);
-
-    struct sockaddr_in remote = { .sin_family = AF_INET, .sin_port = htons(port) };
-    nya_assert(inet_pton(AF_INET, "127.0.0.1", &remote.sin_addr) == 1);
-
-    if (connect(descriptor, (const struct sockaddr*)&remote, sizeof(remote)) != 0) {
-        nya_assert(errno == EINPROGRESS || errno == ETIMEDOUT || errno == EAGAIN, "connect from 127.0.0.2: %s", strerror(errno));
-        close(descriptor);
-        return -1;
-    }
-
-    return descriptor;
-}
-
 static void test_exhaustion(NYA_Arena* arena) {
     static Answer answer = { 0 };
 
     // TEST: oversized requests are refused with the status that names what was too big, and closed.
     {
-        u16   port = start_server(UNLIMITED);
+        u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         NYA_String* long_target = nya_string_create(arena);
@@ -677,7 +640,7 @@ static void test_exhaustion(NYA_Arena* arena) {
 
     // TEST: headers past the table are dropped, not refused, and the framing headers after them still count.
     {
-        u16   port = start_server(UNLIMITED);
+        u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         NYA_String* padded = nya_string_create(arena);
@@ -705,7 +668,7 @@ static void test_exhaustion(NYA_Arena* arena) {
     // TEST: slowloris. A head or a body dripped a byte at a time is dropped on the timeout from its first byte, not held while it drips, and nobody
     // else waits on it.
     {
-        u16   port = start_server(UNLIMITED);
+        u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         NYA_OsSocket head = connect_to(port);
@@ -785,7 +748,7 @@ static void test_exhaustion(NYA_Arena* arena) {
 
     // TEST: slow reader. A peer taking its answers a little at a time has until the timeout to take all of them, not a fresh timeout per read.
     {
-        u16   port = start_server(UNLIMITED);
+        u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         // a small window and segment, set before the handshake, so the kernel buffers little on the reader's behalf and each read reopens the window.
@@ -833,7 +796,7 @@ static void test_exhaustion(NYA_Arena* arena) {
         nya_check(closed_ms <= NYA_HTTP_IDLE_TIMEOUT_MS + TIMEOUT_SLACK_MS, "the slow reader lasted %llu ms", (unsigned long long)closed_ms);
     }
 
-    // TEST: a connection flood from one address takes its share of the table and no more, and another address is still served.
+    // TEST: a connection flood takes the table and no more: the memory bound holds, and the rest are closed at accept.
     {
         u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
@@ -851,12 +814,7 @@ static void test_exhaustion(NYA_Arena* arena) {
             sleep_ms(1);
         }
 
-        nya_check(
-            most == NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS,
-            "one address held %u connections, the cap is %d",
-            most,
-            NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS
-        );
+        nya_check(most == NYA_HTTP_MAX_CONNECTIONS, "the flood held %u connections, the table is %d", most, NYA_HTTP_MAX_CONNECTIONS);
 
         // the rest were closed at accept, which the flood sees as an end of stream rather than a queue.
         u32 refused = 0;
@@ -866,38 +824,11 @@ static void test_exhaustion(NYA_Arena* arena) {
             if (nya_os_socket_receive(flood[index], scratch, sizeof(scratch), &read) == NYA_OS_SOCKET_CLOSED) refused++;
         }
         nya_check(
-            refused == FLOOD_COUNT - NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS,
+            refused == FLOOD_COUNT - NYA_HTTP_MAX_CONNECTIONS,
             "%u of the flood were closed, expected %d",
             refused,
-            FLOOD_COUNT - NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS
+            FLOOD_COUNT - NYA_HTTP_MAX_CONNECTIONS
         );
-
-        s32 other = connect_from_other_address(port);
-
-        if (other < 0) {
-            printf("  SKIP: this host drops 127.0.0.2 -> 127.0.0.1, so another address being served during a flood is not checked\n");
-        } else {
-            defer close(other);
-
-            NYA_ConstCString polite = "GET /a HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n";
-            nya_assert(send(other, polite, strlen(polite), MSG_NOSIGNAL) == (ssize_t)strlen(polite));
-
-            u64 filled  = 0;
-            u64 started = nya_clock_get_monotonic_ns();
-
-            while (elapsed_ms(started) < ANSWER_WAIT_MS && filled + 1 < sizeof(answer.text)) {
-                nya_system_http_tick();
-
-                ssize_t read = recv(other, answer.text + filled, sizeof(answer.text) - filled - 1, MSG_DONTWAIT);
-                if (read == 0) break;
-                if (read > 0) filled += (u64)read;
-
-                sleep_ms(1);
-            }
-
-            answer.text[filled] = '\0';
-            nya_check(status_of(answer.text) == 200, "another address was not served during a flood: %u", status_of(answer.text));
-        }
     }
 }
 

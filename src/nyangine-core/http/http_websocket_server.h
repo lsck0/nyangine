@@ -51,11 +51,10 @@
  * ── an upgrade is a request like any other ──
  *
  * It arrives on the listener in http_server.h, on a connection that was accepted under
- * NYA_HTTP_MAX_CONNECTIONS and NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS, it is parsed by the same parser,
- * and it spends a token from its address's bucket before it is looked at. A socket does not escape the
- * server's limits by becoming a WebSocket: it keeps the slot it was accepted into, so a peer that
- * upgrades has taken one of the connections it could have taken anyway, and it is counted again here
- * against NYA_HTTP_MAX_WEBSOCKETS and NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS.
+ * NYA_HTTP_MAX_CONNECTIONS, and it is parsed by the same parser. A socket does not escape the server's
+ * bounds by becoming a WebSocket: it keeps the slot it was accepted into, so a peer that upgrades has
+ * taken one of the connections it could have taken anyway, and it is counted again here against
+ * NYA_HTTP_MAX_WEBSOCKETS. Per client limits are the edge's, as they are for every request.
  *
  * It also goes through the origin check every unsafe request goes through
  * (Sec-Fetch-Site and Origin against Host): an upgrade is a GET, so nothing about the method would
@@ -114,17 +113,6 @@
  * */
 #ifndef NYA_HTTP_MAX_WEBSOCKETS
 #define NYA_HTTP_MAX_WEBSOCKETS 4
-#endif
-
-/**
- * WebSocket connections one address may hold.
- *
- * A page opens one. Two leaves room for a reload's socket while the old one is still timing out, and
- * stops one address from taking every slot the way NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS stops it
- * taking every connection. The upgrade past it is refused with 503 rather than queued.
- * */
-#ifndef NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS
-#define NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS 2
 #endif
 
 /** Paths a program may mount. One per kind of stream, so this is a count of streams. */

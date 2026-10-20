@@ -5889,40 +5889,6 @@ NYA_Error nya_http_openapi_page(NYA_Arena* arena, OUT NYA_String** out_html)  //
 NYA_Object* nya_http_openapi_schema(NYA_Arena* arena, const NYA_TypeReflection* type)  // One type's JSON Schema, as the serializer would write it.
 ```
 
-### http_pow.h
-
-A proof-of-work wall in front of a route. The abuse layer for a server with no IP to rate-limit.
-
-```c
-// types
-struct NYA_HttpPowOptions { u8 difficulty; u64 ttl_s; }  // What the wall is shaped like.
-
-// macros
-NYA_HTTP_POW_NONCE_BYTES 16  // Bytes of the random nonce the server puts in a challenge.
-NYA_HTTP_POW_SEALED (2 + NYA_HTTP_POW_NONCE_BYTES)  // Bytes of the sealed plaintext: a version byte, a difficulty byte, and the nonce.
-NYA_HTTP_POW_VERSION 1  // The version byte in the sealed plaintext, so a later layout can be told from this one rather than misread.
-NYA_HTTP_POW_MAX_DIFFICULTY 32  // The most leading-zero bits a difficulty may demand.
-NYA_HTTP_POW_DEFAULT_DIFFICULTY 20  // The difficulty a store takes when its options leave it zero.
-NYA_HTTP_POW_DEFAULT_TTL_S 300  // How long a challenge is good for when the options leave the TTL zero.
-NYA_HTTP_POW_MAX_SOLUTION 64  // The longest solution suffix the layer will hash, in bytes.
-NYA_HTTP_POW_MAX_SPENT 256  // Spent nonces held at once.
-NYA_HTTP_POW_LABEL "pow-challenge"  // The seal label a PoW token is bound to, so a token of any other kind sent in its place does not open.
-NYA_HTTP_POW_CHALLENGE_HEADER "X-Pow-Challenge"  // The nonce, base64url, on the response that issues a challenge.
-NYA_HTTP_POW_DIFFICULTY_HEADER "X-Pow-Difficulty"  // The difficulty, on the response that issues a challenge.
-NYA_HTTP_POW_TOKEN_HEADER "X-Pow-Token"
-NYA_HTTP_POW_SOLUTION_HEADER "X-Pow-Solution"  // The found suffix, base64url, on the request that answers a challenge.
-nya_http_pow_init(arena, ...)  // Takes the options by name.
-
-// functions
-NYA_Error _nya_http_pow_init(NYA_Arena* arena, NYA_HttpPowOptions options)
-void nya_http_pow_deinit(void)  // Forgets every spent nonce and gives the lock back to its arena.
-NYA_HttpStatus nya_http_layer_pow(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // The wall.
-b8 nya_http_pow_solve(const u8* nonce, u64 nonce_size, u8 difficulty, OUT u8* out_solution, u64 capacity, OUT u64* out_size)  // Finds a solution: a suffix whose `SHA-256(nonce || suffix)` has at least `difficulty` leading zero bits.
-u32 nya_http_pow_leading_zero_bits(const u8* digest, u64 size)  // Leading zero bits of a 32-byte SHA-256 digest, counted from the most significant bit of the first byte.
-void nya_http_pow_reset(void)  // Forgets every spent nonce, keeping the lock and the ceiling registration.
-u32 nya_http_pow_count(void)  // How many spent nonces are held right now, which is the ceiling's live count.
-```
-
 ### http_robots.h
 
 A `robots.txt`: the rules a crawler reads before it fetches anything, built from groups a program
@@ -6002,7 +5968,7 @@ The listener: a TCP port, a handful of connections, and either one drain a frame
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; u32 shutdown_deadline_ms; b8 handle_shutdown_signals; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
@@ -6125,10 +6091,6 @@ struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; N
 
 // macros
 NYA_HTTP_MAX_CONNECTIONS 8  // Connections held at once.
-NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS 4  // Connections one address may hold at once, unless the config lowers it.
-NYA_HTTP_MAX_RATE_BUCKETS 64  // Addresses whose request budget is remembered at once.
-NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND 20
-NYA_HTTP_DEFAULT_REQUEST_BURST 40
 NYA_HTTP_MAX_ADDRESS 48  // Longest address, terminator included.
 NYA_HTTP_REQUEST_ID_SIZE 17  // A request id: 64 random bits as 16 hex digits, and the terminator.
 NYA_HTTP_MAX_HEAD_BYTES 4096  // Bytes of request line and headers together.
@@ -6245,7 +6207,6 @@ struct NYA_HttpWebSocketRoute { NYA_ConstCString path; NYA_ConstCString summary;
 
 // macros
 NYA_HTTP_MAX_WEBSOCKETS 4  // WebSocket connections held at once, out of the NYA_HTTP_MAX_CONNECTIONS the listener accepts.
-NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS 2  // WebSocket connections one address may hold.
 NYA_HTTP_MAX_WEBSOCKET_ROUTES 4  // Paths a program may mount.
 NYA_HTTP_WEBSOCKET_MAX_FRAME_BYTES 4096  // Bytes of payload one frame may announce.
 NYA_HTTP_WEBSOCKET_MAX_MESSAGE_BYTES NYA_HTTP_MAX_BODY_BYTES  // Bytes of one assembled message, every fragment counted.

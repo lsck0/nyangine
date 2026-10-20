@@ -96,7 +96,7 @@ struct _NYA_HttpConnection {
     /** Answered with a 101, so the bytes on it are frames and http_websocket_server.c owns them. */
     b8 upgraded;
 
-    /** The peer, as the socket reports it. What the per address limits key on, and never a forwarded header. */
+    /** The peer, as the socket reports it, never a forwarded header. Behind the edge it is the proxy. */
     char address[NYA_HTTP_MAX_ADDRESS];
 
 #ifdef NYA_TESTING
@@ -151,13 +151,6 @@ struct _NYA_HttpSlot {
     atomic u32 state;
 };
 
-/** One address's request budget: a token bucket, refilled continuously and spent one token per request. */
-typedef struct {
-    char address[NYA_HTTP_MAX_ADDRESS];
-    f64  tokens;
-    u64  refilled_at_ns;
-} _NYA_HttpRateBucket;
-
 struct _NYA_HttpState {
     NYA_Arena* allocator;
 
@@ -165,12 +158,6 @@ struct _NYA_HttpState {
 
     u16 port;
     u32 max_connections;
-    u32 max_connections_per_address;
-    u32 requests_per_second;
-    u32 request_burst;
-
-    _NYA_HttpRateBucket buckets[NYA_HTTP_MAX_RATE_BUCKETS];
-    u32                 bucket_count;
 
     /** Copied from the config, so the caller may wipe theirs. Zeroed by deinit. */
     u8  secret[NYA_HTTP_MAX_SECRET_BYTES];
@@ -300,9 +287,6 @@ NYA_INTERNAL void _nya_http_upgrade(_NYA_HttpConnection* connection, _NYA_HttpSl
 
 /** A fresh request id: 64 bits from the CSPRNG as hex. */
 NYA_INTERNAL void _nya_http_request_id(const _NYA_HttpState* state, OUT char* out);
-
-/** Spends one token from `address`'s bucket. False when it is empty, with the seconds until one refills. */
-NYA_INTERNAL b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) __attr_no_discard;
 
 /** Renders and queues a response. False when the socket has failed. */
 NYA_INTERNAL b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, b8 head_only)
@@ -435,11 +419,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     state->port      = config.port;
     state->max_connections =
         config.max_connections == 0 || config.max_connections > NYA_HTTP_MAX_CONNECTIONS ? NYA_HTTP_MAX_CONNECTIONS : config.max_connections;
-    state->max_connections_per_address = config.max_connections_per_address != 0 ? config.max_connections_per_address : NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS;
-    state->requests_per_second         = config.requests_per_second != 0 ? config.requests_per_second : NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND;
-    state->request_burst               = config.request_burst != 0 ? config.request_burst : NYA_HTTP_DEFAULT_REQUEST_BURST;
-    state->max_connections_per_address = nya_min(state->max_connections_per_address, state->max_connections);
-    state->shutdown_deadline_ms        = config.shutdown_deadline_ms != 0 ? config.shutdown_deadline_ms : NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS;
+    state->shutdown_deadline_ms = config.shutdown_deadline_ms != 0 ? config.shutdown_deadline_ms : NYA_HTTP_DEFAULT_SHUTDOWN_DEADLINE_MS;
 
     // A signal from a previous run of this server, or from before it started, is not this run's; cleared here so a re-init begins accepting rather than already draining.
     atomic_store_explicit(&_NYA_HTTP_SHUTDOWN_SIGNALLED, false, memory_order_relaxed);
@@ -507,7 +487,6 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     // an atomic counter and a plain one have the same bytes; the registry only ever reads it, and it's atomic because the listener thread is what moves it.
     nya_ceiling_register("http_connections", _NYA_HTTP->max_connections, (const u32*)&_NYA_HTTP->connection_count);
-    nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
     nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
 
     // Opt-in, and through the engine's own facility rather than a raw handler: a program with a frame loop leaves this off and lets core drive shutdown, and only a headless server sets it. Installed last, once the server is up, so the first signal it could catch finds a state to drain. The handler stores one atomic and returns; _nya_http_shutdown_observe does the work on the ticking thread.
@@ -538,7 +517,6 @@ void nya_system_http_deinit(void) {
 
     // Retract the ceilings init registered: two point into `state`, which this frees, so a metrics query after deinit would read freed memory. Done up front so both the graceful and leak-on-purpose paths drop them, and so a re-init doesn't register a second copy.
     nya_ceiling_unregister("http_connections");
-    nya_ceiling_unregister("http_rate_buckets");
     nya_ceiling_unregister("http_websockets");
 
     // first, so a drain that arrives while the rest of this is running finds nothing to do.
@@ -867,21 +845,9 @@ void _nya_http_accept(void) {
             continue;
         }
 
-        // the peer as the socket reports it. A header could claim anything, so the limits never read one.
+        // the peer as the socket reports it, without the port; a header could claim anything, so nothing reads one for this.
         char address[NYA_HTTP_MAX_ADDRESS] = { 0 };
-
-        // without the port: the limits are about a machine, and its next connection comes from another port.
         if (!nya_os_address_text(peer, false, address, sizeof(address))) (void)snprintf(address, sizeof(address), "%s", "unknown");
-
-        // and one address cannot take every slot. Closed rather than queued, like the connection past the last.
-        u32 held = 0;
-        for (u32 index = 0; index < _NYA_HTTP->max_connections; index++) {
-            if (_NYA_HTTP->connections[index].socket.handle != 0 && strcmp(_NYA_HTTP->connections[index].address, address) == 0) held++;
-        }
-        if (held >= _NYA_HTTP->max_connections_per_address) {
-            nya_os_socket_close(socket);
-            continue;
-        }
 
         // a small answer goes now rather than waiting for company, which is what a request/response protocol wants: there's nothing else coming to share the packet with.
         (void)nya_os_socket_set_no_delay(socket, true);
@@ -994,13 +960,6 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot, u32* b
 
         if (parsed == NYA_HTTP_PARSE_REFUSED) {
             _nya_http_refuse(connection, slot, refusal, "the request could not be parsed", 0);
-            return false;
-        }
-
-        // counted once a request has parsed, so a slow sender is the idle timeout's to deal with and not this.
-        u32 retry_after_s = 0;
-        if (!_nya_http_rate_take(connection->address, &retry_after_s)) {
-            _nya_http_refuse(connection, slot, NYA_HTTP_STATUS_TOO_MANY_REQUESTS, "this address has sent more requests than it may; see Retry-After", retry_after_s);
             return false;
         }
 
@@ -1214,63 +1173,6 @@ void _nya_http_request_id(const _NYA_HttpState* state, OUT char* out) {
     }
 
     for (u32 index = 0; index < sizeof(bits); index++) (void)snprintf(out + ((u64)index * 2), 3, "%02x", bits[index]);
-}
-
-b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
-    nya_assert(address != nullptr && out_retry_after_s != nullptr);
-
-    u64 now_ns = nya_clock_get_monotonic_ns();
-
-    _NYA_HttpRateBucket* bucket = nullptr;
-    for (u32 index = 0; index < _NYA_HTTP->bucket_count; index++) {
-        if (strcmp(_NYA_HTTP->buckets[index].address, address) == 0) bucket = &_NYA_HTTP->buckets[index];
-    }
-
-    // a new address starts full; past the table's bound one budget makes room, and which one is the whole of whether this table can be used against the addresses already in it (see below).
-    if (bucket == nullptr) {
-        if (_NYA_HTTP->bucket_count < NYA_HTTP_MAX_RATE_BUCKETS) {
-            bucket = &_NYA_HTTP->buckets[_NYA_HTTP->bucket_count++];
-        } else {
-            // Only a budget refilled all the way makes room: an address whose budget is spent is one being refused right now, and evicting it would hand it a fresh burst — so someone spraying source addresses could clear the table and start over at will, the eviction attack this bound used to have. Among the full ones the stalest goes, since they're all equally not being refused.
-            _NYA_HttpRateBucket* victim = nullptr;
-
-            for (u32 index = 0; index < NYA_HTTP_MAX_RATE_BUCKETS; index++) {
-                _NYA_HttpRateBucket* candidate = &_NYA_HTTP->buckets[index];
-
-                f64 idle_s    = (f64)(now_ns - candidate->refilled_at_ns) / 1e9;
-                f64 projected = candidate->tokens + (idle_s * (f64)_NYA_HTTP->requests_per_second);
-
-                if (projected < (f64)_NYA_HTTP->request_burst) continue;
-                if (victim == nullptr || candidate->refilled_at_ns < victim->refilled_at_ns) victim = candidate;
-            }
-
-            // Every budget in the table is spent: the table is full of addresses being refused, and this one waits with them rather than taking a slot from one.
-            if (victim == nullptr) {
-                *out_retry_after_s = 1;
-                return false;
-            }
-
-            bucket = victim;
-        }
-
-        *bucket = (_NYA_HttpRateBucket){ .tokens = (f64)_NYA_HTTP->request_burst, .refilled_at_ns = now_ns };
-        (void)snprintf(bucket->address, sizeof(bucket->address), "%s", address);
-    }
-
-    f64 elapsed_s          = (f64)(now_ns - bucket->refilled_at_ns) / 1e9;
-    bucket->tokens         = nya_min(bucket->tokens + (elapsed_s * (f64)_NYA_HTTP->requests_per_second), (f64)_NYA_HTTP->request_burst);
-    bucket->refilled_at_ns = now_ns;
-
-    if (bucket->tokens >= 1.0) {
-        bucket->tokens -= 1.0;
-        return true;
-    }
-
-    // a whole token's refill, rounded up, since Retry-After is in whole seconds and early is refused again.
-    *out_retry_after_s = (u32)ceil((1.0 - bucket->tokens) / (f64)_NYA_HTTP->requests_per_second);
-    if (*out_retry_after_s == 0) *out_retry_after_s = 1;
-
-    return false;
 }
 
 void _nya_http_close(_NYA_HttpConnection* connection) {

@@ -129,9 +129,10 @@
  * TLS link (curl, and mail through it) uses curl's own backend per target.
  *
  * HTTP response compression reaches the system's zlib and brotli, which a Windows build here has no
- * copy of on the link line — so the feature is Linux only for now and compiles to a no-op elsewhere. The libraries themselves are added to the Linux link in FLAGS_LINUX_X86_64,
- * next to the rpath, since they are a system dependency and not a vendored archive. NYA_HTTP_COMPRESSION
- * turns on gzip and deflate; NYA_HTTP_COMPRESSION_BROTLI adds `br`.
+ * copy of on the link line — so the feature is Linux only for now and compiles to a no-op elsewhere.
+ * The libraries themselves are added to the Linux link in FLAGS_LINUX_X86_64, next to the rpath, since
+ * they are a system dependency and not a vendored archive. NYA_HTTP_COMPRESSION turns on gzip and
+ * deflate; NYA_HTTP_COMPRESSION_BROTLI adds `br`.
  *
  * The compression macro is a leading comma rather than a trailing one, with no comma before it in the
  * module lists: that is how a macro that may expand to nothing joins a list without leaving a double

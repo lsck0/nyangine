@@ -186,16 +186,13 @@ the key the document carries — a mirror could present its own), then fetches t
 and recomputes the digest, so a pass means the mirror served the origin's exact bytes and the origin
 signed for them. It runs and exits like `--healthcheck`, starting none of the server.
 
-## Proof of work in front of abuse
+## Abuse in front of an onion service
 
-An onion service has no client IP to rate-limit: every request arrives from the local Tor daemon, so the
-per-address bounds see one address. What is left to charge an abusive client is its own CPU. Run the
-server with `--proof-of-work` and the notes resource is walled behind a challenge: a request with no
-proof gets `401` with an `X-Pow-Challenge` (a nonce), an `X-Pow-Difficulty`, and a sealed `X-Pow-Token`;
-the client finds a suffix whose SHA-256 with the nonce has that many leading zero bits and resends with
-`X-Pow-Solution` and the token. A browser clears it unnoticed; a script hammering the route pays for
-every request. The challenge is sealed with the server's own key and expires, so a client cannot forge
-one or lower its difficulty, and a solved token is single-use. See `src/nyangine/http/http_pow.h`.
+An onion service has no client IP to rate-limit: every request arrives from the local Tor daemon. The
+brake is Tor's own: `HiddenServicePoWDefensesEnabled` in `tor/torrc` makes a client pay a proof of work
+to reach the service once the introduction queue is under pressure (Tor 0.4.8 or later, built with
+`--enable-gpl`). The server keeps no proof-of-work layer of its own; on the homelab target the same job
+is Cloudflare's bot defence and traefik's per client limits in front of it.
 
 Nothing here was launched against a live Tor network from this repository — the onion stack is
 configuration, validated for coherence and documented, and brought up with the commands above on a host

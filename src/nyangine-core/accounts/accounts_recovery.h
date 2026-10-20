@@ -47,8 +47,8 @@
  *
  * ── the throttle covers it ──
  *
- * A recovery attempt goes through accounts_throttle.h exactly as a password does, keyed on the account
- * and the address, so guessing codes is slowed the same way guessing passwords is. A code is 20 random
+ * A recovery attempt goes through accounts_throttle.h exactly as a password does, keyed on the account,
+ * so guessing codes is slowed the same way guessing passwords is. A code is 20 random
  * bits of base32 per group and there are two groups, so guessing is already hopeless; the throttle is
  * there so trying is not free either.
  * */
@@ -113,15 +113,15 @@ NYA_API NYA_Error nya_account_recovery_generate(
  * Spends a recovery code for the account with this username, and answers whose it was.
  *
  * A code matches at most once: a match deletes the stored hash, so the same code cannot be used twice.
- * The username is folded like a login's, and the attempt is throttled on the account and `address` the
- * way a password attempt is; `address` may be null when there is nobody to name.
+ * The username is folded like a login's, and the attempt is throttled on the account the way a password
+ * attempt is.
  *
  * NYA_ERROR_PERMISSION_DENIED for a code that does not match, an account that does not exist, and a
  * disabled account, all in the same words for the reason accounts.h gives — a recovery screen is as
  * reachable by somebody guessing as a login is.
  * */
 NYA_API NYA_Error nya_account_recovery_consume(
-    NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString code, NYA_ConstCString address, OUT NYA_AccountUser* out_user
+    NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString code, OUT NYA_AccountUser* out_user
 ) __attr_no_discard;
 
 /** How many unused codes the account has left, for the "you have 3 codes remaining" a person is shown. */
