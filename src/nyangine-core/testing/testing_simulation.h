@@ -16,6 +16,7 @@
  *   nya_simulation_advance / _now_ns /
  *     _delta_s                          the simulated clock, which nya_instant_now reads during a run
  *   nya_simulation_fail                 records a failure and prints the replay command
+ *   nya_simulation_trace                folds an observation into the run's digest
  *   nya_simulation_fill                 well shaped random data for any reflected type
  *
  * ```c
@@ -213,6 +214,12 @@ struct NYA_SimulationRun {
 
     u32 failures;
 
+    /**
+     * A fold of everything the run did that a second run of the same seed must do again: each step's
+     * action and how many draws it took, and whatever the actions trace. See nya_simulation_trace.
+     * */
+    u64 digest;
+
     void* user_data;
 };
 
@@ -275,6 +282,16 @@ NYA_API void nya_simulation_report(const NYA_SimulationRun* run);
 
 /** Records a failure and prints it with everything needed to replay the run. */
 NYA_API void nya_simulation_fail(NYA_SimulationRun* run, NYA_ConstCString format, ...) __attr_fmt_printf(2, 3);
+
+/**
+ * Folds `value` into the run's digest: a status code a request got back, a count a check read, a byte an
+ * inbox held. The harness folds each step's action and draw count itself; an action traces what it saw
+ * the engine do, so a second run of the seed that saw something else ends on a different digest.
+ *
+ * Trace only what the seed decides. A port the host picked, a pointer or a wall clock stamp differs
+ * between two honest runs and would fail the self check for nothing.
+ * */
+NYA_API void nya_simulation_trace(NYA_SimulationRun* run, u64 value);
 
 /*
  * ─────────────────────────────────────────────────────────

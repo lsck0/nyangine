@@ -25,7 +25,7 @@
 /** Regression seeds the file may hold. A line is eight bytes of seed; a thousand is more than anyone will write. */
 #define SEED_MAX 1000
 
-static u32 run_seed(u64 seed, u64 steps, b8 verbose) {
+static u32 run_once(u64 seed, u64 steps, b8 verbose, OUT u64* out_digest) {
     NYA_SimulationRun* run = nya_simulation_create(.seed = seed, .step_count = steps, .verbose = verbose);
     defer              nya_simulation_destroy(run);
 
@@ -38,7 +38,31 @@ static u32 run_seed(u64 seed, u64 steps, b8 verbose) {
     // the generated table, which only something above the engine can name; see testing_actions.h.
     nya_simulation_actions_reflect_add(run, NYA_REFLECT_TYPES, NYA_REFLECT_TYPE_COUNT);
 
-    return nya_simulation_run(run);
+    u32 failures = nya_simulation_run(run);
+    *out_digest  = run->digest;
+
+    return failures;
+}
+
+/**
+ * Runs `seed` twice and compares the digests: the determinism self check. A seed that replays differently
+ * is a bug report nobody can reproduce, which is worse than no report, so a mismatch is a failure in its
+ * own right even when both runs passed.
+ * */
+static u32 run_seed(u64 seed, u64 steps, b8 verbose) {
+    u64 first  = 0;
+    u64 second = 0;
+
+    u32 failures = run_once(seed, steps, verbose, &first);
+    failures    += run_once(seed, steps, verbose, &second);
+
+    if (first != second) {
+        printf("  FAIL (seed 0x%016llX): two runs of one seed ended on digests 0x%016llX and 0x%016llX; something in the run is not decided by the seed\n",
+               (unsigned long long)seed, (unsigned long long)first, (unsigned long long)second);
+        failures++;
+    }
+
+    return failures;
 }
 
 /** Reads the committed seeds. Returns how many were read; a missing file is a failure, not an empty list. */

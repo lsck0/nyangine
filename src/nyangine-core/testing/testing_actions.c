@@ -748,6 +748,9 @@ void _nya_simulation_check_entity_table(NYA_SimulationRun* run) {
     }
 
     if (live != nya_entity_count()) nya_simulation_fail(run, "the table holds %u entities and the count says %u", live, nya_entity_count());
+
+    // how many live after every step, which a run whose spawns and despawns went another way cannot match.
+    nya_simulation_trace(run, live);
 }
 
 void _nya_simulation_check_body_counts(NYA_SimulationRun* run) {

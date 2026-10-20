@@ -326,6 +326,7 @@ NYA_INTERNAL void _nya_simulation_db_do_http_session(NYA_SimulationRun* run) {
     nya_arena_free_all(_NYA_SIMULATION_DB.scratch);
 
     NYA_HttpStatus status = _nya_simulation_db_get(NYA_HTTP_ACCOUNTS_SESSION_PATH);
+    nya_simulation_trace(run, (u64)status);
 
     // a lying disk is the server's trouble and says so as 503; a 401 would sign a real user out, a 500 blames the code.
     if (healthy ? status != NYA_HTTP_STATUS_OK : (status != NYA_HTTP_STATUS_OK && status != NYA_HTTP_STATUS_SERVICE_UNAVAILABLE)) {
@@ -427,6 +428,8 @@ NYA_INTERNAL void _nya_simulation_db_fault_power_loss(NYA_SimulationRun* run) {
         nya_simulation_fail(run, "a recovered file could not be read");
         return;
     }
+
+    nya_simulation_trace(run, after - before);
 
     // atomic either way; durable when the power never touched it.
     if (after != before && after != before + rows) nya_simulation_fail(run, "a power cut left %llu of %u rows of one transaction", (unsigned long long)(after - before), rows);
