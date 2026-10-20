@@ -70,7 +70,7 @@ stdenv.mkDerivation (finalAttrs: {
     install -Dm755 gnyame              "$out/bin/gnyame"
     install -Dm644 gnyame.desktop      "$out/share/applications/gnyame.desktop"
     install -Dm644 gnyame.png          "$out/share/icons/hicolor/48x48/apps/gnyame.png"
-    install -Dm644 LICENSE             "$out/share/licenses/gnyame/LICENSE"
+    install -Dm644 LICENSE.md          "$out/share/licenses/gnyame/LICENSE"
     install -Dm644 CHANGELOG.md        "$out/share/doc/gnyame/CHANGELOG.md"
 
     # The defaults a fresh install copies into the player's data directory on first run. Read only

@@ -120,6 +120,3 @@ secrets/**/*.jks
 secrets/**/*.keystore
 !secrets/**/*.enc
 !secrets/**/*.example
-
-# devenv state; devenv.lock is committed
-.devenv/

@@ -8,7 +8,7 @@ PublisherUrl: https://github.com/lsck0
 PackageName: gnyame
 PackageUrl: https://github.com/lsck0/nyangine
 License: MIT
-LicenseUrl: https://github.com/lsck0/nyangine/blob/master/LICENSE
+LicenseUrl: https://github.com/lsck0/nyangine/blob/master/LICENSE.md
 ShortDescription: A physics sandbox built on nyangine
 Tags:
   - game

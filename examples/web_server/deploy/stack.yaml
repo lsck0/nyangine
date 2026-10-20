@@ -16,7 +16,7 @@ services:
     ports:
       - "80:8000"
     healthcheck:
-      test: ["CMD", "/web_server.example", "--healthcheck", "--port", "8000"]
+      test: ["CMD", "/web_server", "--healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 3

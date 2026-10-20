@@ -24,7 +24,7 @@ git submodule update --init --recursive
 and bootstrap the build system with
 
 ```bash
-clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread
 ```
 
 then run
@@ -44,25 +44,22 @@ per-file and total line coverage of `src/nyangine`. It exits non-zero when the t
 `--html` also writes an annotated listing under `.coverage/html`. It needs `llvm-profdata` and
 `llvm-cov`, which ship with clang, and skips with a notice rather than failing when they are absent.
 
-## Reproducible toolchain (nix)
+## Host requirements
 
-Getting the compiler right is the fiddly part of the bootstrap above: the engine needs a clang new
-enough for C2Y, `-fdefer-ts`, `-fenable-matrix` and `_Float16`, and a distribution's default clang
-is rarely it. If you have [nix](https://nixos.org) with [devenv](https://devenv.sh) and
-[direnv](https://direnv.net), an optional pinned toolchain is one command away:
+- clang 23 with lld, plus `clang-tidy`, `clang-format`, `llvm-profdata` and `llvm-cov` for the gates
+  and coverage. The engine needs C2Y, `-fdefer-ts`, `-fenable-matrix` and `_Float16`.
+- mold, the linker every Linux target uses.
+- cmake, make, ninja, nasm and pkg-config, which the vendored dependencies build with.
+- The system OpenSSL, zlib and brotli headers.
+- SDL's build dependencies: the X11 (libx11, libxext, libxfixes, libxi, libxrandr, libxcursor,
+  libxss, libxtst), Wayland (libwayland, libxkbcommon, libdecor), Mesa (GL, GLES, EGL, gbm, drm),
+  audio (ALSA, PulseAudio, PipeWire, JACK, sndio) and udev/dbus development packages.
+- mingw-w64, for the Windows cross builds.
+- sccache or ccache, optional. When either is on the PATH the vendor builds go through it.
 
-```bash
-direnv allow    # or, without direnv: devenv shell
-./build
-```
-
-That drops you into a shell with exactly the LLVM 22 clang CI builds with, plus mold, cmake, ninja,
-make, the coverage and spell-check tools the gates need, and the system libraries the vendored SDL
-stack compiles against — all pinned. `devenv.nix` documents the two things it does not cover
-(Windows cross-compilation, which the toolchain header hardwires to a distro sysroot, and
-emscripten's writable cache). This is purely an alternative to installing the packages in
-[.github/ci-packages.txt](.github/ci-packages.txt) by hand; the from-source bootstrap above still
-works without nix, and nothing in the build depends on it.
+[.github/ci-packages.txt](.github/ci-packages.txt) is the exact Debian package list CI installs. A
+server only build (`--server`, see [packaging/docker](packaging/docker/README.md)) does not need
+mingw-w64.
 
 ## Where things are
 
@@ -75,15 +72,11 @@ works without nix, and nothing in the build depends on it.
 Real documentation lives above the declaration it describes; the headers under `src/nyangine` are
 the manual.
 
-## Dependencies
-
-Dependencies are listed in ./.github/ci-packages.txt. Not all of those are mandatory for building.
-
 ## Windows
 
 In theory, building works on Windows. In practice, I don't use Windows, so who knows. A Windows host
 builds the Windows targets only, and cannot compile the shaders; a Linux host builds everything.
 
 ```bash
-clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
+clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -Wno-psabi -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
 ```

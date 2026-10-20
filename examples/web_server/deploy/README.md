@@ -7,36 +7,13 @@ and the swarm rolls it out start-first, rolling back if the new task never turns
 
 ## The image
 
-`examples/web_server/Dockerfile` is a two-stage build. The builder brings up the clang toolchain the
-engine needs (a very recent clang, for the matrix_type extension, `-fdefer-ts` and `_Float16`, plus
-lld), bootstraps `./build`, and builds the example as a **release, stripped** artifact with its assets
-baked in. The runtime stage is `FROM scratch` and holds only that binary, the shared libraries `ldd`
-reports, and a writable `/data`. A measured build is **~39 MB** — the 9.4 MB stripped binary plus
-libssl/libcrypto/libz/brotli/zstd/libstdc++ and the loader, and nothing else.
+The image is built by [packaging/docker/Dockerfile](../../../packaging/docker/Dockerfile); its README
+has the build and run lines, the environment it reads and the measured size.
 
 ```bash
-# from the repository root — the build context is the whole tree, not this directory
-docker build -t registry.lsck0.dev/web_server:latest -f examples/web_server/Dockerfile .
-
-# run it locally
-docker run --rm -p 8000:8000 registry.lsck0.dev/web_server:latest
-curl -f http://localhost:8000/        # 200: the page
-curl -f http://localhost:8000/healthz # 200: liveness
-
-# push it where the swarm pulls from
+docker build -t registry.lsck0.dev/web_server:latest -f packaging/docker/Dockerfile .
 docker push registry.lsck0.dev/web_server:latest
 ```
-
-### Why the image is not smaller still
-
-The engine is one graph today: `core` (the asset, save, callback and event systems this server uses),
-`http` and `crypto` all sit behind `NYA_NO_SDL` in `src/nyangine/nyangine.h`, and `core` embeds the
-renderer by value — so the example compiles the whole engine and links the full vendor set, SDL
-included. What keeps the image small anyway is the release link: `--gc-sections` drops every function
-the server never reaches, so `ldd` on the result shows **no SDL** at all, and `-s` strips the debug
-info. When a genuinely headless engine build lands, this same binary links only the server vendor
-subset (`NYA_SERVER_VENDORS_LINUX_X86_64` in `src/nyangine-build/vendor/vendor.h`, which `./build --server`
-already knows how to build on its own) and the image shrinks further; nothing here changes.
 
 ## The healthcheck
 
@@ -45,7 +22,7 @@ Docker runs a container's healthcheck **inside** the container. homelab's `webSe
 stack ask the same question a different way: the server probes itself.
 
 ```
-/web_server.example --healthcheck --port 8000
+/web_server --healthcheck
 ```
 
 is a client, not a server: it GETs `/` on the loopback port through the HTTP client the binary already
@@ -77,7 +54,7 @@ to a homelab instance as a `homelab.swarm.stacks` entry — mirroring
             ports:
               - "80:8000"
             healthcheck:
-              test: ["CMD", "/web_server.example", "--healthcheck", "--port", "8000"]
+              test: ["CMD", "/web_server", "--healthcheck"]
               interval: 10s
               timeout: 5s
               retries: 3
@@ -118,7 +95,7 @@ port 80 to the app's `:8000`. The app publishes nothing to the host — there is
 service — so the only way in is the `.onion`.
 
 **No application change is needed.** Tor reaches the server as an ordinary HTTP peer over the compose
-network, and the image already binds the wildcard (`--address 0.0.0.0` in its `ENTRYPOINT`), so the same
+network, and the image already binds the wildcard (`WEB_SERVER_ADDRESS=0.0.0.0` in its environment), so the same
 binary that faces a published port in the swarm faces the Tor daemon here. The onion is plain HTTP end
 to end and that is correct: Tor's own layer is the encryption and the authentication of the address, so
 a self-signed TLS certificate on top would only add a warning a visitor has to click through.

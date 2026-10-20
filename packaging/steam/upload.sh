@@ -30,7 +30,7 @@ done
 rm -rf "${work}"
 mkdir -p "${work}/scripts" "${work}/content" "${work}/output"
 
-# The staged distributions go up whole: the executable, the Steamworks library, LICENSE, CHANGELOG.md
+# The staged distributions go up whole: the executable, the Steamworks library, LICENSE.md, CHANGELOG.md
 # and the data/ and plugins/ trees. A depot that is a subset of what a player downloads anywhere else
 # is a depot that behaves differently for no reason anyone can see.
 cp -r "${linux_depot}" "${work}/content/linux"
