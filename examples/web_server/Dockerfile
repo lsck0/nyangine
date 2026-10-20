@@ -23,8 +23,8 @@
 FROM debian:trixie AS builder
 
 # clang 22 and lld from apt.llvm.org — the engine needs a clang this new, and Debian's default is
-# older. cmake, make and git build the vendored dependencies; libssl-dev is the system OpenSSL the
-# `tls` module and curl link against; pkg-config and ca-certificates round out the vendor configures.
+# older. cmake, make and git build the vendored dependencies; libssl-dev is the system OpenSSL curl
+# links against; pkg-config and ca-certificates round out the vendor configures.
 #
 # The SDL build dependencies (X11, Wayland, Mesa, audio) are here because the example still compiles
 # the full engine graph and so links the SDL vendor archives — core, http and crypto sit behind

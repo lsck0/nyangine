@@ -1,9 +1,9 @@
 # Splitting core out of the SDL wall
 
 This is the plan for the biggest open layering item in TODO.md: letting `http`, `net` and a headless
-server build without SDL or the renderer. Today the whole of `crypto`, `tls`, `physics`, `net`, `http`,
+server build without SDL or the renderer. Today the whole of `crypto`, `physics`, `net`, `http`,
 `core` and `reflection_engine` sit inside one `#ifndef NYA_NO_SDL` block in `nyangine.h`/`nyangine.c`, so
-`-DNYA_NO_SDL` gives you `base`, `os`, `math`, `serde`, `crypto`'s headers, `tls`, `acme`, `permission`
+`-DNYA_NO_SDL` gives you `base`, `os`, `math`, `serde`, `crypto`'s headers, `permission`
 and the plugins — and nothing above them. A server links the whole engine because it has no other choice.
 
 The refactor is large and this document does not pretend one commit does it. It records what was
@@ -26,7 +26,7 @@ non-`base`/`os`/`net` includes are `crypto`, `serde` and one `permission`. Its `
 function — `nya_asset_read` and `nya_callback_get` appear only in doc comments. The coupling runs the
 *other* way: `core_app.c` calls `nya_system_http_tick()` to drive http's drain from the frame loop, under
 its own `#ifndef NYA_NO_SDL`. So http and net are inside the wall by *placement in the include list*, not
-by dependency. `crypto`, `tls`, `acme` and `smtp` contain zero SDL references; `net` contains zero; `http`
+by dependency. `crypto` contains zero SDL references; `net` contains zero; `http`
 contains exactly one, `SDL_Delay(1)` in `http_server.c` (a thread-join spin, left over from when threads
 were SDL's), plus three now-unused `SDL3/` includes.
 
@@ -115,7 +115,7 @@ lines change; nothing a program does changes.
 
 2. **Take the last SDL call out of http.** Replace `SDL_Delay(1)` in `http_server.c` with
    `nya_os_time_sleep_ms(1)` (already the spin used in `base_rate.c`) and drop the three dead `SDL3/`
-   includes. After this, `http`, `net`, `crypto`, `tls`, `acme` and `smtp` are SDL-free at the source
+   includes. After this, `http`, `net` and `crypto` are SDL-free at the source
    level — nothing in them names SDL. (This step ships alongside step 1.)
 
 3. **Cut `core_event` off SDL.** Replace the `SDL_Mutex*` field with the engine's own `NYA_Mutex`
@@ -126,19 +126,19 @@ lines change; nothing a program does changes.
    cluster joins the free floor. This is the step that makes the runtime core actually useful to a
    server: a system registry with events and config in it.
 
-4. **[done] Lift http/net out of the wall, behind `NYA_SERVER`.** crypto, tls and acme were already
+4. **[done] Lift http/net out of the wall, behind `NYA_SERVER`.** crypto was already
    above the block. With steps 2–3 done, net and http followed: `nyangine.h` now pulls them under
    `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)` rather than the SDL block. The guard is additive on
    purpose — `NYA_NO_SDL` still means "no networking" for the host build tool and the wasm demos (they
    set it and not `NYA_SERVER`, so they are byte-for-byte unchanged), and a full build gets net/http as
-   before. What is new is `-DNYA_NO_SDL -DNYA_SERVER`: it compiles `base`/`os`/`math`/`crypto`/`tls`/
-   `acme`/`net`/`http`/`db`/`accounts`/`serde`/`template` with **no** `core` and **no** renderer, and it
+   before. What is new is `-DNYA_NO_SDL -DNYA_SERVER`: it compiles `base`/`os`/`math`/`crypto`/
+   `net`/`http`/`db`/`accounts`/`serde`/`template` with **no** `core` and **no** renderer, and it
    compiles clean — the very thing the ground-truth note called impossible while http sat inside the SDL
    block. This retires "a CLI/server links the whole engine" for the http/net half at the compile seam.
    The headless *link* this note left open landed in step 7: a server binary now ticks
    `nya_http_server_tick` from its own loop and links the `NYA_SERVER_VENDORS` subset. What made it a
    link rather than only a compile was two more translation-unit seams to match this header one —
-   nyangine.c compiling crypto/tls/net/acme/http (and their reflection) behind the same guard, not just
+   nyangine.c compiling crypto/net/http (and their reflection) behind the same guard, not just
    nyangine.h declaring them.
 
 5. **Give the runtime core a home off `NYA_App`.** Introduce the smaller aggregate the free systems live
@@ -161,7 +161,7 @@ lines change; nothing a program does changes.
    then compiles it with the server module set and links the subset (see `build_headless_server_example`
    in `src/nyangine-build/example.c`). Two seams beyond the header of step 4 were needed to make the *link* work:
 
-   - **nyangine.c compiles the server half behind the same guard.** crypto, tls, net, smtp, acme and http
+   - **nyangine.c compiles the server half behind the same guard.** crypto, net and http
      move from the `#ifndef NYA_NO_SDL` block into `#if !defined(NYA_NO_SDL) || defined(NYA_SERVER)`, so
      their translation units are actually compiled for a server, not merely declared. Two SDL-free
      dependencies come with them: `debug_trace.h` (its scopes are no-ops outside a development build) and

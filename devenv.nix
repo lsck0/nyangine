@@ -65,7 +65,7 @@
     # These are the nix equivalents; pkg-config (above) is what SDL's cmake finds them through. A
     # headless server checkout that never builds SDL does not need any of this, but carrying it keeps
     # `./build build vendor` working out of the box.
-    pkgs.openssl.dev    # vendor_openssl.h links the *system* OpenSSL rather than vendoring one.
+    pkgs.openssl.dev    # curl's TLS backend on Linux is the *system* OpenSSL rather than a vendored one.
 
     # ── HTTP response compression, linked on every host build. ───────────────────────────────────
     # flags.h FLAGS_LINUX_X86_64 puts -lz -lbrotlienc -lbrotlicommon on every host link — the build
