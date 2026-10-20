@@ -229,10 +229,11 @@ struct NYA_SqlResult {
 /**
  * Opens `path`, creating it if it is not there. Use ":memory:" for a database that never touches disk.
  *
- * The connection comes up tuned for a server: a write-ahead log, synchronous NORMAL, a busy timeout,
- * a 16 MiB page cache, temporary tables in memory (so nothing of the data reaches an unencrypted temp
- * file), foreign keys enforced, and `PRAGMA optimize=0x10002` so the planner has statistics from the
- * first query. Each is an option; see NYA_SqlOptions.
+ * The connection comes up tuned for a server: a write-ahead log, synchronous NORMAL, a busy timeout and
+ * a 16 MiB page cache, each an option in NYA_SqlOptions; and always foreign keys enforced, `PRAGMA
+ * optimize=0x10002` so the planner has statistics from the first query, and temporary tables and sorts
+ * in memory, so none of the data reaches a temp file in the clear. That last one costs a sort: an
+ * ORDER BY over 200 rows measured 47 us against 42 with temp files allowed (bench_db.c).
  *
  * Anything beyond the path is an option, so a call that wants none reads as it always did:
  *

@@ -7072,7 +7072,7 @@ struct NYA_SqlResult { NYA_ArrayᐸNYA_SqlRowᐳ* rows; u64 rows_affected; s64 l
 
 // macros
 NYA_SQL_KEY_SIZE 32
-NYA_SQL_STATEMENT_CACHE_MAX 64  // Prepared statements one connection keeps, keyed by their SQL text.
+NYA_SQL_STATEMENT_CACHE_MAX 64
 NYA_SQL_BUSY_TIMEOUT_MS_DEFAULT 5000  // How long a statement waits on another connection's lock before it fails as NYA_ERROR_TIMEOUT.
 NYA_SQL_CACHE_SIZE_KIB_DEFAULT 16384  // SQLite's page cache per connection, in KiB, against SQLite's own 2 MiB.
 NYA_SQL_WAL_AUTOCHECKPOINT_PAGES_DEFAULT 1000  // Pages the write-ahead log grows by before a commit checkpoints it into the file.
