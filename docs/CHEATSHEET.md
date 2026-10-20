@@ -8038,7 +8038,7 @@ void nya_os_fault_plan_detach(void)  // Takes this thread's plan off, sending wh
 NYA_OsFaultPlan* nya_os_fault_plan_current(void)
 void nya_os_fault_time_advance(NYA_OsFaultPlan* plan, u64 nanoseconds)  // Moves both simulated clocks forward by `nanoseconds`.
 void nya_os_fault_time_skew_wall(NYA_OsFaultPlan* plan, s64 nanoseconds)  // Moves the wall clock alone, by a signed amount: a negative one is the clock being set back.
-void nya_os_fault_datagrams_release(NYA_OsFaultPlan* plan)
+void nya_os_fault_datagrams_flush(NYA_OsFaultPlan* plan)
 void nya_os_fault_heal(NYA_OsFaultPlan* plan)  // Zeroes every rule.
 NYA_OsFaultKind nya_os_fault_decide(NYA_OsFaultOp op)
 ```
