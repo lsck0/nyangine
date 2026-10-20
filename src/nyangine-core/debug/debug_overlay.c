@@ -63,6 +63,9 @@ NYA_INTERNAL void _nya_debug_overlay_trace_draw(NYA_Window* window, const NYA_De
 /** The systems page: one row per registered system, in run order. */
 NYA_INTERNAL void _nya_debug_overlay_systems_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style);
 
+/** The scopes page: one row per scope site, in the chosen order. */
+NYA_INTERNAL void _nya_debug_overlay_scopes_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, b8 refresh);
+
 /**
  * Bytes as a fixed width string in a readable unit. Returns one of a few static buffers, so several
  * calls work in one format string. Not thread safe.
@@ -164,6 +167,11 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     if (style.page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS) {
         _nya_debug_overlay_systems_draw(window, &style);
+        return;
+    }
+
+    if (style.page == NYA_DEBUG_OVERLAY_PAGE_SCOPES) {
+        _nya_debug_overlay_scopes_draw(window, &style, refresh);
         return;
     }
 
@@ -635,9 +643,77 @@ void _nya_debug_overlay_systems_draw(NYA_Window* window, const NYA_DebugOverlayS
     }
 }
 
+void _nya_debug_overlay_scopes_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, b8 refresh) {
+    // held with the printed figures, so the table reads instead of flickering.
+    static NYA_ScopeStats rows[NYA_DEBUG_OVERLAY_SCOPE_ROWS];
+    static u32            row_count = 0;
+
+    if (refresh) {
+        NYA_ScopeStats all[NYA_SCOPE_SITE_MAX];
+        u32            count = nya_scope_stats(all, NYA_SCOPE_SITE_MAX, style->scope_sort);
+
+        row_count = nya_min(count, (u32)NYA_DEBUG_OVERLAY_SCOPE_ROWS);
+        for (u32 i = 0; i < row_count; i++) rows[i] = all[i];
+    }
+
+    f32 line_height = nya_render2d_font_line_height();
+    if (line_height <= 0.0F) line_height = 16.0F;
+
+    f32 padding = 8.0F;
+
+    // a heading, the column names and the rows.
+    f32 panel_height = (line_height * (f32)(row_count + 2)) + (padding * 2.0F);
+
+    if (style->background.a > 0.0F) nya_render2d_rect(window, style->x, style->y, style->width + (padding * 2.0F), panel_height, style->background);
+
+    static const NYA_ConstCString sort_names[NYA_SCOPE_SORT_COUNT] = { "self", "total", "allocated", "high water", "name" };
+
+    f32 text_x = style->x + padding;
+    f32 text_y = style->y + padding;
+
+    if (NYA_SCOPE_MEASURED) {
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, style->text_color, "%u scope sites   by %s", nya_scope_site_count(),
+                                     sort_names[style->scope_sort]);
+    } else {
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, style->text_color, "this build keeps scope names only");
+    }
+    text_y += line_height;
+
+    // columns at fixed fractions of the width: the font is proportional, so padded printf fields would not line up.
+    const f32       columns[] = { 0.0F, 0.36F, 0.46F, 0.57F, 0.68F, 0.80F, 0.91F };
+    const NYA_Color dim       = { 0.72F, 0.76F, 0.82F, 1.0F };
+
+    NYA_ConstCString headings[] = { "scope", "calls", "self ms", "total ms", "alloc", "peak", "high" };
+
+    for (u32 column = 0; column < nya_carray_length(headings); column++) {
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x + (columns[column] * style->width), text_y, dim, "%s", headings[column]);
+    }
+    text_y += line_height;
+
+    for (u32 i = 0; i < row_count; i++) {
+        const NYA_ScopeStats* row = &rows[i];
+
+        char cells[7][NYA_SCOPE_NAME_MAX];
+        (void)snprintf(cells[0], sizeof(cells[0]), "%s", row->name);
+        (void)snprintf(cells[1], sizeof(cells[1]), "%.1f", (f64)row->calls);
+        (void)snprintf(cells[2], sizeof(cells[2]), "%.2f", row->self_ms);
+        (void)snprintf(cells[3], sizeof(cells[3]), "%.2f", row->total_ms);
+        (void)snprintf(cells[4], sizeof(cells[4]), "%s", row->allocated_self_bytes > 0 ? _nya_debug_format_bytes(row->allocated_self_bytes) : "-");
+        (void)snprintf(cells[5], sizeof(cells[5]), "%s", row->peak_bytes > 0 ? _nya_debug_format_bytes(row->peak_bytes) : "-");
+        (void)snprintf(cells[6], sizeof(cells[6]), "%s", row->high_water_bytes > 0 ? _nya_debug_format_bytes(row->high_water_bytes) : "-");
+
+        for (u32 column = 0; column < nya_carray_length(cells); column++) {
+            nya_render2d_textf_with_font(window, style->font, style->font_size, text_x + (columns[column] * style->width), text_y, style->text_color, "%s",
+                                         cells[column]);
+        }
+        text_y += line_height;
+    }
+}
+
 void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle* style) {
     if (style->width <= 0.0F) style->width = style->page == NYA_DEBUG_OVERLAY_PAGE_TRACE ? 460.0F : 300.0F;
     if (style->page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS) style->width = nya_max(style->width, 360.0F);
+    if (style->page == NYA_DEBUG_OVERLAY_PAGE_SCOPES) style->width = nya_max(style->width, 460.0F);
     if (style->height <= 0.0F) style->height = 48.0F;
 
     // 33.3 ms is two frames at 60 Hz, so the top of the graph means a deadline missed twice.

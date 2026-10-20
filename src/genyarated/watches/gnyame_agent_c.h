@@ -7,7 +7,7 @@
  */
 #pragma once
 
-/* _gny_agent_observe (src/gnyame/agent.c:344) */
+/* _gny_agent_observe (src/gnyame/agent.c:347) */
 #define _nya_watch__gny_agent_observe() \
     const u32 _nya_watch_frame = nya_watch_frame_begin(); \
     nya_watch_record(_nya_watch_frame, "_gny_agent_observe", "session", "NYA_Session*", _nya_watch_type_of(session), (u32)sizeof(typeof(session)), &session); \

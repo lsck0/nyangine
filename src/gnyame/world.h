@@ -72,9 +72,10 @@ typedef struct GNY_World {
     /** The engine's debug overlay, toggled with `t` in either scene. */
     b8 overlay_enabled;
 
-    /** Which page it shows, `y`, and how the trace page orders its rows, `u`. */
+    /** Which page it shows, `y`, and how the trace and scopes pages order their rows, `u`. */
     NYA_DebugOverlayPage overlay_page;
     NYA_TraceSort        trace_sort;
+    NYA_ScopeSort        scope_sort;
 
     /**
      * Which row the systems page marks, moved with `n` and switched on and off with `o`. An index into

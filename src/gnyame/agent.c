@@ -231,6 +231,9 @@ u32 gny_agent_run(GNY_AgentRun run) {
         nya_agent_report(agent);
     }
 
+    // the frames the agent drove, scope by scope: what a headless run of the whole game cost and allocated.
+    nya_scope_report();
+
     return failures;
 }
 
@@ -355,7 +358,7 @@ u32 _gny_agent_observe(NYA_Session* session, OUT f32* out_senses, u32 capacity) 
     f32x2 pointer = nya_input_mouse_position();
 
     // below the declarations, so the report has the sizes and the episode the senses were read from.
-    nya_watch(_gny_agent_observe);
+    nya_scope_watch(_gny_agent_observe);
 
     out_senses[0] = _gny_agent_stack_holds(GNY_LAYER_MAIN_MENU_ID) ? 1.0F : 0.0F;
     out_senses[1] = _gny_agent_stack_holds(GNY_LAYER_PAUSE_MENU_ID) ? 1.0F : 0.0F;

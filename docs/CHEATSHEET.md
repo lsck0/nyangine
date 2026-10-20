@@ -1058,45 +1058,6 @@ b8 nya_path_is_absolute(NYA_ConstCString path)  // True for "/..." on POSIX, and
 NYA_String* nya_path_with_extension(NYA_Arena* arena, NYA_ConstCString path, NYA_ConstCString extension)  // Replaces the extension, adding one if absent.
 ```
 
-### base_perf.h
-
-```c
-// types
-struct NYA_PerfMeasurement { NYA_ConstCString name; NYA_ConstCString key; b8 is_running; u64 started_ns[NYA_PERF_MEASUREMENT_SAMPLES]; u64 ended_ns[NYA_PERF_MEASUREMENT_SAMPLES]; u64 elapsed_ns[NYA_PERF_MEASUREMENT_SAMPLES]; u64 last_elapsed_ns; u64 last_elapsed_ms; u64 last_elapsed_s; u64 started_cycles[NYA_PERF_MEASUREMENT_SAMPLES]; u64 ended_cycles[NYA_PERF_MEASUREMENT_SAMPLES]; u64 elapsed_cycles[NYA_PERF_MEASUREMENT_SAMPLES]; u64 last_elapsed_cycles; u64 frame[NYA_PERF_MEASUREMENT_SAMPLES]; u32 depth[NYA_PERF_MEASUREMENT_SAMPLES]; u64 sample_count; u64 total_runs; u64 current; }
-struct NYA_PerfSpan { NYA_ConstCString name; u64 frame; u32 depth; u64 started_ns; u64 ended_ns; u64 elapsed_ns; u64 elapsed_cycles; }  // One completed scope, as a frame breakdown sees it.
-struct NYA_PerfStats { u64 sample_count; u64 min_ns; u64 max_ns; u64 total_ns; f64 average_ns; u64 min_cycles; u64 max_cycles; u64 total_cycles; f64 average_cycles; }  // Aggregates over a measurement's ring, so nobody hand writes the loop this header used to document.
-
-// macros
-NYA_PERF_ENABLED 1  // Whether the timers are compiled in.
-NYA_PERF_MEASUREMENT_SAMPLES 64
-nya_perf_timer_get(name)
-nya_perf_timer_start(name)
-nya_perf_timer_stop(name)
-nya_perf_timer_reset(name)
-nya_perf_timer_get_all()
-nya_perf_frame_begin()
-nya_perf_frame_current()
-nya_perf_frame_spans(f, a)
-nya_perf_stats(measurement)
-nya_perf_report()
-nya_perf_frame_report(frame)
-nya_perf_time_this_scope(name)
-nya_perf_time_this_function()
-
-// functions
-NYA_PerfMeasurement* _nya_perf_timer_get(NYA_ConstCString name)
-void _nya_perf_timer_start(NYA_ConstCString name)
-void _nya_perf_timer_stop(NYA_ConstCString name)
-void _nya_perf_timer_reset(NYA_ConstCString name)
-NYA_ArrayᐸNYA_PerfMeasurementᐳ* _nya_perf_timer_get_all(void)
-void _nya_perf_frame_begin(void)  // Starts a new frame for the purposes of timing, and returns nothing.
-u64 _nya_perf_frame_current(void)  // The frame number nya_perf_frame_begin is currently on.
-u32 _nya_perf_frame_spans(u64 frame, NYA_ArrayᐸNYA_PerfSpanᐳ* out_spans)  // Collects every completed span belonging to `frame` into `out_spans`, ordered by start time.
-NYA_PerfStats _nya_perf_stats(const NYA_PerfMeasurement* measurement)  // Aggregates over the measurement's ring.
-void _nya_perf_report(void)  // Logs every timer as a table: name, runs, last, min, average, max.
-void _nya_perf_frame_report(u64 frame)  // Logs one frame's spans as an indented tree, which is how the frame was actually put together.
-```
-
 ### base_preflight.h
 
 Declaring a runtime dependency a build takes from the machine, so a missing one is a descriptive
@@ -1238,6 +1199,54 @@ nya_ring_copy(ring_ptr)
 nya_ring_move(ring_ptr, new_arena_ptr)
 nya_ring_foreach(ring_ptr, item_name)
 nya_ring_foreach_reverse(ring_ptr, item_name)
+```
+
+### base_scope.h
+
+One marker for "this block is a unit of work": its time, the arena memory it allocated, and its place on the
+
+```c
+// types
+typedef u8 NYA_ScopeTag
+typedef void (*NYA_ScopeTagSinkFn)(NYA_ScopeTag tag, u64 started_ns, u64 ended_ns, u64 self_ns, b8 tagged)  // Called as a measured scope with a tag other than NYA_SCOPE_TAG_NONE closes.
+enum NYA_ScopeSort { NYA_SCOPE_SORT_SELF, NYA_SCOPE_SORT_TOTAL, NYA_SCOPE_SORT_ALLOCATED, NYA_SCOPE_SORT_PEAK, NYA_SCOPE_SORT_NAME, NYA_SCOPE_SORT_COUNT, }  // What nya_scope_stats orders by, largest first, except by name.
+struct NYA_ScopeSite { NYA_ConstCString name; NYA_ConstCString function; NYA_ConstCString file; u32 line; atomic u32 slot; }  // One place in the source that opens a scope.
+struct NYA_ScopeMark { u32 depth; }  // What nya_scope_begin hands back for nya_scope_end to check it closes the scope it opened.
+struct NYA_ScopeView { NYA_ConstCString name; NYA_ConstCString function; NYA_ConstCString file; u32 line; NYA_ScopeTag tag; u64 elapsed_ns; u64 allocated_bytes; u64 peak_bytes; }  // One open scope on the calling thread, as nya_scope_at reads it.
+struct NYA_ScopeStats { NYA_ConstCString name; NYA_ConstCString function; NYA_ConstCString file; u32 line; f32 calls; f64 total_ms; f64 self_ms; f64 self_max_ms; u64 allocated_bytes; u64 allocated_self_bytes; u64 peak_bytes; u64 high_water_bytes; }  // One site over the last NYA_SCOPE_HISTORY frames, averaged per frame unless named a maximum.
+
+// macros
+NYA_SCOPE_ENABLED 0
+NYA_SCOPE_MEASURED 0
+NYA_SCOPE_DEPTH_MAX 64  // Scopes one thread can have open at once.
+NYA_SCOPE_SITE_MAX 256  // Distinct sites the table holds.
+NYA_SCOPE_HISTORY 64  // Frames the averages and maxima run over, as debug_trace does.
+NYA_SCOPE_NAME_MAX 48  // Longest copied name and function, terminator included.
+NYA_SCOPE_FILE_MAX 64  // Longest copied file path, terminator included.
+NYA_SCOPE_TAG_NONE 0  // What an untagged scope carries.
+nya_scope(name)  // Opens a scope named by the literal `name` until the end of the enclosing block.
+nya_scope_function()  // A scope named after the enclosing function.
+nya_scope_tagged(name, tag)  // A scope charged, with every untagged scope inside it, to `tag`; see debug_trace.h.
+nya_scope_named(label)  // A scope whose name is only known at run time, such as a layer's id.
+nya_scope_begin(label, tag)  // A scope that opens in one call and closes in another, ended in the reverse order of opening like any other.
+nya_scope_end(mark)
+nya_scope_watch(function)
+
+// functions
+void nya_scope_frame_end(void)  // Closes the frame's figures into the history.
+u32 nya_scope_depth(void)  // Scopes open on the calling thread.
+NYA_ScopeView nya_scope_at(u32 index)  // The calling thread's open scope at `index`, 0 the outermost.
+NYA_ScopeTag nya_scope_tag_current(void)  // The innermost open scope's tag on the calling thread, inherited from an enclosing tagged scope if it has none.
+void nya_scope_tag_sink_set(NYA_ScopeTagSinkFn sink)  // Sets who hears about tagged scopes closing; null for nobody.
+u32 nya_scope_site_count(void)  // Sites the table holds, the "untracked" row included.
+u32 nya_scope_stats(OUT NYA_ScopeStats* out, u32 capacity, NYA_ScopeSort sort)
+void nya_scope_sort(NYA_ScopeStats* stats, u32 count, NYA_ScopeSort sort)  // Orders `stats` by `sort` in place, largest first, names alphabetically.
+void nya_scope_report(void)  // Logs the table, sorted by self time.
+NYA_ScopeMark _nya_scope_push(NYA_ScopeSite* site, NYA_ScopeTag tag, b8 tagged)
+void _nya_scope_pop(NYA_ScopeSite* site)
+void _nya_scope_end(NYA_ScopeMark* mark)
+void _nya_scope_arena_alloc(u64 size_bytes)  // Called by the arena on every allocation and free, with the padded size it really took or gave back.
+void _nya_scope_arena_free(u64 size_bytes)
 ```
 
 ### base_socket.h
@@ -7178,8 +7187,8 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
 ```c
 // types
-enum NYA_DebugOverlayPage { NYA_DEBUG_OVERLAY_PAGE_STATS, NYA_DEBUG_OVERLAY_PAGE_TRACE, NYA_DEBUG_OVERLAY_PAGE_SYSTEMS, NYA_DEBUG_OVERLAY_PAGE_COUNT, }
-struct NYA_DebugOverlayStyle { f32 x, y; NYA_DebugOverlayPage page; NYA_TraceSort sort; u32 selected_system; f32 width; f32 height; f32 graph_ceiling_ms; NYA_ConstCString font; f32 font_size; b8 hide_graph; b8 hide_draw_stats; b8 hide_memory; b8 hide_ceilings; b8 show_batch_breakdown; NYA_Color background; NYA_Color text_color; }
+enum NYA_DebugOverlayPage { NYA_DEBUG_OVERLAY_PAGE_STATS, NYA_DEBUG_OVERLAY_PAGE_TRACE, NYA_DEBUG_OVERLAY_PAGE_SYSTEMS, NYA_DEBUG_OVERLAY_PAGE_SCOPES, NYA_DEBUG_OVERLAY_PAGE_COUNT, }
+struct NYA_DebugOverlayStyle { f32 x, y; NYA_DebugOverlayPage page; NYA_TraceSort sort; NYA_ScopeSort scope_sort; u32 selected_system; f32 width; f32 height; f32 graph_ceiling_ms; NYA_ConstCString font; f32 font_size; b8 hide_graph; b8 hide_draw_stats; b8 hide_memory; b8 hide_ceilings; b8 show_batch_breakdown; NYA_Color background; NYA_Color text_color; }
 
 // macros
 NYA_DEBUG_OVERLAY_REFRESH_SECONDS 0.2F  // How often the printed numbers refresh, in seconds.
@@ -7187,6 +7196,7 @@ NYA_DEBUG_OVERLAY_HISTORY 120
 NYA_DEBUG_OVERLAY_ARENAS 6  // Arenas listed in the memory section, largest first.
 NYA_DEBUG_OVERLAY_CEILINGS 4  // Ceilings listed in the fullness section, fullest first.
 NYA_DEBUG_OVERLAY_TRACE_ROWS 16  // Features listed on the trace page, in the chosen order.
+NYA_DEBUG_OVERLAY_SCOPE_ROWS 20  // Sites listed on the scopes page, in the chosen order.
 NYA_DEBUG_OVERLAY_SYSTEM_ROWS 20  // Systems listed on the systems page at once.
 
 // functions
@@ -7216,9 +7226,9 @@ u32 nya_debug_physics2d_draw(NYA_Window* window)  // Draws every 2D collision sh
 
 ```c
 // types
-typedef u8 NYA_TraceFeature
+typedef NYA_ScopeTag NYA_TraceFeature
+typedef NYA_ScopeMark NYA_TraceScope
 enum NYA_TraceSort { NYA_TRACE_SORT_CPU, NYA_TRACE_SORT_GPU, NYA_TRACE_SORT_VRAM, NYA_TRACE_SORT_RAM, NYA_TRACE_SORT_NAME, NYA_TRACE_SORT_COUNT, }  // What nya_trace_stats orders by, largest first, except by name.
-struct NYA_TraceScope { u64 started_ns; u64 outer_children_ns; NYA_TraceFeature feature; NYA_TraceFeature previous; }  // Held by nya_trace_scope for the scope's lifetime.
 struct NYA_TraceStats { NYA_ConstCString name; NYA_TraceFeature feature; f64 cpu_ms; f64 cpu_max_ms; f64 gpu_ms; f64 gpu_max_ms; b8 has_gpu; u64 vram_bytes; u64 ram_bytes; f32 calls; f32 draws; }  // One feature over the last NYA_TRACE_HISTORY frames.
 struct NYA_TraceEvent { u64 started_ns; u64 ended_ns; u32 thread; NYA_TraceFeature feature; }  // One completed scope in a capture.
 
@@ -7229,7 +7239,7 @@ NYA_TRACE_HISTORY 64  // Frames the averages and maxima run over.
 NYA_TRACE_NAME_MAX 24  // Longest feature name, terminator included.
 NYA_TRACE_CAPTURE_EVENTS_MAX 65536  // Scopes a capture records before it drops the rest, 24 bytes each.
 NYA_TRACE_GPU_THREAD 0  // The thread id GPU groups are written under in a capture, since they run on no CPU thread.
-nya_trace_scope(feature)
+nya_trace_scope(feature)  // A scope named after the enclosing function and charged to `feature`, in every build that has scopes.
 nya_trace_scope_fallback(feature)
 nya_trace_begin(feature)  // A scope that spans a begin and end pair of calls.
 nya_trace_end(scope)
@@ -7261,8 +7271,6 @@ u32 nya_trace_stats(OUT NYA_TraceStats* out, u32 capacity, NYA_TraceSort sort)  
 void nya_trace_report(void)  // Logs the table, sorted by CPU time.
 b8 nya_trace_capture_begin(u32 frames, NYA_ConstCString path)
 b8 nya_trace_capturing(void)  // Whether a capture is recording or still being written.
-NYA_TraceScope _nya_trace_scope_begin(NYA_TraceFeature feature)
-void _nya_trace_scope_end(NYA_TraceScope* scope)
 u64 nya_trace_gpu_elapsed(u64 submitted_ns, u64 previous_done_ns, u64 done_ns)  // Time a GPU group took: from when the queue was free to start it to its completion.
 void nya_trace_window(const u32* samples, u32 count, OUT f64* out_average, OUT u32* out_max)  // Average and maximum of the first `count` samples of a ring.
 void nya_trace_sort(NYA_TraceStats* stats, u32 count, NYA_TraceSort sort)  // Orders `stats` by `sort` in place, largest first, names alphabetically.
