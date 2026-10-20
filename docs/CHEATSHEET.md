@@ -2544,7 +2544,7 @@ NYA_MOUSE_BUTTON_COUNT 6
 // types
 struct NYA_NavPoint { s32 x, y; }  // A cell coordinate.
 struct NYA_NavOptions { b8 diagonal; b8 cut_corners; u32 max_nodes; }
-struct NYA_NavGrid { NYA_Arena* allocator; u32 width, height; u8* cost; u32* g_score; u32* came_from; u32* visit_stamp; u32* open_heap; u32* open_score; u32 stamp; }
+struct NYA_NavGrid { NYA_Arena* allocator; u32 width, height; u8* cost; u32* g_score; u32* came_from; u32* visit_stamp; u32* open_heap; u32* open_score; u32* heap_position; u32 stamp; }
 struct NYA_NavFlow { NYA_Arena* allocator; const NYA_NavGrid* grid; u32* distance; u32* queue; NYA_NavPoint goal; b8 built; }
 
 // macros
@@ -2560,6 +2560,7 @@ u8 nya_nav_cost_at(const NYA_NavGrid* grid, s32 x, s32 y)
 b8 nya_nav_walkable(const NYA_NavGrid* grid, s32 x, s32 y)
 void nya_nav_fill(NYA_NavGrid* grid, u8 cost)  // Sets every cell to `cost`.
 u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_NavPoint* out_path, u32 capacity, NYA_NavOptions options)  // Finds a path from `from` to `to`, writing it into `out_path` including both ends.
+u32 nya_nav_path_jps(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_NavPoint* out_path, u32 capacity, NYA_NavOptions options)
 NYA_Error nya_nav_flow_create(NYA_Arena* arena, const NYA_NavGrid* grid, OUT NYA_NavFlow** out_flow)  // A flow field over `grid`.
 void nya_nav_flow_build(NYA_NavFlow* flow, NYA_NavPoint goal)  // Recomputes the field for `goal`: one Dijkstra sweep outward, after which every agent is a lookup.
 u32 nya_nav_flow_distance(const NYA_NavFlow* flow, s32 x, s32 y)  // Total cost from `point` to the goal, or NYA_NAV_UNREACHABLE.
@@ -3476,6 +3477,14 @@ nya_lerp(a, b, t)  // Linear interpolation from `a` to `b`.
 // types
 struct NYA_Rectf { f32 x, y, width, height; }  // An axis aligned rectangle as minimum corner and size, the form draws and sprites already use.
 struct NYA_Circlef { f32x2 center; f32 radius; }  // A circle, as a centre and a radius.
+struct NYA_Box2f { f32x2 min, max; }  // An axis aligned box as two corners.
+struct NYA_Box3f { f32x3 min, max; }  // The 3D NYA_Box2f, under the same closed rule.
+struct NYA_Spheref { f32x3 center; f32 radius; }
+struct NYA_Ray2f { f32x2 origin, direction; }  // A half line.
+struct NYA_Ray3f { f32x3 origin, direction; }
+
+// macros
+NYA_BOX3F_EMPTY
 
 // functions
 NYA_Rectf nya_rect_from_corners(f32x2 a, f32x2 b)  // From two opposite corners, in either order.
@@ -3498,6 +3507,111 @@ b8 nya_circle_contains(NYA_Circlef circle, f32x2 point)  // Half open at the rim
 b8 nya_circle_overlaps(NYA_Circlef a, NYA_Circlef b)
 b8 nya_circle_overlaps_rect(NYA_Circlef circle, NYA_Rectf rect)  // Compares against the closest point on the rectangle, so a corner is handled like any other.
 NYA_Rectf nya_circle_bounds(NYA_Circlef circle)  // The rectangle that just contains the circle.
+NYA_Box2f nya_box2_from_rect(NYA_Rectf rect)  // Half open on neither side, so a zero size rectangle becomes a point box rather than nothing.
+NYA_Box2f nya_box2_from_center(f32x2 center, f32x2 half_size)
+b8 nya_box2_overlaps(NYA_Box2f a, NYA_Box2f b)
+b8 nya_box2_contains(NYA_Box2f box, f32x2 point)
+NYA_Box2f nya_box2_union(NYA_Box2f a, NYA_Box2f b)
+f32 nya_box2_distance_squared(NYA_Box2f box, f32x2 point)  // Squared distance from `point` to the nearest point of the box, zero inside it.
+NYA_Box3f nya_box3_from_center(f32x3 center, f32x3 half_size)
+b8 nya_box3_is_empty(NYA_Box3f box)
+b8 nya_box3_overlaps(NYA_Box3f a, NYA_Box3f b)
+b8 nya_box3_contains(NYA_Box3f box, f32x3 point)
+NYA_Box3f nya_box3_union(NYA_Box3f a, NYA_Box3f b)
+f32x3 nya_box3_center(NYA_Box3f box)
+f32 nya_box3_surface_area(NYA_Box3f box)  // Zero for an empty box.
+f32 nya_box3_distance_squared(NYA_Box3f box, f32x3 point)  // Squared distance from `point` to the nearest point of the box, zero inside it.
+b8 nya_sphere_contains(NYA_Spheref sphere, f32x3 point)  // Closed at the surface, so a sphere of radius zero contains its centre.
+b8 nya_sphere_overlaps_box3(NYA_Spheref sphere, NYA_Box3f box)
+b8 nya_ray2_intersect_box(NYA_Ray2f ray, NYA_Box2f box, f32 max_distance, OUT f32* out_distance)  // The slab test.
+b8 nya_ray3_intersect_box(NYA_Ray3f ray, NYA_Box3f box, f32 max_distance, OUT f32* out_distance)
+b8 nya_ray3_intersect_sphere(NYA_Ray3f ray, NYA_Spheref sphere, f32 max_distance, OUT f32* out_distance)  // The first surface crossing ahead of the origin, zero when it starts inside.
+```
+
+### math_spatial.h
+
+Three spatial indices over axis aligned boxes, each in 2D and 3D, answering the same four questions: which items
+
+```c
+// types
+struct NYA_SpatialHit { u32 id; f32 distance; }  // One item a ray or a nearest query found, and how far: along the ray, or from the point to its box.
+struct NYA_SpatialHashOptions { u32 capacity; f32 cell_size; }
+struct NYA_LooseTreeOptions2D { u32 capacity; NYA_Box2f bounds; u32 depth_max; }
+struct NYA_LooseTreeOptions3D { u32 capacity; NYA_Box3f bounds; u32 depth_max; }
+struct NYA_SpatialHash3D { NYA_Arena* allocator; u32 capacity; u32 count; u32 dimensions; f32 cell_size; f32 cell_size_inverse; u32 bucket_count; u32* bucket_head; NYA_Box3f* boxes; s32* cells; u32* next; u32* previous; b8* present; f32x3 reach; NYA_Box3f extent; }
+struct NYA_SpatialHash2D { NYA_SpatialHash3D hash; }
+struct NYA_LooseTreeNode { f32x3 center; f32 half_size; u32 depth; u32 parent; u32 children[8]; u32 first_item; u32 subtree_count; }  // A cell of the tree.
+struct NYA_Octree { NYA_Arena* allocator; u32 capacity; u32 dimensions; u32 depth_max; NYA_LooseTreeNode* nodes; u32 node_capacity; u32 node_count; u32 node_free; NYA_Box3f* boxes; u32* item_node; u32* next; u32* previous; u32 count; }  // The octree.
+struct NYA_Quadtree { NYA_Octree tree; }
+struct NYA_BvhNode { NYA_Box3f box; u32 first; u32 count; }
+struct NYA_Bvh3D { NYA_Arena* allocator; u32 capacity; u32 dimensions; NYA_BvhNode* nodes; u32 node_count; u32* order; NYA_Box3f* boxes; f32x3* centroids; u32 count; }
+struct NYA_Bvh2D { NYA_Bvh3D bvh; }
+
+// macros
+NYA_LOOSE_TREE_DEPTH_MAX 12  // The deepest a loose tree goes, and the default.
+NYA_BVH_LEAF_SIZE 4  // Items a BVH leaf holds before the build considers splitting it.
+NYA_BVH_BINS 16  // Buckets the binned build sorts centroids into per split.
+NYA_BVH_DEPTH_MAX 48  // The deepest a BVH is built.
+
+// functions
+NYA_Error nya_spatial_hash3d_create(NYA_Arena* arena, NYA_SpatialHashOptions options, OUT NYA_SpatialHash3D** out_hash)
+void nya_spatial_hash3d_destroy(NYA_SpatialHash3D* hash)
+void nya_spatial_hash3d_clear(NYA_SpatialHash3D* hash)
+void nya_spatial_hash3d_add(NYA_SpatialHash3D* hash, u32 id, NYA_Box3f box)
+void nya_spatial_hash3d_build(NYA_SpatialHash3D* hash, const NYA_Box3f* boxes, u32 count)
+void nya_spatial_hash3d_remove(NYA_SpatialHash3D* hash, u32 id)
+void nya_spatial_hash3d_move(NYA_SpatialHash3D* hash, u32 id, NYA_Box3f box)
+u32 nya_spatial_hash3d_query_box(const NYA_SpatialHash3D* hash, NYA_Box3f box, OUT u32* out_ids, u32 capacity)
+u32 nya_spatial_hash3d_query_radius(const NYA_SpatialHash3D* hash, NYA_Spheref sphere, OUT u32* out_ids, u32 capacity)
+b8 nya_spatial_hash3d_raycast(const NYA_SpatialHash3D* hash, NYA_Ray3f ray, f32 max_distance, OUT NYA_SpatialHit* out_hit)  // The closest item box the ray enters within `max_distance`.
+u32 nya_spatial_hash3d_nearest(const NYA_SpatialHash3D* hash, f32x3 point, u32 k, OUT NYA_SpatialHit* out_hits)  // Up to `k` items nearest `point`, closest first, ties by id.
+NYA_Error nya_spatial_hash2d_create(NYA_Arena* arena, NYA_SpatialHashOptions options, OUT NYA_SpatialHash2D** out_hash)
+void nya_spatial_hash2d_destroy(NYA_SpatialHash2D* hash)
+void nya_spatial_hash2d_clear(NYA_SpatialHash2D* hash)
+void nya_spatial_hash2d_add(NYA_SpatialHash2D* hash, u32 id, NYA_Box2f box)
+void nya_spatial_hash2d_build(NYA_SpatialHash2D* hash, const NYA_Box2f* boxes, u32 count)
+void nya_spatial_hash2d_remove(NYA_SpatialHash2D* hash, u32 id)
+void nya_spatial_hash2d_move(NYA_SpatialHash2D* hash, u32 id, NYA_Box2f box)
+u32 nya_spatial_hash2d_query_box(const NYA_SpatialHash2D* hash, NYA_Box2f box, OUT u32* out_ids, u32 capacity)
+u32 nya_spatial_hash2d_query_radius(const NYA_SpatialHash2D* hash, NYA_Circlef circle, OUT u32* out_ids, u32 capacity)
+b8 nya_spatial_hash2d_raycast(const NYA_SpatialHash2D* hash, NYA_Ray2f ray, f32 max_distance, OUT NYA_SpatialHit* out_hit)
+u32 nya_spatial_hash2d_nearest(const NYA_SpatialHash2D* hash, f32x2 point, u32 k, OUT NYA_SpatialHit* out_hits)
+NYA_Error nya_octree_create(NYA_Arena* arena, NYA_LooseTreeOptions3D options, OUT NYA_Octree** out_tree)
+void nya_octree_destroy(NYA_Octree* tree)
+void nya_octree_clear(NYA_Octree* tree)
+void nya_octree_add(NYA_Octree* tree, u32 id, NYA_Box3f box)
+void nya_octree_remove(NYA_Octree* tree, u32 id)
+void nya_octree_move(NYA_Octree* tree, u32 id, NYA_Box3f box)  // In place when the item still fits its node, which is most frames for anything that moves less than its size.
+u32 nya_octree_query_box(const NYA_Octree* tree, NYA_Box3f box, OUT u32* out_ids, u32 capacity)
+u32 nya_octree_query_radius(const NYA_Octree* tree, NYA_Spheref sphere, OUT u32* out_ids, u32 capacity)
+b8 nya_octree_raycast(const NYA_Octree* tree, NYA_Ray3f ray, f32 max_distance, OUT NYA_SpatialHit* out_hit)
+u32 nya_octree_nearest(const NYA_Octree* tree, f32x3 point, u32 k, OUT NYA_SpatialHit* out_hits)
+NYA_Error nya_quadtree_create(NYA_Arena* arena, NYA_LooseTreeOptions2D options, OUT NYA_Quadtree** out_tree)
+void nya_quadtree_destroy(NYA_Quadtree* tree)
+void nya_quadtree_clear(NYA_Quadtree* tree)
+void nya_quadtree_add(NYA_Quadtree* tree, u32 id, NYA_Box2f box)
+void nya_quadtree_remove(NYA_Quadtree* tree, u32 id)
+void nya_quadtree_move(NYA_Quadtree* tree, u32 id, NYA_Box2f box)
+u32 nya_quadtree_query_box(const NYA_Quadtree* tree, NYA_Box2f box, OUT u32* out_ids, u32 capacity)
+u32 nya_quadtree_query_radius(const NYA_Quadtree* tree, NYA_Circlef circle, OUT u32* out_ids, u32 capacity)
+b8 nya_quadtree_raycast(const NYA_Quadtree* tree, NYA_Ray2f ray, f32 max_distance, OUT NYA_SpatialHit* out_hit)
+u32 nya_quadtree_nearest(const NYA_Quadtree* tree, f32x2 point, u32 k, OUT NYA_SpatialHit* out_hits)
+NYA_Error nya_bvh3d_create(NYA_Arena* arena, u32 capacity, OUT NYA_Bvh3D** out_bvh)
+void nya_bvh3d_destroy(NYA_Bvh3D* bvh)
+void nya_bvh3d_build(NYA_Bvh3D* bvh, const NYA_Box3f* boxes, u32 count)  // Replaces the whole tree with `count` items, item `i` being `boxes[i]`.
+void nya_bvh3d_refit(NYA_Bvh3D* bvh, const NYA_Box3f* boxes, u32 count)  // New boxes for the same items, the tree's shape kept.
+u32 nya_bvh3d_query_box(const NYA_Bvh3D* bvh, NYA_Box3f box, OUT u32* out_ids, u32 capacity)
+u32 nya_bvh3d_query_radius(const NYA_Bvh3D* bvh, NYA_Spheref sphere, OUT u32* out_ids, u32 capacity)
+b8 nya_bvh3d_raycast(const NYA_Bvh3D* bvh, NYA_Ray3f ray, f32 max_distance, OUT NYA_SpatialHit* out_hit)
+u32 nya_bvh3d_nearest(const NYA_Bvh3D* bvh, f32x3 point, u32 k, OUT NYA_SpatialHit* out_hits)
+NYA_Error nya_bvh2d_create(NYA_Arena* arena, u32 capacity, OUT NYA_Bvh2D** out_bvh)
+void nya_bvh2d_destroy(NYA_Bvh2D* bvh)
+void nya_bvh2d_build(NYA_Bvh2D* bvh, const NYA_Box2f* boxes, u32 count)
+void nya_bvh2d_refit(NYA_Bvh2D* bvh, const NYA_Box2f* boxes, u32 count)
+u32 nya_bvh2d_query_box(const NYA_Bvh2D* bvh, NYA_Box2f box, OUT u32* out_ids, u32 capacity)
+u32 nya_bvh2d_query_radius(const NYA_Bvh2D* bvh, NYA_Circlef circle, OUT u32* out_ids, u32 capacity)
+b8 nya_bvh2d_raycast(const NYA_Bvh2D* bvh, NYA_Ray2f ray, f32 max_distance, OUT NYA_SpatialHit* out_hit)
+u32 nya_bvh2d_nearest(const NYA_Bvh2D* bvh, f32x2 point, u32 k, OUT NYA_SpatialHit* out_hits)
 ```
 
 ### math_spring.h

@@ -11,6 +11,11 @@
 
 typedef struct NYA_Rectf   NYA_Rectf;
 typedef struct NYA_Circlef NYA_Circlef;
+typedef struct NYA_Box2f   NYA_Box2f;
+typedef struct NYA_Box3f   NYA_Box3f;
+typedef struct NYA_Spheref NYA_Spheref;
+typedef struct NYA_Ray2f   NYA_Ray2f;
+typedef struct NYA_Ray3f   NYA_Ray3f;
 
 /** An axis aligned rectangle as minimum corner and size, the form draws and sprites already use. */
 struct NYA_Rectf {
@@ -22,6 +27,36 @@ struct NYA_Circlef {
     f32x2 center;
     f32   radius;
 };
+
+/**
+ * An axis aligned box as two corners. Closed, unlike NYA_Rectf: a point is a box of no size, and the spatial
+ * indices store points, so a box touching another overlaps it. Inverted on any axis is empty.
+ * */
+struct NYA_Box2f {
+    f32x2 min, max;
+};
+
+/** The 3D NYA_Box2f, under the same closed rule. */
+struct NYA_Box3f {
+    f32x3 min, max;
+};
+
+struct NYA_Spheref {
+    f32x3 center;
+    f32   radius;
+};
+
+/** A half line. `direction` need not be unit length; a hit distance is in multiples of it. */
+struct NYA_Ray2f {
+    f32x2 origin, direction;
+};
+
+struct NYA_Ray3f {
+    f32x3 origin, direction;
+};
+
+/** Inverted at the largest float, so the first union with anything is that thing: where an accumulated bound starts. */
+#define NYA_BOX3F_EMPTY ((NYA_Box3f){ .min = { F32_MAX, F32_MAX, F32_MAX }, .max = { -F32_MAX, -F32_MAX, -F32_MAX } })
 
 // FUNCTIONS
 
@@ -89,3 +124,48 @@ NYA_API b8 nya_circle_overlaps_rect(NYA_Circlef circle, NYA_Rectf rect) __attr_n
 
 /** The rectangle that just contains the circle. */
 NYA_API NYA_Rectf nya_circle_bounds(NYA_Circlef circle) __attr_no_discard;
+
+// BOX
+
+/** Half open on neither side, so a zero size rectangle becomes a point box rather than nothing. */
+NYA_API NYA_Box2f nya_box2_from_rect(NYA_Rectf rect) __attr_no_discard;
+
+NYA_API NYA_Box2f nya_box2_from_center(f32x2 center, f32x2 half_size) __attr_no_discard;
+NYA_API b8        nya_box2_overlaps(NYA_Box2f a, NYA_Box2f b) __attr_no_discard;
+NYA_API b8        nya_box2_contains(NYA_Box2f box, f32x2 point) __attr_no_discard;
+NYA_API NYA_Box2f nya_box2_union(NYA_Box2f a, NYA_Box2f b) __attr_no_discard;
+
+/** Squared distance from `point` to the nearest point of the box, zero inside it. */
+NYA_API f32 nya_box2_distance_squared(NYA_Box2f box, f32x2 point) __attr_no_discard;
+
+NYA_API NYA_Box3f nya_box3_from_center(f32x3 center, f32x3 half_size) __attr_no_discard;
+NYA_API b8        nya_box3_is_empty(NYA_Box3f box) __attr_no_discard;
+NYA_API b8        nya_box3_overlaps(NYA_Box3f a, NYA_Box3f b) __attr_no_discard;
+NYA_API b8        nya_box3_contains(NYA_Box3f box, f32x3 point) __attr_no_discard;
+NYA_API NYA_Box3f nya_box3_union(NYA_Box3f a, NYA_Box3f b) __attr_no_discard;
+NYA_API f32x3     nya_box3_center(NYA_Box3f box) __attr_no_discard;
+
+/** Zero for an empty box. What the surface area heuristic weighs a BVH node by. */
+NYA_API f32 nya_box3_surface_area(NYA_Box3f box) __attr_no_discard;
+
+/** Squared distance from `point` to the nearest point of the box, zero inside it. */
+NYA_API f32 nya_box3_distance_squared(NYA_Box3f box, f32x3 point) __attr_no_discard;
+
+// SPHERE
+
+/** Closed at the surface, so a sphere of radius zero contains its centre. */
+NYA_API b8 nya_sphere_contains(NYA_Spheref sphere, f32x3 point) __attr_no_discard;
+
+NYA_API b8 nya_sphere_overlaps_box3(NYA_Spheref sphere, NYA_Box3f box) __attr_no_discard;
+
+// RAY
+
+/**
+ * The slab test. Writes the entry distance, zero when the origin is inside. False past `max_distance`.
+ * An axis the ray does not move along is a range check, not a division by zero.
+ * */
+NYA_API b8 nya_ray2_intersect_box(NYA_Ray2f ray, NYA_Box2f box, f32 max_distance, OUT f32* out_distance) __attr_no_discard;
+NYA_API b8 nya_ray3_intersect_box(NYA_Ray3f ray, NYA_Box3f box, f32 max_distance, OUT f32* out_distance) __attr_no_discard;
+
+/** The first surface crossing ahead of the origin, zero when it starts inside. False past `max_distance`. */
+NYA_API b8 nya_ray3_intersect_sphere(NYA_Ray3f ray, NYA_Spheref sphere, f32 max_distance, OUT f32* out_distance) __attr_no_discard;

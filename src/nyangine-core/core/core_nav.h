@@ -7,6 +7,9 @@
  *
  * NYA_NavPoint path[128];
  * u32 length = nya_nav_path(grid, (NYA_NavPoint){ 1, 1 }, (NYA_NavPoint){ 30, 20 }, path, 128, (NYA_NavOptions){ .diagonal = true });
+ *
+ * // the same path cost on an open, uniform grid, expanding only where the path can turn.
+ * length = nya_nav_path_jps(grid, (NYA_NavPoint){ 1, 1 }, (NYA_NavPoint){ 30, 20 }, path, 128, (NYA_NavOptions){ .diagonal = true });
  * ```
  * */
 #pragma once
@@ -78,6 +81,9 @@ struct NYA_NavGrid {
     u32* visit_stamp;
     u32* open_heap;
     u32* open_score;
+
+    /** Where each open cell sits in `open_heap`, so a cheaper route reorders its entry instead of adding one. */
+    u32* heap_position;
     u32  stamp;
 };
 
@@ -122,6 +128,15 @@ NYA_API void nya_nav_fill(NYA_NavGrid* grid, u8 cost);
  * */
 NYA_API u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_NavPoint* out_path, u32 capacity,
                          NYA_NavOptions options);
+
+/**
+ * The same shortest path as nya_nav_path on a grid where every open cell costs the same, by Jump Point Search:
+ * straight and diagonal runs are scanned rather than expanded, and only the cells where a run must turn go on the
+ * open list. Costs are ignored, so on a weighted grid it is shortest by steps, not by cost; that grid wants
+ * nya_nav_path. Eight-neighbour only, so `options.diagonal` must be set.
+ * */
+NYA_API u32 nya_nav_path_jps(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_NavPoint* out_path, u32 capacity,
+                             NYA_NavOptions options);
 
 /** A flow field over `grid`. The grid must outlive it. */
 NYA_API NYA_Error nya_nav_flow_create(NYA_Arena* arena, const NYA_NavGrid* grid, OUT NYA_NavFlow** out_flow) __attr_no_discard;

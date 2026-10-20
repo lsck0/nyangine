@@ -33,50 +33,184 @@ NYA_INTERNAL u32 _nya_nav_heuristic(NYA_NavPoint a, NYA_NavPoint b, b8 diagonal)
     return (_NYA_NAV_STEP_DIAGONAL * lo) + (_NYA_NAV_STEP_ORTHOGONAL * (hi - lo));
 }
 
+/** `heap_position` of a cell not on the open list. */
+#define _NYA_NAV_NOT_OPEN U32_MAX
+
 /*
- * A binary min-heap over cell indices, keyed by `open_score`.
+ * A binary min-heap over cell indices, keyed by `open_score`. Each open cell is in it once: a cheaper route lowers
+ * its key in place; a second entry per route breaks heap order once their shared key drops, and A* then returned
+ * longer paths than Dijkstra (200 against 192 in test_nav).
  */
-NYA_INTERNAL void _nya_nav_heap_push(NYA_NavGrid* grid, u32* length, u32 cell, u32 score) {
-    grid->open_score[cell] = score;
-
-    u32 i             = (*length)++;
-    grid->open_heap[i] = cell;
-
-    while (i > 0) {
-        u32 parent = (i - 1) / 2;
-        if (grid->open_score[grid->open_heap[parent]] <= grid->open_score[grid->open_heap[i]]) break;
-
-        u32 swap                = grid->open_heap[parent];
-        grid->open_heap[parent] = grid->open_heap[i];
-        grid->open_heap[i]      = swap;
-
-        i = parent;
-    }
+NYA_INTERNAL void _nya_nav_open_place(NYA_NavGrid* grid, u32 at, u32 cell) {
+    grid->open_heap[at]       = cell;
+    grid->heap_position[cell] = at;
 }
 
-NYA_INTERNAL u32 _nya_nav_heap_pop(NYA_NavGrid* grid, u32* length) {
-    u32 top = grid->open_heap[0];
+NYA_INTERNAL void _nya_nav_open_up(NYA_NavGrid* grid, u32 at) {
+    u32 cell = grid->open_heap[at];
 
-    grid->open_heap[0] = grid->open_heap[--(*length)];
+    while (at > 0) {
+        u32 parent = (at - 1) / 2;
+        if (grid->open_score[grid->open_heap[parent]] <= grid->open_score[cell]) break;
 
-    u32 i = 0;
-    for (;;) {
-        u32 left     = (2 * i) + 1;
-        u32 right    = left + 1;
-        u32 smallest = i;
-
-        if (left < *length && grid->open_score[grid->open_heap[left]] < grid->open_score[grid->open_heap[smallest]]) smallest = left;
-        if (right < *length && grid->open_score[grid->open_heap[right]] < grid->open_score[grid->open_heap[smallest]]) smallest = right;
-        if (smallest == i) break;
-
-        u32 swap                  = grid->open_heap[smallest];
-        grid->open_heap[smallest] = grid->open_heap[i];
-        grid->open_heap[i]        = swap;
-
-        i = smallest;
+        _nya_nav_open_place(grid, at, grid->open_heap[parent]);
+        at = parent;
     }
 
+    _nya_nav_open_place(grid, at, cell);
+}
+
+/** Opens `cell` at `score`, or lowers the score of its entry when it was `seen` this search and is still open. */
+NYA_INTERNAL void _nya_nav_open_push(NYA_NavGrid* grid, u32* length, u32 cell, u32 score, b8 seen) {
+    if (seen && grid->heap_position[cell] != _NYA_NAV_NOT_OPEN) {
+        nya_assert(score <= grid->open_score[cell], "an open cell's score only drops");
+
+        grid->open_score[cell] = score;
+        _nya_nav_open_up(grid, grid->heap_position[cell]);
+        return;
+    }
+
+    nya_assert(*length < grid->width * grid->height, "every cell is on the open list at most once");
+
+    grid->open_score[cell] = score;
+
+    u32 at = (*length)++;
+    _nya_nav_open_place(grid, at, cell);
+    _nya_nav_open_up(grid, at);
+}
+
+NYA_INTERNAL u32 _nya_nav_open_pop(NYA_NavGrid* grid, u32* length) {
+    nya_assert(*length > 0);
+
+    u32 top                  = grid->open_heap[0];
+    grid->heap_position[top] = _NYA_NAV_NOT_OPEN;
+
+    if (--(*length) == 0) return top;
+
+    u32 cell = grid->open_heap[*length];
+    u32 at   = 0;
+
+    for (;;) {
+        u32 child = (2 * at) + 1;
+        if (child >= *length) break;
+
+        if (child + 1 < *length && grid->open_score[grid->open_heap[child + 1]] < grid->open_score[grid->open_heap[child]]) child++;
+        if (grid->open_score[grid->open_heap[child]] >= grid->open_score[cell]) break;
+
+        _nya_nav_open_place(grid, at, grid->open_heap[child]);
+        at = child;
+    }
+
+    _nya_nav_open_place(grid, at, cell);
+
     return top;
+}
+
+/*
+ * Jump Point Search. A run from a cell goes on in one direction until it reaches the goal, a wall, or a cell with a
+ * forced neighbour (one only reachable optimally through it, because a wall beside the run blocks the way round);
+ * only those cells are opened. The pruning rules are Harabor and Grastien's, with the diagonal move rule taken from
+ * nya_nav_path's, so both searches walk the same graph and agree on the cost.
+ */
+
+/** Whether the diagonal from (x, y) by (dx, dy) is a move nya_nav_path would make. The target cell is checked apart. */
+NYA_INTERNAL b8 _nya_nav_diagonal_allowed(const NYA_NavGrid* grid, s32 x, s32 y, s32 dx, s32 dy, b8 cut_corners) {
+    return cut_corners || nya_nav_walkable(grid, x + dx, y) || nya_nav_walkable(grid, x, y + dy);
+}
+
+NYA_INTERNAL b8 _nya_nav_jump(const NYA_NavGrid* grid, NYA_NavPoint from, s32 dx, s32 dy, NYA_NavPoint goal, b8 cut_corners, OUT NYA_NavPoint* out) {
+    const b8  diagonal  = dx != 0 && dy != 0;
+    const u32 steps_max = nya_max(grid->width, grid->height) + 1;
+
+    s32 x = from.x;
+    s32 y = from.y;
+
+    // a run is a straight line, so it leaves the grid within its longer side.
+    for (u32 step = 0; step < steps_max; step++) {
+        if (diagonal && !_nya_nav_diagonal_allowed(grid, x, y, dx, dy, cut_corners)) return false;
+
+        x += dx;
+        y += dy;
+
+        if (!nya_nav_walkable(grid, x, y)) return false;
+
+        b8 jump_point = x == goal.x && y == goal.y;
+
+        if (!jump_point && diagonal) {
+            jump_point = (nya_nav_walkable(grid, x - dx, y + dy) && !nya_nav_walkable(grid, x - dx, y))
+                      || (nya_nav_walkable(grid, x + dx, y - dy) && !nya_nav_walkable(grid, x, y - dy));
+
+            // a diagonal stops where either of its straight runs would find something; one level deep, never more.
+            NYA_NavPoint ignored = { 0 };
+            jump_point = jump_point || _nya_nav_jump(grid, (NYA_NavPoint){ x, y }, dx, 0, goal, cut_corners, &ignored)
+                      || _nya_nav_jump(grid, (NYA_NavPoint){ x, y }, 0, dy, goal, cut_corners, &ignored);
+        } else if (!jump_point && dx != 0) {
+            jump_point = (nya_nav_walkable(grid, x + dx, y + 1) && !nya_nav_walkable(grid, x, y + 1))
+                      || (nya_nav_walkable(grid, x + dx, y - 1) && !nya_nav_walkable(grid, x, y - 1));
+        } else if (!jump_point) {
+            jump_point = (nya_nav_walkable(grid, x + 1, y + dy) && !nya_nav_walkable(grid, x + 1, y))
+                      || (nya_nav_walkable(grid, x - 1, y + dy) && !nya_nav_walkable(grid, x - 1, y));
+        }
+
+        if (jump_point) {
+            *out = (NYA_NavPoint){ x, y };
+            return true;
+        }
+    }
+
+    nya_unreachable();
+}
+
+/**
+ * The directions worth a run from `at`, reached from `parent`: onward, and towards any forced neighbour. All eight
+ * from the start. Returns how many it wrote into `out`.
+ * */
+NYA_INTERNAL u32 _nya_nav_jps_directions(const NYA_NavGrid* grid, NYA_NavPoint at, NYA_NavPoint parent, b8 is_start, s32 out[8][2]) {
+    if (is_start) {
+        const s32 all[8][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
+        nya_memcpy(out, all, sizeof(all));
+        return 8;
+    }
+
+    s32 dx    = (at.x > parent.x) - (at.x < parent.x);
+    s32 dy    = (at.y > parent.y) - (at.y < parent.y);
+    u32 count = 0;
+
+    nya_assert(dx != 0 || dy != 0, "a jump point differs from its parent");
+
+    // onward first, then the forced turns: a wall beside the run is what makes a turn worth opening.
+    out[count][0] = dx;
+    out[count][1] = dy;
+    count++;
+
+    if (dx != 0 && dy != 0) {
+        const s32 turns[4][2] = { { dx, 0 }, { 0, dy }, { -dx, dy }, { dx, -dy } };
+        const b8  wanted[4]   = { true, true, !nya_nav_walkable(grid, at.x - dx, at.y), !nya_nav_walkable(grid, at.x, at.y - dy) };
+
+        for (u32 t = 0; t < 4; t++) {
+            if (!wanted[t]) continue;
+
+            out[count][0] = turns[t][0];
+            out[count][1] = turns[t][1];
+            count++;
+        }
+
+        return count;
+    }
+
+    // straight: the two diagonals ahead, each forced by a wall on its side.
+    s32 side_x = dy != 0 ? 1 : 0;
+    s32 side_y = dx != 0 ? 1 : 0;
+
+    for (s32 sign = -1; sign <= 1; sign += 2) {
+        if (nya_nav_walkable(grid, at.x + (sign * side_x), at.y + (sign * side_y))) continue;
+
+        out[count][0] = dx != 0 ? dx : sign;
+        out[count][1] = dy != 0 ? dy : sign;
+        count++;
+    }
+
+    return count;
 }
 
 /*
@@ -102,6 +236,8 @@ NYA_Error nya_nav_grid_create(NYA_Arena* arena, u32 width, u32 height, OUT NYA_N
         .visit_stamp = nya_arena_alloc(arena, cells * sizeof(u32)),
         .open_heap   = nya_arena_alloc(arena, cells * sizeof(u32)),
         .open_score  = nya_arena_alloc(arena, cells * sizeof(u32)),
+
+        .heap_position = nya_arena_alloc(arena, cells * sizeof(u32)),
     };
 
     // Stamps start at zero and the counter starts at zero, so the first search's stamp of 1 already
@@ -181,7 +317,7 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
     grid->came_from[start]   = start;
     grid->visit_stamp[start] = grid->stamp;
 
-    _nya_nav_heap_push(grid, &open_length, start, _nya_nav_heuristic(from, to, options.diagonal));
+    _nya_nav_open_push(grid, &open_length, start, _nya_nav_heuristic(from, to, options.diagonal), false);
 
     // Eight neighbours, orthogonals first so a four-neighbour search is the first half of this table.
     const s32 offsets[8][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
@@ -191,7 +327,7 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
     b8  found    = false;
 
     while (open_length > 0) {
-        u32 current = _nya_nav_heap_pop(grid, &open_length);
+        u32 current = _nya_nav_open_pop(grid, &open_length);
 
         if (current == target) {
             found = true;
@@ -230,7 +366,7 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
             grid->came_from[neighbour]   = current;
             grid->visit_stamp[neighbour] = grid->stamp;
 
-            _nya_nav_heap_push(grid, &open_length, neighbour, tentative + _nya_nav_heuristic((NYA_NavPoint){ nx, ny }, to, options.diagonal));
+            _nya_nav_open_push(grid, &open_length, neighbour, tentative + _nya_nav_heuristic((NYA_NavPoint){ nx, ny }, to, options.diagonal), seen);
         }
     }
 
@@ -253,6 +389,106 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
         out_path[length - 1 - i] = (NYA_NavPoint){ .x = (s32)(walk % grid->width), .y = (s32)(walk / grid->width) };
         walk                     = grid->came_from[walk];
     }
+
+    return length;
+}
+
+u32 nya_nav_path_jps(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_NavPoint* out_path, u32 capacity, NYA_NavOptions options) {
+    nya_assert(options.diagonal, "Jump Point Search here is the eight-neighbour one; nya_nav_path does four");
+
+    if (grid == nullptr || out_path == nullptr || capacity == 0) return 0;
+    if (!nya_nav_walkable(grid, from.x, from.y) || !nya_nav_walkable(grid, to.x, to.y)) return 0;
+
+    const u32 cells  = grid->width * grid->height;
+    const u32 budget = options.max_nodes == 0 ? cells : options.max_nodes;
+    const u32 start  = _nya_nav_index(grid, from.x, from.y);
+    const u32 target = _nya_nav_index(grid, to.x, to.y);
+
+    grid->stamp++;
+
+    u32 open_length = 0;
+
+    grid->g_score[start]     = 0;
+    grid->came_from[start]   = start;
+    grid->visit_stamp[start] = grid->stamp;
+
+    _nya_nav_open_push(grid, &open_length, start, _nya_nav_heuristic(from, to, true), false);
+
+    u32 expanded = 0;
+    b8  found    = false;
+
+    while (open_length > 0) {
+        u32 current = _nya_nav_open_pop(grid, &open_length);
+
+        if (current == target) {
+            found = true;
+            break;
+        }
+
+        if (++expanded > budget) break;
+
+        NYA_NavPoint at     = { (s32)(current % grid->width), (s32)(current / grid->width) };
+        u32          parent = grid->came_from[current];
+
+        s32 directions[8][2];
+        u32 direction_count = _nya_nav_jps_directions(grid, at, (NYA_NavPoint){ (s32)(parent % grid->width), (s32)(parent / grid->width) },
+                                                      current == start, directions);
+
+        for (u32 d = 0; d < direction_count; d++) {
+            NYA_NavPoint jump = { 0 };
+            if (!_nya_nav_jump(grid, at, directions[d][0], directions[d][1], to, options.cut_corners, &jump)) continue;
+
+            // a run is straight or diagonal, so its length is the octile distance at the uniform cost.
+            u32 neighbour = _nya_nav_index(grid, jump.x, jump.y);
+            u32 tentative = grid->g_score[current] + _nya_nav_heuristic(at, jump, true);
+
+            b8 seen = grid->visit_stamp[neighbour] == grid->stamp;
+            if (seen && tentative >= grid->g_score[neighbour]) continue;
+
+            grid->g_score[neighbour]     = tentative;
+            grid->came_from[neighbour]   = current;
+            grid->visit_stamp[neighbour] = grid->stamp;
+
+            _nya_nav_open_push(grid, &open_length, neighbour, tentative + _nya_nav_heuristic(jump, to, true), seen);
+        }
+    }
+
+    if (!found) return 0;
+
+    // every cell between two jump points goes in, so the path reads like nya_nav_path's: one cell per step.
+    u32 length = 1;
+    for (u32 walk = target; walk != start; walk = grid->came_from[walk]) {
+        u32 previous = grid->came_from[walk];
+
+        s32 dx = abs((s32)(walk % grid->width) - (s32)(previous % grid->width));
+        s32 dy = abs((s32)(walk / grid->width) - (s32)(previous / grid->width));
+
+        length += (u32)nya_max(dx, dy);
+    }
+
+    if (length > capacity) return 0;
+
+    u32 write       = length - 1;
+    out_path[write] = to;
+
+    for (u32 walk = target; walk != start; walk = grid->came_from[walk]) {
+        u32          previous = grid->came_from[walk];
+        NYA_NavPoint here     = { (s32)(walk % grid->width), (s32)(walk / grid->width) };
+        NYA_NavPoint there    = { (s32)(previous % grid->width), (s32)(previous / grid->width) };
+
+        s32 sx = (there.x > here.x) - (there.x < here.x);
+        s32 sy = (there.y > here.y) - (there.y < here.y);
+
+        while (here.x != there.x || here.y != there.y) {
+            here.x += sx;
+            here.y += sy;
+
+            nya_assert(write > 0, "the path fills exactly the length counted");
+            out_path[--write] = here;
+        }
+    }
+
+    nya_assert(write == 0 && out_path[0].x == from.x && out_path[0].y == from.y, "the path starts where asked");
 
     return length;
 }

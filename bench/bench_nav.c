@@ -1,5 +1,5 @@
 /**
- * Navigation: A* against the flow field, which is the design claim in 3.3 stated as a measurement.
+ * Navigation: A* against Jump Point Search and the flow field, which is the design claim in 3.3 stated as a measurement.
  **/
 
 #include "nyangine-core/nyangine.c"
@@ -25,7 +25,7 @@ s32 main(void) {
     NYA_Arena* arena = nya_arena_create(.name = "bench_nav");
     defer      nya_arena_destroy(arena);
 
-    const u32 sizes[] = { 32, 64, 128 };
+    const u32 sizes[] = { 32, 64, 128, 256 };
 
     for (u32 s = 0; s < nya_carray_length(sizes); s++) {
         const u32 size = sizes[s];
@@ -49,6 +49,12 @@ s32 main(void) {
 
         nya_bench("A* one query (8-way)", 0, {
             u32 length = nya_nav_path(grid, from, goal, path, size * size, (NYA_NavOptions){ .diagonal = true });
+            nya_bench_keep(length);
+        });
+
+        // the same path cost; the runs between jump points are scanned instead of opened.
+        nya_bench("JPS one query (8-way)", 0, {
+            u32 length = nya_nav_path_jps(grid, from, goal, path, size * size, (NYA_NavOptions){ .diagonal = true });
             nya_bench_keep(length);
         });
 
