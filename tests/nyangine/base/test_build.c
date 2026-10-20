@@ -61,6 +61,10 @@ s32 main(void) {
 
     nya_assert(rule.pre_build_hooks[0] != nullptr);
     nya_assert(rule.post_build_hooks[0] != nullptr);
+
+    NYA_EXPECT(nya_build(&rule));
+    nya_assert(pre_build_called == true);
+    nya_assert(post_build_called == true);
   }
 
   // TEST: NYA_BuildRule with dependencies
