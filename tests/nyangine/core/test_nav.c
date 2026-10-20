@@ -344,7 +344,7 @@ s32 main(void) {
         nya_check(!nya_nav_grid_from_tilemap(arena, nullptr, "collision", &grid).ok, "and no map is refused");
     }
 
-    // TEST: A* finds a path exactly as cheap as the flow field's Dijkstra
+    // TEST: Jump Point Search finds a path exactly as cheap as A*, and A* one as cheap as the flow field's Dijkstra
     {
         // the flow field is a full Dijkstra sweep, the oracle for both: it has no heap and no pruning to get wrong.
         u32 compared = 0;
@@ -384,21 +384,32 @@ s32 main(void) {
                     u32 astar_length = nya_nav_path(grid, from, to, path, path_room, options);
                     u32 astar_cost   = astar_length > 0 ? path_cost(grid, path, astar_length, options.cut_corners) : NYA_NAV_UNREACHABLE;
 
+                    u32 jps_length = nya_nav_path_jps(grid, from, to, path, path_room, options);
+                    u32 jps_cost   = jps_length > 0 ? path_cost(grid, path, jps_length, options.cut_corners) : NYA_NAV_UNREACHABLE;
+
+                    nya_check(jps_cost == astar_cost, "seed %llu %ux%u corners=%u, (%d,%d) to (%d,%d): JPS costs %u, A* %u", (unsigned long long)seed, size, size,
+                              corners, from.x, from.y, to.x, to.y, jps_cost, astar_cost);
+
+                    if (jps_length > 0) {
+                        nya_check(path[0].x == from.x && path[0].y == from.y && path[jps_length - 1].x == to.x && path[jps_length - 1].y == to.y,
+                                  "seed %llu: a JPS path runs from the start to the goal", (unsigned long long)seed);
+                    }
+
                     // the flow field has nya_nav_path's default corner rule only.
                     if (corners == 0) {
                         nya_nav_flow_build(flow, to);
                         u32 dijkstra = nya_nav_flow_distance(flow, from.x, from.y);
 
-                        compared++;
                         nya_check(astar_cost == dijkstra, "seed %llu %ux%u, (%d,%d) to (%d,%d): A* costs %u, Dijkstra %u", (unsigned long long)seed, size, size,
                                   from.x, from.y, to.x, to.y, astar_cost, dijkstra);
                     }
 
+                    compared++;
                 }
             }
         }
 
-        printf("  %u A* paths compared against Dijkstra\n", compared);
+        printf("  %u JPS paths compared against A*\n", compared);
     }
 
     return nya_check_failures() == 0 ? 0 : 1;
