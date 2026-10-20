@@ -425,6 +425,16 @@ static void run_seed(NYA_Arena* arena, u32 dimensions, u64 seed) {
     index_rebuild_bvh(&indices[INDEX_BVH], &everything, false);
     check_against_oracle(&indices[INDEX_BVH], &everything, &rng, seed);
 
+    // a hash built in one call holds what one add per item would.
+    static NYA_Box2f flat_boxes[ITEMS_MAX];
+    if (dimensions == 2) {
+        for (u32 i = 0; i < everything.count; i++) flat_boxes[i] = flat(everything.boxes[i]);
+        nya_spatial_hash2d_build(indices[INDEX_HASH].hash2, flat_boxes, everything.count);
+    } else {
+        nya_spatial_hash3d_build(indices[INDEX_HASH].hash3, everything.boxes, everything.count);
+    }
+    check_against_oracle(&indices[INDEX_HASH], &everything, &rng, seed);
+
     // a clear leaves an index that finds nothing and takes every id again.
     u32       ids[4];
     NYA_Box3f all = { .min = { -F32_MAX, -F32_MAX, -F32_MAX }, .max = { F32_MAX, F32_MAX, F32_MAX } };

@@ -155,6 +155,28 @@ __attr_no_sanitize("unsigned-integer-overflow") NYA_INTERNAL u32 _nya_spatial_ha
     return mixed & (hash->bucket_count - 1);
 }
 
+/** Links `id` into its centre's bucket. The count and the widening bounds are the caller's. */
+NYA_INTERNAL void _nya_spatial_hash_file(NYA_SpatialHash3D* hash, u32 id, NYA_Box3f box) {
+    nya_assert(!nya_box3_is_empty(box), "item %u's box has min <= max on every axis", id);
+
+    f32x3 center = nya_box3_center(box);
+    s32*  cell   = &hash->cells[(u64)id * 3];
+
+    cell[0] = _nya_spatial_hash_cell(hash, center.x);
+    cell[1] = _nya_spatial_hash_cell(hash, center.y);
+    cell[2] = hash->dimensions == 3 ? _nya_spatial_hash_cell(hash, center.z) : 0;
+
+    u32 bucket = _nya_spatial_hash_bucket(hash, cell[0], cell[1], cell[2]);
+    u32 head   = hash->bucket_head[bucket];
+
+    hash->boxes[id]           = box;
+    hash->present[id]         = true;
+    hash->previous[id]        = _NYA_SPATIAL_NONE;
+    hash->next[id]            = head;
+    hash->bucket_head[bucket] = id;
+    if (head != _NYA_SPATIAL_NONE) hash->previous[head] = id;
+}
+
 typedef struct {
     s32 min[3];
     s32 max[3];
@@ -515,30 +537,38 @@ void nya_spatial_hash3d_add(NYA_SpatialHash3D* hash, u32 id, NYA_Box3f box) {
     nya_assert(hash != nullptr);
     nya_assert(id < hash->capacity, "id %u is past the hash's capacity of %u", id, hash->capacity);
     nya_assert(!hash->present[id], "id %u is already in the hash", id);
-    nya_assert(!nya_box3_is_empty(box), "an item's box has min <= max on every axis");
 
-    f32x3 center = nya_box3_center(box);
-    s32*  cell   = &hash->cells[(u64)id * 3];
-
-    cell[0] = _nya_spatial_hash_cell(hash, center.x);
-    cell[1] = _nya_spatial_hash_cell(hash, center.y);
-    cell[2] = hash->dimensions == 3 ? _nya_spatial_hash_cell(hash, center.z) : 0;
-
-    u32 bucket = _nya_spatial_hash_bucket(hash, cell[0], cell[1], cell[2]);
-    u32 head   = hash->bucket_head[bucket];
-
-    hash->boxes[id]           = box;
-    hash->present[id]         = true;
-    hash->previous[id]        = _NYA_SPATIAL_NONE;
-    hash->next[id]            = head;
-    hash->bucket_head[bucket] = id;
-    if (head != _NYA_SPATIAL_NONE) hash->previous[head] = id;
+    _nya_spatial_hash_file(hash, id, box);
 
     hash->reach  = nya_max(hash->reach, (box.max - box.min) * 0.5F);
     hash->extent = nya_box3_union(hash->extent, box);
     hash->count++;
 
     nya_assert(hash->count <= hash->capacity);
+}
+
+void nya_spatial_hash3d_build(NYA_SpatialHash3D* hash, const NYA_Box3f* boxes, u32 count) {
+    nya_assert(hash != nullptr && (boxes != nullptr || count == 0));
+    nya_assert(count <= hash->capacity, "%u items do not fit a hash of %u", count, hash->capacity);
+
+    nya_spatial_hash3d_clear(hash);
+
+    // the bounds stay in registers across the loop rather than going through the struct per item.
+    f32x3     reach  = f32x3_zero;
+    NYA_Box3f extent = NYA_BOX3F_EMPTY;
+
+    for (u32 id = 0; id < count; id++) {
+        NYA_Box3f box = boxes[id];
+
+        _nya_spatial_hash_file(hash, id, box);
+
+        reach  = nya_max(reach, (box.max - box.min) * 0.5F);
+        extent = nya_box3_union(extent, box);
+    }
+
+    hash->reach  = reach;
+    hash->extent = extent;
+    hash->count  = count;
 }
 
 void nya_spatial_hash3d_remove(NYA_SpatialHash3D* hash, u32 id) {
@@ -631,6 +661,29 @@ void nya_spatial_hash2d_clear(NYA_SpatialHash2D* hash) {
 
 void nya_spatial_hash2d_add(NYA_SpatialHash2D* hash, u32 id, NYA_Box2f box) {
     nya_spatial_hash3d_add(&hash->hash, id, _nya_spatial_box_from_2d(box));
+}
+
+void nya_spatial_hash2d_build(NYA_SpatialHash2D* hash, const NYA_Box2f* boxes, u32 count) {
+    nya_assert(hash != nullptr && (boxes != nullptr || count == 0));
+    nya_assert(count <= hash->hash.capacity, "%u items do not fit a hash of %u", count, hash->hash.capacity);
+
+    nya_spatial_hash3d_clear(&hash->hash);
+
+    f32x3     reach  = f32x3_zero;
+    NYA_Box3f extent = NYA_BOX3F_EMPTY;
+
+    for (u32 id = 0; id < count; id++) {
+        NYA_Box3f box = _nya_spatial_box_from_2d(boxes[id]);
+
+        _nya_spatial_hash_file(&hash->hash, id, box);
+
+        reach  = nya_max(reach, (box.max - box.min) * 0.5F);
+        extent = nya_box3_union(extent, box);
+    }
+
+    hash->hash.reach  = reach;
+    hash->hash.extent = extent;
+    hash->hash.count  = count;
 }
 
 void nya_spatial_hash2d_remove(NYA_SpatialHash2D* hash, u32 id) {

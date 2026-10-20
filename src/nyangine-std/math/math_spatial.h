@@ -229,6 +229,12 @@ NYA_API void      nya_spatial_hash3d_clear(NYA_SpatialHash3D* hash);
 
 /** `id` must be below the capacity and not already present. */
 NYA_API void nya_spatial_hash3d_add(NYA_SpatialHash3D* hash, u32 id, NYA_Box3f box);
+
+/**
+ * Replaces the contents with `count` items, item `i` being `boxes[i]`: a clear and an add each, without the
+ * per call overhead, for a set rebuilt as a whole every frame or tick.
+ * */
+NYA_API void nya_spatial_hash3d_build(NYA_SpatialHash3D* hash, const NYA_Box3f* boxes, u32 count);
 NYA_API void nya_spatial_hash3d_remove(NYA_SpatialHash3D* hash, u32 id);
 NYA_API void nya_spatial_hash3d_move(NYA_SpatialHash3D* hash, u32 id, NYA_Box3f box);
 
@@ -245,6 +251,7 @@ NYA_API NYA_Error nya_spatial_hash2d_create(NYA_Arena* arena, NYA_SpatialHashOpt
 NYA_API void      nya_spatial_hash2d_destroy(NYA_SpatialHash2D* hash);
 NYA_API void      nya_spatial_hash2d_clear(NYA_SpatialHash2D* hash);
 NYA_API void      nya_spatial_hash2d_add(NYA_SpatialHash2D* hash, u32 id, NYA_Box2f box);
+NYA_API void      nya_spatial_hash2d_build(NYA_SpatialHash2D* hash, const NYA_Box2f* boxes, u32 count);
 NYA_API void      nya_spatial_hash2d_remove(NYA_SpatialHash2D* hash, u32 id);
 NYA_API void      nya_spatial_hash2d_move(NYA_SpatialHash2D* hash, u32 id, NYA_Box2f box);
 NYA_API u32 nya_spatial_hash2d_query_box(const NYA_SpatialHash2D* hash, NYA_Box2f box, OUT u32* out_ids, u32 capacity) __attr_no_discard;
