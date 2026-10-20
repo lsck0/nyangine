@@ -321,7 +321,7 @@ void nya_fluid_force_set(NYA_Fluid* fluid, const NYA_ForceSet* forces, f32 influ
  */
 
 void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s) {
-    nya_perf_time_this_function();
+    nya_scope_function();
     nya_trace_scope(NYA_TRACE_FLUID);
 
     nya_assert(fluid != nullptr);
@@ -675,7 +675,7 @@ NYA_FluidRenderOptions nya_fluid_render_options(const NYA_Window* window) {
 }
 
 void nya_fluid_draw(NYA_Window* window, const NYA_Fluid* fluid) {
-    nya_perf_time_this_function();
+    nya_scope_function();
     nya_trace_scope(NYA_TRACE_FLUID);
 
     nya_assert(window != nullptr);

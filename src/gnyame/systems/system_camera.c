@@ -25,7 +25,7 @@ NYA_INTERNAL void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTop
  */
 
 void gny_system_camera_render(NYA_Window* window) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     /*
      * ── 1. Secondaries, into their own targets ──
@@ -93,7 +93,7 @@ b8 _gny_camera_target_ensure(NYA_Window* window, GNY_CameraView* view) {
 void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) {
     GNY_World* world = gny_world();
 
-    nya_perf_time_this_scope("gny_world_pass");
+    nya_scope("gny_world_pass");
 
     // always through the offscreen target, bloom or not: the light pass multiplies whatever is in the target, and
     // drawing straight to the window would darken the background layer behind the world too, so toggling bloom

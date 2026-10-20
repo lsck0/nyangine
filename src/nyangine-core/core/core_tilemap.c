@@ -126,7 +126,7 @@ void nya_tilemap_draw(NYA_Window* window, const NYA_Tilemap* map) {
 }
 
 void nya_tilemap_layer_draw(NYA_Window* window, const NYA_Tilemap* map, u32 layer_index) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     nya_assert(window != nullptr);
 

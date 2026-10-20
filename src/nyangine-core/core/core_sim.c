@@ -43,7 +43,7 @@ void nya_system_sim_deinit(void) {
 }
 
 void nya_system_sim_apply_commands(void) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     NYA_SimSystem* sim = &nya_world()->sim_system;
 
@@ -75,7 +75,7 @@ void nya_system_sim_apply_commands(void) {
 }
 
 void nya_system_sim_end_frame(void) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     NYA_SimSystem* sim = &nya_world()->sim_system;
 

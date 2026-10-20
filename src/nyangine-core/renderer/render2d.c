@@ -380,7 +380,7 @@ void nya_render2d_flush(NYA_Window* window) {
     nya_trace_scope_fallback(NYA_TRACE_BATCH2D);
 
     // timed per call: the run count is the draw call count, and the total is what it costs.
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     nya_assert(window != nullptr);
 
@@ -2238,7 +2238,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
  */
 
 void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, const f32x2* positions, u32 count, NYA_Color ambient) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     nya_assert(window != nullptr);
 

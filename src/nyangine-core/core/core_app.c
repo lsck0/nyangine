@@ -195,7 +195,7 @@ NYA_INTERNAL_CALLBACK void _nya_app_tick_layers(f32 delta_time_s) {
             if (!layer->enabled || on_update_fn == nullptr) continue;
 
             // a layer's id is its span name, so the breakdown says which layer.
-            nya_perf_time_this_scope(layer->id);
+            nya_scope_named(layer->id);
 
             on_update_fn(window, delta_time_s);
         }
@@ -238,7 +238,7 @@ NYA_INTERNAL_CALLBACK void _nya_app_render_layers(f32 delta_time_s) {
             if (!layer->enabled || on_render_fn == nullptr) continue;
 
             // the layer's id names its span.
-            nya_perf_time_this_scope(layer->id);
+            nya_scope_named(layer->id);
 
             on_render_fn(window);
         }
@@ -513,7 +513,7 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 }
 
 void nya_app_events_pump(void) {
-    nya_perf_time_this_scope("frame_event_handling");
+    nya_scope("frame_event_handling");
 
     nya_event_dispatch((NYA_Event){
         .type = NYA_EVENT_HANDLING_STARTED,
@@ -640,11 +640,10 @@ void nya_app_run(void) {
         // lands in _nya_app_handle_shutdown_signal when NYA_EXIT_AFTER_* runs out, so this frame is the last.
         nya_signals_budget_step(app);
 
-        // before the frame timer opens, so that timer is the frame's depth 0 span. nya_perf_frame_spans selects on
-        // this frame number.
-        nya_perf_frame_begin();
+        // before the frame's scope opens, so every scope of a frame closes into that frame's figures.
+        nya_scope_frame_end();
 
-        nya_perf_time_this_scope("frame");
+        nya_scope("frame");
 
         {
             nya_event_dispatch((NYA_Event){
@@ -760,7 +759,7 @@ void _nya_app_update(void) {
     nya_integrity_sweep(app->frame_stats.frame_start_time_ns);
 
     while (app->frame_stats.time_behind_ns >= (s64)app->options.time_step_ns) {
-        nya_perf_time_this_scope("frame_updating");
+        nya_scope("frame_updating");
         nya_event_dispatch((NYA_Event){
             .type = NYA_EVENT_UPDATING_STARTED,
         });
@@ -801,7 +800,7 @@ b8 _nya_app_any_window_has_focus(void) {
 }
 
 void _nya_app_render(void) {
-    nya_perf_time_this_scope("frame_rendering");
+    nya_scope("frame_rendering");
     nya_event_dispatch((NYA_Event){
         .type = NYA_EVENT_RENDERING_STARTED,
     });

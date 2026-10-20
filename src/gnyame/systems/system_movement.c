@@ -12,7 +12,7 @@
  */
 
 void gny_system_player_input_update(f32 delta_time_s) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     // Held keys, so polling is right here in a way it is not for a click: what matters is whether the
     // key is down during this tick, not that it changed.
@@ -76,7 +76,7 @@ void gny_system_player_input_update(f32 delta_time_s) {
  */
 
 void gny_system_camera_follow_update(f32 delta_time_s) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     nya_unused(delta_time_s);
 

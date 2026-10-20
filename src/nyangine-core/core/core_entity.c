@@ -139,7 +139,7 @@ void nya_system_entity_deinit(void) {
 
 void nya_system_entity_update(f32 delta_time_s) {
     // walks every slot, so this scales with the world, not with what is awake.
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     // physics has written this tick's positions, so queries during update see them.
     nya_system_entity_grid_rebuild();
@@ -352,7 +352,7 @@ void nya_system_entity_transforms_update(void) {
     // the whole cost of the hierarchy when nothing is parented.
     if (system->parented_count == 0) return;
 
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     /* From the roots down, so a chain resolves in one pass. */
     nya_entity_foreach (entity) {
@@ -380,7 +380,7 @@ f32_4x4 nya_entity_world_matrix(const NYA_Entity* entity) {
  */
 
 void nya_system_entity_transforms_capture(void) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
@@ -582,7 +582,7 @@ void nya_system_entity_render(NYA_Window* window) {
 }
 
 void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     NYA_EntityHandle visible[NYA_ENTITY_MAX];
     u32              count = nya_entity_query_rect(min, max, visible, NYA_ENTITY_MAX);
@@ -640,7 +640,7 @@ void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
  */
 
 void nya_system_entity_grid_rebuild(void) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     NYA_EntitySystem* system = &nya_world()->entity_system;
     NYA_EntityGrid*   grid   = &system->grid;
@@ -1320,7 +1320,7 @@ NYA_INTERNAL int _nya_entity_light_compare(const void* left, const void* right) 
 }
 
 u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32x2* out_positions, u32 capacity) {
-    nya_perf_time_this_function();
+    nya_scope_function();
 
     nya_assert(out != nullptr);
     nya_assert(out_positions != nullptr);

@@ -287,7 +287,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage, s64 fail_under, b8 want
             .post_build_hooks = { &hook_remove_input_file, },
         };
 
-        // the vendor archives are spliced in after every argument, so they still follow the engine object. base_perf.h defines an extern inline function, which C emits once in every object including the header, so the test and the engine each carry an identical copy.
+        // the vendor archives are spliced in after every argument, so they still follow the engine object.
         if (shares_engine) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ TEST_ENGINE_OBJECT, nullptr });
         if (coverage) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
 
